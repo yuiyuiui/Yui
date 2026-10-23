@@ -377,8 +377,11 @@ class Trial:
             raise ValueError('首个请求缺少冻结题目，拒绝发送。')
         return result
 
-    def observe_model_event(self, event: dict) -> None:
+    def observe_model_event(self, event: dict, request_number=None) -> None:
         validate_model_event(event, self.tool_names, strict=self.strict)
+        execution=getattr(self,'execution',None)
+        if execution:
+            execution.model_event(self.execution_task,str(self.logs),request_number,event)
         if event.get('type') == 'response.output_item.done':
             item = event['item']
             self.model_history[item['id']] = item
@@ -431,12 +434,13 @@ class Trial:
                 self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
 
             def do_POST(self):
-                if getattr(trial,'submission_closed',False):
+                execution=getattr(trial,'execution',None)
+                if getattr(trial,'submission_closed',False) or (execution and execution.cancelled(trial.execution_task)):
                     length=int(self.headers.get('Content-Length','0'))
                     self.rfile.read(length)
                     append(trial.logs/'local-cancellations.jsonl',{
                         'layer':'post_submission_request_suppressed','upstream_transmitted':False,
-                        'reason':'A real submit tool already completed this stage; no further model request is needed.'})
+                        'reason':'ACCEPTED_ARTIFACT' if getattr(trial,'submission_closed',False) else 'EXTERNAL_CANCEL'})
                     body=b'{"error":{"message":"Stage closed after accepted submission"}}'
                     self.send_response(409);self.send_header('Content-Type','application/json')
                     self.send_header('Content-Length',str(len(body)));self.send_header('Connection','close')
@@ -451,6 +455,7 @@ class Trial:
                     if self.headers.get('Content-Encoding') == 'gzip': body = gzip.decompress(body)
                     payload = trial.normalize_request(json.loads(body))
                     request_number = trial.api_calls
+                    if execution: execution.request_started(str(trial.logs),request_number)
                     stream_done=threading.Event()
                     with trial.relay_stream_lock:
                         trial.relay_streams[request_number]=stream_done
@@ -493,7 +498,7 @@ class Trial:
                                     if line.startswith(b'data: '):
                                         try: event = json.loads(line[6:])
                                         except json.JSONDecodeError: continue
-                                        trial.observe_model_event(event)
+                                        trial.observe_model_event(event,request_number)
                                 log.write(block); log.flush()
                                 if not self.forward_sse(block, request_number):
                                     return
@@ -502,7 +507,7 @@ class Trial:
                                 if line.startswith(b'data: '):
                                     try: event = json.loads(line[6:])
                                     except json.JSONDecodeError: continue
-                                    trial.observe_model_event(event)
+                                    trial.observe_model_event(event,request_number)
                             log.write(pending)
                             if not self.forward_sse(pending, request_number):
                                 return
@@ -550,6 +555,8 @@ class Trial:
 
     def receive_until(self, predicate, deadline: float):
         while time.monotonic() < deadline:
+            execution=getattr(self,'execution',None)
+            if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
             try: msg = self.inbox.get(timeout=min(1, deadline - time.monotonic()))
             except queue.Empty:
                 if self.proc.poll() is not None: raise RuntimeError('Codex 传输进程提前结束。')
@@ -659,6 +666,8 @@ tool_suggest = false
         self.proc = subprocess.Popen(command,
             cwd=self.work / 'input', env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=err, text=True, bufsize=1, start_new_session=True)
+        if getattr(self,'execution',None):
+            self.execution.register_process(self.proc,'model-carrier',self.execution_task)
 
         def reader():
             for line in self.proc.stdout:
@@ -668,7 +677,8 @@ tool_suggest = false
                     self.inbox.put(msg)
                 except json.JSONDecodeError:
                     append(self.logs / 'invalid-events.jsonl', {'text': line})
-        threading.Thread(target=reader, daemon=True).start()
+        self.reader_thread=threading.Thread(target=reader, daemon=True)
+        self.reader_thread.start()
         self.rpc('initialize', {'clientInfo': {'name': 'yui', 'version': self.harness_version},
                                 'capabilities': {'experimentalApi': True}})
         self.proc.stdin.write(json.dumps({'method': 'initialized'}) + '\n'); self.proc.stdin.flush()
@@ -713,6 +723,11 @@ tool_suggest = false
             message = continuation_prompt
 
     def interrupt_active_turn(self, reason='DEADLINE') -> None:
+        prior=getattr(self,'_stopping',False);self._stopping=True
+        try:return self._interrupt_active_turn(reason)
+        finally:self._stopping=prior
+
+    def _interrupt_active_turn(self, reason='DEADLINE') -> None:
         # turn/start may have been sent just before the deadline. Consume its
         # own acknowledgement before deciding which turn to interrupt.
         if self.pending_turn_start_id is not None:

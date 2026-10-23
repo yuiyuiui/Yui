@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 from runtime_config import load_lock
+from execution_state import current, Cancelled, terminate_owned, identity
 
 
 
@@ -87,14 +88,38 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
         profile.write_text(sandbox_profile(work))
         cmd = ['/usr/bin/sandbox-exec', '-f', str(profile)] + cmd
     started = time.monotonic()
+    recorder, task = current()
+    if recorder: recorder.check(task)
+    check = recorder.lean_started(task,file) if recorder else None
+    process = None; owner = None
     try:
-        p = subprocess.run(cmd, cwd=work / 'output', env=lean_env(work, extra),
-                           capture_output=True, text=True, timeout=timeout)
-        return {'exit_code': p.returncode, 'stdout': p.stdout, 'stderr': p.stderr,
-                'wall_seconds': time.monotonic() - started}
-    except subprocess.TimeoutExpired as e:
-        return {'exit_code': 124, 'stdout': str(e.stdout or ''), 'stderr': 'Lean timeout',
-                'wall_seconds': time.monotonic() - started}
+        process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
+        owner = recorder.register_process(process,'lean',task) if recorder else identity(process.pid)
+        while True:
+            try:
+                stdout,stderr=process.communicate(timeout=.1)
+                result={'exit_code':process.returncode,'stdout':stdout,'stderr':stderr,'wall_seconds':time.monotonic()-started}
+                break
+            except subprocess.TimeoutExpired:
+                cancelled=recorder is not None and recorder.cancelled(task)
+                if cancelled or time.monotonic()-started>=timeout:
+                    stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+                    if not stopped: raise RuntimeError('Native process cleanup could not be confirmed')
+                    stdout,stderr=process.communicate()
+                    result={'exit_code':130 if cancelled else 124,'stdout':stdout,
+                        'stderr':stderr+('\nExternal cancellation' if cancelled else '\nLean timeout'),
+                        'wall_seconds':time.monotonic()-started,'cancelled':cancelled}
+                    break
+        if recorder: recorder.lean_finished(task,check,result)
+        if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
+        return result
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                if recorder: recorder.stop_process(process)
+                elif owner: terminate_owned(process,owner)
+            if recorder: recorder.process_finished(process)
 
 
 def sha256(path: Path) -> str:

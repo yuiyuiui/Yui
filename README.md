@@ -36,6 +36,11 @@ The selected profile is `gpt-6-luna`, reasoning `high`, Standard speed, through
 an existing authenticated Codex subscription. There is no automatic model
 fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
 the runtime discloses its conservative fallback and records observed concurrency.
+This limit applies per case; the test batch has a separate concurrent-case limit.
+Each case writes `nl0-to-lean/execution-status.json`, with coalesced one-second
+updates and a five-second heartbeat. Recording makes no model calls. See the
+[execution protocol](rigorous-proof/translation/references/execution-protocol.md)
+for queues, scoped cancellation and the desktop main-chat Stop limitation.
 
 The current strong local boundary uses macOS `sandbox-exec`, a fresh carrier
 home/state/working directory, an upstream request allowlist, and offline Lean
@@ -81,10 +86,14 @@ under `test/`. The Lie exercise has been identified as Humphreys, GTM 9,
 section 27, exercise 7. The geometry/PDE target conventions were confirmed by
 the user on 2026-10-23, and their approved statements are frozen in the case
 directories. See [the continuation report](test/results/context-confirmation-v1/REPORT.md).
-Geometry/Lie NL0 attempts stopped before acceptance. The wave-map revision
-passed the structural gate but failed actual Audit A; its translation gate
-correctly refused the source. A registered input, candidate, source probe or
-reported obstacle is not a passing mathematical test.
+Later development produced an accepted Lie NL0/Audit A
+([actual receipt inspection](test/results/lie-audit-a-v8/inspection.json));
+its complete Lean/Audit B workflow remains unfinished. Geometry and wave-map
+candidates still lack a passing complete workflow. Earlier reports retain their
+original run scope. A candidate, source probe or reported obstacle is not a
+passing mathematical test. Execution infrastructure has separate
+[software controls](rigorous-proof/tests/results/execution-controls-v1/REPORT.md),
+which made no model calls and are not exercise passes.
 
 No paper-scale benchmark has run in this repository. Future results must report
 acceptance, end-to-end and phase time, all-agent token usage, failures, execution

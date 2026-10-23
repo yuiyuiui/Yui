@@ -24,6 +24,7 @@ import ir
 import strategy_bank
 import scheduler
 import concurrency
+import execution_state as execution
 from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'scripts'))
@@ -231,13 +232,26 @@ class Stage(carrier.Trial):
                            'packet':ir.local_packet(self.cpath,self.plan,self.step)},ensure_ascii=False)
 
     def execute(self):
+        self.execution=getattr(self.budget,'execution',None) or execution.current()[0]
+        self.execution_task=execution.current()[1] or self.step or 'stage-'+hashlib.sha256(str(self.logs).encode()).hexdigest()[:12]
+        recorder=self.execution
+        if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode)
         queued = time.monotonic()
         limiter = self.budget or STAGE_LIMITER
-        if limiter is None:
-            return self._execute()
-        with limiter:
-            self.queue_seconds = time.monotonic()-queued
-            return self._execute()
+        try:
+            with execution.activate(recorder,self.execution_task):
+                if recorder:recorder.check(self.execution_task)
+                if limiter is None:return self._execute()
+                with limiter:
+                    self.queue_seconds = time.monotonic()-queued
+                    return self._execute()
+        except execution.Cancelled as error:
+            result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL',
+                'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT'}
+            shutil.rmtree(self.work)
+            ir.write(self.logs/'result.json',result)
+            if recorder:recorder.task(self.execution_task,state='CANCELLED',finished_at_utc=execution.now())
+            return result,None
 
     def _execute(self):
         user = self.prompt()
@@ -271,11 +285,18 @@ class Stage(carrier.Trial):
                 'developerInstructions':'','dynamicTools':self.tools,'environments':[],
                 'experimentalRawEvents':True})
             self.thread_id = thread['thread']['id']
+            if getattr(self,'execution',None):
+                self.execution.task(self.execution_task,state='RUNNING',activity='MODEL_RUNNING',
+                    model_started_at_utc=execution.now(),model_thread_id=self.thread_id)
             self.solve_turns(user)
             result['status'] = 'ACCEPTED' if self.accepted else 'NO_ACCEPTED_ARTIFACT'
             if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
+        except execution.Cancelled as e:
+            result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
+            try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
+            except Exception as error:result['interrupt_error']=str(error)
         except TimeoutError as e:
             result.update({'status':'UNFINISHED','stop_reason':'DEADLINE','error':str(e)})
             try:
@@ -303,9 +324,16 @@ class Stage(carrier.Trial):
                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
                            'continuations':self.continuation_count,'finished_at_utc':carrier.now()})
             if self.proc:
-                self.proc.terminate()
-                try: self.proc.wait(timeout=5)
-                except Exception: self.proc.kill();self.proc.wait()
+                if getattr(self,'execution',None):
+                    if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'
+                else:
+                    self.proc.terminate()
+                    try: self.proc.wait(timeout=5)
+                    except Exception: self.proc.kill();self.proc.wait()
+                reader=getattr(self,'reader_thread',None)
+                if reader:reader.join(timeout=1)
+                for stream in (self.proc.stdin,self.proc.stdout):
+                    if stream:stream.close()
             if self.relay:
                 self.relay.shutdown()
                 try:self.drain_relay_streams()
@@ -353,5 +381,10 @@ class Stage(carrier.Trial):
                 result['cleanup_error']=str(cleanup_error)
             ir.write(self.logs/'result.json',result)
             if self.accepted: ir.write(self.logs/'accepted.json',self.accepted)
+            if getattr(self,'execution',None):
+                values={'activity':'STAGE_FINISHED','stage_result':{k:result.get(k) for k in
+                    ['status','task_outcome','execution_health','acceptance_scope']},'usage_ledger':str(self.logs/'usage.json')}
+                if self.step is None:values.update(state='CANCELLED' if result['status']=='CANCELLED' else 'FINISHED',finished_at_utc=execution.now())
+                self.execution.task(self.execution_task,**values);self.execution.flush(force=True)
         return result,self.accepted
 

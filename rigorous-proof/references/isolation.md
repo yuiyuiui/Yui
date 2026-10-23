@@ -68,3 +68,9 @@ Each stage snapshots its runtime/rules, records actual requests and responses,
 and independently reads back exposure and usage. `measurement_valid` requires
 the requested observed model, confirmed Standard tier, complete token ledger,
 and no recorded execution fault. It does not imply mathematical acceptance.
+
+Case-local execution snapshots/control files are controller material, not
+worker inputs. Their updates and heartbeats make no model calls. Independent
+case workflows share only immutable toolchain/rule material. See
+[the execution protocol](../translation/references/execution-protocol.md) for
+scoped stops and the explicit limitation of the desktop main-chat Stop button.

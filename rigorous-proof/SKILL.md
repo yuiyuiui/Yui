@@ -21,7 +21,10 @@ invalidation rules; completing stage one does not require stage two.
    authority and exact source version first; do not reconstruct or re-audit an
    unchanged proof. Read [translation](translation/references/stage.md),
    [the working sequence](translation/references/integrated-workflow.md), and
-   [Audit B](translation/references/audit-b.md). Use
+   [Audit B](translation/references/audit-b.md). Operators use
+   [execution and file-based control](translation/references/execution-protocol.md)
+   for parallel queues, status and stops; workers need only their frozen packet.
+   Use
    `translation/scripts/source_preparation.py` for bounded shared extraction,
    then `workflow.py` for source/IR freeze, proof work and final gates.
 3. **Full workflow.** Complete track one, then track two. A changed mathematical

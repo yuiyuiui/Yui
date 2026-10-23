@@ -50,9 +50,13 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
 | Audit B | Independently review source/type meaning, inspect actual dependencies/fields, resolve source M ports and check final export | audit_b.py, audit_probe.lean, located semantic receipt |
 
-All model stages share a disclosed `max_concurrency=auto|N` budget. The CLI's
+All model stages within one case share a disclosed `max_concurrency=auto|N` budget. The CLI's
 unknown hard limit resolves auto to a fallback of two, never a claimed maximum.
 Record requested/effective values, basis, observed peak and queue intervals.
+Independent cases own separate budgets/processes. Free executor slots claim
+pending jobs without waiting for the entire group. See
+[execution-protocol.md](execution-protocol.md) for ownership, file-based status,
+scoped stops and the desktop Stop limitation. No dashboard is needed.
 No-extraction uses the accepted original graph directly. Source changes after
 freeze require a new revision, not continued mutation of dispatched packets.
 

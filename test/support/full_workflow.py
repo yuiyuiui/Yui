@@ -9,10 +9,12 @@ import audit_b_review
 import ir
 import workflow
 import run_graph
+import execution_state
 
 
 def accepted(directory):
     directory=Path(directory);row=ir.load(directory/'stage/result.json')
+    if row['status']=='CANCELLED':raise execution_state.Cancelled('Stage cancelled externally')
     if row['status']!='ACCEPTED' or row.get('exposure',{}).get('status')!='TRANSMITTED-EXPOSURE-CHECK-PASSED':
         raise ValueError('No actual exposure-qualified submitted artifact: '+str(directory))
     return row
@@ -27,6 +29,7 @@ def audit_source(case,source,name,budget,progress):
             raise ValueError('The prepared audit is for a different exact source')
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
     a.run(directory,1200,budget=budget)
+    if budget.execution:budget.execution.check()
     result=a.collect(directory,a.ROOT/'test/results/audit-a-behavior-v1/behavioral-summary.json')
     if not result['full_acceptance']:raise ValueError('Actual Audit A did not pass: '+str(directory))
     return result
@@ -49,11 +52,11 @@ def from_interface(case,source,interface_name,workflow_name,budget,progress,cand
     interface_review.run(review,1200,budget=budget)
     checked=interface_review.collect(review)
     if not checked['all_checks_passed']:raise ValueError('Actual interface review did not pass: '+str(review))
-    bindings=ir.load(review/'bindings.json');destination=results/workflow_name
+    bindings=ir.load(review/'bindings.json');destination=budget.execution.root/'workflow' if budget.execution else results/workflow_name
     if bindings['source_graph']!=a.bind(source/'nl0.json') or bindings['spec']!=a.bind(source/'spec.json'):
         raise ValueError('The recovered interface is not bound to this exact source')
     workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract']['path'],bindings['plan']['path'],review/'review.json',destination,
-        audit_a=source/'audit-a.json',max_concurrency='auto')
+        audit_a=source/'audit-a.json',max_concurrency=budget.configuration['requested'])
     frozen=workflow.bound(destination)
     progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(destination))
     proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),destination/'proof-run',

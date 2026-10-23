@@ -160,6 +160,9 @@ integrity bookkeeping, not authentication of an owner who rewrites every record.
 
 ## 5. Run bounded proof work and actual assembly
 
+Follow [the execution protocol](execution-protocol.md) for queue ownership,
+per-case budgets, structured status, cancellation and finite batch exit.
+
 ```sh
 python3 scripts/workflow.py run /absolute/new-workflow \
   --shared-store /absolute/project/shared-store --timeout-seconds 180
@@ -169,8 +172,10 @@ The workflow's concurrency is fixed at freeze: `auto` uses a confirmed backend
 cap when available, otherwise the CLI's disclosed fallback two. A positive N is
 user-controlled, constrained only by a known backend hard limit. Print requested,
 effective and reason; record observed peak, per-stage queue/start/end and total
-time. One run-local budget covers all its model stages, including retries or
+time. One case-local budget covers its model stages, including retries or
 optional diagnostic stages. This is not account-wide distributed rate control.
+Other cases own separate budgets. Python coordination consumes no model slot.
+Free slots take the next queued job with a fresh model context for that node.
 
 Proof workers see only their frozen ports, allowed statements, own NL paragraphs
 and relevant definitions/views. No sibling proof or reference answer is sent.

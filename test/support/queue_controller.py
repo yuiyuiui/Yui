@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Owner-controlled repair queue sharing one actual model-stage budget.
+"""Finite case batch with independent processes and per-case model-stage budgets.
 
 Jobs are explicit test inputs, not instructions from the model. Fresh workers
 never receive this queue, other cases, or owner history. Failed jobs stop for
@@ -8,7 +8,6 @@ actual diagnosis; they are not automatically rewritten until they pass.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import datetime
 import hashlib
 import json
@@ -17,17 +16,16 @@ import re
 import shutil
 import threading
 import time
-import traceback
 
 import audit_a_campaign as a
-import full_workflow as f
-from clean_stage import ArtifactStage
 
 CASES={'geometry-product-dimension','lie-module-irreducibility','wave-map-energy'}
 
 
 def validate_job(value):
     common={'id','kind','case','interface','workflow'}
+    if 'max_concurrency' in value:
+        a.concurrency.resolve(value['max_concurrency']);common.add('max_concurrency')
     expected=common|({'run','audit'} if value.get('kind')=='nl0' else {'source','audit'} if value.get('kind')=='audit_source' else {'source'} if value.get('kind')=='translate' else {'source','candidate'} if value.get('kind')=='checked_interface' else set())
     if value.get('kind') not in {'nl0','audit_source','translate','checked_interface'} or set(value)!=expected:raise ValueError('Invalid explicit job schema')
     if value['kind']=='checked_interface' and (type(value['candidate']) is not int or value['candidate']<1):raise ValueError('Select an actual positive candidate number')
@@ -39,53 +37,93 @@ def validate_job(value):
         if not path.is_relative_to((a.ROOT/'test/results').resolve()) or not (path/'spec.json').is_file() or not (path/'nl0.json').is_file():raise ValueError('Source must be an exact staged case under test/results')
 
 
-def serve(queue,wait_for=None):
+def launch_case(job_file,out):
+    import subprocess,sys
+    out.mkdir(parents=True,exist_ok=False)
+    log=(out/'controller.log').open('w')
+    try:
+        return subprocess.Popen([sys.executable,'-u','-B',str(Path(__file__).with_name('case_runner.py')),
+            '--job',str(job_file),'--out',str(out/'nl0-to-lean')],stdout=log,stderr=log,start_new_session=True)
+    finally:log.close()
+
+
+def cancel_batch(directory):
+    from execution_state import atomic
+    atomic(Path(directory)/'control/stop.json',{'requested_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()})
+
+
+def serve(queue,wait_for=None,*,case_concurrency=3):
+    from execution_state import atomic,identity,terminate_owned,request_cancel
     queue=Path(queue).resolve();queue.mkdir(parents=True,exist_ok=True)
-    for name in ['pending','records','results']:(queue/name).mkdir(exist_ok=True)
+    for name in ['pending','records','results','cases']:(queue/name).mkdir(exist_ok=True)
+    if (queue/'batch.json').exists():raise ValueError('Preserve the previous finite batch; use a new queue directory')
     shutil.copyfile(__file__,queue/'controller.py.snapshot.txt')
-    if wait_for:
-        a.write(queue/'waiting.json',{'reason':'An older controller still owns the model-stage budget','completion_marker':str(wait_for)})
-        while not Path(wait_for).is_file():time.sleep(1)
-    budget=a.concurrency.Budget(a.concurrency.resolve());lock=threading.Lock();states={};active={};processed=set()
-    def progress(case,stage,job=None,**extra):
-        with lock:
-            states[job or case]={'case':case,'stage':stage,'timestamp_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),**extra}
-            tmp=queue/'progress.pending';a.write(tmp,states);tmp.replace(queue/'progress.json')
-            a.write(queue/'concurrency.json',budget.report())
-            print(case,stage,extra,flush=True)
-    def execute(job):
-        update=lambda case,stage,**extra:progress(case,stage,job=job['id'],**extra)
-        try:
-            if job['kind']=='nl0':
-                out=a.ROOT/'test/results'/job['run'];update(job['case'],'NL0_AUTHORING',directory=str(out))
-                stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',case_id=job['case'],
-                    inputs=out/'inputs.json',timeout=1800,budget=budget)
-                stage.execute();f.accepted(out);source=out/'stage/case'
-            else:source=(a.ROOT/'test/results'/job['source']).resolve()
-            if job['kind'] not in {'translate','checked_interface'}:f.audit_source(job['case'],source,job['audit'],budget,update)
-            result=(f.from_interface(job['case'],source,job['interface'],job['workflow'],budget,update,candidate=job['candidate'])
-                if job['kind']=='checked_interface' else f.translate(job['case'],source,job['interface'],job['workflow'],budget,update))
-        except Exception as error:
-            result={'status':'REPAIR_REQUIRED','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
-            update(job['case'],'REPAIR_REQUIRED',error=result['error'])
-        a.write(queue/'results'/(job['id']+'.json'),{'job':job,'result':result})
-        return result
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        while True:
-            for path in sorted((queue/'pending').glob('*.json')):
-                raw=path.read_bytes();job=json.loads(raw);validate_job(job)
-                if job['id'] in processed:raise ValueError('Preserve completed job; use a new unique ID')
-                record=queue/'records'/(job['id']+'.json')
-                if record.exists():raise ValueError('This queue already contains the job ID; start a fresh queue')
-                record.write_bytes(raw);a.write(record.with_suffix('.binding.json'),{'sha256':hashlib.sha256(raw).hexdigest()})
-                processed.add(job['id']);active[pool.submit(execute,job)]=job;path.unlink()
-            done=[future for future in active if future.done()]
-            for future in done:future.result();del active[future]
-            passed={row['case'] for row in states.values() if row['stage']=='WORKFLOW-PASSED'}
-            if not active and (passed==CASES or (queue/'stop-after-current.json').exists()):break
-            time.sleep(1)
-    a.write(queue/'final-concurrency.json',budget.report())
+    if wait_for and not Path(wait_for).is_file():
+        raise ValueError('Previous controller has not finalized; do not wait indefinitely or overlap ownership')
+    if type(case_concurrency) is not int or case_concurrency<1:raise ValueError('Positive case concurrency required')
+    jobs=[];case_ids=set()
+    for path in sorted((queue/'pending').glob('*.json')):
+        raw=path.read_bytes();job=json.loads(raw);validate_job(job)
+        if job['case'] in case_ids:raise ValueError('Duplicate active case ID in one batch')
+        case_ids.add(job['case']);record=queue/'records'/(job['id']+'.json')
+        if record.exists():raise ValueError('Preserve the completed job record')
+        record.write_bytes(raw);a.write(record.with_suffix('.binding.json'),{'sha256':hashlib.sha256(raw).hexdigest()})
+        jobs.append((job,record));path.unlink()
+    atomic(queue/'batch.json',{'case_concurrency':case_concurrency,'per_case_concurrency':'Independent auto|N budgets; no global model-stage semaphore',
+        'cases':{job['id']:{'case':job['case'],'execution_root':str(queue/'cases'/job['id']/'nl0-to-lean')} for job,_ in jobs}})
+    active={};states={};stopping=False
+    import signal
+    previous={}
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGINT,signal.SIGTERM):
+            previous[sig]=signal.getsignal(sig);signal.signal(sig,lambda *_:cancel_batch(queue))
+    try:
+        while jobs or active:
+            stopping=stopping or (queue/'control/stop.json').exists() or (queue/'stop-after-current.json').exists()
+            if stopping:
+                for job,record in jobs:
+                    states[job['id']]={'case':job['case'],'stage':'CANCELLED','model_worker_called':False}
+                    atomic(queue/'results'/(job['id']+'.json'),{'job':job,'result':{'status':'CANCELLED'}})
+                jobs.clear()
+            while jobs and len(active)<case_concurrency and not stopping:
+                job,record=jobs.pop(0);out=queue/'cases'/job['id'];process=launch_case(record,out)
+                owner=identity(process.pid)
+                if owner is None and process.poll() is None:raise RuntimeError('Cannot establish case process ownership')
+                active[job['id']]={'job':job,'process':process,'identity':owner,'out':out,'stop_started':None}
+                states[job['id']]={'case':job['case'],'stage':'STARTING','controller':owner}
+            for key,row in list(active.items()):
+                job,process,out=row['job'],row['process'],row['out'];root=out/'nl0-to-lean';snapshot=root/'execution-status.json'
+                if stopping and process.poll() is None:
+                    if row['stop_started'] is None:row['stop_started']=time.monotonic()
+                    if snapshot.exists():request_cancel(root)
+                    elif time.monotonic()-row['stop_started']>2 and row['identity']:terminate_owned(process,row['identity'])
+                    if time.monotonic()-row['stop_started']>35 and row['identity']:
+                        terminate_owned(process,row['identity'])
+                if snapshot.exists():
+                    value=json.loads(snapshot.read_text());states[key]={'case':job['case'],'stage':value['phase'],
+                        'state':value['controller']['state'],'status_file':str(snapshot),'counts':value['counts']}
+                if process.poll() is None:continue
+                result_path=root/'case-result.json'
+                result=json.loads(result_path.read_text()) if result_path.exists() else {'job':job,'result':{'status':'EXECUTION_FAULT','exit_code':process.returncode,'cleanup':'UNKNOWN'}}
+                atomic(queue/'results'/(key+'.json'),result)
+                states[key]={'case':job['case'],'stage':result['result']['status'],'status_file':str(snapshot)}
+                del active[key]
+            atomic(queue/'progress.json',states)
+            if jobs or active:time.sleep(.1)
+    finally:
+        for row in active.values():
+            root=row['out']/'nl0-to-lean'
+            if (root/'execution-status.json').exists():request_cancel(root)
+        for row in active.values():
+            try:row['process'].wait(timeout=35)
+            except __import__('subprocess').TimeoutExpired:
+                if row['identity']:terminate_owned(row['process'],row['identity'])
+        for sig,handler in previous.items():signal.signal(sig,handler)
+        atomic(queue/'final-concurrency.json',{'case_concurrency':case_concurrency,'active_case_processes':0,
+            'case_budgets':'INDEPENDENT','status':'CANCELLED' if stopping else 'FINITE_BATCH_FINISHED',
+            'scope':'No mathematical or execution acceptance inferred from controller termination.'})
+
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--queue',required=True);p.add_argument('--wait-for');args=p.parse_args();serve(args.queue,args.wait_for)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--queue',required=True);p.add_argument('--wait-for');p.add_argument('--case-concurrency',type=int,default=3);p.add_argument('--cancel',action='store_true');args=p.parse_args();cancel_batch(args.queue) if args.cancel else serve(args.queue,args.wait_for,case_concurrency=args.case_concurrency)

@@ -120,7 +120,10 @@ including mathematically dependent conditional bodies, after a typecheck gate.
 It records actual start/end intervals and assembles the real proofs. Shared
 exports can be sourced from an explicit checked source store. `run_graph.py`
 defaults to `max_concurrency=auto`, resolving to a disclosed fallback two when
-the CLI hard cap is unknown. All local model stages share the run budget.
+the CLI hard cap is unknown. All local model stages share their case's budget;
+other cases own separate budgets. Python coordination consumes no model slot.
+Free slots take the next queued node with a fresh model context. See
+[the execution protocol](execution-protocol.md) for records, stops and ownership.
 Queue intervals and observed
 peak are recorded separately from requested bounds. Bank access is
 disabled by default and optional when enabled. Historical 0.4 runs still used

@@ -6,11 +6,13 @@ import argparse
 from pathlib import Path
 import shutil
 import time
+import contextlib
 
 import ir
 import model_pilot as pilot
 import scheduler
 import concurrency
+import execution_state
 from shared_lemmas import Store
 
 
@@ -48,12 +50,31 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     out.mkdir(parents=True,exist_ok=False)
     started = time.monotonic()
     cpath, plan = package(Path(cpath).resolve(),Path(ppath).resolve(),out)
+    recorder=getattr(budget,'execution',None)
+    owns_recorder=recorder is None
+    if owns_recorder:
+        recorder=execution_state.Recorder(out,ir.contract(cpath)['id'],configuration)
+        budget.execution=recorder
+    recorder.update(phase='proof',bindings={'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json')})
+    try:
+        with execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():
+            return _run_frozen(cpath,plan,out,shared_store,configuration,worker_budget=budget,
+                timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder)
+    finally:
+        if owns_recorder:
+            status=recorder.state.get('proof_result','EXECUTION_FAULT')
+            recorder.close('CANCELLED' if recorder.cancelled() else status)
+
+
+def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder):
+    budget=worker_budget
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(pilot.__file__),Path(scheduler.__file__),
              Path(__file__).with_name('shared_lemmas.py'),Path(__file__).with_name('strategy_bank.py'),Path(concurrency.__file__),
              ir.ROOT/'scripts/run_pilot.py',ir.ROOT/'scripts/pilot_common.py',
              ir.ROOT/'scripts/runtime_config.py',ir.ROOT/'scripts/usage.py',ir.ROOT/'scripts/exposure.py',
              ir.ROOT/'scripts/execution_health.py']
+    files.append(ir.ROOT/'scripts/execution_state.py')
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
@@ -68,7 +89,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
         stage.harness_version = 'yui-0.1.0'
         result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
-    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph')
+    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
     if result['status'] == 'FRAGMENT_ASSEMBLED':
@@ -78,6 +99,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     from exposure import audit_run
     ir.write(out/'usage-summary.json',aggregate(out))
     ir.write(out/'exposure-summary.json',audit_run(out))
+    recorder.update(proof_result=result['status'])
     return result
 
 

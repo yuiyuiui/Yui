@@ -73,6 +73,9 @@ Expose `--max-concurrency auto|N` and print the resolved backend/bound/reason
 before dispatch. Unknown CLI hard caps use the disclosed fallback of two, not
 a claimed maximum. All model stages in one run share one budget; record actual
 peak, queue time and intervals. Legacy integer options are compatibility aliases.
+Here a run is one case, not a multi-case batch. Python coordination does not
+occupy a model slot. Apply [the execution protocol](execution-protocol.md) for
+the node queue, structured status file, scoped cancellation and finite exit.
 
 This stage produces translation artifacts and checked local Lean evidence.
 `FRAGMENT-ASSEMBLED` is not an Audit B verdict. After translation, read and apply

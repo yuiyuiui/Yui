@@ -5,6 +5,7 @@ import threading
 import time
 
 import ir
+from execution_state import current
 
 
 def resolve(requested='auto', *, backend='isolated_codex_cli', known_limit=None, fallback=2):
@@ -32,8 +33,9 @@ class Budget:
     Every actual model stage, including a retry or diagnostic stage, must use
     this same instance. Source lookup/compiler work is not a model stage.
     """
-    def __init__(self, configuration):
+    def __init__(self, configuration, *, execution=None):
         self.configuration = dict(configuration)
+        self.execution = execution
         self._slots = threading.BoundedSemaphore(configuration['effective'])
         self._lock = threading.Lock()
         self._local = threading.local()
@@ -44,7 +46,15 @@ class Budget:
     def __enter__(self):
         ir.need(not getattr(self._local, 'active', False), 'nested model-stage acquisition would deadlock')
         queued = time.monotonic()
-        self._slots.acquire()
+        recorder, task = current()
+        recorder = recorder or self.execution
+        if recorder: recorder.activity(task,'WAITING_FOR_MODEL_SLOT')
+        while not self._slots.acquire(timeout=.1):
+            if recorder: recorder.check(task)
+        try:
+            if recorder: recorder.check(task)
+        except BaseException:
+            self._slots.release(); raise
         started = time.monotonic()
         with self._lock:
             self._active += 1
@@ -54,6 +64,8 @@ class Budget:
             self._rows.append(row)
         self._local.active = True
         self._local.row = row
+        self._local.recorder = recorder
+        if recorder: recorder.model_slot(1)
         return self
 
     def __exit__(self, kind, value, traceback):
@@ -62,6 +74,7 @@ class Budget:
             self._local.row['raised'] = kind.__name__ if kind else None
             self._active -= 1
         self._local.active = False
+        if self._local.recorder: self._local.recorder.model_slot(-1)
         self._slots.release()
 
     def report(self):

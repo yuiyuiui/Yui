@@ -26,3 +26,11 @@ speedup is inferred when the baseline did not finish. Healthy budget exhaustion
 is MODEL_BUDGET_EXHAUSTED under the recorded configuration. Transport, sandbox,
 tool-service and controller faults are reported separately. Missing health or
 usage evidence remains UNVERIFIED. Never drop failed attempts from the report.
+
+Live execution records contain confirmed response usage and unreported-request
+coverage, not per-token estimates. Five-second liveness heartbeats do not update
+the usage observation timestamp. Ordinary snapshots coalesce to one per second;
+final ledgers remain authoritative. Recording/control consume no model calls.
+Separate per-case worker concurrency from concurrent-case count, and report
+explicit cancellation independently from a healthy model deadline. Reusing an
+existing compatible proof store in a new run remains disclosed warm reuse.

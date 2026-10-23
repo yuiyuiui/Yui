@@ -17,6 +17,7 @@ import concurrency
 import ir
 import run_graph
 import source_preparation as source
+import execution_state
 
 VERSION = 'nl0-lean-workflow-1'
 INTERFACE_CHECKS = {'source_route_and_coverage', 'parameters_and_allowed_inputs',
@@ -111,11 +112,16 @@ def bound(directory):
 
 def run(directory, *, shared_store=None, timeout_seconds=180, bank=False):
     out = Path(directory).resolve(); manifest = bound(out)
-    budget = concurrency.Budget(manifest['concurrency'])
-    result = run_graph.run(Path(manifest['contract']),Path(manifest['plan']),out/'proof-run',
-                           shared_store=shared_store,timeout_seconds=timeout_seconds,bank=bank,budget=budget)
-    bound(out)
-    return result
+    recorder=execution_state.Recorder(out,ir.contract(manifest['contract'])['id'],manifest['concurrency'])
+    budget = concurrency.Budget(manifest['concurrency'],execution=recorder)
+    try:
+        with execution_state.activate(recorder),recorder.signals():
+            result = run_graph.run(Path(manifest['contract']),Path(manifest['plan']),out/'proof-run',
+                               shared_store=shared_store,timeout_seconds=timeout_seconds,bank=bank,budget=budget)
+            bound(out)
+            return result
+    finally:
+        recorder.close('CANCELLED' if recorder.cancelled() else locals().get('result',{}).get('status','EXECUTION_FAULT'))
 
 
 def prepare_audit(directory):
@@ -160,14 +166,19 @@ def finish(directory, review):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('command',choices=['freeze','run','audit-prepare','audit-build','audit-check','status'])
+    ap.add_argument('command',choices=['freeze','run','audit-prepare','audit-build','audit-check','status','cancel'])
     ap.add_argument('directory',type=Path)
     for name in ('graph','spec','audit-a','incremental','contract','plan','interface-review','review','shared-store'):
         ap.add_argument('--'+name,type=Path)
     ap.add_argument('--max-concurrency',default='auto');ap.add_argument('--timeout-seconds',type=int,default=180)
+    ap.add_argument('--task',help='Cancel only this recorded task; omission cancels the case run')
     ap.add_argument('--bank',action='store_true');args=ap.parse_args()
     try:
-        if args.command=='freeze':
+        if args.command=='cancel':result=execution_state.request_cancel(args.directory,args.task)
+        elif args.command=='status' and (args.directory/'execution-status.json').is_file():
+            result=execution_state.inspect(args.directory)
+            if (args.directory/'manifest.json').is_file():result['frozen_source_status']=bound(args.directory)['status']
+        elif args.command=='freeze':
             result=freeze(args.graph,args.spec,args.contract,args.plan,args.interface_review,args.directory,
                           audit_a=args.audit_a,incremental=args.incremental,max_concurrency=args.max_concurrency)
         elif args.command=='run':result=run(args.directory,shared_store=args.shared_store,timeout_seconds=args.timeout_seconds,bank=args.bank)

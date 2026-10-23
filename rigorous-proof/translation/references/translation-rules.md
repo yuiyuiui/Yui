@@ -111,8 +111,9 @@ On a miss use the ordinary worker. Do not add an LLM call solely to classify a
 cache query. A strategy card is advice; a store entry is a checked conditional
 proof with all its guards visible. Include source-cache elaboration costs.
 
-Use the bounded scheduler after interfaces are frozen. Mathematical input
-dependencies become local binders for body work and actual proofs for final
+Use the bounded scheduler after interfaces are frozen. Queue ownership, state
+and cancellation follow [the execution protocol](execution-protocol.md).
+Mathematical input dependencies become local binders for body work and actual proofs for final
 assembly. A producer's failure leaves the final theorem incomplete. Record the
 initial library, all admissions and each node's selected inputs. Never make a
 shared theorem silently available through the global definition registry.
