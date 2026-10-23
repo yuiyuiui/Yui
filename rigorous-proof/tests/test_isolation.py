@@ -66,6 +66,27 @@ class IsolationTests(unittest.TestCase):
             import shutil
             shutil.rmtree(direct.work)
 
+    def test_artifact_phase_label_does_not_disable_live_library_tools(self):
+        worker=ArtifactStage(self.root/'library-stage','TASK',phase='initial-proof',library=True)
+        try:
+            self.assertEqual(worker.phase,'proof')
+            self.assertEqual(worker.artifact_phase,'initial-proof')
+            result=worker.dispatch('search_mathlib',{'query':'theorem dimH_empty'})
+            self.assertEqual(result['exit_code'],0,result)
+            self.assertIn('dimH_empty',result['matches'])
+            read=worker.dispatch('read_mathlib',{'path':'Mathlib/Topology/MetricSpace/HausdorffDimension.lean',
+                                                'start_line':1,'line_count':3})
+            self.assertIn('lines',read)
+            worker.accepted={'candidate':'done'}
+            self.assertFalse(worker.dispatch('search_mathlib',{'query':'dimH_empty'})['accepted'])
+        finally:
+            import shutil
+            shutil.rmtree(worker.work)
+
+    def test_disabled_library_remains_unavailable(self):
+        result=self.worker.dispatch('search_mathlib',{'query':'dimH_empty'})
+        self.assertFalse(result['accepted'])
+
     def test_yui_prompt_names_the_entry_and_real_rule_paths(self):
         prompt=self.worker.prompt()
         self.assertIn('path="SKILL.md"',prompt)

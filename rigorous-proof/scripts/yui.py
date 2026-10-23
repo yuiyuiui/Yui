@@ -25,6 +25,8 @@ def main():
     stage.add_argument('--inputs', type=Path, help='Frozen explicit task-document manifest')
     stage.add_argument('--kind', choices=['json','nl0'], default='json', help='Built-in structural contract; no automatic semantic certification')
     stage.add_argument('--case-id', help='Required case identity for NL0 authoring')
+    stage.add_argument('--no-library', action='store_true',
+                       help='Disable library search/read/probe tools, including for packet-only replay')
     tokens = commands.add_parser('usage')
     tokens.add_argument('directory', type=Path)
     exposure = commands.add_parser('exposure')
@@ -63,7 +65,7 @@ def main():
         print(json.dumps({'model_concurrency': budget.configuration}), flush=True)
         worker = ArtifactStage(args.out, args.prompt.read_text(), phase=args.phase, arm=args.arm,
                                timeout=args.timeout_seconds, budget=budget, inputs=args.inputs,
-                               kind=args.kind, case_id=args.case_id)
+                               kind=args.kind, case_id=args.case_id, library=not args.no_library)
         result, artifact = worker.execute()
         print(json.dumps({'stage': result, 'concurrency': budget.report()}, indent=2))
         blocked = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}

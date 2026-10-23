@@ -1,0 +1,301 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "full_target": "For every nonnegative integer n and every nonempty compact E⊆ℝ^n, with I=[0,1] and E×I given the concatenated Euclidean metric, prove dim_H(E×I)=dim_H(E)+1.",
+    "conclusion": "dim_H(E×I)=dim_H(E)+1.",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "nonnegative integer"
+      },
+      {
+        "symbol": "E",
+        "type": "subset of Euclidean ℝ^n"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "E is nonempty.",
+        "origin": "frozen-target.md:7-9"
+      },
+      {
+        "id": "H002",
+        "statement": "E is compact.",
+        "origin": "frozen-target.md:7-9"
+      }
+    ],
+    "definitions": [],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "case_elimination",
+        "contradiction_classical",
+        "direct",
+        "exists_elimination",
+        "forall_introduction",
+        "implication_introduction",
+        "modus_ponens",
+        "natural_induction",
+        "negation_introduction"
+      ],
+      "calculations": [
+        "Concatenated Euclidean distance has squared value |x−y|²+|t−u|²; projections are 1-Lipschitz, and diam(U×J)≤√(diam(U)²+diam(J)²). Subdivide [0,1] into at most 1/r+1 intervals of length at most r for 0<r≤1."
+      ],
+      "primitives": [
+        {
+          "symbol": "ℝ^n",
+          "type": "Euclidean space of dimension n",
+          "meaning": "The n-dimensional Euclidean space, with ℝ^0 a singleton."
+        },
+        {
+          "symbol": "dim_H",
+          "type": "Hausdorff dimension",
+          "meaning": "Critical exponent of Hausdorff measures; dim_H(∅)=0."
+        },
+        {
+          "symbol": "I",
+          "type": "subset of ℝ",
+          "meaning": "[0,1]."
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/problem.md",
+        "sha256": "1e1f8eadda708f481994a9df952e0c00d25dc8b9758ac77a9e8391c12949cc47"
+      },
+      {
+        "path": "inputs/source-context.md",
+        "sha256": "5287828a60c7329a2428f21c96d7a2757e1f39b0f8e13609b0551aab835760a4"
+      },
+      {
+        "path": "inputs/frozen-target.md",
+        "sha256": "01ba4435cea1270cca979c2bc45c642c54f010dcf8f9ae3af7129e1f0266ed0c"
+      },
+      {
+        "path": "inputs/proof-draft.json",
+        "sha256": "0bd2b5d063ecd895684c83222e3cb50a09f744c45bd300c04c018c92ce204930"
+      },
+      {
+        "path": "inputs/proof-completion.json",
+        "sha256": "2b42eaeb5974bdddfaf3267d86e4e413539103399af72b80df1223b153c898d2"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "spec_sha256": "312c9c7ad89b9e07365ed56b85f6d2482c9b2a6342dd2488d9350ea9ed0c56eb",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "statement": "E is nonempty.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "statement": "E is compact.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "If d<dim_H(A), the d-dimensional Hausdorff measure of A is infinite.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H"
+        ],
+        "source": {
+          "statement": "If d<dim_H(A), the d-dimensional Hausdorff measure of A is infinite.",
+          "hypotheses": [
+            "A is in an extended metric space with its Borel measurable structure; d is NNReal."
+          ],
+          "evidence": [
+            {
+              "path": "library/M001-0006/library-sources.json",
+              "sha256": "55313e0fb359726f773fe001aa619855264b1d97dbf48806a0fe170a60cd1b3b"
+            }
+          ],
+          "declaration": "hausdorffMeasure_of_lt_dimH",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31",
+          "signature": "@hausdorffMeasure_of_lt_dimH.{u_1} : ∀ {X : Type u_1} [inst : EMetricSpace.{u_1} X] [inst_1 : MeasurableSpace.{u_1} X]\n  [inst_2 :\n    @BorelSpace.{u_1} X\n      (@UniformSpace.toTopologicalSpace.{u_1} X\n        (@PseudoEMetricSpace.toUniformSpace.{u_1} X (@EMetricSpace.toPseudoEMetricSpace.{u_1} X inst)))\n      inst_1]\n  {s : Set.{u_1} X} {d : NNReal},\n  @LT.lt.{0} ENNReal (@Preorder.toLT.{0} ENNReal (@PartialOrder.toPreorder.{0} ENNReal ENNReal.instPartialOrder)) (↑d)\n      (@dimH.{u_1} X inst s) →\n    @Eq.{1} ENNReal\n      (@DFunLike.coe.{u_1 + 1, u_1 + 1, 1} (@MeasureTheory.Measure.{u_1} X inst_1) (Set.{u_1} X) (fun x => ENNReal)\n        (@MeasureTheory.Measure.instFunLike.{u_1} X inst_1)\n        (@MeasureTheory.Measure.hausdorffMeasure.{u_1} X inst inst_1 inst_2 ↑d) s)\n      (@Top.top.{0} ENNReal ENNReal.instTop)",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "For a countable family of nonnegative measurable ENNReal functions, the integral of the pointwise sum equals the sum of integrals.",
+        "definitions": [],
+        "binders": [],
+        "objects": [],
+        "source": {
+          "statement": "For a countable family of nonnegative measurable ENNReal functions, the integral of the pointwise sum equals the sum of integrals.",
+          "hypotheses": [
+            "Measurable space with measure; countable index type; all summands AEMeasurable."
+          ],
+          "evidence": [
+            {
+              "path": "library/M002-0007/library-sources.json",
+              "sha256": "01119424cec55e4311d11b42ce3180fd3755062cf5d437e9eb1bef2912cdef85"
+            }
+          ],
+          "declaration": "MeasureTheory.lintegral_tsum",
+          "module": "Mathlib.MeasureTheory.Integral.Lebesgue.Add",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/Lebesgue/Add.lean",
+          "source_sha256": "14da3dd3c269221e9ec43e91c6b22bb02d5db7f00e03c789661c72dffecf7b4a",
+          "signature": "@MeasureTheory.lintegral_tsum.{u_1,\n    u_2} : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : @MeasureTheory.Measure.{u_1} α m}\n  [Countable.{u_2 + 1} β] {f : β → α → ENNReal},\n  (∀ (i : β), @AEMeasurable.{u_1, 0} α ENNReal ENNReal.measurableSpace m (f i) μ) →\n    @Eq.{1} ENNReal\n      (@MeasureTheory.lintegral.{u_1} α m μ fun a =>\n        @tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace (fun i => f i a)\n          (SummationFilter.unconditional.{u_2} β))\n      (@tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace\n        (fun i => @MeasureTheory.lintegral.{u_1} α m μ fun a => f i a) (SummationFilter.unconditional.{u_2} β))",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "statement": "dim_H(E×I)=dim_H(E)+1.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E",
+          "I",
+          "dim_H"
+        ]
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H001",
+          "H002",
+          "M001",
+          "M002"
+        ],
+        "output": "P",
+        "definitions": [],
+        "rules": [
+          "direct",
+          "case_elimination"
+        ],
+        "locals": [],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Set D=dim_H(E), F=E×I. Boundedness from compactness and elementary cube covers of a bounded box show D≤n. For q>D, M001 gives H^q(E)=0. At scale δ≤1 use covers by positive-diameter r_j≤δ with arbitrarily small Σr_j^q; replace singleton members by tiny balls with summable arbitrarily small added cost. Cover I for each j with at most 1/r_j+1 intervals of length ≤r_j. The products cover F, have diameter ≤√2r_j, and total (q+1)-cost ≤2(√2)^(q+1)Σr_j^q. Letting costs and scales tend to zero yields H^(q+1)(F)=0, hence dim_H(F)≤D+1.",
+            "uses": [
+              "H002",
+              "M001"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "n",
+              "q",
+              "δ",
+              "r_j"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "If D>0 fix 0<s<D. M001 gives H^s(E)=∞, so scale contents c_s(E,δ) tend to infinity by their defining limit. For an arbitrary cover V_i of F with ρ_i=diam(V_i)≤δ≤1, let A_i,B_i be projections. Enlarge each B_i to an open interval J_i of length ≤ρ_i+η_i, choosing η_i>0 with Ση_iρ_i^s<ε. For every t∈I, the A_i with t∈J_i cover E: each (x,t) belongs to some V_i and B_i⊆J_i. Hence c_s(E,δ)≤Σ1_{J_i}(t)ρ_i^s pointwise. These are nonnegative measurable functions; M002 gives integral of the sum equals the sum of integrals. Integrating over I gives c_s(E,δ)≤Σ(ρ_i+η_i)ρ_i^s≤Σρ_i^(s+1)+ε. Zero-diameter terms vanish since s>0. Let ε→0 and infimize over product covers to obtain c_s(E,δ)≤c_(s+1)(F,δ); hence H^(s+1)(F)=∞ and dim_H(F)≥s+1. Taking every 0<s<D gives dim_H(F)≥D+1.",
+            "uses": [
+              "M001",
+              "M002"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "s",
+              "δ",
+              "V_i",
+              "ρ_i",
+              "A_i",
+              "B_i",
+              "J_i",
+              "η_i",
+              "ε",
+              "c_s"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "If D=0 choose x₀∈E by H001. The coordinate projection F→I is onto and 1-Lipschitz by the concatenated Euclidean metric. Directly, every countable cover of I has sum of diameters at least 1 (enlarge each covering set to an interval by arbitrarily small errors), so H^1(I)>0 and dim_H(I)≥1. Interval subdivisions show H^q(I)=0 for q>1, giving dim_H(I)≤1. The Lipschitz-cover estimate dim_H(image)≤dim_H(domain) follows by mapping each covering set and using diameter nonincrease. Thus dim_H(F)≥1=D+1. This holds for n=0 too. Combine with upper bound.",
+            "uses": [
+              "H001"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "I",
+              "x₀",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M001",
+            "at": "S001",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Apply in Euclidean Borel space to E and q>D."
+            ]
+          },
+          {
+            "input": "M001",
+            "at": "S002",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Apply in Euclidean Borel space to E and 0<s<D."
+            ]
+          },
+          {
+            "input": "M002",
+            "at": "S002",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Use counting measure on I and f_i(t)=ρ_i^s·1_{J_i∩I}(t), measurable since J_i is open."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

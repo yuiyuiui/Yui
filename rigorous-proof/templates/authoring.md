@@ -1,9 +1,10 @@
 # NL0 v2 authoring template
 
 Use this checklist to create canonical JSON, not a parallel proof authority.
-The complete [addition example](../tests/fixtures/closed-addition/nl0.json) and its
-[specification](../tests/fixtures/closed-addition/spec.json) demonstrate the format;
-they are not a benchmark or certification. Their audit remains unperformed.
+Read the complete [submission example](submission-example.md) for the exact
+spec/graph shape and local-witness accounting. This neutral format example is
+model-visible through `read_yui`; test fixtures remain outside that boundary.
+It is not a benchmark or certification, and its audit remains unperformed.
 
 ## Specification
 

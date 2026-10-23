@@ -16,10 +16,13 @@ import model_pilot as pilot
 class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=600, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None):
-        super().__init__(logs, Path(logs) / 'unused-contract.json', phase, timeout, budget=budget)
+        logs=Path(logs).resolve()
+        super().__init__(logs, logs / 'unused-contract.json', phase, timeout, budget=budget)
         if arm not in {'yui', 'direct'}:
             raise ValueError('Unknown instruction arm')
-        self.phase, self.arm, self.input_prompt, self.validator = phase, arm, prompt, validator
+        # The carrier's phase is a lifecycle guard (proof/closing/audit), not a
+        # metric label. Preserve its active phase for library/checking tools.
+        self.artifact_phase, self.arm, self.input_prompt, self.validator = phase, arm, prompt, validator
         self.instruction_arm = arm
         self.mode = phase
         self.rule_texts = {}
@@ -106,7 +109,15 @@ class ArtifactStage(pilot.Stage):
                 'The controller binds spec.inputs to all frozen task documents, pins to the verified runtime, '
                 'and graph.spec_sha256 to the resulting spec. Supply these fields as placeholders if needed. '
                 'All mathematical fields remain your responsibility. probe_library returns checked M-source evidence '
-                'inside this stage case directory; source.statement and hypotheses still need complete mathematical text. '
+                'inside this stage case directory. The controller binds M signature, source hashes, '
+                'declaration kind, commit and evidence from the actual successful probe matching its ID, '
+                'declaration and dotted module. These metadata fields may be omitted; never transcribe '
+                'or fabricate them. It does not change source.statement, hypotheses, binders or proof text; '
+                'all still need complete mathematical content. '
+                'Redundant aliases may also be omitted: H graph statement copies its own spec.hypotheses '
+                'statement, P statement copies spec.conclusion, and E/M source.statement copies its '
+                'primary proposition.statement. Existing conflicting texts are rejected, never silently '
+                'rewritten. Actual source signatures/source_statement remain separate fidelity obligations. '
                 'A successful check_artifact is structural validation, not Audit A acceptance.')
             self.input_prompt += ('\nFrozen structural contract: spec.format_version=2; graph.format_version=2; '
                 'spec.case_id=graph.case_id='+json.dumps(case_id)+'. '
@@ -135,6 +146,11 @@ class ArtifactStage(pilot.Stage):
 
     def dispatch(self, name, args):
         if name in {'search_mathlib', 'read_mathlib'}:
+            if name not in self.tool_names or self.accepted is not None:
+                result={'accepted':False,'error':'Library tool is unavailable or the stage is complete.',
+                        'feedback_kind':'candidate_rejected'}
+                pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0})
+                return result
             return super().dispatch(name, args)
         started = time.monotonic()
         try:
@@ -155,7 +171,8 @@ class ArtifactStage(pilot.Stage):
             elif name == 'probe_library':
                 from artifact_validation import signature_probe
                 self.lean_calls += 1
-                result = signature_probe(self.validator.directory, args['id'], args['declaration'], args['module'], self.lean_calls)
+                result = signature_probe(self.validator.directory, args['id'], args['declaration'], args['module'],
+                                         self.lean_calls, timeout=self.lean_timeout())
             elif name == 'read_task_input':
                 text = self.task_inputs[args['id']]
                 start, end = args['start'], args['end']

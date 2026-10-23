@@ -1,0 +1,27 @@
+BEGIN_SIGNATURE:M002
+@MeasureTheory.integral_prod.{u_1, u_2,
+    u_3} : ∀ {α : Type u_1} {β : Type u_2} {E : Type u_3} [inst : MeasurableSpace.{u_1} α]
+  [inst_1 : MeasurableSpace.{u_2} β] {μ : @MeasureTheory.Measure.{u_1} α inst}
+  {ν : @MeasureTheory.Measure.{u_2} β inst_1} [inst_2 : NormedAddCommGroup.{u_3} E]
+  [@MeasureTheory.SFinite.{u_2} β inst_1 ν]
+  [inst_4 : @NormedSpace.{0, u_3} Real E Real.normedField (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2)]
+  [@MeasureTheory.SFinite.{u_1} α inst μ] (f : Prod.{u_1, u_2} α β → E),
+  @MeasureTheory.Integrable.{u_3, max u_1 u_2} E
+      (@UniformSpace.toTopologicalSpace.{u_3} E
+        (@PseudoMetricSpace.toUniformSpace.{u_3} E
+          (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_3} E
+            (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2))))
+      (@SeminormedAddGroup.toContinuousENorm.{u_3} E
+        (@SeminormedAddCommGroup.toSeminormedAddGroup.{u_3} E
+          (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2)))
+      (Prod.{u_1, u_2} α β) (@Prod.instMeasurableSpace.{u_1, u_2} α β inst inst_1) f
+      (@MeasureTheory.Measure.prod.{u_1, u_2} α β inst inst_1 μ ν) →
+    @Eq.{u_3 + 1} E
+      (@MeasureTheory.integral.{max u_1 u_2, u_3} (Prod.{u_1, u_2} α β) E inst_2 inst_4
+        (@Prod.instMeasurableSpace.{u_1, u_2} α β inst inst_1)
+        (@MeasureTheory.Measure.prod.{u_1, u_2} α β inst inst_1 μ ν) fun z => f z)
+      (@MeasureTheory.integral.{u_1, u_3} α E inst_2 inst_4 inst μ fun x =>
+        @MeasureTheory.integral.{u_2, u_3} β E inst_2 inst_4 inst_1 ν fun y => f (@Prod.mk.{u_1, u_2} α β x y))
+BEGIN_AXIOMS:M002
+'MeasureTheory.integral_prod' depends on axioms: [propext, Classical.choice.{u}, Quot.sound.{u}]
+END_SOURCE:M002

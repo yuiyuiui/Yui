@@ -126,6 +126,15 @@ an explanation. Repeating author notes or generic assurances is not review.
    a definition, or a convenient abstract interface. Locally derived facts are
    permitted only after their derivation. This is accounting for the present
    argument, not a claim that its input set is minimal across all proofs.
+   A named theorem is also an imported fact unless its full required result
+   is actually proved locally. Explaining why its hypotheses hold is an
+   application check, not a proof of that theorem. For example, “apply FTC,”
+   “Fubini applies because the function is integrable,” “compactness gives
+   uniform continuity,” and “a dominated limit may be integrated” require
+   declared E/M inputs or complete earlier local proofs of the needed results.
+   Familiarity, a descriptive theorem name, or inclusion in an author-written
+   calculation-policy sentence cannot waive this obligation. Distinguish an
+   ordinary valid textbook proof from a closed NL0 packet under this contract.
 4. **output**: the derived theorem is exactly the output's full statement,
    including quantifier order, assumptions, scope, constants and endpoints.
 5. **scope**: temporary assumptions are correctly closed into the implication,
@@ -145,6 +154,11 @@ Source fidelity is a separate check. Same-context rereading is a diagnostic,
 not fresh replay. This standard does not authorize new agent/service dispatch;
 keep an unperformed replay UNVERIFIED. Metadata cannot authenticate a claimed
 identity or isolation; preserve actual execution evidence and disclose limits.
+
+For an authorized clean packet replay, expose only that frozen packet as a
+task document, plus the Yui procedure. Use `yui.py stage --no-library` so the
+reviewer cannot read other mathematical material through library tools.
+Source/signature verification is a separate stage with its own disclosed inputs.
 
 Use `audit-template` for scaffolds. Every generated verdict starts UNVERIFIED.
 Serialization may preserve actually made judgments, but cannot infer PASS from

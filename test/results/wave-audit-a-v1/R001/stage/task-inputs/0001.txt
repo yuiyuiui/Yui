@@ -1,0 +1,305 @@
+{
+  "contract_version": 2,
+  "case_id": "wave-map-energy",
+  "graph_sha256": "85c1a8325ff4f0168514c4db467d6c2371b5f50ab957fd03f4f7539a08a3fa3c",
+  "spec_sha256": "14c7c3916fa4dc928d17f933c091d89bba763edb9c26c761566cd4f46aa30ded",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "positive integer"
+    },
+    {
+      "symbol": "m",
+      "type": "positive integer"
+    },
+    {
+      "symbol": "u",
+      "type": "jointly smooth map R^n×(0,∞)→R^m"
+    },
+    {
+      "symbol": "q",
+      "type": "unit vector in R^m"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "exists_elimination",
+      "contradiction_classical"
+    ],
+    "calculations": [
+      "Finite Euclidean inner-product and finite-sum identities. FTC, compactness, uniform continuity, and Fubini are proved by the explicit arguments in the inference; none is a trusted calculation primitive."
+    ],
+    "primitives": [
+      {
+        "symbol": "R",
+        "type": "real numbers",
+        "meaning": "Real field, topology and Lebesgue measure."
+      },
+      {
+        "symbol": "R^k",
+        "type": "Euclidean space",
+        "meaning": "Euclidean space with inner product and Lebesgue measure."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "definitions": [
+    {
+      "id": "D001",
+      "symbol": "e",
+      "type": "R^n×(0,∞)→R",
+      "definition": "e(x,r)=|u_t(x,r)|²+Σ_{j=1}^n|∂_{x_j}u(x,r)|²",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "R^n"
+        },
+        {
+          "symbol": "r",
+          "type": "(0,∞)"
+        }
+      ],
+      "objects": [
+        "u",
+        "n"
+      ]
+    },
+    {
+      "id": "D002",
+      "symbol": "E",
+      "type": "(0,∞)→R",
+      "definition": "E(r)=Lebesgue integral over R^n of e(x,r)",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "r",
+          "type": "(0,∞)"
+        }
+      ],
+      "objects": [
+        "e"
+      ]
+    },
+    {
+      "id": "D003",
+      "symbol": "Δ_x",
+      "type": "operator on smooth R^m-valued maps",
+      "definition": "Δ_xu=Σ_{j=1}^n∂²_{x_j}u, componentwise",
+      "depends_on": [],
+      "requires": [],
+      "binders": [],
+      "objects": [
+        "u",
+        "n"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "For all x∈R^n and r>0, |u(x,r)|=1.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "u"
+      ]
+    },
+    {
+      "id": "H002",
+      "kind": "hypothesis",
+      "statement": "For all x∈R^n,r>0 there exists a∈R such that u_tt(x,r)-Δ_xu(x,r)=a u(x,r), with componentwise Δ_x.",
+      "definitions": [
+        "D003"
+      ],
+      "binders": [],
+      "objects": [
+        "u",
+        "Δ_x"
+      ]
+    },
+    {
+      "id": "H003",
+      "kind": "hypothesis",
+      "statement": "For each compact interval J⊂(0,∞), there is compact C_J⊂R^n such that u(x,r)=q for x∉C_J and r∈J.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "u",
+        "q"
+      ]
+    }
+  ],
+  "output": {
+    "id": "P",
+    "kind": "target",
+    "statement": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+    "definitions": [
+      "D001",
+      "D002",
+      "D003"
+    ],
+    "binders": [],
+    "objects": [
+      "e",
+      "E",
+      "u"
+    ]
+  },
+  "inference": {
+    "id": "R001",
+    "inputs": [
+      "H001",
+      "H002",
+      "H003"
+    ],
+    "output": "P",
+    "definitions": [
+      "D001",
+      "D002",
+      "D003"
+    ],
+    "rules": [
+      "direct",
+      "forall_introduction"
+    ],
+    "locals": [
+      {
+        "symbol": "r0",
+        "type": "positive real number",
+        "scope": "R001/argument",
+        "start": "S001",
+        "end": "S004",
+        "kind": "arbitrary",
+        "declaration": "Fix arbitrary r0>0.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "J",
+        "type": "compact interval in (0,∞) with r0 in its interior",
+        "scope": "R001/argument",
+        "start": "S002",
+        "end": "S004",
+        "kind": "witness",
+        "declaration": "Choose J using F001.",
+        "from_inputs": [],
+        "from_local": [
+          "F001"
+        ],
+        "objects": [
+          "r0"
+        ]
+      },
+      {
+        "symbol": "C_J",
+        "type": "compact subset of R^n",
+        "scope": "R001/argument",
+        "start": "S002",
+        "end": "S004",
+        "kind": "witness",
+        "declaration": "Choose the compact spatial set provided by H003 for J.",
+        "from_inputs": [
+          "H003"
+        ],
+        "from_local": [],
+        "objects": [
+          "J"
+        ]
+      }
+    ],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "Fix arbitrary r0>0. Choose δ with 0<δ<r0; the closed interval with endpoints r0−δ and r0+δ is a compact subinterval of (0,∞) containing r0 in its interior. This establishes F001: such an interval exists.",
+        "uses": [],
+        "uses_local": [],
+        "objects": [
+          "r0"
+        ],
+        "produces": [
+          {
+            "id": "F001",
+            "statement": "There exists a compact interval J⊂(0,∞) with r0 in its interior.",
+            "binders": [],
+            "objects": [
+              "r0"
+            ],
+            "assumptions": []
+          }
+        ],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S002",
+        "text": "Choose J using F001 and apply H003 to choose C_J. Outside C_J the map equals q for all times in J, so all its first derivatives vanish in the interior of J; continuity makes them vanish at boundary points too. Thus e is continuous, supported in the compact set C_J at each time in J, and bounded there; hence it is Lebesgue integrable. On the compact product C_J×J, the time derivative of e is uniformly continuous. The one-variable fundamental theorem of calculus expresses the difference quotient in time as the average of this derivative along the intervening time segment. Uniform continuity gives uniform convergence on C_J to the time derivative at r0. Since C_J has finite measure, integrating this uniform limit proves E'(r0)=the integral over C_J of the time derivative of e. This also proves E is differentiable there, since the support is common to all times in J.",
+        "uses": [
+          "H003"
+        ],
+        "uses_local": [
+          "F001"
+        ],
+        "objects": [
+          "J",
+          "C_J",
+          "u",
+          "q",
+          "e",
+          "E"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S003",
+        "text": "Differentiating the finite sum defining the energy density gives twice the inner product of the time derivative of the map with its second time derivative, plus twice the sum over spatial coordinates of the inner product of the first spatial derivative with the time derivative of that first spatial derivative. For each coordinate, the scalar product of the time derivative and the corresponding spatial derivative is smooth and compactly supported. Its derivative in that coordinate has integral zero: integrate first along that coordinate, where the one-variable fundamental theorem gives zero endpoint values, then integrate the other coordinates. Fubini applies because the derivative is continuous and compactly supported, hence absolutely integrable. Expanding that derivative therefore transfers the spatial derivative to the second spatial derivative with a minus sign. Summing yields E'(r0) equal to twice the integral of the inner product of the time derivative with the acceleration (second time derivative minus spatial Laplacian). Differentiating |u|²=1 in time gives that u is orthogonal to its time derivative. By H002 the acceleration is pointwise a scalar multiple of u; therefore its inner product with the time derivative vanishes pointwise. The integral is zero.",
+        "uses": [
+          "H001",
+          "H002"
+        ],
+        "uses_local": [],
+        "objects": [
+          "u",
+          "E",
+          "n",
+          "Δ_x"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S004",
+        "text": "Since r0>0 was arbitrary, integrability, differentiability and vanishing derivative hold for every positive time. No endpoint assertion is involved.",
+        "uses": [],
+        "uses_local": [],
+        "objects": [
+          "r0",
+          "e",
+          "E"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      }
+    ],
+    "applications": []
+  },
+  "warning": "Only listed inputs are premises. No source proof, ancestor proof, or ambient H is supplied. A packet is not an audit certificate.",
+  "packet_sha256": "a70b0aa80155e9b6356beedf2a844e6fbb5e13c3f04688255e8d17d3c08ebecd"
+}

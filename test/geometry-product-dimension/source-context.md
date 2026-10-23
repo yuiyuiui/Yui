@@ -1,4 +1,4 @@
-# Source context and pending target decision
+# Source context and approved target decision
 
 Source: Elias M. Stein and Rami Shakarchi, Real Analysis: Measure Theory,
 Integration, and Hilbert Spaces, Princeton Lectures in Analysis III.
@@ -14,8 +14,8 @@ Mathlib/Topology/MetricSpace/HausdorffDimension.lean proves dimH_empty=0.
 Thus with E empty, both E and E times I have dimension zero, and the displayed
 equality to dim(E)+1 does not hold with this convention.
 
-Proposed nontrivial test target, awaiting user confirmation: for d>=1 and a
+User-approved test target (2026-10-23, Asia/Shanghai): for d>=1 and a
 nonempty compact E in Euclidean R^(d-1), with I=[0,1] and the Euclidean/product
 metric convention explicitly identified, prove dim_H(E times I)=dim_H(E)+1.
-No proof has been run under this proposed modification. An empty-set convention
+The complete approved statement is frozen in frozen-target.md; acceptance requires the full test workflow. An empty-set convention
 change is an alternative target, not something to hide during Lean translation.

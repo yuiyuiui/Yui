@@ -1,0 +1,14 @@
+BEGIN_SIGNATURE:M002
+@MeasureTheory.lintegral_tsum.{u_1,
+    u_2} : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : @MeasureTheory.Measure.{u_1} α m}
+  [Countable.{u_2 + 1} β] {f : β → α → ENNReal},
+  (∀ (i : β), @AEMeasurable.{u_1, 0} α ENNReal ENNReal.measurableSpace m (f i) μ) →
+    @Eq.{1} ENNReal
+      (@MeasureTheory.lintegral.{u_1} α m μ fun a =>
+        @tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace (fun i => f i a)
+          (SummationFilter.unconditional.{u_2} β))
+      (@tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace
+        (fun i => @MeasureTheory.lintegral.{u_1} α m μ fun a => f i a) (SummationFilter.unconditional.{u_2} β))
+BEGIN_AXIOMS:M002
+'MeasureTheory.lintegral_tsum' depends on axioms: [propext, Classical.choice.{u}, Quot.sound.{u}]
+END_SOURCE:M002

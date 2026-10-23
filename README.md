@@ -78,9 +78,13 @@ universal automatic paper-to-Lean compiler behind this command.
 
 The three supplied exercise screenshots and source contexts are registered
 under `test/`. The Lie exercise has been identified as Humphreys, GTM 9,
-section 27, exercise 7. Geometry/PDE target conventions await confirmation;
-the Lie NL0 attempt stopped before acceptance. A registered input, a candidate
-proof or a reported obstacle is not a passing mathematical test.
+section 27, exercise 7. The geometry/PDE target conventions were confirmed by
+the user on 2026-10-23, and their approved statements are frozen in the case
+directories. See [the continuation report](test/results/context-confirmation-v1/REPORT.md).
+Geometry/Lie NL0 attempts stopped before acceptance. The wave-map revision
+passed the structural gate but failed actual Audit A; its translation gate
+correctly refused the source. A registered input, candidate, source probe or
+reported obstacle is not a passing mathematical test.
 
 No paper-scale benchmark has run in this repository. Future results must report
 acceptance, end-to-end and phase time, all-agent token usage, failures, execution

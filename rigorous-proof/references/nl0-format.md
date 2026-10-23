@@ -32,9 +32,10 @@ dependencies, unknown IDs, and disconnected retained branches fail.
 
 ## Specification fields
 
-Use [the authoring template](../templates/authoring.md) and the complete small
-[v2 format example](../tests/fixtures/closed-addition/nl0.json). Its pending audit is
-not a benchmark or proof certification. Required top-level spec fields are:
+Use [the authoring template](../templates/authoring.md) and the complete
+[model-visible submission example](../templates/submission-example.md). The
+example explains metadata placeholders and local-witness accounting; it is not
+a benchmark or proof certification. Required top-level spec fields are:
 
 - `format_version: 2`, `case_id`, `full_target`, `conclusion` (nonempty strings);
 - `parameters`: records `{symbol, type}`; parameter symbols reserve global names;
@@ -98,6 +99,22 @@ library dependencies need not be copied into the project graph; pin the library
 and inspect relevant axioms. Do not introduce project results as library M.
 M evidence includes the successful version-1 report from `probe_mathlib.py`,
 with the same ID, declaration, full signature, source bytes and toolchain pins.
+In the clean Yui NL0 carrier, `probe_library` produces this evidence and the
+submission adapter binds exact signature/source metadata from the successful
+probe matching the selected M ID, declaration and dotted module. Those metadata
+fields may be omitted from that tool's submitted JSON; canonical graph files
+still contain them in full. No unprobed source is filled from model memory.
+The adapter does not rewrite mathematical statements, hypotheses, definitions,
+binders or arguments. Their fidelity remains the author's and auditor's work.
+To avoid retranscribing mandatory duplicate strings, its tool input may omit
+an H node's `statement` (copied from the same artifact's `spec.hypotheses`),
+P's `statement` (copied from `spec.conclusion`), or an E/M `source.statement`
+(copied from that proposition's primary `statement`). This is serialization of
+one authoritative text, not a second premise or an inferred theorem. Canonical
+files contain all fields. Conflicting supplied duplicates are rejected with
+both texts shown; they are never silently overwritten. The actual external
+`source_statement` and the probed Lean signature remain separate source-fidelity
+evidence that Audit A must compare to the primary project restatement.
 Use a fresh probe output directory for a new source-query version. The helper
 refuses to overwrite existing evidence; `--replace-existing` deliberately
 archives previous outputs and revokes the old active receipt before rerunning.
@@ -158,7 +175,13 @@ names), `locals`, `argument`, and `applications`.
   formula, scope, and chosen rule. A correctly closed implication may retain
   the assumption in its antecedent. Deleting the ID cannot justify an output.
 - `applications`: records covering every directly used E/M input, with
-  `{input, at: Sddd, bindings, hypothesis_checks}`. The S paragraph must list
+  `{input, at: Sddd, bindings, hypothesis_checks}`.
+  `bindings` is a nonempty string spelling out the actual variable/parameter
+  substitution; it is not a JSON mapping. `hypothesis_checks` is an ordered
+  list of nonempty strings, one per declared source obligation. For example,
+  `"bindings": "Set the source parameter a to the current x."` records a
+  substitution; it does not prove its conditions.
+  The S paragraph must list
   this input in `uses`; only local facts available before that paragraph may
   supply application conditions. E applications additionally require
   an inference-local unique `id: Addd`; different actual uses of the same E

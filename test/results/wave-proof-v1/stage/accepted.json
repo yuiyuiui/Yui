@@ -1,0 +1,32 @@
+{
+  "status": "PROOF_CANDIDATE",
+  "target": "For positive integers n,m, jointly smooth u:R^n×(0,∞)→R^m and fixed unit q∈R^m satisfying |u|=1, u_tt−Δ_xu=a u pointwise for some real scalar a(x,t), and local-in-time uniform compact support of u−q, prove e(·,r)=|u_t|²+Σ_j|∂_j u|² is Lebesgue integrable for each r>0, E(r)=∫_{R^n}e(x,r)dx is differentiable at each r>0, and E'(r)=0. Norms are Euclidean and the gradient square is the Frobenius square. No claim is made at t=0.",
+  "proof": "Fix arbitrary r>0 and choose a closed interval J⊂(0,∞) with r in its interior. The support hypothesis gives compact C⊂R^n such that u(x,t)=q for x outside C and all t∈J. On the open set (R^n\\C)×int(J), u is constant, so u_t and all ∂_j u vanish. Thus for t∈int(J), e(·,t) is continuous and supported in C. It is bounded on C, and C is Lebesgue measurable with finite measure, so e(·,t) is Lebesgue integrable. Also E(t)=∫_C e(x,t)dx. The function e is smooth. Its derivative is ∂_t e=2u_t·u_tt+2Σ_j(∂_j u)·(∂_j u_t). This derivative is uniformly continuous on compact C×J. For h→0 with r+h∈int(J), the fundamental theorem of calculus gives [e(x,r+h)−e(x,r)]/h=∫_0^1∂_t e(x,r+θh)dθ for x∈C. Uniform continuity implies uniform convergence of this quotient on C to ∂_t e(x,r). The difference between the corresponding integrals is bounded by |C| times the uniform difference, which tends to zero. All these integrands vanish off C. Hence E is differentiable at r and E'(r)=∫_C∂_t e(x,r)dx. Differentiate |u|²=1 in t and in x_j to obtain u·u_t=0 and u·∂_j u=0; differentiating the latter in x_j gives u·∂_{jj}u=−|∂_j u|². Therefore u·Δ_xu=−Σ_j|∂_j u|². Taking the dot product of u_tt−Δ_xu=a u with u and using |u|²=1 gives a=Σ_j|∂_j u|²−|u_t|². Since u·u_t=0, the equation also gives u_t·u_tt=u_t·Δ_xu. For each j, smooth compactly supportedness of ∂_j u(·,r) and u_t(·,r), followed by one-dimensional integration by parts in x_j and Fubini componentwise, gives ∫(∂_j u)·(∂_j u_t)dx=−∫(∂_{jj}u)·u_t dx. These integrals exist because the integrands are continuous and compactly supported. Consequently E'(r)=2∫u_t·u_tt dx+2Σ_j∫(∂_j u)·(∂_j u_t)dx=2∫u_t·Δ_xu dx−2∫u_t·Δ_xu dx=0. Since r>0 was arbitrary, all conclusions hold at every required time.",
+  "cited_results": [
+    {
+      "result": "Continuous functions on compact sets are bounded; compact subsets of Euclidean space are Lebesgue measurable and have finite measure.",
+      "kind": "standard external theorem (elementary topology and measure)",
+      "applicability_obligations": "e is continuous on compact C and vanishes outside C, so it is bounded with finite-measure support; this gives integrability."
+    },
+    {
+      "result": "Fundamental theorem of calculus and uniform continuity of a continuous function on a compact set.",
+      "kind": "standard external theorem (elementary calculus)",
+      "applicability_obligations": "Applied to t↦e(x,t) on J and ∂_t e on C×J. The proof explicitly obtains uniform convergence of difference quotients and bounds the integral error by |C| times the uniform error; it does not assume a general differentiation-under-the-integral theorem."
+    },
+    {
+      "result": "Fubini's theorem and one-dimensional integration by parts for continuously differentiable compactly supported functions.",
+      "kind": "standard external theorem (integration)",
+      "applicability_obligations": "The factors and derivatives are smooth and compactly supported in C, hence integrable. Fubini and componentwise one-dimensional integration by parts apply, with zero boundary term."
+    },
+    {
+      "result": "Unverified candidates for later mathlib source probes: Mathlib.MeasureTheory.Integral.Bochner.Basic; Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus; Mathlib.MeasureTheory.Integral.Bochner.Fubini. No exact declaration is asserted, and no source probe was performed.",
+      "kind": "candidate references only, not invoked premises",
+      "applicability_obligations": "No Lean/mathlib pin was supplied by the frozen documents. Later work must inspect the exact pinned source, complete signatures, hypotheses, and connection to the stated Lebesgue integral."
+    }
+  ],
+  "boundary_cases": "The time argument is local around arbitrary r>0 and makes no claim at zero. C may depend on J. u itself need not be compactly supported; its derivatives and energy density vanish outside C since u equals fixed q there. No regularity of a is used: its value is derived pointwise. The full Frobenius sum is used.",
+  "unresolved_points": [
+    "Exact pinned Lean/mathlib source declarations for imported calculus and integration facts remain to be registered; the task documents provide no pin and no source probe was performed.",
+    "This is a proof candidate, not Audit A or Lean/Audit B acceptance."
+  ]
+}

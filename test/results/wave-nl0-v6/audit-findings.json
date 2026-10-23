@@ -1,0 +1,128 @@
+{
+  "inference": "R001",
+  "packet_sha256": "a70b0aa80155e9b6356beedf2a844e6fbb5e13c3f04688255e8d17d3c08ebecd",
+  "verdict": "FAIL",
+  "notes": "Packet-only replay: the conditional argument does not establish P from the listed packet inputs. Its first unsupported implication is in S002, where continuity/support and compactness are asserted to imply Lebesgue integrability; the packet's calculation policy expressly requires compactness/analysis facts to be proved in the inference, but the prose supplies no such proof. S002 then also invokes uniform continuity and FTC without proofs. S003 later invokes Fubini without proving it. The downstream energy identity and output therefore are not established. Input boundary: the supplied packet.json and the declared Yui rules read here only; no original problem, source proof, other inference, author notes, prior review, or other mathematical material was available/read. The packet's stated digest is reported; canonical hash binding and carrier identity/readback are outside this review and are not independently attested here.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The three cited H propositions are exactly the listed direct inputs and their stated applications are compatible: H003 supplies the common spatial compact set; H001 supplies the unit-norm identity; H002 supplies pointwise scalar-multiple acceleration. This checks the packet premises, not any external source fidelity.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inference/inputs"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "First unsupported implication: S002 says that e is continuous, supported in C_J and bounded there, 'hence' Lebesgue integrable, without proving the compact-measure/integrability facts that the explicit calculation policy says are not trusted primitives. It then invokes uniform continuity and FTC as established facts without the required explicit arguments. S003 also invokes Fubini without proving it. These gaps block the derivative identity and its asserted zero value; no repair or alternate route is supplied.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The prose relies on nontrivial compactness/measure, uniform-continuity, FTC, and Fubini results not supplied as inputs or proved locally. The calculation-policy sentence specifically says these are not trusted calculation primitives and are proved by arguments in the inference, but those arguments are absent. The named facts cannot be added as ambient premises.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "output": {
+      "verdict": "FAIL",
+      "notes": "The argument reaches the requested integrability, differentiability and zero derivative only by the unsupported steps in S002 and S003; hence it does not prove the full output for every r>0. There is no demonstrated endpoint assertion, consistent with the target.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/argument/3/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "r0 is introduced as arbitrary, F001 establishes existence of a compact interval around it, and the stated local choices remain within the argument. The final arbitrary-time step is the right quantifier-introduction shape and makes no endpoint claim. This does not cure the analytic gaps.",
+      "locations": [
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0/text",
+        "/inference/argument/3/text"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "There are no E/M inputs or applications. H003 is instantiated for the chosen J; H001 and H002 are used in S003 in the forms stated. No source-theorem applicability claim is made. The mathematical sufficiency of the resulting steps is separately failed above.",
+      "locations": [
+        "/inference/applications",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The packet states the relevant input and output formulas and expands the energy and Laplacian definitions. The target's time quantifier and requested integrability, differentiability, and derivative value are explicit. No producer proof or inherited equation number is needed to interpret them.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/output/statement",
+        "/definitions/0/definition",
+        "/definitions/1/definition",
+        "/definitions/2/definition"
+      ]
+    },
+    "object_closure": {
+      "verdict": "PASS",
+      "notes": "The actual objects used in the argument have packet declarations or arise as bound variables/witnesses: r0 is arbitrary; J has the earlier F001 existence basis; C_J is supplied by H003; u,q,n and the energy/Laplacian notation are declared. H002's scalar is existentially bound in its input and is used only through that assertion. No unsupported object-existence claim is needed for the identified failure.",
+      "locations": [
+        "/parameters",
+        "/definitions",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0/produces/0"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "Actual factual uses in S002 and S003 include compactness/measure integrability, uniform continuity, FTC, and Fubini, but these are neither direct inputs nor established earlier local facts. The policy says they are not trusted primitives. The S003 equation and vanishing conclusion depend on those missing results.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "On the exact supplied packet alone, the conditional proof is insufficient for the reasons located above; no outside mathematical material was used to fill them. The only mathematical task material read was packet.json (digest as stated in the packet); Yui instructions were procedural. No carrier/runtime identity or transmitted-material readback evidence is available to this reviewer, so this is an evidence-bound packet-only judgment, not an independently authenticated carrier attestation.",
+      "locations": [
+        "/packet_sha256",
+        "/warning",
+        "/logic/calculations/0",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "location": "/inference/argument/1/text",
+      "issue": "First unsupported implication: continuity, support in compact C_J, and boundedness are asserted to imply Lebesgue integrability, with the required compactness/measure argument omitted despite the calculation policy. The subsequent uniform-continuity and FTC steps in this same paragraph are also asserted rather than proved.",
+      "affected_output": "P: integrability of e(·,r), differentiability of E, and the derivative identity are not established."
+    },
+    {
+      "location": "/inference/argument/2/text",
+      "issue": "Fubini is invoked to pass from coordinatewise integration to the spatial integral, but no proof or permitted input supplies it; the energy identity and conclusion consequently remain unsupported even apart from the earlier S002 gap.",
+      "affected_output": "P: E'(r)=0 is not established."
+    }
+  ]
+}

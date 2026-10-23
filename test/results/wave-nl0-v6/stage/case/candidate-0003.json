@@ -1,0 +1,573 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "full_target": "Let n,m be positive integers; u:R^n×(0,∞)→R^m jointly smooth and q∈R^m unit. Assume |u|=1, u_tt−Δ_xu=a u pointwise for some real a, and for every compact time interval J, u=q outside a compact C_J uniformly on J. Define e=|u_t|²+Σ|∂_xj u|² and E=∫R^n e dx. Prove e(·,r) is Lebesgue integrable, E differentiable, and E'(r)=0 for each r>0; no endpoint assertion at 0.",
+    "conclusion": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "positive integer"
+      },
+      {
+        "symbol": "m",
+        "type": "positive integer"
+      },
+      {
+        "symbol": "u",
+        "type": "jointly smooth map R^n×(0,∞)→R^m"
+      },
+      {
+        "symbol": "q",
+        "type": "unit vector in R^m"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "For all x∈R^n and r>0, |u(x,r)|=1.",
+        "origin": "frozen-target.md:7-10"
+      },
+      {
+        "id": "H002",
+        "statement": "For all x∈R^n,r>0 there exists a∈R such that u_tt(x,r)-Δ_xu(x,r)=a u(x,r), with componentwise Δ_x.",
+        "origin": "frozen-target.md:11-13"
+      },
+      {
+        "id": "H003",
+        "statement": "For each compact interval J⊂(0,∞), there is compact C_J⊂R^n such that u(x,r)=q for x∉C_J and r∈J.",
+        "origin": "frozen-target.md:14-16"
+      }
+    ],
+    "definitions": [
+      {
+        "id": "D001",
+        "symbol": "e",
+        "type": "R^n×(0,∞)→R",
+        "definition": "e(x,r)=|u_t(x,r)|²+Σ_{j=1}^n|∂_{x_j}u(x,r)|²",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "R^n"
+          },
+          {
+            "symbol": "r",
+            "type": "(0,∞)"
+          }
+        ],
+        "objects": [
+          "u",
+          "n"
+        ]
+      },
+      {
+        "id": "D002",
+        "symbol": "E",
+        "type": "(0,∞)→R",
+        "definition": "E(r)=Lebesgue integral over R^n of e(x,r)",
+        "depends_on": [
+          "D001"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "(0,∞)"
+          }
+        ],
+        "objects": [
+          "e"
+        ]
+      },
+      {
+        "id": "D003",
+        "symbol": "Δ_x",
+        "type": "operator on smooth R^m-valued maps",
+        "definition": "Δ_xu=Σ_{j=1}^n∂²_{x_j}u, componentwise",
+        "depends_on": [],
+        "requires": [],
+        "binders": [],
+        "objects": [
+          "u",
+          "n"
+        ]
+      }
+    ],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "direct",
+        "forall_introduction",
+        "exists_elimination"
+      ],
+      "calculations": [
+        "Finite-dimensional product-rule and inner-product identities and finite sums; analytic facts are registered Mathlib propositions."
+      ],
+      "primitives": [
+        {
+          "symbol": "R",
+          "type": "real numbers",
+          "meaning": "Real field, topology and Lebesgue measure."
+        },
+        {
+          "symbol": "R^k",
+          "type": "Euclidean space",
+          "meaning": "Euclidean space with inner product and Lebesgue measure."
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/problem.md",
+        "sha256": "eed1418ee76a894e4aa0354539eab22ea952da6f3531b12e88d9aac4919ab8c7"
+      },
+      {
+        "path": "inputs/source-context.md",
+        "sha256": "d1abd888a6498c10d0b2ab2e17e183ac90c6f5e59dcdc5b1604acd38bfaa864b"
+      },
+      {
+        "path": "inputs/frozen-target.md",
+        "sha256": "5bff013fcaef623ecd3491275b404d75f39dc895b51d4755c2d21cf896eb1ada"
+      },
+      {
+        "path": "inputs/proof-draft.json",
+        "sha256": "f78f0c2abed5f78eb0389c42a3f93c48a7f22f769c03240456149ca95668e1a0"
+      },
+      {
+        "path": "inputs/audit-findings.json",
+        "sha256": "986d5c62aa4a206dc6c6ef4cab251c1f684f13299658a058d784cc0567cc2117"
+      },
+      {
+        "path": "inputs/prior-candidate.json",
+        "sha256": "804a631c673682e318d02115869408d8822b8c1d8092db6fd552ab2c2394bd8d"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "spec_sha256": "79bf77ab05cd6e6de11de8d6f47ab9583556fd35381a86bec0df93c82cc7686e",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "u"
+        ],
+        "statement": "For all x∈R^n and r>0, |u(x,r)|=1."
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "definitions": [
+          "D003"
+        ],
+        "binders": [],
+        "objects": [
+          "u",
+          "Δ_x"
+        ],
+        "statement": "For all x∈R^n,r>0 there exists a∈R such that u_tt(x,r)-Δ_xu(x,r)=a u(x,r), with componentwise Δ_x."
+      },
+      {
+        "id": "H003",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "u",
+          "q"
+        ],
+        "statement": "For each compact interval J⊂(0,∞), there is compact C_J⊂R^n such that u(x,r)=q for x∉C_J and r∈J."
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "For any measurable topological space X with measurable opens, normed additive commutative group E, measure μ finite on compact sets, continuous compactly supported f:X→E is integrable.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "X",
+          "E",
+          "μ",
+          "f"
+        ],
+        "source": {
+          "declaration": "Continuous.integrable_of_hasCompactSupport",
+          "module": "Mathlib.MeasureTheory.Function.LocallyIntegrable",
+          "hypotheses": [
+            "X measurable topological with measurable opens.",
+            "E normed additive commutative group.",
+            "μ finite on compact sets.",
+            "f continuous.",
+            "f compactly supported."
+          ],
+          "statement": "For any measurable topological space X with measurable opens, normed additive commutative group E, measure μ finite on compact sets, continuous compactly supported f:X→E is integrable.",
+          "signature": "@Continuous.integrable_of_hasCompactSupport.{u_1,\n    u_2} : ∀ {X : Type u_1} {E : Type u_2} [inst : MeasurableSpace.{u_1} X] [inst_1 : TopologicalSpace.{u_1} X]\n  [inst_2 : NormedAddCommGroup.{u_2} E] {μ : @MeasureTheory.Measure.{u_1} X inst}\n  [@OpensMeasurableSpace.{u_1} X inst_1 inst] {f : X → E}\n  [@MeasureTheory.IsFiniteMeasureOnCompacts.{u_1} X inst inst_1 μ],\n  @Continuous.{u_1, u_2} X E inst_1\n      (@UniformSpace.toTopologicalSpace.{u_2} E\n        (@PseudoMetricSpace.toUniformSpace.{u_2} E\n          (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_2} E\n            (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_2} E inst_2))))\n      f →\n    @HasCompactSupport.{u_1, u_2} X E inst_1\n        (@NegZeroClass.toZero.{u_2} E\n          (@SubNegZeroMonoid.toNegZeroClass.{u_2} E\n            (@SubtractionMonoid.toSubNegZeroMonoid.{u_2} E\n              (@SubtractionCommMonoid.toSubtractionMonoid.{u_2} E\n                (@AddCommGroup.toDivisionAddCommMonoid.{u_2} E (@NormedAddCommGroup.toAddCommGroup.{u_2} E inst_2))))))\n        f →\n      @MeasureTheory.Integrable.{u_2, u_1} E\n        (@UniformSpace.toTopologicalSpace.{u_2} E\n          (@PseudoMetricSpace.toUniformSpace.{u_2} E\n            (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_2} E\n              (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_2} E inst_2))))\n        (@SeminormedAddGroup.toContinuousENorm.{u_2} E\n          (@SeminormedAddCommGroup.toSeminormedAddGroup.{u_2} E\n            (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_2} E inst_2)))\n        X inst f μ",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Function/LocallyIntegrable.lean",
+          "source_sha256": "f9db33ffd373f38d223d7d3c0fab09e10c9b57d87352d25a55a2ce7df3c011a4",
+          "evidence": [
+            {
+              "path": "library/M001-0001/library-sources.json",
+              "sha256": "7443887382cce2c832fea7e2fcd46f9e8ceedee43c9ed222cde457c324b89041"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "For complete real normed E, if f has derivative f′ on uIcc(a,b) and f′ is interval-integrable between a,b, then ∫ f′=f(b)−f(a).",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "a",
+          "b",
+          "E",
+          "f",
+          "f′"
+        ],
+        "source": {
+          "declaration": "intervalIntegral.integral_eq_sub_of_hasDerivAt",
+          "module": "Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus",
+          "hypotheses": [
+            "E complete real normed vector space.",
+            "f has derivative f′ on uIcc(a,b).",
+            "f′ interval-integrable."
+          ],
+          "statement": "For complete real normed E, if f has derivative f′ on uIcc(a,b) and f′ is interval-integrable between a,b, then ∫ f′=f(b)−f(a).",
+          "signature": "@intervalIntegral.integral_eq_sub_of_hasDerivAt.{u_1} : ∀ {E : Type u_1} [inst : NormedAddCommGroup.{u_1} E]\n  [inst_1 : @NormedSpace.{0, u_1} Real E Real.normedField (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_1} E inst)]\n  {a b : Real}\n  [@CompleteSpace.{u_1} E\n      (@PseudoMetricSpace.toUniformSpace.{u_1} E\n        (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_1} E\n          (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_1} E inst)))]\n  {f f' : Real → E},\n  (∀ (x : Real),\n      @Membership.mem.{0, 0} Real (Set.{0} Real) (@Set.instMembership.{0} Real) (@Set.uIcc.{0} Real Real.lattice a b)\n          x →\n        @HasDerivAt.{0, u_1} Real (@DenselyNormedField.toNontriviallyNormedField.{0} Real Real.denselyNormedField) E\n          (@NormedAddCommGroup.toAddCommGroup.{u_1} E inst)\n          (@NormedSpace.toModule.{0, u_1} Real E Real.normedField\n            (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_1} E inst) inst_1)\n          (@UniformSpace.toTopologicalSpace.{u_1} E\n            (@PseudoMetricSpace.toUniformSpace.{u_1} E\n              (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_1} E\n                (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_1} E inst))))\n          ⋯ f (f' x) x) →\n    @IntervalIntegrable.{u_1} E\n        (@UniformSpace.toTopologicalSpace.{u_1} E\n          (@PseudoMetricSpace.toUniformSpace.{u_1} E\n            (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_1} E\n              (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_1} E inst))))\n        (@NormedAddGroup.toENormedAddMonoid.{u_1} E (@NormedAddCommGroup.toNormedAddGroup.{u_1} E inst)) f'\n        (@MeasureTheory.volume.{0} Real Real.measureSpace) a b →\n      @Eq.{u_1 + 1} E\n        (@intervalIntegral.{u_1} E inst inst_1 (fun y => f' y) a b (@MeasureTheory.volume.{0} Real Real.measureSpace))\n        (@HSub.hSub.{u_1, u_1, u_1} E E E\n          (@instHSub.{u_1} E\n            (@SubNegMonoid.toSub.{u_1} E\n              (@AddGroup.toSubNegMonoid.{u_1} E\n                (@AddCommGroup.toAddGroup.{u_1} E (@NormedAddCommGroup.toAddCommGroup.{u_1} E inst)))))\n          (f b) (f a))",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/IntervalIntegral/FundThmCalculus.lean",
+          "source_sha256": "7904979eef087ce4341a89007175e51841e24f5cc3b11840820480edd6cefba7",
+          "evidence": [
+            {
+              "path": "library/M002-0002/library-sources.json",
+              "sha256": "d2134cf8b31a721e51f940b8eec9d36219a10f4d5267911695331e6087460251"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M003",
+        "kind": "mathlib",
+        "statement": "For S-finite measures μ,ν on measurable α,β and real normed E, an integrable f on α×β has product integral equal to iterated integral, first β then α.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "α",
+          "β",
+          "μ",
+          "ν",
+          "E",
+          "f"
+        ],
+        "source": {
+          "declaration": "MeasureTheory.integral_prod",
+          "module": "Mathlib.MeasureTheory.Integral.Prod",
+          "hypotheses": [
+            "α,β measurable; μ,ν measures.",
+            "μ,ν S-finite.",
+            "E real normed space.",
+            "f integrable for product measure."
+          ],
+          "statement": "For S-finite measures μ,ν on measurable α,β and real normed E, an integrable f on α×β has product integral equal to iterated integral, first β then α.",
+          "signature": "@MeasureTheory.integral_prod.{u_1, u_2,\n    u_3} : ∀ {α : Type u_1} {β : Type u_2} {E : Type u_3} [inst : MeasurableSpace.{u_1} α]\n  [inst_1 : MeasurableSpace.{u_2} β] {μ : @MeasureTheory.Measure.{u_1} α inst}\n  {ν : @MeasureTheory.Measure.{u_2} β inst_1} [inst_2 : NormedAddCommGroup.{u_3} E]\n  [@MeasureTheory.SFinite.{u_2} β inst_1 ν]\n  [inst_4 : @NormedSpace.{0, u_3} Real E Real.normedField (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2)]\n  [@MeasureTheory.SFinite.{u_1} α inst μ] (f : Prod.{u_1, u_2} α β → E),\n  @MeasureTheory.Integrable.{u_3, max u_1 u_2} E\n      (@UniformSpace.toTopologicalSpace.{u_3} E\n        (@PseudoMetricSpace.toUniformSpace.{u_3} E\n          (@SeminormedAddCommGroup.toPseudoMetricSpace.{u_3} E\n            (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2))))\n      (@SeminormedAddGroup.toContinuousENorm.{u_3} E\n        (@SeminormedAddCommGroup.toSeminormedAddGroup.{u_3} E\n          (@NormedAddCommGroup.toSeminormedAddCommGroup.{u_3} E inst_2)))\n      (Prod.{u_1, u_2} α β) (@Prod.instMeasurableSpace.{u_1, u_2} α β inst inst_1) f\n      (@MeasureTheory.Measure.prod.{u_1, u_2} α β inst inst_1 μ ν) →\n    @Eq.{u_3 + 1} E\n      (@MeasureTheory.integral.{max u_1 u_2, u_3} (Prod.{u_1, u_2} α β) E inst_2 inst_4\n        (@Prod.instMeasurableSpace.{u_1, u_2} α β inst inst_1)\n        (@MeasureTheory.Measure.prod.{u_1, u_2} α β inst inst_1 μ ν) fun z => f z)\n      (@MeasureTheory.integral.{u_1, u_3} α E inst_2 inst_4 inst μ fun x =>\n        @MeasureTheory.integral.{u_2, u_3} β E inst_2 inst_4 inst_1 ν fun y => f (@Prod.mk.{u_1, u_2} α β x y))",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/Prod.lean",
+          "source_sha256": "5b2267a5d7d2b8de1dd89ee6843bcfa63a8b7534535f7c92ebe17fe52a900c51",
+          "evidence": [
+            {
+              "path": "library/M003-0003/library-sources.json",
+              "sha256": "14fe926eb4159fb5959b8655284c975f8495b27e3df754ca425728f1cbfd304e"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M004",
+        "kind": "mathlib",
+        "statement": "A continuous function on a compact set in uniform spaces is uniformly continuous on that set.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "s",
+          "f"
+        ],
+        "source": {
+          "declaration": "IsCompact.uniformContinuousOn_of_continuous",
+          "module": "Mathlib.Topology.UniformSpace.HeineCantor",
+          "hypotheses": [
+            "α,β uniform spaces.",
+            "s compact.",
+            "f continuous on s."
+          ],
+          "statement": "A continuous function on a compact set in uniform spaces is uniformly continuous on that set.",
+          "signature": "@IsCompact.uniformContinuousOn_of_continuous.{u_1,\n    u_2} : ∀ {α : Type u_1} {β : Type u_2} [inst : UniformSpace.{u_1} α] [inst_1 : UniformSpace.{u_2} β]\n  {s : Set.{u_1} α} {f : α → β},\n  @IsCompact.{u_1} α (@UniformSpace.toTopologicalSpace.{u_1} α inst) s →\n    @ContinuousOn.{u_1, u_2} α β (@UniformSpace.toTopologicalSpace.{u_1} α inst)\n        (@UniformSpace.toTopologicalSpace.{u_2} β inst_1) f s →\n      @UniformContinuousOn.{u_1, u_2} α β inst inst_1 f s",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/UniformSpace/HeineCantor.lean",
+          "source_sha256": "7dd6876f932981f81fcf298ec6270267ed4761543b46b92ed36ef2147b166d83",
+          "evidence": [
+            {
+              "path": "library/M004-0004/library-sources.json",
+              "sha256": "bd327701868e05e3ce7d39673216d02ccbf36fa2ffdaecfaee24c38882e17812"
+            }
+          ]
+        }
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003"
+        ],
+        "binders": [],
+        "objects": [
+          "e",
+          "E",
+          "u"
+        ],
+        "statement": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0."
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H001",
+          "H002",
+          "H003",
+          "M001",
+          "M002",
+          "M003",
+          "M004"
+        ],
+        "output": "P",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "exists_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "r0",
+            "type": "positive real",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S004",
+            "kind": "arbitrary",
+            "declaration": "Fix arbitrary r0>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "J",
+            "type": "compact interval around r0 in (0,∞)",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose a compact interval around r0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "r0"
+            ]
+          },
+          {
+            "symbol": "C_J",
+            "type": "compact subset R^n",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose the compact set from H003.",
+            "from_inputs": [
+              "H003"
+            ],
+            "from_local": [],
+            "objects": [
+              "J"
+            ]
+          },
+          {
+            "symbol": "B",
+            "type": "closed box containing C_J",
+            "scope": "R001",
+            "start": "S002",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose a closed box containing C_J.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "C_J",
+              "n"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix arbitrary r0>0 and choose a compact interval J with r0 interior and J⊂(0,∞). H003 supplies C_J. Smoothness and constancy off C_J show u_t and spatial derivatives vanish outside C_J; continuity gives boundary vanishing. Thus e(·,r0) is continuous and compactly supported. Apply M001 to establish its integrability. The same argument and M001 give integrability of every continuous compactly supported scalar function used below.",
+            "uses": [
+              "H003",
+              "M001"
+            ],
+            "uses_local": [],
+            "objects": [
+              "r0",
+              "J",
+              "C_J",
+              "u",
+              "q",
+              "e"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "Take a closed box B containing C_J. e_t is continuous on compact B×J. M004 gives its uniform continuity there. For each x∈B, M002 applied to t↦e(x,t) expresses its difference quotient as the interval average of e_t; derivative and interval integrability follow from smoothness. Uniform continuity gives uniform convergence of these quotients in x to e_t(x,r0). Since B has finite measure, their integrals converge. E(t)=∫_B e(x,t)dt on J, so E is differentiable at r0 and E'(r0)=∫_B e_t(x,r0)dx.",
+            "uses": [
+              "M002",
+              "M004"
+            ],
+            "uses_local": [],
+            "objects": [
+              "B",
+              "J",
+              "e",
+              "E",
+              "r0"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "Differentiate e to obtain e_t=2u_t·u_tt+2Σ_j u_j·∂_j u_t. For each j, g_j=u_t·u_j is smooth compactly supported, with ∂_j g_j=(∂_j u_t)·u_j+u_t·u_jj. Its derivative is integrable by the compact-support result above. Identify R^n=R^(n−1)×R by coordinate permutation; Lebesgue product measures are S-finite and the coordinate identification preserves integrability. M003 therefore yields Fubini. For each fixed remaining coordinate, M002 on [−L,L] containing the support gives integral ∂_j g_j=0 by the zero endpoint values. Therefore ∫(∂_j u_t)·u_j=−∫u_t·u_jj. Summing gives E'(r0)=2∫u_t·(u_tt−Δ_xu). Differentiating H001 gives u·u_t=0, and H002 makes acceleration a scalar multiple of u. Thus the integrand vanishes pointwise and E'(r0)=0.",
+            "uses": [
+              "H001",
+              "H002",
+              "M002",
+              "M003"
+            ],
+            "uses_local": [],
+            "objects": [
+              "u",
+              "E",
+              "n",
+              "Δ_x",
+              "u_j",
+              "u_jj",
+              "g_j",
+              "r0"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S004",
+            "text": "r0 was arbitrary positive; hence all conclusions hold for every r>0, with no assertion at zero.",
+            "uses": [],
+            "uses_local": [],
+            "objects": [
+              "r0",
+              "e",
+              "E"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "id": "A001",
+            "input": "M001",
+            "at": "S001",
+            "bindings": "X=R^n; E=R; μ=Lebesgue measure; f=e(·,r0), and arbitrary continuous compactly supported scalar functions in the local consequence.",
+            "hypothesis_checks": [
+              "R^n is measurable topological with measurable opens.",
+              "R is normed additive commutative.",
+              "Lebesgue measure is finite on compact sets.",
+              "e and the later scalar test functions are continuous.",
+              "They have compact support."
+            ]
+          },
+          {
+            "id": "A002",
+            "input": "M004",
+            "at": "S002",
+            "bindings": "α=B×J; β=R; s=B×J; f=e_t.",
+            "hypothesis_checks": [
+              "B×J is compact.",
+              "B×J and R are uniform spaces.",
+              "e_t is continuous."
+            ]
+          },
+          {
+            "id": "A003",
+            "input": "M002",
+            "at": "S002",
+            "bindings": "E=R; a=r0; b=r0+h; f(t)=e(x,t); f′(t)=e_t(x,t).",
+            "hypothesis_checks": [
+              "R is complete real normed.",
+              "Derivative is e_t by smoothness.",
+              "Continuous derivative is interval-integrable on the compact interval."
+            ]
+          },
+          {
+            "id": "A004",
+            "input": "M003",
+            "at": "S003",
+            "bindings": "α=R^(n−1); β=R; μ,ν Lebesgue; E=R; f=coordinate-permuted ∂_j g_j.",
+            "hypothesis_checks": [
+              "Euclidean factors are measurable.",
+              "Lebesgue measures are S-finite.",
+              "R is real normed.",
+              "Integrability follows from compact support and M001; coordinate permutation preserves it."
+            ]
+          },
+          {
+            "id": "A005",
+            "input": "M002",
+            "at": "S003",
+            "bindings": "E=R; a=−L; b=L; f(s)=g_j with x_j=s; f′=∂_j g_j.",
+            "hypothesis_checks": [
+              "R is complete.",
+              "Derivative follows from smoothness.",
+              "Continuous compactly supported derivative is interval-integrable."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

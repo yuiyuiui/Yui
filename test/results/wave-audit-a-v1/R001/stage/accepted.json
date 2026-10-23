@@ -1,0 +1,115 @@
+{
+  "inference": "R001",
+  "packet_sha256": "a70b0aa80155e9b6356beedf2a844e6fbb5e13c3f04688255e8d17d3c08ebecd",
+  "verdict": "UNVERIFIED",
+  "notes": "Fresh packet-only mathematical review of the supplied prose finds no unsupported implication in R001. The packet itself supplies all three permitted inputs and the argument explicitly gives the compact-support, differentiation-under-the-integral, integration-by-parts, and orthogonality reasoning. The packet_replay check remains UNVERIFIED: this context reviewed only the packet and Yui rules, but no separately verifiable carrier/isolation execution evidence or independently computed packet hash is available, so I do not certify the required replay receipt.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "H001 supplies unit norm, H002 supplies the pointwise acceleration-as-scalar-multiple condition, and H003 supplies uniform spatial constancy outside a compact set over each compact time interval. R001 lists and uses precisely these permitted premises; the instantiations described in the prose are compatible.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inference/inputs",
+        "/inference/argument/1/uses",
+        "/inference/argument/2/uses"
+      ]
+    },
+    "argument": {
+      "verdict": "PASS",
+      "notes": "S001 constructs a compact time interval around arbitrary r0. S002 obtains common compact spatial support from H003, uses smoothness and compactness for integrability and uniform continuity, and explains the FTC difference-quotient argument yielding differentiation of E under the integral. S003 gives the product-rule energy derivative, compact-support integration by parts with Fubini justified by continuous compact support, and uses differentiated unit norm plus H002 to make the integrand vanish. These steps suffice for the claimed result.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "PASS",
+      "notes": "H003 is used for the common spatial support; H001 and H002 are used for the vanishing energy derivative. F001 is locally proved and used only to choose J. Compactness, FTC, uniform continuity, Fubini, and finite-dimensional differentiation are explained in the argument rather than treated as imported theorem inputs. No other substantive external premise is apparent.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/argument/0/produces/0"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "For arbitrary positive r0 the argument establishes integrability of e(·,r0), differentiability of E there, and derivative zero; S004 universalizes over positive times and explicitly disclaims endpoint assertions. This matches P's statement and definitions.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/argument/3/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "r0 is arbitrary and remains in scope through S004. J and C_J are chosen from the local existence facts and used only within the argument; neither witness escapes into the output. No temporary assumption requiring discharge is introduced.",
+      "locations": [
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0/text",
+        "/inference/argument/3/text"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "There are no E/M inputs or source-theorem applications. H003 is applied to the compact interval J whose existence is established locally; H002 is used pointwise at the relevant x,r and its existential scalar conclusion is all that is needed. H001 applies to the same map and time.",
+      "locations": [
+        "/inference/applications",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inputs/1/statement"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The input statements, definitions and output state the needed domains and conditions: smooth u on positive times, unit norm, equation with componentwise spatial Laplacian, compact support condition on each compact time interval, and energy density/integral. The argument's uses of derivatives, compact support, and time interval are understandable from these statements and definitions without producer proofs.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/definitions/0/definition",
+        "/definitions/1/definition",
+        "/definitions/2/definition",
+        "/output/statement"
+      ]
+    },
+    "object_closure": {
+      "verdict": "PASS",
+      "notes": "R001's actual named mathematical objects are declared as parameters, primitives, definitions, binders, or local witnesses. r0 is introduced arbitrarily; J is supported by F001; C_J is supplied by H003. The scalar in H002 is an existential pointwise witness used only through the stated scalar-multiple conclusion, so no selected free scalar object is needed. No undeclared mathematical object affecting the inference is apparent.",
+      "locations": [
+        "/parameters",
+        "/logic/primitives",
+        "/definitions",
+        "/inference/locals",
+        "/inference/argument/0/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "PASS",
+      "notes": "Factual uses in S001 derive from positive r0 and elementary interval construction; S002's support claim traces to H003 and its local F001; S003 traces to H001 and H002 and the prior differentiability/integral identity established in S002. S004 uses the arbitrary choice of r0. No ancestor proof or unlisted premise is needed.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/argument/3/text"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "UNVERIFIED",
+      "notes": "This review was conducted in the current context using the supplied packet and Yui procedure, with no other mathematical/source material read. However, no separately verifiable carrier/isolation execution evidence is supplied, and the packet hash was taken from its field rather than independently computed. I therefore do not certify a fresh-carrier replay receipt.",
+      "locations": [
+        "/packet_sha256",
+        "/warning",
+        "/inference"
+      ]
+    }
+  },
+  "findings": []
+}

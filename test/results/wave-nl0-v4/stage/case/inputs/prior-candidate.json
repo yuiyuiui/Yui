@@ -1,0 +1,357 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "full_target": "Let n,m be positive integers; u:R^n×(0,∞)→R^m jointly smooth and q∈R^m have Euclidean norm one. Assume |u(x,r)|=1; for each (x,r) there is a∈R with u_tt−Δ_xu=a u; and on each compact interval J⊂(0,∞), u=q outside a compact C_J uniformly for r∈J. Define e(x,r)=|u_t|²+Σ_{j=1}^n|∂_{x_j}u|² and E(r)=∫_{R^n}e(x,r)dx, Lebesgue measure, Euclidean norms. Prove e(·,r) is Lebesgue integrable for each r>0, E is differentiable for each r>0, and E'(r)=0.",
+    "conclusion": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "positive integer"
+      },
+      {
+        "symbol": "m",
+        "type": "positive integer"
+      },
+      {
+        "symbol": "u",
+        "type": "jointly smooth map R^n×(0,∞)→R^m"
+      },
+      {
+        "symbol": "q",
+        "type": "unit vector in R^m"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "For all x∈R^n and r>0, |u(x,r)|=1.",
+        "origin": "frozen-target.md:7-10"
+      },
+      {
+        "id": "H002",
+        "statement": "For all x∈R^n,r>0 there exists a∈R such that u_tt(x,r)-Δ_xu(x,r)=a u(x,r), with componentwise Δ_x.",
+        "origin": "frozen-target.md:11-13"
+      },
+      {
+        "id": "H003",
+        "statement": "For each compact interval J⊂(0,∞), there is compact C_J⊂R^n such that u(x,r)=q for x∉C_J and r∈J.",
+        "origin": "frozen-target.md:14-16"
+      }
+    ],
+    "definitions": [
+      {
+        "id": "D001",
+        "symbol": "e",
+        "type": "R^n×(0,∞)→R",
+        "definition": "e(x,r)=|u_t(x,r)|²+Σ_{j=1}^n|∂_{x_j}u(x,r)|²",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "R^n"
+          },
+          {
+            "symbol": "r",
+            "type": "(0,∞)"
+          }
+        ],
+        "objects": [
+          "u",
+          "n"
+        ]
+      },
+      {
+        "id": "D002",
+        "symbol": "E",
+        "type": "(0,∞)→R",
+        "definition": "E(r)=Lebesgue integral over R^n of e(x,r)",
+        "depends_on": [
+          "D001"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "(0,∞)"
+          }
+        ],
+        "objects": [
+          "e"
+        ]
+      },
+      {
+        "id": "D003",
+        "symbol": "Δ_x",
+        "type": "operator on smooth R^m-valued maps",
+        "definition": "Δ_xu=Σ_{j=1}^n∂²_{x_j}u, componentwise",
+        "depends_on": [],
+        "requires": [],
+        "binders": [],
+        "objects": [
+          "u",
+          "n"
+        ]
+      }
+    ],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "direct",
+        "modus_ponens",
+        "forall_introduction",
+        "implication_introduction",
+        "contradiction_classical"
+      ],
+      "calculations": [
+        "Finite Euclidean inner-product and sum calculations; one-variable fundamental theorem of calculus; compact-box uniform continuity; Fubini for continuous compactly supported functions."
+      ],
+      "primitives": [
+        {
+          "symbol": "R",
+          "type": "real numbers",
+          "meaning": "real field, topology, and Lebesgue measure"
+        },
+        {
+          "symbol": "R^k",
+          "type": "Euclidean space",
+          "meaning": "k-dimensional real Euclidean space with Lebesgue measure and Euclidean inner product"
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/problem.md",
+        "sha256": "eed1418ee76a894e4aa0354539eab22ea952da6f3531b12e88d9aac4919ab8c7"
+      },
+      {
+        "path": "inputs/source-context.md",
+        "sha256": "d1abd888a6498c10d0b2ab2e17e183ac90c6f5e59dcdc5b1604acd38bfaa864b"
+      },
+      {
+        "path": "inputs/frozen-target.md",
+        "sha256": "5bff013fcaef623ecd3491275b404d75f39dc895b51d4755c2d21cf896eb1ada"
+      },
+      {
+        "path": "inputs/proof-draft.json",
+        "sha256": "f78f0c2abed5f78eb0389c42a3f93c48a7f22f769c03240456149ca95668e1a0"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "spec_sha256": "bbdbbaa5c8b5453edb15445f8abbb5ce3f05a8562dac69d86d720b0f11d2ed12",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "statement": "For all x∈R^n and r>0, |u(x,r)|=1.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "u"
+        ]
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "statement": "For all x∈R^n,r>0 there exists a∈R such that u_tt(x,r)-Δ_xu(x,r)=a u(x,r), with componentwise Δ_x.",
+        "definitions": [
+          "D003"
+        ],
+        "binders": [],
+        "objects": [
+          "u",
+          "Δ_x"
+        ]
+      },
+      {
+        "id": "H003",
+        "kind": "hypothesis",
+        "statement": "For each compact interval J⊂(0,∞), there is compact C_J⊂R^n such that u(x,r)=q for x∉C_J and r∈J.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "u",
+          "q"
+        ]
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "statement": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003"
+        ],
+        "binders": [],
+        "objects": [
+          "e",
+          "E",
+          "u"
+        ]
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H001",
+          "H002",
+          "H003"
+        ],
+        "output": "P",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction"
+        ],
+        "locals": [
+          {
+            "symbol": "r0",
+            "type": "positive real number",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "arbitrary",
+            "declaration": "Let r0 be arbitrary in (0,∞).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "J",
+            "type": "compact interval in (0,∞) with r0 in its interior",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "witness",
+            "declaration": "Choose a compact interval about r0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "r0"
+            ]
+          },
+          {
+            "symbol": "C_J",
+            "type": "compact subset of R^n",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "witness",
+            "declaration": "Choose the compact support set supplied by H003 for J.",
+            "from_inputs": [
+              "H003"
+            ],
+            "from_local": [
+              "J"
+            ],
+            "objects": [
+              "J"
+            ]
+          },
+          {
+            "symbol": "B",
+            "type": "closed box in R^n containing C_J",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "definition",
+            "declaration": "Choose a sufficiently large closed box containing the compact set C_J.",
+            "from_inputs": [],
+            "from_local": [
+              "C_J"
+            ],
+            "objects": [
+              "C_J"
+            ]
+          },
+          {
+            "symbol": "u_t",
+            "type": "time derivative of u",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "definition",
+            "declaration": "Write u_t for the time derivative of u.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "u"
+            ]
+          },
+          {
+            "symbol": "u_j",
+            "type": "spatial derivative ∂_{x_j}u",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "definition",
+            "declaration": "Write u_j for ∂_{x_j}u.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "u",
+              "n"
+            ]
+          },
+          {
+            "symbol": "u_{tt}",
+            "type": "second time derivative of u",
+            "scope": "S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "definition",
+            "declaration": "Write u_{tt} for the second time derivative of u.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "u"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix arbitrary r0>0 and choose a compact interval J about it. By H003 choose compact C_J. The map equals the constant q on the open complement of C_J, so all first derivatives vanish there; continuity implies they vanish on the boundary as well. Thus e(·,r) is continuous, bounded on C_J and zero off C_J, proving its Lebesgue integrability. Choose a closed box B containing C_J. On B, e and its time derivative are continuous; the time derivative is uniformly continuous on B×J. For h→0 the one-variable fundamental theorem of calculus writes the difference quotient of e as the average of its time derivative between r0 and r0+h. Uniform continuity gives uniform convergence on B, so finite measure of B allows integration of the limit. Hence E'(r0)=∫_B e_t(x,r0)dx. Differentiating the finite sum defining e gives e_t=2u_t·u_tt+2Σ_j u_j·∂_j u_t. For each j, the smooth compactly supported scalar product u_t·u_j has spatial derivative whose integral is zero: integrate first in x_j by the one-dimensional fundamental theorem of calculus, then in the other variables by Fubini, applicable since the derivative is continuous and compactly supported. Thus ∫u_j·∂_j u_t=−∫u_t·∂_j u_j. Summing yields E'(r0)=2∫u_t·(u_tt−Δ_xu). Differentiating |u|²=1 once in time gives u·u_t=0. By H002, pointwise u_tt−Δ_xu=a u for some scalar a; hence u_t·(u_tt−Δ_xu)=0. The integral is zero. Since r0 was arbitrary the conclusion holds for every positive time.",
+            "uses": [
+              "H001",
+              "H002",
+              "H003"
+            ],
+            "uses_local": [],
+            "objects": [
+              "r0",
+              "J",
+              "C_J",
+              "B",
+              "u_t",
+              "u_j",
+              "u_{tt}",
+              "u",
+              "e",
+              "E"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": []
+      }
+    ]
+  }
+}

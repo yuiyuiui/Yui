@@ -1,0 +1,371 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "full_target": "For every n∈ℕ and E⊆ℝ^n, if E is nonempty and compact, then for I=[0,1] and the concatenated Euclidean metric on E×I, dim_H(E×I)=dim_H(E)+1.",
+    "conclusion": "dim_H(E×I)=dim_H(E)+1.",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "nonnegative integer"
+      },
+      {
+        "symbol": "E",
+        "type": "subset of Euclidean ℝ^n"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "E is nonempty.",
+        "origin": "frozen-target.md:7-9"
+      },
+      {
+        "id": "H002",
+        "statement": "E is compact.",
+        "origin": "frozen-target.md:7-9"
+      }
+    ],
+    "definitions": [],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "case_elimination",
+        "contradiction_classical",
+        "direct",
+        "exists_elimination",
+        "forall_introduction",
+        "implication_introduction",
+        "modus_ponens",
+        "natural_induction",
+        "negation_introduction"
+      ],
+      "calculations": [
+        "Coordinate projections are 1-Lipschitz in the concatenated Euclidean metric. For subsets U⊆ℝ^n and J⊆ℝ, diam(U×J)≤√(diam(U)^2+diam(J)^2). Subdivide [0,1] into at most 1/r+1 intervals of length at most r when 0<r≤1."
+      ],
+      "primitives": [
+        {
+          "symbol": "ℝ^n",
+          "type": "Euclidean space of dimension n",
+          "meaning": "The n-dimensional real inner-product space, including the singleton ℝ^0."
+        },
+        {
+          "symbol": "dim_H",
+          "type": "Hausdorff dimension",
+          "meaning": "Critical exponent of Hausdorff measures, with empty-set dimension zero."
+        },
+        {
+          "symbol": "I",
+          "type": "subset of ℝ",
+          "meaning": "The closed interval [0,1]."
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/problem.md",
+        "sha256": "1e1f8eadda708f481994a9df952e0c00d25dc8b9758ac77a9e8391c12949cc47"
+      },
+      {
+        "path": "inputs/source-context.md",
+        "sha256": "5287828a60c7329a2428f21c96d7a2757e1f39b0f8e13609b0551aab835760a4"
+      },
+      {
+        "path": "inputs/frozen-target.md",
+        "sha256": "01ba4435cea1270cca979c2bc45c642c54f010dcf8f9ae3af7129e1f0266ed0c"
+      },
+      {
+        "path": "inputs/proof-draft.json",
+        "sha256": "0bd2b5d063ecd895684c83222e3cb50a09f744c45bd300c04c018c92ce204930"
+      },
+      {
+        "path": "inputs/proof-completion.json",
+        "sha256": "2b42eaeb5974bdddfaf3267d86e4e413539103399af72b80df1223b153c898d2"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "spec_sha256": "49bac519d0ffd0d42ad268ed76bb4c467dd3dacae4736cd8dc43ef19e91e9743",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "statement": "E is nonempty.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "statement": "E is compact.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "For a set A in a Borel extended metric space and d≥0, if d<dim_H(A), then the d-dimensional Hausdorff measure of A is infinite.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H"
+        ],
+        "source": {
+          "statement": "hausdorffMeasure_of_lt_dimH: if (d:ℝ≥0)<dimH A then μH[d] A=∞.",
+          "hypotheses": [
+            "A set in an extended metric space with the Borel measurable structure required by Mathlib's hausdorffMeasure and dimH declarations; d is an NNReal."
+          ],
+          "evidence": [
+            {
+              "path": "library/M001-0001/library-sources.json",
+              "sha256": "1e2974873151488a644ca1f93451e98bf2f2e911dba567adf7983fa7abfccdb1"
+            }
+          ],
+          "declaration": "hausdorffMeasure_of_lt_dimH",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31",
+          "signature": "@hausdorffMeasure_of_lt_dimH.{u_1} : ∀ {X : Type u_1} [EMetricSpace X] [MeasurableSpace X] [BorelSpace X] {s : Set X} {d : NNReal}, (↑d < dimH s) → μH[d] s = ∞",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "For a Lipschitz map f between extended metric spaces and any set A in its domain, dim_H(f '' A)≤dim_H(A).",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H"
+        ],
+        "source": {
+          "statement": "LipschitzWith.dimH_image_le: a Lipschitz map does not increase Hausdorff dimension of an image.",
+          "hypotheses": [
+            "X and Y are extended metric spaces; K:NNReal; f:X→Y is LipschitzWith K; s⊆X."
+          ],
+          "evidence": [
+            {
+              "path": "library/M002-0002/library-sources.json",
+              "sha256": "24901487517562f47ec0d40b0915c250514f02599c40979d318f9d92bc9b804e"
+            }
+          ],
+          "declaration": "LipschitzWith.dimH_image_le",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31",
+          "signature": "@LipschitzWith.dimH_image_le : ∀ {X Y} [EMetricSpace X] [EMetricSpace Y] {K:NNReal} {f:X→Y}, LipschitzWith K f → ∀ s:Set X, dimH(f '' s)≤dimH s",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "M003",
+        "kind": "mathlib",
+        "statement": "For a finite-dimensional real normed space V and set A⊆V with nonempty interior, dim_H(A)=finrank(ℝ,V).",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H"
+        ],
+        "source": {
+          "statement": "Real.dimH_of_nonempty_interior: if a set in a finite-dimensional real normed space has nonempty interior, its Hausdorff dimension is the finrank of the space.",
+          "hypotheses": [
+            "V is a finite-dimensional real normed space and interior(A) is nonempty."
+          ],
+          "evidence": [
+            {
+              "path": "library/M003-0003/library-sources.json",
+              "sha256": "c783a006ff20bfe97d7c98bfd5f18d8784ed298de1696686684d298de169668"
+            }
+          ],
+          "declaration": "Real.dimH_of_nonempty_interior",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31",
+          "signature": "Real.dimH_of_nonempty_interior",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "M004",
+        "kind": "mathlib",
+        "statement": "For a countable family of nonnegative measurable functions, the integral of their pointwise sum is the sum of their integrals.",
+        "definitions": [],
+        "binders": [],
+        "objects": [],
+        "source": {
+          "statement": "lintegral_tsum: lintegral of a countable sum of nonnegative extended-real functions equals the sum of their lintegrals, provided every summand is almost-everywhere measurable.",
+          "hypotheses": [
+            "A measurable space with a measure; a countable index type; each summand is AEMeasurable into ENNReal."
+          ],
+          "evidence": [
+            {
+              "path": "library/M004-0005/library-sources.json",
+              "sha256": "b0fd457ea61a6a025c9884af4cc4afcff3a4bb6a1649fcb7276fb23108a3a8ff"
+            }
+          ],
+          "declaration": "MeasureTheory.lintegral_tsum",
+          "module": "Mathlib.MeasureTheory.Integral.Lebesgue.Add",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/Lebesgue/Add.lean",
+          "source_sha256": "14da3dd3c269221e9ec43e91c6b22bb02d5db7f00e03c789661c72dffecf7b4a",
+          "signature": "@MeasureTheory.lintegral_tsum : ∀ {α β} {m} {μ} [Countable β] {f:β→α→ENNReal}, (∀i, AEMeasurable (f i) μ) → ∫⁻ a, ∑'i,f i a ∂μ = ∑'i,∫⁻a,f i a ∂μ",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "statement": "dim_H(E×I)=dim_H(E)+1.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E",
+          "I",
+          "dim_H"
+        ]
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H001",
+          "H002",
+          "M001",
+          "M002",
+          "M003",
+          "M004"
+        ],
+        "output": "P",
+        "definitions": [],
+        "rules": [
+          "direct",
+          "case_elimination",
+          "forall_introduction"
+        ],
+        "locals": [],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Write D=dim_H(E), F=E×[0,1], with distance squared |x−y|²+|t−u|². The compact set E is bounded in ℝ^n; covering a bounded Euclidean box by O(k^n) cubes of diameter O(1/k) shows H^q(E)=0 for every q>n, so D is finite. The threshold characterization then gives H^q(E)=0 whenever q>D. Fix q>D. At every scale δ≤1, choose a cover of E by sets of positive diameters r_j≤δ with arbitrarily small sum Σr_j^q. Zero-diameter members are singletons; replace each by a positive-diameter ball of diameter at most δ, choosing added q-cost summable and arbitrarily small. Cover I for each j by at most 1/r_j+1 intervals of length at most r_j. The corresponding products have diameter at most √2r_j and total (q+1)-cost at most 2(√2)^(q+1)Σr_j^q. Their maximum diameters tend to zero with δ, and cost tends to zero; hence H^(q+1)(F)=0 and dim_H(F)≤D+1.",
+            "uses": [
+              "H002"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "For the lower bound when D>0, fix 0<s<D. By M001, H^s(E)=∞. Consequently the scale-s contents c_s(E,δ) tend to infinity as δ decreases to zero: these contents are monotone as the scale decreases and their limit defines H^s. For an arbitrary countable cover V_i of F with ρ_i=diam(V_i)≤δ≤1, project to A_i⊆ℝ^n and B_i⊆I. Then diam(A_i),diam(B_i)≤ρ_i. Enlarge each B_i into an open interval J_i of length ≤ρ_i+η_i, with η_i>0 and Ση_iρ_i^s<ε. For every t∈I, the A_i for which t∈J_i cover E: for every x∈E, (x,t) belongs to some V_i, so t∈B_i⊆J_i. Thus c_s(E,δ)≤Σ_i 1_{J_i}(t)ρ_i^s pointwise. These interval indicators are measurable; Tonelli M004 and integration over I yield c_s(E,δ)≤Σ_i |J_i∩I|ρ_i^s≤Σ_iρ_i^(s+1)+ε. Terms with ρ_i=0 contribute zero since s>0. Let ε→0 and take the infimum over all product covers to obtain c_s(E,δ)≤c_(s+1)(F,δ). The left side tends to infinity as δ→0, so H^(s+1)(F)=∞ and M001's converse threshold implication (equivalently the definition of dim_H) gives dim_H(F)≥s+1. As this holds for every 0<s<D, dim_H(F)≥D+1.",
+            "uses": [
+              "M001",
+              "M004"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "s",
+              "δ",
+              "V_i",
+              "ρ_i",
+              "A_i",
+              "B_i",
+              "J_i",
+              "η_i",
+              "ε",
+              "c_s",
+              "H^s"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "If D=0, choose x₀∈E using H001. The coordinate projection π:F→I, π(x,t)=t, is 1-Lipschitz by the displayed Euclidean distance and is onto because (x₀,t)∈F for each t. Its image has dimension 1: I has nonempty interior in ℝ, and M003 gives dim_H(I)=finrank(ℝ,ℝ)=1. Applying M002 to π and F gives 1=dim_H(I)≤dim_H(F)=D+1. Combining with the upper bound proves equality. This works unchanged when n=0, since E is then a nonempty subset of a singleton and π remains onto.",
+            "uses": [
+              "H001",
+              "M002",
+              "M003"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "I",
+              "x₀",
+              "π",
+              "D",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M001",
+            "at": "S002",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Apply to X=ℝ^n with its Euclidean Borel metric, A=E and real s>0 with s<D; thus s<dim_H(E) and the Hausdorff measure is infinite."
+            ]
+          },
+          {
+            "input": "M002",
+            "at": "S003",
+            "bindings": {},
+            "hypothesis_checks": [
+              "The coordinate map π has Lipschitz constant 1 for the concatenated Euclidean distance; the set is F."
+            ]
+          },
+          {
+            "input": "M003",
+            "at": "S003",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Apply with V=ℝ and A=[0,1], whose interior contains (0,1); finrank(ℝ,ℝ)=1."
+            ]
+          },
+          {
+            "input": "M004",
+            "at": "S002",
+            "bindings": {},
+            "hypothesis_checks": [
+              "Use counting measure on I and the nonnegative measurable summands ρ_i^s·1_{J_i∩I}; each is measurable because J_i is open."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
