@@ -17,6 +17,8 @@ invalidation rules; completing stage one does not require stage two.
    Read [external-source review](references/external-theorems.md) for citations
    and [logical packaging](references/logical-rules.md) for local assumptions.
    Use `scripts/nl0.py`; its explicit accounting is not a mathematical prover.
+   Controllers and reviewers follow [completion and local repair](references/review-execution.md)
+   for serial audit coverage, exact evidence inheritance and stage boundaries.
 2. **Translate an accepted NL0 and run Audit B.** Verify the supplied Audit A
    authority and exact source version first; do not reconstruct or re-audit an
    unchanged proof. Read [translation](translation/references/stage.md),
@@ -68,6 +70,8 @@ phase, usage and health. Never execute model-generated Python or shell text.
 
 Use the selected `gpt-6-luna/high/Standard` profile. Resolve default concurrency
 before dispatch and record its basis; do not claim an unknown backend maximum.
+The concurrency parameter limits Lean proof jobs only. NL0 authoring,
+preparation, Audit A, interface work and Audit B use one serial lane per case.
 Count root/controller, worker, review and retry calls. Cached/reasoning tokens
 are subsets of input/output totals, not extra tokens. Missing usage is unknown.
 

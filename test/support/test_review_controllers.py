@@ -108,6 +108,25 @@ class ReviewControllerTests(unittest.TestCase):
         contract=json.loads(Path(paths['contract']).read_text())
         self.assertEqual(contract['source_steps'],source['source_steps'])
         i.verify_candidate_artifact(draft,contract,json.loads(Path(paths['plan']).read_text()),draft['source_outputs'])
+        # Qualified result shapes below are synthetic controller inputs, not a
+        # real model run or an actual semantic verdict.
+        stage=out/'stage';stage.mkdir()
+        exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':['gpt-6-luna'],'standard_tier_verified':True}
+        result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},'exposure':exposure}
+        a.write(stage/'result.json',result);a.write(stage/'accepted.json',draft)
+        first=self.root/'first-review';i.prepare(out,first)
+        (first/'stage').mkdir();a.write(first/'stage/result.json',result)
+        a.write(first/'stage/accepted.json',{'synthetic':'prior disputed judgment; not an actual review'})
+        dispute=self.root/'dispute.json'
+        a.write(dispute,{'comparison':{
+            'source':{'document':'nl0.json','pointer':'/propositions/0/statement','quote':'a=b.'},
+            'formal':{'document':'contract.json','pointer':'/premises/0/type','quote':'a = b'},
+            'difference':'Synthetic located dispute only; this does not assert a real mathematical mismatch.'}})
+        second=self.root/'adjudicated';i.prepare(out,second,adjudicate=first,dispute=dispute)
+        self.assertIsNotNone(a.nl0.load(second/'bindings.json')['adjudication'])
+        self.assertTrue((second/'inputs/prior-disputed-review.json').is_file())
+        with self.assertRaisesRegex(ValueError,'One targeted adjudication'):
+            i.prepare(out,self.root/'third',adjudicate=second,dispute=dispute)
         changed=copy.deepcopy(draft);changed['premise_types']['H001']='True'
         with self.assertRaisesRegex(ValueError,'differs from the actual model'):
             i.verify_candidate_artifact(changed,contract,json.loads(Path(paths['plan']).read_text()),draft['source_outputs'])
@@ -132,6 +151,25 @@ class ReviewControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'both original source'):i.validate(value,out)
         value['checks']['parameters_and_allowed_inputs']['locations'][0]['pointer']='/missing'
         with self.assertRaises(KeyError):i.validate(value,out)
+
+    def test_interface_out_of_range_pointer_is_candidate_feedback(self):
+        out=self.root/'bad-pointer';inputs=out/'inputs';inputs.mkdir(parents=True)
+        a.write(inputs/'spec.json',{'parameters':[]})
+        a.write(inputs/'contract.json',{'conclusion':{'type':'True'}})
+        row={'verdict':'UNVERIFIED','notes':'Synthetic invalid-location control.',
+             'locations':[{'document':'spec.json','pointer':'/parameters/5'},
+                          {'document':'contract.json','pointer':'/conclusion/type'}]}
+        value={'checks':{name:copy.deepcopy(row) for name in i.workflow.INTERFACE_CHECKS},'findings':[]}
+        with self.assertRaisesRegex(ValueError,'array index is out of range'):i.validate(value,out)
+
+    def test_interface_review_excludes_author_repair_history(self):
+        author=self.root/'author';(author/'inputs').mkdir(parents=True)
+        inputs=self.root/'review-inputs';inputs.mkdir()
+        permitted={'spec.json','nl0.json','source-map.json','problem.md','source-context.md','frozen-target.md'}
+        for name in permitted|{'prior-interface.json','actual-interface-review.json','author-notes.txt','inputs.json'}:
+            (author/'inputs'/name).write_text('Synthetic controller control only.')
+        i.copy_review_inputs(author,inputs)
+        self.assertEqual({p.name for p in inputs.iterdir()},permitted)
 
     def test_interface_data_edits_preserve_the_actual_immutable_base(self):
         base={'conclusion_type':'a = b','header':'import Mathlib\n','parameters':[]}

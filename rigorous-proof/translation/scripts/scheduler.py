@@ -45,7 +45,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
     if execution:
         for group in groups.values():
             sid=group[0]
-            execution.task(sid,consumers=group,inputs=nodes[sid]['inputs'],
+            execution.task(sid,role='proof',consumers=group,inputs=nodes[sid]['inputs'],
                 contract_sha256=initial_contract,plan_digest=initial_plan,
                 result_path=str(out/'jobs'/f'{sid}.json') if out else None)
         execution.flush(force=True)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import re
 import sys
 import tempfile
@@ -186,6 +187,19 @@ def validate(cpath, plan):
     return c, by_id, order
 
 
+def decomposition(cpath,plan,limit=None):
+    """Source coverage concentration, never a model-time prediction."""
+    c,nodes,order=validate(cpath,plan)
+    total=len(c['source_steps'])
+    rows=[{'id':sid,'direct_inputs':nodes[sid]['inputs'],
+           'source_paragraphs':len(nodes[sid]['source_steps']),
+           'source_paragraph_fraction':len(nodes[sid]['source_steps'])/total,
+           'shared_lemma':nodes[sid].get('shared_lemma')} for sid in order]
+    return {'jobs':rows,'typed_job_count':len(rows),'configured_proof_limit':limit,
+            'largest_source_paragraph_count':max(row['source_paragraphs'] for row in rows),
+            'scope':'Source coverage counts are not equal work or predicted time. Compatible shared jobs may be deduplicated. Conditional local proofs require actual final assembly.'}
+
+
 def parameter_text(p):
     kind=p.get('binder_kind','explicit')
     need(kind in {'explicit','implicit','instance'}, 'invalid parameter binder kind')
@@ -272,35 +286,38 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
 def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=120):
     lean = render(cpath, plan, proofs, only, types_only)
     work = Path(tempfile.mkdtemp(prefix='nl0-ir-check-')).resolve()
-    (work / 'input').mkdir()
-    file = work / 'output' / 'Check.lean'
-    file.parent.mkdir()
-    file.write_text(lean)
-    result = run_lean(file, work, timeout=timeout)
-    result.update({'status': 'IR-TYPES-CHECKED' if types_only else
-                   'LOCAL-PROOF-CHECKED' if only else 'FRAGMENT-ASSEMBLED',
-                   'contract_sha256': digest(cpath),
-                   'lean_sha256': digest(file), 'scope': only or 'fragment'})
-    if result['exit_code'] != 0:
-        result['status'] = 'LEAN-CHECK-FAILED'
-    if result['exit_code'] == 0 and not types_only:
-        name = only or 'P'
-        m = re.search(r"'Translation\." + name + r"' depends on axioms: \[([^]]*)\]", result['stdout'])
-        if m:
-            actual = {v.strip() for v in m[1].split(',') if v.strip()}
-        elif f"'Translation.{name}' does not depend on any axioms" in result['stdout']:
-            actual = set()
-        else:
-            actual = {'MISSING_AXIOM_REPORT'}
-        result['axioms'] = sorted(actual)
-        if actual - {'propext', 'Classical.choice', 'Quot.sound'}:
-            result.update({'status': 'AXIOM-CHECK-FAILED', 'exit_code': 1})
-    if out:
-        out = Path(out)
-        out.mkdir(parents=True, exist_ok=False)
-        (out / 'Check.lean').write_text(lean)
-        write(out / 'result.json', result)
-    return result
+    try:
+        (work / 'input').mkdir()
+        file = work / 'output' / 'Check.lean'
+        file.parent.mkdir()
+        file.write_text(lean)
+        result = run_lean(file, work, timeout=timeout)
+        result.update({'status': 'IR-TYPES-CHECKED' if types_only else
+                       'LOCAL-PROOF-CHECKED' if only else 'FRAGMENT-ASSEMBLED',
+                       'contract_sha256': digest(cpath),
+                       'lean_sha256': digest(file), 'scope': only or 'fragment'})
+        if result['exit_code'] != 0:
+            result['status'] = 'LEAN-CHECK-FAILED'
+        if result['exit_code'] == 0 and not types_only:
+            name = only or 'P'
+            m = re.search(r"'Translation\." + name + r"' depends on axioms: \[([^]]*)\]", result['stdout'])
+            if m:
+                actual = {v.strip() for v in m[1].split(',') if v.strip()}
+            elif f"'Translation.{name}' does not depend on any axioms" in result['stdout']:
+                actual = set()
+            else:
+                actual = {'MISSING_AXIOM_REPORT'}
+            result['axioms'] = sorted(actual)
+            if actual - {'propext', 'Classical.choice', 'Quot.sound'}:
+                result.update({'status': 'AXIOM-CHECK-FAILED', 'exit_code': 1})
+        if out:
+            out = Path(out)
+            out.mkdir(parents=True, exist_ok=False)
+            (out / 'Check.lean').write_text(lean)
+            write(out / 'result.json', result)
+        return result
+    finally:
+        shutil.rmtree(work)
 
 
 def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=120):
@@ -324,15 +341,18 @@ elab "yui_aux_type% " text:str : term => do
     source+=f'theorem checked {binder_text(c)} {inputs} : yui_aux_type% '+json.dumps(statement,ensure_ascii=False)+' := by\n'+body+'\n'
     source+='#check @checked\n#print axioms checked\nend YuiAuxiliary\n'
     work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
-    path=work/'output/Auxiliary.lean';path.write_text(source)
-    result=run_lean(path,work,timeout=timeout)
-    match=re.search(r"'YuiAuxiliary.checked' depends on axioms: \[([^]]*)\]",result['stdout'])
-    axioms={v.strip() for v in match[1].split(',') if v.strip()} if match else set() if "'YuiAuxiliary.checked' does not depend on any axioms" in result['stdout'] else {'MISSING_AXIOM_REPORT'}
-    valid=result['exit_code']==0 and not axioms-{'propext','Classical.choice','Quot.sound'}
-    result.update(auxiliary_valid=valid,axioms=sorted(axioms),
-        scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
-    out=Path(out);out.mkdir(parents=True,exist_ok=False);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
-    return result
+    try:
+        path=work/'output/Auxiliary.lean';path.write_text(source)
+        result=run_lean(path,work,timeout=timeout)
+        match=re.search(r"'YuiAuxiliary.checked' depends on axioms: \[([^]]*)\]",result['stdout'])
+        axioms={v.strip() for v in match[1].split(',') if v.strip()} if match else set() if "'YuiAuxiliary.checked' does not depend on any axioms" in result['stdout'] else {'MISSING_AXIOM_REPORT'}
+        valid=result['exit_code']==0 and not axioms-{'propext','Classical.choice','Quot.sound'}
+        result.update(auxiliary_valid=valid,axioms=sorted(axioms),
+            scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
+        out=Path(out);out.mkdir(parents=True,exist_ok=False);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
+        return result
+    finally:
+        shutil.rmtree(work)
 
 
 def check_interface(cpath, draft, timeout=120):
@@ -365,14 +385,17 @@ def check_interface(cpath, draft, timeout=120):
         lean += f"\nexample {binder_text(c)} : ({p['type']}) = ({q['type']}) := by\n  rfl\n"
     lean += f"\nexample {binder_text(c)} : ({c['conclusion']['type']}) = ({draft['conclusion_type']}) := by\n  rfl\n"
     work = Path(tempfile.mkdtemp(prefix='nl0-interface-check-')).resolve()
-    (work/'input').mkdir()
-    (work/'output').mkdir()
-    file = work/'output/Interface.lean'
-    file.write_text(lean)
-    result = run_lean(file, work, timeout=timeout)
-    result['status'] = 'DEVELOPMENT-INTERFACE-MATCHED' if result['exit_code'] == 0 else 'INTERFACE-MISMATCH'
-    result['boundary'] = 'Definitional equality to owner-reviewed development oracle, not automatic NL semantic verification.'
-    return result
+    try:
+        (work/'input').mkdir()
+        (work/'output').mkdir()
+        file = work/'output/Interface.lean'
+        file.write_text(lean)
+        result = run_lean(file, work, timeout=timeout)
+        result['status'] = 'DEVELOPMENT-INTERFACE-MATCHED' if result['exit_code'] == 0 else 'INTERFACE-MISMATCH'
+        result['boundary'] = 'Definitional equality to owner-reviewed development oracle, not automatic NL semantic verification.'
+        return result
+    finally:
+        shutil.rmtree(work)
 
 
 def main():

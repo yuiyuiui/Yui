@@ -90,12 +90,17 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
     started = time.monotonic()
     recorder, task = current()
     if recorder: recorder.check(task)
+    from run_resources import MARKER, register_workspace, register_child
+    if (recorder and not (work/MARKER).exists() and
+        work.resolve().parent == Path(__import__('tempfile').gettempdir()).resolve()):
+        register_workspace(work, recorder.root)
     check = recorder.lean_started(task,file) if recorder else None
     process = None; owner = None
     try:
         process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
         owner = recorder.register_process(process,'lean',task) if recorder else identity(process.pid)
+        register_child(work, process, 'lean')
         while True:
             try:
                 stdout,stderr=process.communicate(timeout=.1)

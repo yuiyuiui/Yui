@@ -16,14 +16,17 @@ proof of natural-language mathematics. No speed advantage is claimed yet.
 
 Current status: development candidate. The runtime and its regression controls
 are executable; the three new exercise tests have **not** passed the complete
-NL0/Audit A/Lean/Audit B workflow. See [the test report](test/results/REPORT.md).
+NL0/Audit A/Lean/Audit B workflow. The test inputs have been reset to three
+fixed problem-and-proof files; previous generated runs have been cleared. See
+the [test protocol](test/README.md) and
+[software maintenance record](test/support/MAINTENANCE.md).
 
 ## Layout
 
 | Directory | Purpose |
 | --- | --- |
 | [`rigorous-proof/`](rigorous-proof/SKILL.md) | Complete runtime and the single `rigorous-proof` skill entry; internal regression tests are kept here |
-| [`test/`](test/README.md) | Three user-selected mathematical exercises and clean full-workflow test records |
+| [`test/`](test/README.md) | Three fixed exercise/proof inputs and clean-run test tools |
 | [`benchmark/`](benchmark/README.md) | Protocol, parameters and eventual paper-scale direct/sequential/parallel comparisons |
 
 Only `rigorous-proof/` is needed to carry the runtime to another location.
@@ -36,7 +39,9 @@ The selected profile is `gpt-6-luna`, reasoning `high`, Standard speed, through
 an existing authenticated Codex subscription. There is no automatic model
 fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
 the runtime discloses its conservative fallback and records observed concurrency.
-This limit applies per case; the test batch has a separate concurrent-case limit.
+This limit applies to Lean proof jobs per case. NL0 authoring, preparation,
+Audit A, interface work and Audit B use a separate serial lane. Both lanes share
+one all-stage cost ledger. The test batch has a separate concurrent-case limit.
 Each case writes `nl0-to-lean/execution-status.json`, with coalesced one-second
 updates and a five-second heartbeat. Recording makes no model calls. See the
 [execution protocol](rigorous-proof/translation/references/execution-protocol.md)
@@ -54,6 +59,13 @@ requests; it does not grant model-visible access to personal files or tools.
 ```sh
 python3 rigorous-proof/scripts/yui.py doctor
 python3 rigorous-proof/scripts/yui.py selftest
+```
+
+Inspect supplied artifacts or recorded costs without starting a model:
+
+```sh
+python3 rigorous-proof/scripts/yui.py case-status /absolute/source-case
+python3 rigorous-proof/scripts/yui.py metrics /absolute/run
 ```
 
 Lean 4.32.2 and mathlib commit
@@ -81,21 +93,34 @@ universal automatic paper-to-Lean compiler behind this command.
 
 ## Test and benchmark status
 
-The three supplied exercise screenshots and source contexts are registered
-under `test/`. The Lie exercise has been identified as Humphreys, GTM 9,
-section 27, exercise 7. The geometry/PDE target conventions were confirmed by
-the user on 2026-10-23, and their approved statements are frozen in the case
-directories. See [the continuation report](test/results/context-confirmation-v1/REPORT.md).
-Later development produced an accepted Lie NL0/Audit A
-([actual receipt inspection](test/results/lie-audit-a-v8/inspection.json));
-its complete Lean/Audit B workflow remains unfinished. Geometry and wave-map
-candidates still lack a passing complete workflow. Earlier reports retain their
-original run scope. A candidate, source probe or reported obstacle is not a
-passing mathematical test. Execution infrastructure has separate
-[software controls](rigorous-proof/tests/results/execution-controls-v1/REPORT.md),
-which made no model calls and are not exercise passes.
+The three supplied exercises are fixed under `test/`, each in a single
+`problem.md` containing the original statement, approved target interpretation
+and detailed natural-language proof. They cover Hausdorff dimension, arbitrary
+admissible sl2 lattices, and sphere-valued wave-map energy. Old NL0s, audit
+receipts and test logs have been cleared to prepare a fresh run; the current
+checkout contains no accepted mathematical test result. Supplied proofs do not
+confer acceptance.
+
+Preview or perform a scoped test cleanup without calling a model:
+
+```sh
+python3 -B test/support/cleanup_tests.py
+python3 -B test/support/cleanup_tests.py --apply
+```
+
+The cleanup confirms owned process termination before deleting generated test
+outputs and registered temporary workspaces. It preserves the fixed problem
+files, runtime, test code, benchmarks and shared toolchain. See
+[the test protocol](test/README.md) for ownership checks and the cancellation
+boundary. Generated runs are ignored by Git; curated future results should be
+published deliberately after review.
 
 No paper-scale benchmark has run in this repository. Future results must report
 acceptance, end-to-end and phase time, all-agent token usage, failures, execution
 health, model/prompt/toolchain versions, and requested/observed concurrency.
 Development controls and historical NL2Lean observations are not benchmark scores.
+Review completion, bounded repairs and conservative inherited evidence are
+described in [the execution contract](rigorous-proof/references/review-execution.md).
+The small [source catalog](rigorous-proof/library/foundations.json) contains
+eight natively checked pinned declarations, with complete signatures and original
+query cost. It grants no source/application review or blanket Mathlib permission.

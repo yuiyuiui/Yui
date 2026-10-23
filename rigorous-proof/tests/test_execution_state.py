@@ -85,6 +85,25 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(task['current_lean_check']['check_id'],second['check_id'])
         self.assertNotIn('exit_code',task['current_lean_check'])
 
+    def test_late_model_event_cannot_hide_an_active_native_check(self):
+        f=self.root/'Proof.lean';f.write_text('example : True := True.intro\n')
+        self.r.task('T001',role='proof')
+        self.r.lean_started('T001',f)
+        self.r.model_event('T001','stage',1,{'type':'response.output_item.done'})
+        self.assertEqual(self.r.state['tasks']['T001']['activity'],'LEAN_CHECKING')
+        self.assertIn('last_model_event_at_utc',self.r.state['tasks']['T001'])
+
+    def test_usage_conflicts_remain_partial_and_do_not_recount_response(self):
+        self.r.request_started('stage',1)
+        base={'type':'response.completed','response':{'id':'synthetic','usage':{'input_tokens':10,'output_tokens':2,'total_tokens':12}}}
+        self.r.model_event(None,'stage',1,base)
+        changed=json.loads(json.dumps(base));changed['response']['usage'].update(input_tokens=11,total_tokens=13)
+        self.r.model_event(None,'stage',1,changed);self.r.close('CONTROL_FINISHED')
+        value=json.loads(self.r.path.read_text())
+        self.assertEqual(value['usage']['status'],'PARTIAL')
+        self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],12)
+        self.assertTrue(value['usage']['errors'])
+
     def test_queued_model_slot_can_be_cancelled_without_starting_model(self):
         b=concurrency.Budget(concurrency.resolve(1),execution=self.r)
         self.r.task('T001');self.r.task('T002');outcomes=[];started=threading.Event()

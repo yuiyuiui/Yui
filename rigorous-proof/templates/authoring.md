@@ -29,6 +29,9 @@ inputs; additional H and ancestors are unavailable. Give each local object
 `symbol`, `type`, `scope`, `start`, `end`, `kind`, `declaration`, `from_inputs`,
 `from_local`, `objects`. Introduce it before use; justify witness existence.
 Naming an object grants none of its required properties.
+Keep a local object's symbol, actual type, complete introduction and
+definition/existence basis together. After a local patch, check all affected
+declarations and uses in that node, including simultaneous names and endpoints.
 Each source application records `at: Sddd`; that paragraph must actually use
 the source, and application conditions may use only facts available there.
 
@@ -50,3 +53,10 @@ Export any fact needed by another R as a complete proposition.
 
 Run structural checks, render the views and generate packets. Create only an
 UNVERIFIED audit scaffold. Author self-checks never fill the auditor's PASS.
+
+In the clean authoring adapter, the controller binds omitted case identity,
+input/pin hashes, native source metadata and omitted duplicate statements.
+Explicit conflicts remain errors. Use its same-stage draft/patch tools to
+preserve work after a rejected check; metadata repair does not require a new
+mathematical proof. `find_library_sources` offers a small pinned metadata index;
+each selected result still needs an explicit M record and actual Audit A.

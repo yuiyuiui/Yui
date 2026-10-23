@@ -56,9 +56,12 @@ def json_tool(name, description, field):
 
 class Stage(carrier.Trial):
     def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui'):
+        from run_resources import check_cleanup_lock, register_workspace
+        check_cleanup_lock(logs)
         self.logs = Path(logs)
         self.logs.mkdir(parents=True, exist_ok=False)
         self.work = Path(tempfile.mkdtemp(prefix='nl0-ir-model-')).resolve()
+        register_workspace(self.work, self.logs)
         for n in ('input','output','tmp','home','state'):
             (self.work/n).mkdir(mode=0o700)
         self.cpath = Path(cpath)
@@ -113,6 +116,7 @@ class Stage(carrier.Trial):
         self.stop_on_submission=True
         self.submission_closed=False
         self.api_calls = self.lean_calls = self.rpc_id = 0
+        self.request_lock = threading.Lock()
         self.inbox = queue.Queue()
         self.started = None
         self.allowed_user_messages = set()
@@ -192,9 +196,10 @@ class Stage(carrier.Trial):
             if 'exit_code' in result:
                 result['accepted'] = result['exit_code']==0
                 result['stage_complete'] = bool(self.accepted)
-                self.last_diagnostic = result.get('stdout','')[:14000] if result['exit_code'] else ''
-        except (ir.Invalid, KeyError, ValueError, TypeError) as e:
+                self.last_diagnostic = (result.get('stdout','')+'\n'+result.get('stderr',''))[:14000] if result['exit_code'] else ''
+        except (ir.Invalid, KeyError, ValueError, TypeError, IndexError) as e:
             result = {'accepted':False,'error':str(e),'feedback_kind':'candidate_rejected'}
+            self.last_diagnostic=str(e)[:14000]
         if record is not None:
             record['check']=dict(result);ir.write(record_path,record)
         carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
@@ -235,7 +240,8 @@ class Stage(carrier.Trial):
         self.execution=getattr(self.budget,'execution',None) or execution.current()[0]
         self.execution_task=execution.current()[1] or self.step or 'stage-'+hashlib.sha256(str(self.logs).encode()).hexdigest()[:12]
         recorder=self.execution
-        if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode)
+        if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode,
+            role='proof' if self.mode=='proof' else 'preparation_review')
         queued = time.monotonic()
         limiter = self.budget or STAGE_LIMITER
         try:
@@ -293,6 +299,8 @@ class Stage(carrier.Trial):
             if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
+            if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE':
+                result.update(status='BLOCKED',task_outcome='MATHEMATICAL_REVIEW_FAILED',review_coverage='INCOMPLETE')
         except execution.Cancelled as e:
             result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
             try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
@@ -317,7 +325,8 @@ class Stage(carrier.Trial):
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
                 result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
-                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'} else 'ACCEPTED_ARTIFACT')
+                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'} else
+                    'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
@@ -373,6 +382,10 @@ class Stage(carrier.Trial):
                     result['execution_fault']='Exposure readback error: '+str(error)
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and result['execution_health']=='FAULT':
                 result['task_outcome']='UNFINISHED_WITH_EXECUTION_FAULT'
+            from execution_health import qualification
+            result.update(qualification(result))
+            if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and not result['identity_and_input_boundary_verified']:
+                result['task_outcome']='UNFINISHED_ATTRIBUTION_UNVERIFIED'
             try:
                 shutil.rmtree(self.work)
                 result['temporary_workspace_removed']=True

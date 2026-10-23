@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Run prepared neutral Audit A controls in separate fresh model contexts."""
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import shutil
@@ -44,7 +43,7 @@ def run(directory,timeout,budget=None):
     directory=Path(directory).resolve()
     key=json.loads((directory/'owner/expected.json').read_text())
     shutil.copyfile(__file__,directory/'controller.py.snapshot.txt')
-    budget=budget or concurrency.Budget(concurrency.resolve())
+    budget=concurrency.serial_budget(budget)
     def execute(pair):
         name,expected=pair
         source=directory/'reviewer'/name
@@ -66,8 +65,7 @@ def run(directory,timeout,budget=None):
                 'detected_as_expected':bool(matches and located),
                 'evidence':bind(target/'stage/accepted.json') if (target/'stage/accepted.json').exists() else None,
                 'stage_result':bind(target/'stage/result.json')}
-    with ThreadPoolExecutor(max_workers=budget.configuration['effective']) as pool:
-        results=list(pool.map(execute,sorted(key['expected'].items())))
+    results=[execute(pair) for pair in sorted(key['expected'].items())]
     report={'status':'BEHAVIORAL-CONTROLS-PASSED' if all(x['healthy'] and x['detected_as_expected'] for x in results) else 'BEHAVIORAL-CONTROLS-NOT-PASSED',
         'scope':'Five finite procedure controls; not a guarantee of all future mathematical review decisions.',
         'results':results,'concurrency':budget.report()}

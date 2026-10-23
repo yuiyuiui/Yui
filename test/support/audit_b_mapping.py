@@ -85,7 +85,7 @@ class MappingContract:
 def run(out,timeout=1800,budget=None):
     out=Path(out).resolve();stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='audit-b-mapping',
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,validator=MappingContract(out),
-        budget=budget or concurrency.Budget(concurrency.resolve()))
+        budget=concurrency.serial_budget(budget))
     return stage.execute()[0]
 
 

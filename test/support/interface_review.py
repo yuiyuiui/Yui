@@ -19,6 +19,8 @@ import ir
 import workflow
 import concurrency
 from clean_stage import ArtifactStage
+from review_contract import ReviewContract
+from execution_health import require_review_execution, qualification, review_outcome
 
 
 PROMPT='''Perform a fresh semantic review of the complete proposed NL0-to-Lean
@@ -27,8 +29,8 @@ The canonical source spec/graph are the mathematical authority; the formalizer's
 representations, types and plan are proposals, not a reference answer. Compare
 the actual complete Lean types (including binders, typeclasses, structure fields
 and guards) with every original H/E/M/N/P and global definition. Check both
-directions of claimed representations/equivalences and their proved conversion
-obligations; reject stronger assumptions, hidden conclusions, standard-basis
+directions of claimed representations/equivalences and their explicit planned
+conversion obligations; reject stronger assumptions, hidden conclusions, standard-basis
 surrogates for arbitrary lattices, omitted dimensions/characteristics/endpoints,
 and types that merely give a name to an unproved result. Type elaboration is not
 faithful translation. Check each source paragraph, source output and exact
@@ -47,7 +49,40 @@ material (contract.json or plan.json); include other actual locations as useful.
 findings is a list of {verdict,explanation,locations} for concrete defects or
 uncertainties, empty if none. Do not repair the proposal or invent a PASS.
 Source proofs and completed local Lean proof bodies are not requested here.
+An unproved bridge assigned to a worker is a planned obligation, not a new H.
+Its actual body is required at assembly/Audit B. Necessary definitional
+construction fields must elaborate and cannot assume the target. Compare a
+property to its actual source object and scalar field: a source hypothesis on
+one object/field is not automatically the target on another object/field.
+Every blocking mismatch finding includes comparison:{source:{document,pointer,
+quote},formal:{document,pointer,quote},difference:<specific binder/object/field/
+domain/hypothesis/conclusion/route difference>}. Quote the relevant actual
+content, not a paraphrase of a remembered source. Do not repeatedly resample
+reviews until one passes; an evidence-backed disagreement is a disclosed dispute.
 '''
+
+
+def validate_comparison(comparison,docs):
+    if not isinstance(comparison,dict) or set(comparison)!={'source','formal','difference'} or not isinstance(comparison['difference'],str) or not comparison['difference'].strip():
+        raise ValueError('A mismatch needs paired quoted source/formal evidence and its specific difference')
+    import audit_b
+    for side,allowed in [('source',{'spec.json','nl0.json'}),('formal',{'contract.json','plan.json'})]:
+        row=comparison[side]
+        if not isinstance(row,dict) or set(row)!={'document','pointer','quote'} or row['document'] not in allowed:
+            raise ValueError('Locate quoted evidence on its actual source/formal side')
+        try:value=audit_b.resolve(docs[row['document']],row['pointer'])
+        except (IndexError,KeyError,TypeError) as error:raise ValueError('Comparison pointer does not resolve') from error
+        text=value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,sort_keys=True)
+        if not isinstance(row['quote'],str) or not row['quote'].strip() or row['quote'] not in text:
+            raise ValueError('Quoted comparison evidence is absent at the supplied location')
+    return {'scope':'Quoted bytes and paired locations only; semantic equivalence remains a real judgment.'}
+
+
+def copy_review_inputs(author,inputs):
+    """Disclose canonical task data, not the author's repair history/verdicts."""
+    permitted={'spec.json','nl0.json','source-map.json','problem.md','source-context.md','frozen-target.md'}
+    for src in (Path(author)/'inputs').iterdir():
+        if src.is_file() and src.name in permitted:shutil.copyfile(src,Path(inputs)/src.name)
 
 
 def verify_candidate_artifact(actual,c,p,outputs):
@@ -56,14 +91,15 @@ def verify_candidate_artifact(actual,c,p,outputs):
            (actual['conclusion_type'],c['conclusion']['type']),
            (actual['representation'],c['representation']),(actual['objects'],c['objects']),
            (actual['steps'],p['steps']),(actual['terminal'],p['terminal']),
+           (actual.get('shared_obligations',[]),c.get('shared_obligations',[])),
            (actual['source_outputs'],outputs)]
     if any(left!=right for left,right in pairs):raise ValueError('The selected typed candidate differs from the actual model artifact')
 
 
-def prepare(author,out,candidate=None):
+def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
     author,out=[Path(p).resolve() for p in (author,out)]
     result=ir.load(author/'stage/result.json')
-    if result.get('exposure',{}).get('status')!='TRANSMITTED-EXPOSURE-CHECK-PASSED':
+    if not qualification(result)['identity_and_input_boundary_verified']:
         raise ValueError('The interface author exposure is not qualified')
     selection={'mode':'ACTUAL_SUBMITTED_ARTIFACT','author_result':bind(author/'stage/result.json')}
     if candidate is None:
@@ -94,17 +130,32 @@ def prepare(author,out,candidate=None):
     verify_candidate_artifact(actual,c,p,paths['source_outputs'])
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     for src,name in [(contract,'contract.json'),(plan,'plan.json')]:shutil.copyfile(src,inputs/name)
-    for src in (author/'inputs').iterdir():
-        if src.is_file() and src.name!='inputs.json':shutil.copyfile(src,inputs/src.name)
+    copy_review_inputs(author,inputs)
+    adjudication=None
+    if (adjudicate is None)!=(dispute is None):raise ValueError('A targeted adjudication needs both the prior review and located dispute')
+    if adjudicate is not None:
+        prior=Path(adjudicate).resolve();old=ir.load(prior/'bindings.json')
+        if old.get('adjudication'):raise ValueError('One targeted adjudication only; an unresolved disagreement remains disputed')
+        require_review_execution(ir.load(prior/'stage/result.json'),prior/'stage/result.json',phase='prior-interface-review')
+        for key,path in [('contract',contract),('plan',plan),('source_graph',author/'inputs/nl0.json'),('spec',author/'inputs/spec.json')]:
+            if ir.digest(old[key]['path'])!=old[key]['sha256'] or old[key]['sha256']!=ir.digest(path):
+                raise ValueError('Dispute must concern the exact same source/interface proposal')
+        claim=ir.load(dispute)
+        docs={p.name:ir.load(p) for p in inputs.glob('*.json')}
+        validate_comparison(claim['comparison'],docs)
+        shutil.copyfile(prior/'stage/accepted.json',inputs/'prior-disputed-review.json')
+        shutil.copyfile(dispute,inputs/'dispute.json')
+        adjudication={'prior_review':bind(prior/'stage/accepted.json'),'dispute':bind(dispute),
+                      'disclosure':'One targeted adjudication with the prior verdict and located dispute disclosed; not an untouched independent review.'}
     candidate=contract.parent
     for name in ['Check.lean','result.json']:
         if (candidate/'types'/name).exists():shutil.copyfile(candidate/'types'/name,inputs/('type-'+name))
-    manifest(inputs);(out/'prompt.txt').write_text(PROMPT)
+    manifest(inputs);(out/'prompt.txt').write_text(PROMPT+ ('\nThis is a targeted adjudication. The prior review and located dispute are explicitly disclosed. Assess the actual source/types; preserve unresolved disagreement rather than inventing a PASS.\n' if adjudication else ''))
     write(out/'selected-author-artifact.json',actual)
     write(out/'bindings.json',{'author':str(author),'contract':bind(contract),'plan':bind(plan),
         'source_graph':bind(author/'inputs/nl0.json'),'spec':bind(author/'inputs/spec.json'),
         'paragraph_mapping':paths['paragraph_mapping'],'source_outputs':paths['source_outputs'],
-        'candidate_selection':selection})
+        'candidate_selection':selection,'adjudication':adjudication})
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
 
@@ -122,30 +173,46 @@ def validate(value,out):
             # The root pointer is unnecessary: locate the actual source/type field.
             if not item['pointer'].startswith('/'):raise ValueError('Use specific absolute JSON pointers')
             import audit_b
-            audit_b.resolve(docs[item['document']],item['pointer']);located.add(item['document'])
+            try:audit_b.resolve(docs[item['document']],item['pointer'])
+            except IndexError as error:
+                raise ValueError('Review pointer array index is out of range: '+item['pointer']) from error
+            located.add(item['document'])
         if not located&{'spec.json','nl0.json'} or not located&{'contract.json','plan.json'}:
             raise ValueError('Locate the comparison in both original source and formal types/plan')
     if not isinstance(value['findings'],list):raise ValueError('findings must be a list')
     if any(blocking_finding(x) for x in value['findings']) and all(x['verdict']=='PASS' for x in value['checks'].values()):
         raise ValueError('Blocking findings conflict with all-PASS checks; preserve the finding and correct the affected check')
+    if any(x['verdict']=='FAIL' for x in value['checks'].values()) and not any(blocking_finding(f) for f in value['findings']):
+        raise ValueError('A failed semantic check needs its concrete located mismatch finding')
+    for finding in value['findings']:
+        if blocking_finding(finding):validate_comparison(finding.get('comparison'),docs)
     return {'scope':'Review completeness and resolving paired locations only; semantic verdicts remain the actual reviewer judgments.'}
 
 
 def run(out,timeout=1800,budget=None):
     out=Path(out).resolve()
-    stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='interface-semantic-review',
+    docs={p.name:ir.load(p) for p in (out/'inputs').glob('*.json') if p.name!='inputs.json'}
+    contract=ReviewContract(out/'review-work',{'checks':{}},
+        ['/checks/'+key for key in workflow.INTERFACE_CHECKS],lambda value:validate(value,out),
+        finding_validator=lambda finding:validate_comparison(finding['comparison'],docs))
+    phase='interface-dispute-review' if ir.load(out/'bindings.json').get('adjudication') else 'interface-semantic-review'
+    stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase=phase,
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,
-        validator=lambda value:validate(value,out),budget=budget or concurrency.Budget(concurrency.resolve()))
+        validator=contract,budget=concurrency.serial_budget(budget))
     return stage.execute()[0]
 
 
 def collect(out):
     out=Path(out).resolve();bindings=ir.load(out/'bindings.json');result=ir.load(out/'stage/result.json')
-    if not result.get('measurement_valid'):raise ValueError('Reviewer execution is not qualified; preserve the candidate judgment separately')
+    qualification=require_review_execution(result,out/'stage/result.json',phase='interface')
     raw=ir.load(out/'stage/accepted.json');validate(raw,out)
     for key in ['contract','plan','source_graph','spec']:
         row=bindings[key]
         if ir.digest(row['path'])!=row['sha256']:raise ValueError('Reviewed bytes changed')
+    if bindings.get('adjudication'):
+        for key in ['prior_review','dispute']:
+            row=bindings['adjudication'][key]
+            if ir.digest(row['path'])!=row['sha256']:raise ValueError('Adjudication evidence changed')
     files=[]
     for name in ['accepted.json','result.json','exposure-audit.json','execution-manifest.json']:
         p=out/'stage'/name;files.append({**bind(p),'path':str(p.relative_to(out))})
@@ -158,16 +225,22 @@ def collect(out):
         'preparation_cost':{'status':'DEVELOPMENT_ITERATIONS_NOT_COLD_BENCHMARK','owner_work':'UNMEASURED',
             'author_stage':str(Path(bindings['author'])/'stage'),'semantic_review_stage':str(out/'stage'),
             'candidate_selection':bindings.get('candidate_selection')}}
+    if bindings.get('adjudication'):
+        review['reviewer'].update(mode='targeted_adjudication',independent=False,
+            disclosure=bindings['adjudication']['disclosure'])
+        review['preparation_cost']['adjudication']=bindings['adjudication']
     path=out/'review.json'
     if path.exists():raise ValueError('Preserve the previous review')
     write(path,review)
     report={'all_checks_passed':all(x['verdict']=='PASS' for x in raw['checks'].values()) and not any(blocking_finding(x) for x in raw['findings']),
-        'review':bind(path),'findings':raw['findings']}
+        'review':bind(path),'findings':raw['findings'],'qualification':qualification}
+    report['review_status']=review_outcome(x['verdict'] for x in raw['checks'].values())
+    if bindings.get('adjudication') and not report['all_checks_passed']:report['review_status']='DISPUTED_REVIEW'
     write(out/'report.json',report);return report
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--author');p.add_argument('--candidate',type=int);p.add_argument('--timeout-seconds',type=int,default=1800)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--author');p.add_argument('--candidate',type=int);p.add_argument('--timeout-seconds',type=int,default=1800);p.add_argument('--adjudicate',type=Path);p.add_argument('--dispute',type=Path)
     args=p.parse_args()
-    result=prepare(args.author,args.out,args.candidate) if args.command=='prepare' else run(args.out,args.timeout_seconds) if args.command=='run' else collect(args.out)
+    result=prepare(args.author,args.out,args.candidate,adjudicate=args.adjudicate,dispute=args.dispute) if args.command=='prepare' else run(args.out,args.timeout_seconds) if args.command=='run' else collect(args.out)
     print(json.dumps(result,ensure_ascii=False,indent=2))

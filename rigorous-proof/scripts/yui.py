@@ -29,8 +29,12 @@ def main():
                        help='Disable library search/read/probe tools, including for packet-only replay')
     tokens = commands.add_parser('usage')
     tokens.add_argument('directory', type=Path)
+    commands.add_parser('metrics',help='Read recorded phase/tool/request costs; no model calls').add_argument('directory',type=Path)
     exposure = commands.add_parser('exposure')
     exposure.add_argument('directory', type=Path)
+    status=commands.add_parser('case-status',help='Read artifact-scoped progress without running a model')
+    status.add_argument('source',type=Path)
+    for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
     if args.command == 'doctor':
         print(json.dumps({'status': 'ENVIRONMENT-CHECKED', 'resolved_environment': verify()}, indent=2))
@@ -49,11 +53,17 @@ def main():
     elif args.command == 'usage':
         from usage import aggregate
         print(json.dumps(aggregate(args.directory), indent=2))
+    elif args.command=='metrics':
+        from phase_metrics import summarize
+        print(json.dumps(summarize(args.directory),indent=2))
     elif args.command == 'exposure':
         from exposure import audit_run
         result = audit_run(args.directory)
         print(json.dumps(result,indent=2))
         return 0 if result and all(x['status']=='TRANSMITTED-EXPOSURE-CHECK-PASSED' for x in result) else 1
+    elif args.command=='case-status':
+        from case_status import project
+        print(json.dumps(project(args.source,interface=args.interface,interface_review=args.interface_review,workflow=args.workflow),indent=2))
     else:
         if args.kind=='nl0' and not args.case_id:
             parser.error('--kind nl0 requires an explicit --case-id')
@@ -61,7 +71,7 @@ def main():
         from clean_stage import ArtifactStage
         sys.path.insert(0, str(CORE / 'translation/scripts'))
         import concurrency
-        budget = concurrency.Budget(concurrency.resolve())
+        budget = concurrency.serial_budget()
         print(json.dumps({'model_concurrency': budget.configuration}), flush=True)
         worker = ArtifactStage(args.out, args.prompt.read_text(), phase=args.phase, arm=args.arm,
                                timeout=args.timeout_seconds, budget=budget, inputs=args.inputs,

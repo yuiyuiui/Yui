@@ -4,6 +4,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import run_pilot as carrier
@@ -39,6 +41,19 @@ class IsolationTests(unittest.TestCase):
             self.assertNotIn(token, text)
         self.assertEqual(sent['instructions'], self.worker.system)
         self.assertEqual(sent['service_tier'], 'default')
+
+    def test_request_identity_survives_concurrent_normalization(self):
+        barrier=threading.Barrier(2);reserve=self.worker.reserve_request_number
+        def interleaved():
+            number=reserve();barrier.wait(timeout=2);return number
+        self.worker.reserve_request_number=interleaved
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results=list(pool.map(lambda _:self.worker.normalize_request(self.payload()),range(2)))
+        rows=[json.loads(line) for line in (self.worker.logs/'requests.jsonl').read_text().splitlines()]
+        self.assertEqual(sorted(row['request_number'] for row in rows),[1,2])
+        self.assertEqual(len(results),2)
+        lifecycle=[json.loads(line) for line in (self.worker.logs/'request-lifecycle.jsonl').read_text().splitlines()]
+        self.assertEqual({row['request_number'] for row in lifecycle if row['event']=='NORMALIZED'},{1,2})
 
     def test_other_model_and_effort_fail_closed(self):
         p = self.payload();p['model'] = 'gpt-5.6-luna'

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Allowlisted NL0 factoring and evidence-bound incremental Audit A.
 
-The parent standard/checker remains unchanged. Hashes and graph checks do not
+The parent mathematical standard remains unchanged. Hashes and graph checks do not
 perform mathematical review. New producers use the ordinary fresh-packet gate;
 changed consumers use located substitution reviews, with explicit inheritance.
 """
@@ -255,8 +255,8 @@ def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
 def reviewer(value):
     ir.need(value['identity'].strip() not in {'', 'UNASSIGNED'} and value['disclosure'].strip(), 'unperformed/undisclosed reviewer')
     ir.need(type(value['independent']) is bool, 'invalid review independence')
-    ir.need(value['mode'] in {'human', 'fresh_model_review', 'same_context_self_audit', 'external_review', 'delta_review_with_baseline'}, 'invalid review mode')
-    ir.need(not (value['mode'] == 'same_context_self_audit' and value['independent']), 'self-review cannot claim independence')
+    ir.need(value['mode'] in {'human', 'fresh_model_review', 'same_context_self_audit', 'external_review', 'delta_review_with_baseline', 'targeted_adjudication'}, 'invalid review mode')
+    ir.need(not (value['mode'] in {'same_context_self_audit','targeted_adjudication'} and value['independent']), 'self-review/adjudication cannot claim untouched independence')
 
 
 def check(directory, *, active=None, write=True):

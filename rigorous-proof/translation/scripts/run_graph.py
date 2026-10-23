@@ -38,7 +38,9 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     ir.need(timeout_seconds >= 1, 'positive time limit required')
     ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
     ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
-    budget = budget or concurrency.Budget(concurrency.resolve(max_concurrency))
+    budget = budget or concurrency.Budget(concurrency.resolve(max_concurrency), role='proof')
+    ir.need(budget.role != 'preparation_review', 'Proof execution requires its own proof budget')
+    budget.role = 'proof'
     configuration = budget.configuration
     print(__import__('json').dumps({'model_concurrency': configuration}, ensure_ascii=False), flush=True)
     lock = pilot.load_lock()
@@ -78,6 +80,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
+    ir.write(out/'decomposition.json',ir.decomposition(cpath,plan,configuration['effective']))
     ir.write(out/'configuration.json',{'harness':'yui-0.1.0','model':pilot.carrier.MODEL,
              'reasoning':'high','speed':'standard','arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
              'bank_enabled':bank,'initial_shared_input':store.snapshot() if store else None,

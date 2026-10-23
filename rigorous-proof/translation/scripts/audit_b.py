@@ -289,85 +289,88 @@ def build(out):
     forbidden_header = re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|initialize|elab|macro)\b',c['header'])
     local = {sid:ir.check(cpath,plan,{sid:proofs[sid]},only=sid) for sid in ir.validate(cpath,plan)[2]}
     work = Path(tempfile.mkdtemp(prefix='audit-b-build-'))
-    (work/'input').mkdir();(work/'output').mkdir()
-    source = formal+export_source(c,mapping)+'\n'+probe
-    file = work/'output/Audit.lean';file.write_text(source)
-    result = ir.run_lean(file,work)
-    (out/'Audit.lean').write_text(source)
-    ir.write(out/'compiler.json',result)
-    found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',result['stdout'])
-    evidence = json.loads(found[-1]) if found else None
-    ir.write(out/'elaborated.json',evidence)
-    errors=[]
-    dependency_rows=[]
-    if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
-    if result['exit_code'] != 0 or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
-    if any(r['exit_code'] for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
-    imported=[]
-    if evidence:
-        if not all(r['definitionally_equal'] for r in evidence['comparisons']): errors.append('ELABORATED_SIGNATURE_MISMATCH')
-        deps=evidence['dependencies']
-        if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
-        allowed=set(FOUNDATION)
-        if inventory.get('logic',{}).get('classical'): allowed |= CLASSICAL
-        allowed.update(mapping['calculation_links'])
-        allowed.update(row['library_declaration'] for row in mapping['entries'].values() if row.get('library_declaration'))
-        for d in deps['declarations']:
-            if set(d['axioms'])-AXIOMS: errors.append('UNPERMITTED_AXIOM:'+d['name'])
-            if not d['imported'] and d['kind'] in {'axiom','opaque'}: errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
-            if d['imported'] and d['proof_valued'] and d['name'] not in allowed: imported.append(d['name'])
-        if imported: errors.append('UNMAPPED_IMPORTED_MATHEMATICAL_RESULT')
-        dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
-        if any(not r['matched'] for r in dependency_rows): errors.append('NL0_DIRECT_DEPENDENCY_MISMATCH')
-        byname={d['name']:d for d in deps['declarations']}
-        for p in inventory['propositions']:
-            if p['kind']=='mathlib':
-                name=mapping['entries'][p['id']]['library_declaration'];d=byname.get(name)
-                if not d or not d['imported'] or not d['proof_valued']: errors.append('SOURCE_M_NOT_A_PROVED_LIBRARY_RESULT:'+p['id'])
-                module=p.get('source',{}).get('module')
-                if d and module and module!=d['module']: errors.append('SOURCE_M_MODULE_MISMATCH:'+p['id'])
-    packet={'inventory':inventory,'mapping':mapping,'contract':c,'plan':plan,
-        'actual_elaborated_evidence':evidence,'dependency_correspondence':dependency_rows,
-        'original_source_text':(cpath.parent/c['source']['path']).read_text(),'lean_source':source,
-        'source_and_proof_bytes':manifest['inputs'],
-        'warning':'Read actual sources and signatures. A template or compiler pass is not semantic review.'}
-    ir.write(out/'review-packet.json',packet)
-    required_locations={}
-    comparisons=evidence['comparisons'] if evidence else []
-    for group in ('propositions','definitions'):
-        for i,item in enumerate(inventory.get(group,[])):
-            matches=[j for j,q in enumerate(comparisons) if q['id'] in {item['id'],item['id']+'/library'}]
-            required_locations[item['id']]=['/inventory/'+group+'/'+str(i)]+[
-                '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
-    declarations=evidence['dependencies']['declarations'] if evidence else []
-    for i,d in enumerate(declarations):
-        if not d['imported']:
-            required_locations['implementation/'+d['name']]=['/lean_source','/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
-    for name,index in mapping['calculation_links'].items():
-        locations=['/inventory/logic/calculations/'+str(index)]
-        locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==name]
-        ir.need(len(locations)==2,'unused/uninspected calculation link')
-        required_locations['calculation/'+name]=locations
-    required_rows=set(required_locations)
-    receipts={key:{'verdict':'UNVERIFIED','notes':'Read the complete paired statements and actual elaborated evidence.',
-                   'locations':[],'evidence':[]} for key in sorted(required_rows)}
-    review={'version':VERSION,'mapping_sha256':ir.digest(out/'mapping.json'),
-            'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
-            'nodes':receipts,'checks':{k:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]} for k in REVIEW_CHECKS}}
-    mechanical={'version':VERSION,'passed':not errors,'errors':sorted(set(errors)),
-        'required_review_locations':required_locations,'dependency_correspondence':dependency_rows,
-        'unmapped_imported_proofs':sorted(set(imported)),'wall_seconds':time.monotonic()-start,
-        'local_checks':local,'compiler_exit_code':result['exit_code'],
-        'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
-        'mapping_sha256':ir.digest(out/'mapping.json'),'manifest_sha256':ir.digest(out/'manifest.json'),
-        'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json')},
-        'semantic_review_performed':False}
-    ir.write(out/'mechanical.json',mechanical)
-    review['mechanical_sha256']=ir.digest(out/'mechanical.json')
-    ir.write(out/'review-template.json',review)
-    return {'status':'AUDIT-B-MECHANICAL-PASSED' if not errors else 'AUDIT-B-MECHANICAL-FAILED',
-            'errors':mechanical['errors'],'unmapped_imported_proofs':mechanical['unmapped_imported_proofs'],
-            'semantic_review':'UNVERIFIED'}
+    try:
+        (work/'input').mkdir();(work/'output').mkdir()
+        source = formal+export_source(c,mapping)+'\n'+probe
+        file = work/'output/Audit.lean';file.write_text(source)
+        result = ir.run_lean(file,work)
+        (out/'Audit.lean').write_text(source)
+        ir.write(out/'compiler.json',result)
+        found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',result['stdout'])
+        evidence = json.loads(found[-1]) if found else None
+        ir.write(out/'elaborated.json',evidence)
+        errors=[]
+        dependency_rows=[]
+        if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
+        if result['exit_code'] != 0 or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
+        if any(r['exit_code'] for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
+        imported=[]
+        if evidence:
+            if not all(r['definitionally_equal'] for r in evidence['comparisons']): errors.append('ELABORATED_SIGNATURE_MISMATCH')
+            deps=evidence['dependencies']
+            if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
+            allowed=set(FOUNDATION)
+            if inventory.get('logic',{}).get('classical'): allowed |= CLASSICAL
+            allowed.update(mapping['calculation_links'])
+            allowed.update(row['library_declaration'] for row in mapping['entries'].values() if row.get('library_declaration'))
+            for d in deps['declarations']:
+                if set(d['axioms'])-AXIOMS: errors.append('UNPERMITTED_AXIOM:'+d['name'])
+                if not d['imported'] and d['kind'] in {'axiom','opaque'}: errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
+                if d['imported'] and d['proof_valued'] and d['name'] not in allowed: imported.append(d['name'])
+            if imported: errors.append('UNMAPPED_IMPORTED_MATHEMATICAL_RESULT')
+            dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
+            if any(not r['matched'] for r in dependency_rows): errors.append('NL0_DIRECT_DEPENDENCY_MISMATCH')
+            byname={d['name']:d for d in deps['declarations']}
+            for p in inventory['propositions']:
+                if p['kind']=='mathlib':
+                    name=mapping['entries'][p['id']]['library_declaration'];d=byname.get(name)
+                    if not d or not d['imported'] or not d['proof_valued']: errors.append('SOURCE_M_NOT_A_PROVED_LIBRARY_RESULT:'+p['id'])
+                    module=p.get('source',{}).get('module')
+                    if d and module and module!=d['module']: errors.append('SOURCE_M_MODULE_MISMATCH:'+p['id'])
+        packet={'inventory':inventory,'mapping':mapping,'contract':c,'plan':plan,
+            'actual_elaborated_evidence':evidence,'dependency_correspondence':dependency_rows,
+            'original_source_text':(cpath.parent/c['source']['path']).read_text(),'lean_source':source,
+            'source_and_proof_bytes':manifest['inputs'],
+            'warning':'Read actual sources and signatures. A template or compiler pass is not semantic review.'}
+        ir.write(out/'review-packet.json',packet)
+        required_locations={}
+        comparisons=evidence['comparisons'] if evidence else []
+        for group in ('propositions','definitions'):
+            for i,item in enumerate(inventory.get(group,[])):
+                matches=[j for j,q in enumerate(comparisons) if q['id'] in {item['id'],item['id']+'/library'}]
+                required_locations[item['id']]=['/inventory/'+group+'/'+str(i)]+[
+                    '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
+        declarations=evidence['dependencies']['declarations'] if evidence else []
+        for i,d in enumerate(declarations):
+            if not d['imported']:
+                required_locations['implementation/'+d['name']]=['/lean_source','/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
+        for name,index in mapping['calculation_links'].items():
+            locations=['/inventory/logic/calculations/'+str(index)]
+            locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==name]
+            ir.need(len(locations)==2,'unused/uninspected calculation link')
+            required_locations['calculation/'+name]=locations
+        required_rows=set(required_locations)
+        receipts={key:{'verdict':'UNVERIFIED','notes':'Read the complete paired statements and actual elaborated evidence.',
+                       'locations':[],'evidence':[]} for key in sorted(required_rows)}
+        review={'version':VERSION,'mapping_sha256':ir.digest(out/'mapping.json'),
+                'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
+                'nodes':receipts,'checks':{k:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]} for k in REVIEW_CHECKS}}
+        mechanical={'version':VERSION,'passed':not errors,'errors':sorted(set(errors)),
+            'required_review_locations':required_locations,'dependency_correspondence':dependency_rows,
+            'unmapped_imported_proofs':sorted(set(imported)),'wall_seconds':time.monotonic()-start,
+            'local_checks':local,'compiler_exit_code':result['exit_code'],
+            'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
+            'mapping_sha256':ir.digest(out/'mapping.json'),'manifest_sha256':ir.digest(out/'manifest.json'),
+            'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json')},
+            'semantic_review_performed':False}
+        ir.write(out/'mechanical.json',mechanical)
+        review['mechanical_sha256']=ir.digest(out/'mechanical.json')
+        ir.write(out/'review-template.json',review)
+        return {'status':'AUDIT-B-MECHANICAL-PASSED' if not errors else 'AUDIT-B-MECHANICAL-FAILED',
+                'errors':mechanical['errors'],'unmapped_imported_proofs':mechanical['unmapped_imported_proofs'],
+                'semantic_review':'UNVERIFIED'}
+    finally:
+        shutil.rmtree(work)
 
 
 def resolve(value,pointer):

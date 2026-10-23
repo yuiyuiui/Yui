@@ -113,7 +113,7 @@ def bound(directory):
 def run(directory, *, shared_store=None, timeout_seconds=180, bank=False):
     out = Path(directory).resolve(); manifest = bound(out)
     recorder=execution_state.Recorder(out,ir.contract(manifest['contract'])['id'],manifest['concurrency'])
-    budget = concurrency.Budget(manifest['concurrency'],execution=recorder)
+    budget = concurrency.Budget(manifest['concurrency'],execution=recorder,role='proof')
     try:
         with execution_state.activate(recorder),recorder.signals():
             result = run_graph.run(Path(manifest['contract']),Path(manifest['plan']),out/'proof-run',

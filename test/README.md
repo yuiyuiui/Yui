@@ -1,45 +1,86 @@
 # Mathematical full-workflow tests
 
-The three user-selected exercises are geometry-product-dimension, lie-module-irreducibility and wave-map-energy. Each retains the supplied screenshot, literal transcription and explicit source context. They are not substituted by easier propositional examples.
+Each fixed exercise directory contains exactly one tracked input, `problem.md`:
 
-Current mathematical status: no full case pass. The geometry/PDE cases now use
-the user-approved nonempty-set and sphere-relative-support conventions. Their
-complete statements and hashes are frozen in each case directory. The Lie
-exercise is Humphreys GTM 9, section 27, exercise 7. Its later NL0 passed actual
-[Audit A](results/lie-audit-a-v8/inspection.json), while Lean/Audit B remains
-unfinished. Geometry and wave-map attempts have not passed the complete workflow.
-The [earlier report](results/REPORT.md) and [earlier machine status](results/status.json)
-retain their original scope; subsequent development attempts remain in results/.
-No altered interpretation is counted as the original exercise.
+| Case | Fixed input |
+| --- | --- |
+| Geometry / measure | [Hausdorff product dimension](geometry-product-dimension/problem.md) |
+| Lie algebras / representation | [Admissible-lattice reduction](lie-module-irreducibility/problem.md) |
+| PDE | [Sphere-valued wave-map energy](wave-map-energy/problem.md) |
 
-After context is frozen, use clean model stages for a supplied proof, NL0, actual Audit A, source preparation, typed Lean interfaces, proof workers, assembly and actual Audit B. Reference solutions and developer history are withheld. Structural controls and partial Lean fragments are reported separately from full-workflow success.
+Each input contains the literal original problem, bibliographic context, the
+approved interpretation with all hypotheses, and a detailed natural-language
+proof. These are supplied proofs to translate and audit. Test workers must not
+solve a different problem, replace the supplied route, or silently drop edge
+cases. Freeze the input bytes in each future run's input manifest and record
+its Git commit/hash. Only explicitly staged inputs and, in the Yui arm, the
+harness are model-visible. Developer history and other cases are withheld.
 
-Selected model: gpt-6-luna / high / Standard. Concurrency: default auto, with the resolved bound and actual peak recorded.
-The new finite batch uses three independent case processes, each with its own
-auto|N budget; earlier batches shared a global limit two and retain that meaning.
-Run `support/queue_controller.py --queue /absolute/new-batch` for already prepared
-explicit jobs. Each case writes `cases/<job-id>/nl0-to-lean/execution-status.json`.
-Use the batch's `--cancel` option or the workflow cancel command for scoped stops.
-The desktop chat Stop button is not an implemented cancellation interface.
+The original screenshots and separate context/target metadata have been
+removed after consolidation into the problem files. Previous generated runs,
+NL0s, audit receipts, drafts and logs have been intentionally cleared. There is
+currently no test result or accepted NL0 in this reset dataset. A supplied
+natural-language proof is not an Audit A pass or a Lean verification result.
+No new model run was performed during the reset.
 
-## Acceptance
+## Future runs
 
-A full case pass requires the exact approved target, a structurally complete
-NL0, an actually completed current Audit A, assembled Lean proofs, and an
-actually completed Audit B establishing source correspondence and kernel
-closure. A candidate proof, valid JSON, checked local lemma, successful source
-probe or model self-report is not a full pass. A failed or UNVERIFIED A review
-blocks translation; an external theorem remains an explicit premise unless
-its Lean proof is supplied separately.
+Selected model: `gpt-6-luna`, reasoning `high`, Standard speed; no fallback.
+A batch consists of independent case processes. Each case has a separate
+serial author/preparation/review lane and its own `auto|N` Lean proof-worker
+budget. The Python controller does not consume a proof-worker slot. Report
+requested/resolved/observed concurrency, actual stage time, execution health,
+and usage coverage. Clean boundary details are in
+[isolation.md](../rigorous-proof/references/isolation.md).
 
-Execution health and measurement validity are separate from mathematical
-acceptance. Record clean transmitted inputs/tools/model, all actual stage
-usage, failures and unresolved coverage. A normal healthy deadline without an
-accepted result is MODEL_BUDGET_EXHAUSTED for that attempt/configuration. An
-early model stop is not budget exhaustion or proof that the exercise is wrong.
-Source/format completion failures must not be presented as substantive gaps.
+Place all generated mathematical test runs, queues, NL0s, audit controls,
+Lean drafts, snapshots and reports under `test/results/`. This directory is
+ignored by Git. Core software-control outputs belong under
+`rigorous-proof/tests/results/` or `rigorous-proof/translation/tests/results/`,
+which are also disposable and ignored. Runtime code, regression tests/fixtures,
+`test/support/`, and the fixed `problem.md` inputs are maintained source files.
 
-The current records are development iterations. Fresh model contexts may
-receive explicit earlier candidate artifacts and actual review feedback from
-the same case. Those repairs are disclosed warm continuations, not independent
-cold repetitions or a performance comparison.
+The support adapters operate on explicitly prepared inputs/jobs; they do not
+constitute an automatic original-proof campaign launcher. Actual reviewer
+behavioral controls must be freshly prepared and run before their acceptance
+is used. The old controls were removed with the old results; do not fabricate
+a passing summary or rely on a deleted historical receipt. Mathematical
+acceptance still requires complete NL0, actual Audit A, assembled kernel-checked
+Lean, and actual Audit B under the same exact target.
+
+## Stop and clear a test
+
+From the repository root, preview the cleanup:
+
+```sh
+python3 -B test/support/cleanup_tests.py
+```
+
+Then stop owned runs and remove their generated files/directories:
+
+```sh
+python3 -B test/support/cleanup_tests.py --apply
+```
+
+The script works from any current directory when invoked by absolute path.
+It uses no LLM. It requests cancellation, allows ten seconds for normal
+shutdown, then stops remaining matching owned processes, confirms exit, and
+only then deletes generated output roots and registered temporary workspaces.
+The grace period is configurable with `--grace-seconds 0..60`.
+
+Ownership uses PID **and** OS start identity and process group, plus controller
+records, descendants, and exact temporary-workspace bindings. It never calls
+`killall` or signals an unrelated process group. An ownership inconsistency or
+unconfirmed stop returns a nonzero status and preserves outputs for inspection.
+New test stages cannot start while cleanup holds its lock. A second completed
+cleanup is safe. Fixed problem files, support code, benchmarks, personal Codex
+state and shared Lean/mathlib installations are preserved.
+
+The desktop chat Stop button is not a cancellation hook for independent CLI
+processes; use the batch cancel interface or this cleanup command. Temporary
+folders from other repositories are outside this script's scope. Legacy Yui
+carrier folders can be reclaimed only when exact archived/live ownership
+material agrees; arbitrary same-prefix temporary directories are not deleted.
+
+See [support/MAINTENANCE.md](support/MAINTENANCE.md) for the software changes
+and their validation scope. Those controls are not mathematical test scores.

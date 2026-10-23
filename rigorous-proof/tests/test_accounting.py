@@ -58,6 +58,16 @@ class AccountingTests(unittest.TestCase):
         self.write(p, 1, [{'type': 'response.created', 'response': {'id': 'one', 'service_tier': 'auto'}}, self.event()])
         self.assertEqual(usage.summarize_stage(p)['standard_speed_observation'], 'CONSISTENT')
 
+    def test_provisional_created_usage_is_not_a_second_final_charge(self):
+        p=self.stage();created=self.event(input_tokens=0,output_tokens=0,total_tokens=0,
+            input_tokens_details={'cached_tokens':0},output_tokens_details={'reasoning_tokens':0})
+        created['type']='response.created'
+        self.write(p,1,[created,self.event()])
+        result=usage.summarize_stage(p)
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['total_usage']['total_tokens'],120)
+        self.assertFalse(result['errors'])
+
     def test_actual_premium_tier_is_detected(self):
         p = self.stage();event = self.event();event['response']['service_tier'] = 'priority'
         self.write(p, 1, [event])

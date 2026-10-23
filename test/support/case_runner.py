@@ -8,11 +8,13 @@ import audit_a_campaign as a
 import full_workflow as f
 from clean_stage import ArtifactStage
 import execution_state as execution
+from execution_health import StageFailure
 
 
 def execute(job,root):
     recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='preparation')
-    budget=a.concurrency.Budget(recorder.state['concurrency'],execution=recorder)
+    budgets=a.concurrency.CaseBudgets(job.get('max_concurrency','auto'),execution=recorder)
+    budget=budgets.serial
     result={}
     def progress(case,phase,**extra):
         recorder.check();recorder.update(phase=phase,stage_artifacts=extra);recorder.flush(force=True)
@@ -24,17 +26,24 @@ def execute(job,root):
                     inputs=out/'inputs.json',timeout=1800,budget=budget)
                 stage.execute();recorder.check();f.accepted(out);source=out/'stage/case'
             else:source=(a.ROOT/'test/results'/job['source']).resolve()
-            if job['kind'] not in {'translate','checked_interface'}:f.audit_source(job['case'],source,job['audit'],budget,progress)
-            result=(f.from_interface(job['case'],source,job['interface'],job['workflow'],budget,progress,candidate=job['candidate'])
-                if job['kind']=='checked_interface' else f.translate(job['case'],source,job['interface'],job['workflow'],budget,progress))
+            if job['kind'] not in {'translate','checked_interface','submitted_interface'}:
+                f.audit_source(job['case'],source,job['audit'],budget,progress,
+                    reuse_from=[a.ROOT/'test/results'/name for name in job.get('reuse_audits',[])])
+            result=(f.from_interface(job['case'],source,job['interface'],job['workflow'],budget,progress,
+                    candidate=job.get('candidate'),review_name=job.get('review'),
+                    proof_budget=budgets.proof)
+                if job['kind'] in {'checked_interface','submitted_interface'} else f.translate(job['case'],source,job['interface'],job['workflow'],budget,progress,
+                    proof_budget=budgets.proof))
     except execution.Cancelled as error:
-        result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','error':str(error)}
+        result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL','error':str(error)}
+    except StageFailure as error:
+        result=error.result
     except Exception as error:
-        result={'status':'CANCELLED' if recorder.cancelled() else 'REPAIR_REQUIRED',
+        result={'status':'CANCELLED' if recorder.cancelled() else 'ARTIFACT_OR_CONTRACT_REJECTED' if isinstance(error,ValueError) else 'EXECUTION_FAULT',
                 'error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
     finally:
-        recorder.close(result.get('status','EXECUTION_FAULT'))
-        a.write(Path(root)/'case-result.json',{'job':job,'result':result,'concurrency':budget.report()})
+        recorder.close(result.get('status','EXECUTION_FAULT'),outcome=result)
+        a.write(Path(root)/'case-result.json',{'job':job,'result':result,'concurrency':budgets.report()})
     return result
 
 

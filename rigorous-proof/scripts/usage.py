@@ -57,6 +57,8 @@ def summarize_stage(directory, *, phase='unassigned'):
             response = event.get('response') or {}
             if not isinstance(response, dict):
                 continue
+            if event.get('type') not in {'response.completed','response.incomplete','response.failed'}:
+                continue
             # Created events can say auto before dispatch resolves the actual
             # tier. Only terminal execution metadata describes used service.
             if event.get('type') in {'response.completed', 'response.incomplete', 'response.failed'} and response.get('service_tier') is not None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+from copy import deepcopy
 import hashlib
 import json
 import os
@@ -118,10 +119,12 @@ class Recorder:
         self.root = Path(root).resolve(); self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root/'execution-status.json'
         if self.path.exists(): raise ValueError('Preserve the existing run; use a new output directory')
-        self.lock = threading.RLock(); self.done = threading.Event(); self.dirty = True
+        self.lock = threading.RLock(); self.write_lock = threading.Lock()
+        self.done = threading.Event(); self.dirty = True
         self.started = time.monotonic(); self.last_write = 0.; self._heartbeat = 0.
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
         self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}
+        self._usage_totals = {}; self._usage_unknown = {}
         self._usage_errors = []; self._signals = {}; self._locals = threading.local()
         owner = identity(os.getpid())
         if owner is None: raise RuntimeError('Cannot establish controller process identity')
@@ -129,7 +132,8 @@ class Recorder:
             'updated_at_utc': now(), 'controller_heartbeat_at_utc': now(),
             'controller': {**owner, 'ppid': os.getppid(), 'state': 'RUNNING'}, 'phase': phase,
             'bindings': {}, 'model': {'id':'gpt-6-luna','effort':'high','speed':'standard'},
-            'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0},
+            'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0,
+                'roles': {}, 'proof_limit_scope': 'Lean proof jobs only'},
             'tasks': {}, 'processes': {}, 'usage': {},
             'cancellation': {'requests':[], 'cleanup':'NOT_REQUESTED'}, 'result': {'status':'RUNNING'}}
         self.owner_lock = self.root/'.execution-owner.lock'
@@ -183,9 +187,21 @@ class Recorder:
     def activity(self, key, activity):
         if key is not None: self.task(key, activity=activity, last_activity_at_utc=now())
 
-    def model_slot(self, delta):
+    def model_slot(self, delta, *, role='unspecified'):
         with self.lock:
-            c = self.state['concurrency']; c['active_model_stages'] += delta
+            c = self.state['concurrency']
+            roles = c['roles']
+            opposite = 'preparation_review' if role == 'proof' else 'proof'
+            if delta > 0 and role in {'proof', 'preparation_review'}:
+                if roles.get(opposite, {}).get('active', 0):
+                    raise ValueError('Proof work cannot overlap preparation/review in the same case')
+                if role == 'preparation_review' and roles.get(role, {}).get('active', 0):
+                    raise ValueError('Only one preparation/review context may execute per case')
+            row = roles.setdefault(role, {'active': 0, 'observed_peak': 0})
+            if row['active'] + delta < 0: raise ValueError('Model slot underflow')
+            row['active'] += delta
+            row['observed_peak'] = max(row['observed_peak'], row['active'])
+            c['active_model_stages'] += delta
             c['observed_peak_model_stages'] = max(c['observed_peak_model_stages'],c['active_model_stages'])
             self.dirty = True
 
@@ -218,7 +234,13 @@ class Recorder:
         with self.lock: self._requests.add((stage,number)); self.dirty=True
 
     def model_event(self, task, stage, number, event):
-        if task: self.activity(task,'MODEL_RUNNING')
+        if task:
+            with self.lock:
+                row = self.state['tasks'].get(task, {})
+                values = {'last_model_event_at_utc': now()}
+                if not row.get('current_lean_check') and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED'}:
+                    values.update(activity='MODEL_RUNNING', last_activity_at_utc=now())
+                self.task(task, **values)
         if event.get('type') not in {'response.completed','response.incomplete','response.failed'}:return
         response = event.get('response') or {}
         if isinstance(response,dict):
@@ -235,7 +257,12 @@ class Recorder:
         with self.lock:
             if rid in self._responses and self._responses[rid] != counts:
                 self._usage_errors.append('Conflicting provider usage: '+rid)
-            self._responses[rid] = counts; self._covered.add((stage,number))
+            if rid not in self._responses:
+                self._responses[rid] = counts
+                for key, value in counts.items():
+                    self._usage_totals[key] = self._usage_totals.get(key, 0) + (value or 0)
+                    self._usage_unknown[key] = self._usage_unknown.get(key, 0) + (value is None)
+            self._covered.add((stage,number))
             self.state['usage']['usage_last_observed_at_utc'] = now(); self.dirty=True
 
     def lean_started(self, task, file):
@@ -255,23 +282,28 @@ class Recorder:
         else:self.update(current_lean_check=None,latest_lean_check=summary)
 
     def flush(self, force=False):
-        with self.lock:
-            mono=time.monotonic(); heartbeat=mono-self._heartbeat>=5
-            if not force and (mono-self.last_write<1 or not (self.dirty or heartbeat)): return
-            if heartbeat:
-                self.state['controller_heartbeat_at_utc']=now();self._heartbeat=mono
-            totals=None
-            if self._responses:
-                totals={k:sum(x[k] for x in self._responses.values()) if all(x[k] is not None for x in self._responses.values()) else None
-                    for k in next(iter(self._responses.values()))}
-            complete=(self.done.is_set() and bool(self._requests) and self._requests<=self._covered and not self._usage_errors)
-            self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
-                confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
-                in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
-            self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values())
-                for s in ['PENDING','RUNNING','LOCAL_CHECKED','UNFINISHED','BLOCKED','CANCEL_REQUESTED','CANCELLED','FINISHED']}
-            self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started
-            atomic(self.path,self.state);self.last_write=mono;self.dirty=False
+        # One writer takes its snapshot after acquiring this lock: an older
+        # ordinary snapshot can never overwrite a newer final/stop snapshot.
+        with self.write_lock:
+            with self.lock:
+                mono=time.monotonic(); heartbeat=mono-self._heartbeat>=5
+                if not force and (mono-self.last_write<1 or not (self.dirty or heartbeat)): return
+                if heartbeat:
+                    self.state['controller_heartbeat_at_utc']=now();self._heartbeat=mono
+                totals={k: v if not self._usage_unknown[k] else None for k,v in self._usage_totals.items()} if self._responses else None
+                complete=(self.done.is_set() and bool(self._requests) and self._requests<=self._covered and not self._usage_errors)
+                self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
+                    confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
+                    in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
+                states=['PENDING','RUNNING','LOCAL_CHECKED','UNFINISHED','BLOCKED','CANCEL_REQUESTED','CANCELLED','FINISHED']
+                self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
+                self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
+                self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started
+                snapshot=deepcopy(self.state);self.last_write=mono;self.dirty=False
+            try: atomic(self.path,snapshot)
+            except BaseException:
+                with self.lock: self.dirty=True
+                raise
 
     @contextlib.contextmanager
     def signals(self):

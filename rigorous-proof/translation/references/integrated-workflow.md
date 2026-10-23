@@ -116,7 +116,7 @@ mathematical correctness or authenticate a reviewer who fabricates judgment.
 
 ## 4. Author and freeze the IR
 
-Choose object views, input/output types, proved conversion interfaces, shared
+Choose object views, input/output types, planned typed conversion interfaces, shared
 ports and local T plans jointly. Preserve natural NL0 node boundaries. Export
 every fact needed by another task; no shared result is an ambient definition.
 The source graph is now fixed. Representation/API difficulties remain Lean
@@ -172,8 +172,9 @@ The workflow's concurrency is fixed at freeze: `auto` uses a confirmed backend
 cap when available, otherwise the CLI's disclosed fallback two. A positive N is
 user-controlled, constrained only by a known backend hard limit. Print requested,
 effective and reason; record observed peak, per-stage queue/start/end and total
-time. One case-local budget covers its model stages, including retries or
-optional diagnostic stages. This is not account-wide distributed rate control.
+time. The proof budget covers proof jobs, retries and their optional diagnostics;
+preparation and reviews use a separate serial lane. One case ledger includes
+all phases. This is not account-wide distributed rate control.
 Other cases own separate budgets. Python coordination consumes no model slot.
 Free slots take the next queued job with a fresh model context for that node.
 

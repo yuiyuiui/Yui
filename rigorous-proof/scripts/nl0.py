@@ -346,7 +346,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
     if audit_path:
         audit = load(audit_path)
         record(audit, {"format_version", "graph_sha256", "spec_sha256", "reviewer", "target_review",
-                       "definition_reviews", "source_reviews", "inference_reviews"}, "audit")
+                       "definition_reviews", "source_reviews", "inference_reviews"}, "audit", optional={"structure_review"})
         require(type(audit["format_version"]) is int and audit["format_version"] in ({3} if current else {1, 2}),
                 "AUDIT-VERSION", "v2 graphs require audit v3; legacy receipts cannot establish current acceptance")
         has_external = any(p["kind"] == "external" for p in propositions.values())
@@ -376,7 +376,14 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 fields.add("replay")
             if located_packet is not None:
                 fields.add("locations")
-            record(entry, fields, where)
+            record(entry, fields, where, optional={'inheritance'} if current else ())
+            inherited=None
+            if 'inheritance' in entry:
+                import audit_reuse
+                scope=('packet:'+where if inference else where if where in {'target','structure'} else
+                       'definition:'+where if where in definitions else 'source:'+where if where in sources else None)
+                require(scope is not None,'AUDIT-INHERITANCE','Inheritance is allowed only on a complete top-level review item')
+                inherited=closed_call(audit_reuse.validate,base,entry['inheritance'],data,scope,entry)
             verdict(entry["verdict"], where)
             string(entry["notes"], where)
             evidence(base, entry["evidence"])
@@ -395,7 +402,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 if current:
                     replay = entry["replay"]
                     record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay")
-                    expected = packet(data, where)["packet_sha256"]
+                    expected = inherited['previous_packet_sha256'] if inherited else packet(data, where)["packet_sha256"]
                     require(replay["packet_sha256"] == expected, "STALE-PACKET", where)
                     require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only"}, "REPLAY-BOUNDARY", where)
                     string(replay["carrier"], where + ".carrier")
@@ -438,6 +445,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                                 for p in app_review["bridges"]), "AUDIT-BRIDGE", f"unproved/unavailable bridge at {location}")
 
         review(audit["target_review"], "target")
+        if 'structure_review' in audit:review(audit['structure_review'],'structure')
         for field, expected, is_inference in (("definition_reviews", set(definitions), False),
                                                ("source_reviews", set(sources), False),
                                                ("inference_reviews", set(inferences), True)):

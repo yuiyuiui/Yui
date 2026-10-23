@@ -10,19 +10,33 @@ import ir
 import workflow
 import run_graph
 import execution_state
+from execution_health import StageFailure, qualification, review_outcome
 
 
 def accepted(directory):
     directory=Path(directory);row=ir.load(directory/'stage/result.json')
     if row['status']=='CANCELLED':raise execution_state.Cancelled('Stage cancelled externally')
-    if row['status']!='ACCEPTED' or row.get('exposure',{}).get('status')!='TRANSMITTED-EXPOSURE-CHECK-PASSED':
-        raise ValueError('No actual exposure-qualified submitted artifact: '+str(directory))
+    checked=qualification(row)
+    if not checked['identity_and_input_boundary_verified']:
+        raise StageFailure('EXECUTION_UNQUALIFIED','Model identity or input boundary is unverified',evidence=directory/'stage/result.json',details=checked)
+    if row['status']!='ACCEPTED' or checked['execution_health']!='NO_RECORDED_FAULT':
+        raise StageFailure(row.get('task_outcome') or 'EXECUTION_UNQUALIFIED',
+            'Stage did not deliver a healthy submitted artifact; preserve actual candidates for explicit qualified recovery',
+            evidence=directory/'stage/result.json',details=checked)
     return row
 
 
-def audit_source(case,source,name,budget,progress):
+def audit_source(case,source,name,budget,progress,*,reuse_from=()):
     source=Path(source).resolve();directory=a.ROOT/'test/results'/name
-    if not directory.exists():a.prepare(source,a.ROOT/'test'/case,directory)
+    if (source/'audit-a.json').is_file():
+        prior=a.nl0.validate(source/'nl0.json',source/'spec.json',source/'audit-a.json',allow_unresolved=True)[0]
+        if prior['current_standard_receipt_valid']:
+            result={'full_acceptance':True,'source_audit_status':prior['audit_status'],
+                    'authority':a.bind(source/'audit-a.json'),'reused_unchanged_acceptance':True,
+                    'execution_policy':'Prior receipt retains its original execution disclosure; not a new-policy run.'}
+            progress(case,'SOURCE_AUDIT_A_PASSED',**result)
+            return result
+    if not directory.exists():a.prepare(source,a.ROOT/'test'/case,directory,reuse_from=reuse_from)
     else:
         campaign=ir.load(directory/'campaign.json')
         if campaign['graph']!=a.bind(source/'nl0.json') or campaign['spec']!=a.bind(source/'spec.json'):
@@ -31,38 +45,49 @@ def audit_source(case,source,name,budget,progress):
     a.run(directory,1200,budget=budget)
     if budget.execution:budget.execution.check()
     result=a.collect(directory,a.ROOT/'test/results/audit-a-behavior-v1/behavioral-summary.json')
-    if not result['full_acceptance']:raise ValueError('Actual Audit A did not pass: '+str(directory))
+    if not result['full_acceptance']:
+        status=review_outcome(row['verdict'] for row in result.get('unresolved_reviews',[]))
+        if status=='REVIEW_PASSED':status='REVIEW_INCOMPLETE'
+        raise StageFailure(status,'Actual Audit A did not pass',phase='audit-a',evidence=directory/'inspection.json')
+    progress(case,'SOURCE_AUDIT_A_PASSED',inspection=str(directory/'inspection.json'))
     return result
 
 
-def translate(case,source,interface_name,workflow_name,budget,progress):
+def translate(case,source,interface_name,workflow_name,budget,progress,*,proof_budget=None):
     source=Path(source).resolve();results=a.ROOT/'test/results'
     interface=results/interface_name
     if not interface.exists():author.prepare(source,a.ROOT/'test'/case,interface)
     progress(case,'INTERFACE_AUTHORING',directory=str(interface))
     author.run(interface,1800,budget=budget);accepted(interface)
-    return from_interface(case,source,interface_name,workflow_name,budget,progress)
+    return from_interface(case,source,interface_name,workflow_name,budget,progress,proof_budget=proof_budget)
 
 
-def from_interface(case,source,interface_name,workflow_name,budget,progress,candidate=None):
+def from_interface(case,source,interface_name,workflow_name,budget,progress,candidate=None,review_name=None,*,proof_budget=None):
     """Review an actual submitted or explicitly recovered typed model artifact."""
     source=Path(source).resolve();results=a.ROOT/'test/results';interface=results/interface_name
-    review=results/(interface_name+'-review');interface_review.prepare(interface,review,candidate=candidate)
+    budget=a.concurrency.serial_budget(budget)
+    proof_budget=proof_budget or a.concurrency.Budget(a.concurrency.resolve(),execution=budget.execution,role='proof')
+    review=results/(review_name or interface_name+'-review');interface_review.prepare(interface,review,candidate=candidate)
     progress(case,'INTERFACE_SEMANTIC_REVIEW',directory=str(review))
     interface_review.run(review,1200,budget=budget)
+    if budget.execution:budget.execution.check()
     checked=interface_review.collect(review)
-    if not checked['all_checks_passed']:raise ValueError('Actual interface review did not pass: '+str(review))
+    if not checked['all_checks_passed']:raise StageFailure(checked.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual interface review did not pass',phase='interface',evidence=review/'report.json')
+    progress(case,'INTERFACE_REVIEW_PASSED',directory=str(review))
     bindings=ir.load(review/'bindings.json');destination=budget.execution.root/'workflow' if budget.execution else results/workflow_name
-    if bindings['source_graph']!=a.bind(source/'nl0.json') or bindings['spec']!=a.bind(source/'spec.json'):
-        raise ValueError('The recovered interface is not bound to this exact source')
+    for key,name in [('source_graph','nl0.json'),('spec','spec.json')]:
+        recorded=bindings[key]
+        if ir.digest(recorded['path'])!=recorded['sha256'] or recorded['sha256']!=ir.digest(source/name):
+            raise ValueError('The recovered interface is not bound to these exact source bytes: '+name)
     workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract']['path'],bindings['plan']['path'],review/'review.json',destination,
-        audit_a=source/'audit-a.json',max_concurrency=budget.configuration['requested'])
+        audit_a=source/'audit-a.json',max_concurrency=proof_budget.configuration['requested'])
     frozen=workflow.bound(destination)
     progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(destination))
     proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),destination/'proof-run',
-        timeout_seconds=1800,bank=False,budget=budget)
+        timeout_seconds=1800,bank=False,budget=proof_budget,
+        shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
     workflow.bound(destination)
-    if proof['status']!='FRAGMENT_ASSEMBLED':raise ValueError('Actual Lean assembly unfinished: '+str(destination))
+    if proof['status']!='FRAGMENT_ASSEMBLED':raise StageFailure('PROOF_UNFINISHED','Actual Lean assembly unfinished',phase='proof',evidence=destination/'proof-run/report.json')
     mapping=results/(workflow_name+'-mapping');audit_b_mapping.prepare(destination,mapping)
     progress(case,'AUDIT_B_MAPPING_AND_REAL_BUILD',directory=str(mapping))
     audit_b_mapping.run(mapping,1800,budget=budget);audit_b_mapping.adopt(mapping)
@@ -70,6 +95,6 @@ def from_interface(case,source,interface_name,workflow_name,budget,progress,cand
     progress(case,'AUDIT_B_FRESH_SEMANTIC_REVIEW',directory=str(audit_review))
     audit_b_review.run(audit_review,1800,budget=budget)
     verdict=audit_b_review.collect(audit_review)
-    if not verdict['all_checks_passed']:raise ValueError('Actual Audit B semantic review did not pass: '+str(audit_review))
+    if not verdict['all_checks_passed']:raise StageFailure(verdict.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual Audit B semantic review did not pass',phase='audit-b',evidence=audit_review/'report.json')
     result=workflow.finish(destination,audit_review/'review.json')
     progress(case,result['status'],directory=str(destination));return result

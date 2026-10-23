@@ -15,6 +15,8 @@ import ir
 import audit_b
 import concurrency
 from clean_stage import ArtifactStage
+from review_contract import ReviewContract
+from execution_health import require_review_execution, review_outcome
 
 
 PROMPT='''Perform the actual fresh Audit B semantic review. Read the original
@@ -77,15 +79,20 @@ def validate(value,out):
 
 def run(out,timeout=1800,budget=None):
     out=Path(out).resolve()
+    mechanical=ir.load(out/'inputs/mechanical.json')
+    required=['/nodes/'+key for key in mechanical['required_review_locations']]+['/checks/'+key for key in audit_b.REVIEW_CHECKS]
+    packet=ir.load(out/'inputs/review-packet.json')
+    contract=ReviewContract(out/'review-work',{'nodes':{},'checks':{}},required,lambda value:validate(value,out),
+        finding_validator=lambda finding:[audit_b.resolve(packet,p) for p in finding['locations']])
     stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='audit-b-semantic-review',
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,
-        validator=lambda value:validate(value,out),budget=budget or concurrency.Budget(concurrency.resolve()))
+        validator=contract,budget=concurrency.serial_budget(budget))
     return stage.execute()[0]
 
 
 def collect(out):
     out=Path(out).resolve();binding=ir.load(out/'bindings.json');result=ir.load(out/'stage/result.json')
-    if not result.get('measurement_valid'):raise ValueError('Reviewer execution is unqualified')
+    qualification=require_review_execution(result,out/'stage/result.json',phase='audit-b')
     for key in ['mechanical','mapping','packet']:
         if ir.digest(binding[key]['path'])!=binding[key]['sha256']:raise ValueError('Reviewed audit evidence changed')
     raw=ir.load(out/'stage/accepted.json');validate(raw,out)
@@ -102,7 +109,8 @@ def collect(out):
     if path.exists():raise ValueError('Preserve previous actual review')
     write(path,review)
     passed=all(row['verdict']=='PASS' for row in [*raw['nodes'].values(),*raw['checks'].values()]) and not any(blocking_finding(f) for f in raw['findings'])
-    report={'all_checks_passed':passed,'review':bind(path),'findings':raw['findings']}
+    report={'all_checks_passed':passed,'review':bind(path),'findings':raw['findings'],'qualification':qualification}
+    report['review_status']=review_outcome(x['verdict'] for x in [*raw['nodes'].values(),*raw['checks'].values()])
     write(out/'report.json',report);return report
 
 

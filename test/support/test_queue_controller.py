@@ -35,6 +35,18 @@ class QueueControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'schema'):
             q.validate_job({k:v for k,v in job.items() if k!='audit'})
 
+    def test_submitted_interface_gets_a_new_review_without_reauthoring(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);case=root/'test/results/neutral/case';case.mkdir(parents=True)
+            for name in ['spec.json','nl0.json']:(case/name).write_text('{}')
+            job={'id':'neutral-control','kind':'submitted_interface','case':'lie-module-irreducibility',
+                 'source':'neutral/case','interface':'existing-interface','review':'fresh-review',
+                 'workflow':'neutral-workflow','max_concurrency':5}
+            with patch.object(q.a,'ROOT',root):
+                q.validate_job(job)
+                with self.assertRaisesRegex(ValueError,'plain unique'):
+                    q.validate_job({**job,'review':'../overwrite'})
+
     def test_checked_interface_recovery_requires_an_explicit_real_candidate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);case=root/'test/results/neutral/case';case.mkdir(parents=True)
@@ -47,14 +59,14 @@ class QueueControllerTests(unittest.TestCase):
                     q.validate_job({**job,'candidate':True})
 
     def run_fake_batch(self,stop):
-        """Real case processes and budgets; the six workers are local fake work."""
+        """Three real case processes; serial reviews and fifteen fake proof jobs."""
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);queue=root/'queue';(queue/'pending').mkdir(parents=True)
             source=root/'test/results/neutral/case';source.mkdir(parents=True)
             for name in ['spec.json','nl0.json']:(source/name).write_text('{}')
             for i,case in enumerate(sorted(q.CASES)):
                 job={'id':f'control-{i}','kind':'translate','case':case,'source':'neutral/case',
-                    'interface':f'interface-{i}','workflow':f'workflow-{i}'}
+                    'interface':f'interface-{i}','workflow':f'workflow-{i}','max_concurrency':5}
                 (queue/'pending'/f'{i}.json').write_text(json.dumps(job))
             helper=root/'fake_case.py';scripts=q.a.CORE/'scripts';translation=q.a.CORE/'translation/scripts'
             helper.write_text('''import sys,json,time,threading
@@ -64,22 +76,26 @@ sys.path[:0]=[sys.argv[4],sys.argv[5]]
 import execution_state as e
 import concurrency
 job=json.loads(Path(sys.argv[1]).read_text());out=Path(sys.argv[2]);shared=Path(sys.argv[3])
-r=e.Recorder(out,job['case'],concurrency.resolve(2));b=concurrency.Budget(concurrency.resolve(2),execution=r)
+r=e.Recorder(out,job['case'],concurrency.resolve(5));budgets=concurrency.CaseBudgets(5,execution=r);b=budgets.proof
+with budgets.serial:
+ (shared/('review-'+job['id'])).touch()
+ deadline=time.monotonic()+5
+ while len(list(shared.glob('review-control-*')))<3 and time.monotonic()<deadline:r.check();time.sleep(.01)
 def work(n):
  try:
   with e.activate(r,str(n)),b:
    (shared/(job['id']+'-'+str(n))).touch()
    deadline=time.monotonic()+5
-   while len(list(shared.glob('control-*')))<6 and time.monotonic()<deadline:r.check();time.sleep(.01)
+   while len(list(shared.glob('control-*')))<15 and time.monotonic()<deadline:r.check();time.sleep(.01)
    if sys.argv[6]=='stop':
     while True:r.check();time.sleep(.01)
  except e.Cancelled:pass
 try:
- with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(work,range(2)))
+ with ThreadPoolExecutor(max_workers=5) as pool:list(pool.map(work,range(5)))
 finally:
- status='CANCELLED' if r.cancelled() else 'REPAIR_REQUIRED'
+ status='CANCELLED' if r.cancelled() else 'PROOF_UNFINISHED'
  r.close(status)
- e.atomic(out/'case-result.json',{'job':job,'result':{'status':status},'concurrency':b.report()})
+ e.atomic(out/'case-result.json',{'job':job,'result':{'status':status},'concurrency':b.report(),'roles':budgets.report()})
 ''')
             shared=root/'barrier';shared.mkdir();handles=[];errors=[]
             def launch(job_file,out):
@@ -93,14 +109,15 @@ finally:
                 thread=threading.Thread(target=serve);thread.start()
                 try:
                     deadline=time.monotonic()+8
-                    while len(list(shared.glob('control-*')))<6 and time.monotonic()<deadline:time.sleep(.02)
-                    self.assertEqual(len(list(shared.glob('control-*'))),6)
+                    while len(list(shared.glob('control-*')))<15 and time.monotonic()<deadline:time.sleep(.02)
+                    self.assertEqual(len(list(shared.glob('control-*'))),15)
                     if stop:q.cancel_batch(queue)
                     thread.join(8);self.assertFalse(thread.is_alive());self.assertFalse(errors)
                     reports=[json.loads(p.read_text()) for p in (queue/'results').glob('*.json')]
                     self.assertEqual(len(reports),3)
-                    self.assertEqual([r['concurrency']['observed_peak_model_stages'] for r in reports],[2,2,2])
-                    self.assertEqual({r['result']['status'] for r in reports},{'CANCELLED' if stop else 'REPAIR_REQUIRED'})
+                    self.assertEqual([r['concurrency']['observed_peak_model_stages'] for r in reports],[5,5,5])
+                    self.assertEqual([r['roles']['preparation_review']['observed_peak_model_stages'] for r in reports],[1,1,1])
+                    self.assertEqual({r['result']['status'] for r in reports},{'CANCELLED' if stop else 'PROOF_UNFINISHED'})
                     self.assertTrue((queue/'final-concurrency.json').exists())
                     self.assertEqual(len({p.pid for p in handles}),3)
                     self.assertTrue(all(p.poll() is not None for p in handles))

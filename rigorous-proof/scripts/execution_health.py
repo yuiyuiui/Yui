@@ -5,6 +5,51 @@ from pathlib import Path
 from usage import events
 
 
+class StageFailure(ValueError):
+    """Located workflow outcome; never infer a false theorem from a runtime stop."""
+    def __init__(self, status, message, *, phase=None, evidence=None, details=None):
+        super().__init__(message)
+        self.result = {'status':status, 'phase':phase, 'error':message,
+                       'evidence':str(evidence) if evidence else None, **(details or {})}
+
+
+def review_outcome(verdicts):
+    verdicts=list(verdicts)
+    return ('MATHEMATICAL_REVIEW_FAILED' if 'FAIL' in verdicts else
+            'REVIEW_UNVERIFIED' if 'UNVERIFIED' in verdicts else
+            'REVIEW_PASSED' if verdicts and all(v=='PASS' for v in verdicts) else 'REVIEW_INCOMPLETE')
+
+
+def qualification(result):
+    """Identity/input/health qualification is separate from usage completeness."""
+    exposure=result.get('exposure', {})
+    identity=(exposure.get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
+              and exposure.get('actual_model_ids')==['gpt-6-luna']
+              and exposure.get('standard_tier_verified') is True)
+    health=result.get('execution_health','UNVERIFIED')
+    return {'execution_qualified':bool(identity and health=='NO_RECORDED_FAULT'),
+            'identity_and_input_boundary_verified':bool(identity), 'execution_health':health,
+            'measurement_complete':bool(result.get('usage',{}).get('complete')),
+            'measurement_valid':bool(identity and health=='NO_RECORDED_FAULT'
+                                     and result.get('usage',{}).get('complete'))}
+
+
+def require_review_execution(result, path, *, phase=None):
+    """Missing accounting preserves a qualified judgment, not a benchmark pass."""
+    if result.get('status')=='CANCELLED':
+        from execution_state import Cancelled
+        raise Cancelled('Review cancelled: '+str(path))
+    checked=qualification(result)
+    if not checked['execution_qualified']:
+        raise StageFailure('EXECUTION_UNQUALIFIED','Reviewer identity, input boundary or health is unqualified',
+                           phase=phase,evidence=path,details=checked)
+    if result.get('status')!='ACCEPTED':
+        status=result.get('task_outcome') or ('REVIEW_INCOMPLETE' if result.get('status')!='BLOCKED' else 'MATHEMATICAL_REVIEW_FAILED')
+        raise StageFailure(status,'Review did not deliver a complete accepted record',
+                           phase=phase,evidence=path,details=checked)
+    return checked
+
+
 def read_rows(path):
     return [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path.exists() else []
 
@@ -14,6 +59,13 @@ def inspect(directory):
     requests=read_rows(root/'requests.jsonl')
     http=read_rows(root/'http.jsonl')
     faults=[]
+    for row in read_rows(root/'relay-errors.jsonl'):
+        faults.append({'kind':'RELAY_ERROR','request_number':row.get('request_number'),
+                       'details':row.get('error'),'at_utc':row.get('timestamp_utc')})
+    for row in read_rows(root/'tools.jsonl'):
+        if row.get('result',{}).get('infrastructure_error') is True:
+            faults.append({'kind':'TOOL_SERVICE_ERROR','tool':row.get('tool'),
+                           'details':row['result'].get('error')})
     for row in http:
         if isinstance(row.get('status'),int) and not 200<=row['status']<300:
             faults.append({'kind':'HTTP_ERROR','request_number':row.get('request_number'),'status':row['status']})

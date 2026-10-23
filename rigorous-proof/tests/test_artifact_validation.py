@@ -113,6 +113,26 @@ class ArtifactValidationTests(unittest.TestCase):
         value['graph']['inferences']=[]
         with self.assertRaises(ValueError):contract(value)
 
+    def test_known_case_identity_is_filled_but_explicit_conflicts_are_preserved(self):
+        fixture=Path(__file__).parent/'fixtures/closed-addition'
+        value={'spec':json.loads((fixture/'spec.json').read_text()),'graph':json.loads((fixture/'nl0.json').read_text())}
+        expected=value['spec'].pop('case_id');value['graph'].pop('case_id')
+        contract=NL0Contract(self.root/'ids',{'problem.txt':'Synthetic fixture only.'},case_id=expected)
+        self.assertFalse(contract(value)['mathematical_acceptance'])
+        self.assertEqual(value['graph']['case_id'],expected)
+        value['graph']['case_id']='conflicting-case'
+        with self.assertRaisesRegex(ValueError,'graph.case_id'):contract(value)
+        self.assertIn(2,contract.drafts)
+
+    def test_multiple_decidable_reference_errors_are_reported_together(self):
+        fixture=Path(__file__).parent/'fixtures/closed-addition'
+        value={'spec':json.loads((fixture/'spec.json').read_text()),'graph':json.loads((fixture/'nl0.json').read_text())}
+        value['graph']['inferences'][0]['inputs']=['N999'];value['graph']['inferences'][1]['output']='N998'
+        contract=NL0Contract(self.root/'errors',{'problem.txt':'Synthetic fixture only.'})
+        with self.assertRaises(ValueError) as failure:contract(value)
+        self.assertIn('N999',str(failure.exception));self.assertIn('N998',str(failure.exception))
+        self.assertEqual(json.loads(contract.drafts[1])['graph']['inferences'][0]['inputs'],['N999'])
+
     def test_library_probe_rejects_code_injection_before_execution(self):
         for name in ['Nat.add_zero\n#eval IO.println "bad"','Nat.add_zero;','Nat.add_zero`']:
             with self.assertRaises(ValueError):

@@ -69,14 +69,17 @@ introduce stronger assumptions than source H. premise_types maps exactly each
 source root H/E/M ID to its complete faithful Lean type. conclusion_type is the
 full exact target, not a surrogate standard-basis/special-case problem. All
 definitions, original assumptions and changes of representation must match
-NL0; if equivalent representations are used, include proved conversion steps
-rather than new assumptions. In particular arbitrary admissible lattices,
+NL0; if equivalent representations are used, include explicit planned typed
+conversion steps for workers, rather than new assumptions. Their proof bodies
+are required during final assembly/Audit B, not this interface phase. In particular arbitrary admissible lattices,
 the scalar-extension construction, characteristic 2 and lambda=0 cannot be
 discarded in the Lie exercise. Full source paragraphs and allowed root IDs
 are in source-map.json. The controller copies them into the contract exactly.
 steps is a list of {id:Tddd,statement:<Lean Prop>,inputs:[root/T IDs],
 source_steps:[the supplied distinct S IDs],explanation:<specific implementation
 route>}; include useful small closed obligations following those paragraphs.
+Inspect concentration before freeze: isolate useful independent subarguments
+and representation bridges, without forcing a fixed node count or rewriting NL0.
 Every retained step reaches terminal; cover every source paragraph and realize
 each N/P source output in source_outputs:{sourceID:TID}. The terminal type is
 exactly conclusion_type. objects is a list of optional v2 object/view records
@@ -138,7 +141,7 @@ class InterfaceContract:
         expanded,edits=expand_interface(value,self.documents,self.drafts)
         value.clear();value.update(expanded)
         expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs'}
-        if set(value)!=expected:raise ValueError('Expected exactly '+', '.join(sorted(expected)))
+        if not expected<=set(value) or not set(value)<=expected|{'shared_obligations'}:raise ValueError('Expected '+', '.join(sorted(expected))+'; optional shared_obligations')
         header=value['header']
         # This screens candidate definitions before isolated elaboration; a
         # separate actual semantic reviewer still decides whether they are faithful.
@@ -161,13 +164,15 @@ class InterfaceContract:
             'header':header,'parameters':value['parameters'],
             'premises':[{**p,'type':value['premise_types'][p['id']]} for p in self.source['roots']],
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
-            'representation':value['representation'],'objects':value['objects'],'shared_obligations':[],
+            'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
             'review':{'mode':'development_owner_review','status':'PENDING_ACTUAL_SEMANTIC_REVIEW','disclosure':'Candidate generated in a clean selected-model context; only syntax/types are checked by this adapter.'}}
         write(directory/'contract.json',contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':value['steps'],'terminal':value['terminal']}
         write(directory/'plan.json',plan)
         ir.validate(directory/'contract.json',plan)
+        decomposition=ir.decomposition(directory/'contract.json',plan)
+        write(directory/'decomposition.json',decomposition)
         result=ir.check(directory/'contract.json',plan,types_only=True,out=directory/'types',timeout=120)
         if result['exit_code']!=0:
             raise ValueError('Actual Lean type check failed:\n'+result['stdout'][:14000]+result['stderr'][:2000])
@@ -176,6 +181,7 @@ class InterfaceContract:
             'paragraph_mapping':self.source['paragraph_mapping'],'source_outputs':value['source_outputs'],
             'status':'IR_TYPES_CHECKED_SEMANTIC_REVIEW_REQUIRED'})
         return {'status':'IR-TYPES-CHECKED','candidate':self.attempt,'mathematical_acceptance':False,
+                'decomposition':decomposition,
                 'scope':'Actual full source correspondence/interface review and all proofs remain required.'}
 
 
@@ -192,7 +198,8 @@ class InterfaceStage(ArtifactStage):
             'read_interface_draft kind=index lists your own actual full candidates and partial type probes; '
             'kind=candidate reads a JSON pointer of a full candidate, kind=probe reads its own actual partial '
             'header/types. After context reset, inspect this index rather than starting from a vacuous True '
-            'template. A placeholder is not a translation. Fewer real closed obligations are allowed.')
+            'template. A placeholder is not a translation. Choose useful closed obligations; a large worker limit cannot accelerate a monolithic job. '
+            'Optional shared_obligations must use the existing v2 schema and describe only existing NL0 lemmas or implementation extraction, with explicit inputs and route. They remain pending actual semantic review; new mathematics returns to NL0.')
         self.tools.append(pilot.carrier.tool('read_interface_draft','Read only own current-stage typed candidates or partial type probes; index lists them. No other stage files are accessible.',
             {'kind':{'type':'string','enum':['index','candidate','probe']},'candidate':{'type':'integer'},'pointer':{'type':'string'}},['kind','candidate','pointer']))
         self.tools.append(pilot.carrier.tool('check_lean_types',
@@ -235,10 +242,15 @@ class InterfaceStage(ArtifactStage):
                 source+='#check ('+('fun '+binders+' => ' if binders else '')+expression+')\n'
             self.type_probes+=1;work=Path(tempfile.mkdtemp(prefix='yui-interface-types-'))
             (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
-            native=ir.run_lean(file,work,timeout=self.lean_timeout());self.lean_calls+=1
-            destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
-            write(destination/'input.json',args)
-            shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
+            from run_resources import register_workspace
+            register_workspace(work, self.logs)
+            try:
+                native=ir.run_lean(file,work,timeout=self.lean_timeout());self.lean_calls+=1
+                destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
+                write(destination/'input.json',args)
+                shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
+            finally:
+                shutil.rmtree(work)
             result={'stage_complete':False,'scope':'EXPRESSION_ELABORATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
                 'types_checked':native['exit_code']==0,'exit_code':native['exit_code'],
                 'stdout':native['stdout'][:16000],'stderr':native['stderr'][:1500]}
@@ -251,7 +263,7 @@ def run(out,timeout,budget=None):
     out=Path(out).resolve();validator=InterfaceContract(out)
     stage=InterfaceStage(out/'stage',(out/'prompt.txt').read_text(),phase='interface-authoring',
         inputs=out/'inputs/inputs.json',timeout=timeout,validator=validator,
-        budget=budget or concurrency.Budget(concurrency.resolve()))
+        budget=concurrency.serial_budget(budget))
     return stage.execute()[0]
 
 

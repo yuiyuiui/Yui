@@ -12,7 +12,7 @@ changing NL0. Extract existing derivations with an explicit patch boundary;
 do not reconstruct NL0 or repeat the whole audit. This is not an additional
 step for NL0-only work. Preserve old evidence, review new proofs/substitution
 cuts. Use `scripts/source_preparation.py` to validate the inheritance and actual
-new reviews; the unchanged parent checker still owns ordinary Audit A.
+new reviews; the parent checker still owns ordinary Audit A authority.
 Read [the integrated execution guide](integrated-workflow.md) when
 staging a revision or executing a complete source-to-Audit-B workflow.
 Use [the working pipeline map](workflow.md) to distinguish source
@@ -42,7 +42,10 @@ against explicit direct inputs, then discharge every internal input during
 assembly. Do not report conditional local checks as final proof closure.
 
 Keep mathematical object identity global and Lean implementation views local.
-Freeze cross-node ports; supply proved conversions as explicit direct inputs.
+Freeze cross-node ports and planned typed conversion obligations. Their proof
+bodies are worker tasks; assembly/Audit B must supply every actual conversion.
+The interface review checks complete types, direct inputs and source fidelity,
+without demanding the completed bodies before dispatch.
 Do not require one Lean type for every use of an object. A view record documents
 a choice; it neither proves equivalence nor chooses the best representation.
 
@@ -71,8 +74,10 @@ conditional bodies may run at the same time. Record pending/running/completed
 jobs. An unfinished producer prevents final closure even if its consumers pass.
 Expose `--max-concurrency auto|N` and print the resolved backend/bound/reason
 before dispatch. Unknown CLI hard caps use the disclosed fallback of two, not
-a claimed maximum. All model stages in one run share one budget; record actual
-peak, queue time and intervals. Legacy integer options are compatibility aliases.
+a claimed maximum. Proof jobs share their case proof budget; preparation and
+reviews use a separate serial budget and the same all-stage ledger. Record
+proof-only utilization separately from review activity, queue time and intervals.
+Legacy integer options are compatibility aliases.
 Here a run is one case, not a multi-case batch. Python coordination does not
 occupy a model slot. Apply [the execution protocol](execution-protocol.md) for
 the node queue, structured status file, scoped cancellation and finite exit.

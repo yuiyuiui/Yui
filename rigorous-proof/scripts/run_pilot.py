@@ -144,6 +144,8 @@ class Trial:
         self.case, self.logs, self.timeout = case, run_dir / case, timeout
         self.logs.mkdir(parents=True)
         self.work = Path(tempfile.mkdtemp(prefix=f'nl2lean-{case}-')).resolve()
+        from run_resources import register_workspace
+        register_workspace(self.work, self.logs)
         for name in ['input', 'output', 'tmp', 'home', 'state']:
             (self.work / name).mkdir(mode=0o700)
         self.suite = suite
@@ -167,6 +169,7 @@ class Trial:
         self.accepted = None
         self.lean_calls = 0
         self.api_calls = 0
+        self.request_lock = threading.Lock()
         self.rpc_id = 0
         self.inbox: queue.Queue = queue.Queue()
         self.started: float | None = None
@@ -297,7 +300,16 @@ class Trial:
                                          'wall_seconds': time.monotonic() - started})
         return result
 
-    def normalize_request(self, payload: dict) -> dict:
+    def reserve_request_number(self):
+        # The relay is multithreaded (including compaction/continuation). Never
+        # recover a request's identity later from the mutable global counter.
+        with self.request_lock:
+            self.api_calls += 1
+            number=self.api_calls
+            append(self.logs/'request-lifecycle.jsonl',{'request_number':number,'event':'ALLOCATED','at_utc':now()})
+            return number
+
+    def normalize_request(self, payload: dict, *, request_number=None) -> dict:
         if payload.get('model') != MODEL:
             raise ValueError('禁止替换指定模型：' + str(payload.get('model')))
         if payload.get('reasoning', {}).get('effort') != 'high':
@@ -364,8 +376,8 @@ class Trial:
                 checkpoint={**checkpoint,'text':text,'text_sha256':hashlib.sha256(text.encode()).hexdigest()}
                 self.allowed_user_messages.add(text)
                 result['input'].append({'type':'message','role':'user','content':[{'type':'input_text','text':text}]})
-        self.api_calls += 1
-        append(self.logs / 'requests.jsonl', {'request_number': self.api_calls,
+        if request_number is None:request_number=self.reserve_request_number()
+        append(self.logs / 'requests.jsonl', {'request_number': request_number,
             'transport': 'Codex subscription authentication via documented custom provider',
             'upstream_host': 'chatgpt.com', 'upstream_path': '/backend-api/codex/responses',
             'original_payload': payload, 'removed_items': removed, 'sent_payload': result,
@@ -373,8 +385,9 @@ class Trial:
             'dropped_top_level_fields': sorted(set(payload) - set(result)),
             'sent_body_sha256': hashlib.sha256(json.dumps(result, ensure_ascii=False).encode()).hexdigest()})
         # A mistaken adapter must fail before sending an empty first problem.
-        if self.api_calls == 1 and not any(i.get('role') == 'user' for i in kept):
+        if request_number == 1 and not any(i.get('role') == 'user' for i in kept):
             raise ValueError('首个请求缺少冻结题目，拒绝发送。')
+        append(self.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'NORMALIZED','at_utc':now()})
         return result
 
     def observe_model_event(self, event: dict, request_number=None) -> None:
@@ -387,6 +400,9 @@ class Trial:
             self.model_history[item['id']] = item
             if item.get('type') == 'function_call':
                 self.model_calls[item['call_id']] = item
+        if request_number is not None and event.get('type') in {'response.completed','response.failed','response.incomplete'}:
+            append(self.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'PROVIDER_TERMINAL',
+                'response_type':event['type'],'response_id':event.get('response',{}).get('id'),'at_utc':now()})
 
     def validate_tool_rpc(self, params: dict) -> None:
         if not self.strict:
@@ -448,13 +464,14 @@ class Trial:
                     return
                 upstream = None
                 stream_done=None
+                request_number=None
                 try:
                     if self.path.rstrip('/') != '/responses':
                         raise PermissionError('只允许指定模型的 responses 路径。')
                     body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
                     if self.headers.get('Content-Encoding') == 'gzip': body = gzip.decompress(body)
-                    payload = trial.normalize_request(json.loads(body))
-                    request_number = trial.api_calls
+                    request_number=trial.reserve_request_number()
+                    payload = trial.normalize_request(json.loads(body),request_number=request_number)
                     if execution: execution.request_started(str(trial.logs),request_number)
                     stream_done=threading.Event()
                     with trial.relay_stream_lock:
@@ -478,10 +495,13 @@ class Trial:
                     else:
                         upstream = http.client.HTTPSConnection('chatgpt.com', timeout=90)
                     upstream.request('POST', '/backend-api/codex/responses', body=data, headers=headers)
+                    append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'FORWARDED','at_utc':now()})
                     response = upstream.getresponse()
                     append(trial.logs / 'http.jsonl', {'status': response.status,
                         'request_id': response.getheader('x-request-id'), 'path': self.path,
                         'request_number': request_number})
+                    append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
+                        'status':response.status,'at_utc':now()})
                     self.send_response(response.status)
                     self.send_header('Content-Type', response.getheader('Content-Type', 'text/event-stream'))
                     self.send_header('Connection', 'close')
@@ -513,7 +533,7 @@ class Trial:
                                 return
                     self.close_connection = True
                 except Exception as e:
-                    append(trial.logs / 'relay-errors.jsonl', {'error': str(e)})
+                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e)})
                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
                     try:
@@ -524,6 +544,8 @@ class Trial:
                         pass
                 finally:
                     if upstream: upstream.close()
+                    if request_number is not None:
+                        append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'STREAM_CLOSED','at_utc':now()})
                     if stream_done is not None:stream_done.set()
 
         self.relay = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
@@ -666,6 +688,8 @@ tool_suggest = false
         self.proc = subprocess.Popen(command,
             cwd=self.work / 'input', env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=err, text=True, bufsize=1, start_new_session=True)
+        from run_resources import register_child
+        register_child(self.work, self.proc, 'model-carrier')
         if getattr(self,'execution',None):
             self.execution.register_process(self.proc,'model-carrier',self.execution_task)
 

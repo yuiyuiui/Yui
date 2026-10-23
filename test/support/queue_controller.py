@@ -26,11 +26,19 @@ def validate_job(value):
     common={'id','kind','case','interface','workflow'}
     if 'max_concurrency' in value:
         a.concurrency.resolve(value['max_concurrency']);common.add('max_concurrency')
-    expected=common|({'run','audit'} if value.get('kind')=='nl0' else {'source','audit'} if value.get('kind')=='audit_source' else {'source'} if value.get('kind')=='translate' else {'source','candidate'} if value.get('kind')=='checked_interface' else set())
-    if value.get('kind') not in {'nl0','audit_source','translate','checked_interface'} or set(value)!=expected:raise ValueError('Invalid explicit job schema')
+    if 'reuse_audits' in value and value.get('kind') in {'nl0','audit_source'}:
+        common.add('reuse_audits')
+        if not isinstance(value['reuse_audits'],list):raise ValueError('reuse_audits must be explicit prior campaign names')
+        for name in value['reuse_audits']:
+            if not isinstance(name,str) or not re.fullmatch(r'[a-z][a-z0-9-]*',name) or not (a.ROOT/'test/results'/name/'campaign.json').is_file():
+                raise ValueError('Use an existing explicit same-case audit campaign name')
+    if 'review' in value and value.get('kind') in {'checked_interface','submitted_interface'}:
+        common.add('review')
+    expected=common|({'run','audit'} if value.get('kind')=='nl0' else {'source','audit'} if value.get('kind')=='audit_source' else {'source'} if value.get('kind') in {'translate','submitted_interface'} else {'source','candidate'} if value.get('kind')=='checked_interface' else set())
+    if value.get('kind') not in {'nl0','audit_source','translate','checked_interface','submitted_interface'} or set(value)!=expected:raise ValueError('Invalid explicit job schema')
     if value['kind']=='checked_interface' and (type(value['candidate']) is not int or value['candidate']<1):raise ValueError('Select an actual positive candidate number')
     if value['case'] not in CASES:raise ValueError('Only the three frozen exercise IDs are permitted')
-    for key in ['id','interface','workflow',*(['audit'] if 'audit' in value else []),*(['run'] if 'run' in value else [])]:
+    for key in ['id','interface','workflow',*(['review'] if 'review' in value else []),*(['audit'] if 'audit' in value else []),*(['run'] if 'run' in value else [])]:
         if not isinstance(value[key],str) or not re.fullmatch(r'[a-z][a-z0-9-]*',value[key]):raise ValueError('Use a plain unique job/run identifier')
     if 'source' in value:
         path=(a.ROOT/'test/results'/value['source']).resolve()
@@ -54,6 +62,8 @@ def cancel_batch(directory):
 
 def serve(queue,wait_for=None,*,case_concurrency=3):
     from execution_state import atomic,identity,terminate_owned,request_cancel
+    from run_resources import check_cleanup_lock
+    check_cleanup_lock(queue)
     queue=Path(queue).resolve();queue.mkdir(parents=True,exist_ok=True)
     for name in ['pending','records','results','cases']:(queue/name).mkdir(exist_ok=True)
     if (queue/'batch.json').exists():raise ValueError('Preserve the previous finite batch; use a new queue directory')
@@ -69,9 +79,10 @@ def serve(queue,wait_for=None,*,case_concurrency=3):
         if record.exists():raise ValueError('Preserve the completed job record')
         record.write_bytes(raw);a.write(record.with_suffix('.binding.json'),{'sha256':hashlib.sha256(raw).hexdigest()})
         jobs.append((job,record));path.unlink()
-    atomic(queue/'batch.json',{'case_concurrency':case_concurrency,'per_case_concurrency':'Independent auto|N budgets; no global model-stage semaphore',
+    atomic(queue/'batch.json',{'controller':identity(__import__('os').getpid()),'case_concurrency':case_concurrency,'per_case_concurrency':'Independent auto|N budgets; no global model-stage semaphore',
         'cases':{job['id']:{'case':job['case'],'execution_root':str(queue/'cases'/job['id']/'nl0-to-lean')} for job,_ in jobs}})
     active={};states={};stopping=False
+    last_progress=None;last_write=0.
     import signal
     previous={}
     if threading.current_thread() is threading.main_thread():
@@ -89,6 +100,7 @@ def serve(queue,wait_for=None,*,case_concurrency=3):
                 job,record=jobs.pop(0);out=queue/'cases'/job['id'];process=launch_case(record,out)
                 owner=identity(process.pid)
                 if owner is None and process.poll() is None:raise RuntimeError('Cannot establish case process ownership')
+                if owner:atomic(out/'case-process.json',{'schema_version':'yui-owned-process-1','kind':'case-controller','process':owner})
                 active[job['id']]={'job':job,'process':process,'identity':owner,'out':out,'stop_started':None}
                 states[job['id']]={'case':job['case'],'stage':'STARTING','controller':owner}
             for key,row in list(active.items()):
@@ -108,7 +120,11 @@ def serve(queue,wait_for=None,*,case_concurrency=3):
                 atomic(queue/'results'/(key+'.json'),result)
                 states[key]={'case':job['case'],'stage':result['result']['status'],'status_file':str(snapshot)}
                 del active[key]
-            atomic(queue/'progress.json',states)
+            progress=json.dumps(states,sort_keys=True)
+            mono=time.monotonic()
+            if progress!=last_progress and (last_progress is None or mono-last_write>=1 or stopping or not (jobs or active)):
+                atomic(queue/'progress.json',states)
+                last_progress=progress;last_write=mono
             if jobs or active:time.sleep(.1)
     finally:
         for row in active.values():
@@ -119,6 +135,7 @@ def serve(queue,wait_for=None,*,case_concurrency=3):
             except __import__('subprocess').TimeoutExpired:
                 if row['identity']:terminate_owned(row['process'],row['identity'])
         for sig,handler in previous.items():signal.signal(sig,handler)
+        atomic(queue/'progress.json',states)
         atomic(queue/'final-concurrency.json',{'case_concurrency':case_concurrency,'active_case_processes':0,
             'case_budgets':'INDEPENDENT','status':'CANCELLED' if stopping else 'FINITE_BATCH_FINISHED',
             'scope':'No mathematical or execution acceptance inferred from controller termination.'})

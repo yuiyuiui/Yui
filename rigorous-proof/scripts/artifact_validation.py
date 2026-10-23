@@ -11,10 +11,33 @@ import re
 import nl0
 from pilot_common import run_lean
 from runtime_config import load_lock
+from execution_state import atomic
 
 
 def write(path, value):
-    Path(path).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+    atomic(path,value)
+
+
+def preflight(spec, graph):
+    """Aggregate independent, decidable reference errors before native/source work."""
+    errors=[]
+    props=graph.get('propositions',[]);steps=graph.get('inferences',[]);defs=spec.get('definitions',[])
+    if not all(isinstance(rows,list) for rows in [props,steps,defs]):
+        return ['propositions, inferences and definitions must each be lists']
+    pids=[p.get('id') for p in props if isinstance(p,dict)]
+    dids={d.get('id') for d in defs if isinstance(d,dict) and isinstance(d.get('id'),str)}
+    valid={p for p in pids if isinstance(p,str)}
+    for i,p in enumerate(props):
+        if not isinstance(p,dict): errors.append(f'/graph/propositions/{i}: expected an object');continue
+        if isinstance(p.get('id'),str) and pids.count(p['id'])>1:errors.append(f'/graph/propositions/{i}/id: duplicate {p["id"]}')
+        for d in p.get('definitions',[]) if isinstance(p.get('definitions',[]),list) else []:
+            if isinstance(d,str) and d not in dids:errors.append(f'/graph/propositions/{i}/definitions: unknown {d}; available={sorted(dids)}')
+    for i,r in enumerate(steps):
+        if not isinstance(r,dict):errors.append(f'/graph/inferences/{i}: expected an object');continue
+        refs=(r.get('inputs',[]) if isinstance(r.get('inputs'),list) else [])+[r.get('output')]
+        for p in refs:
+            if isinstance(p,str) and p not in valid:errors.append(f'/graph/inferences/{i}: unknown proposition {p}; available={sorted(valid)}')
+    return list(dict.fromkeys(errors))
 
 
 def expand_submission(value, documents, drafts=None):
@@ -106,7 +129,7 @@ def expand_submission(value, documents, drafts=None):
     return result,provenance
 
 
-def signature_probe(case, identifier, declaration, module, sequence, *, timeout=120):
+def signature_probe(case, identifier, declaration, module, sequence, *, timeout=120, use_catalog=True, on_native=None):
     """Only validated identifiers enter this trusted, sandboxed query program."""
     case=Path(case).resolve()
     if not re.fullmatch(r'M\d{3,}', identifier):
@@ -123,6 +146,14 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
         raise ValueError('The requested module does not exist in the pinned library')
     out = Path(case) / 'library' / f'{identifier}-{sequence:04d}'
     out.mkdir(parents=True, exist_ok=False)
+    if use_catalog:
+        from library_catalog import cached_probe
+        cached=cached_probe(identifier,declaration,module,lock)
+        if cached:
+            row,report=cached
+            receipt=out/'library-sources.json';write(receipt,report)
+            return {'id':identifier,**row,'metadata_reused':True,'evidence':[
+                {'path':str(receipt.relative_to(case)),'sha256':hashlib.sha256(receipt.read_bytes()).hexdigest()}]}
     work = out / 'work'
     (work / 'input').mkdir(parents=True)
     program = '\n'.join(['import Mathlib', 'set_option pp.universes true',
@@ -139,12 +170,17 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
     lean = work / 'input/LibraryProbe.lean'
     lean.write_text(program)
     started = datetime.now(timezone.utc).isoformat()
+    if on_native:on_native()
     result = run_lean(lean, work, timeout=timeout)
     (out / 'library-probe.log').write_text(result['stdout'] + result['stderr'])
     if result['exit_code'] and ('sandbox-exec:' in result['stderr'] or result['exit_code'] in {126,127}):
         raise OSError('Native Lean probe execution failed: '+result['stderr'][:6000])
     if result['exit_code']:
-        raise ValueError('Library probe failed: ' + (result['stdout'] + result['stderr'])[:6000])
+        detail=(result['stdout'] + result['stderr'])[:6000]
+        if 'not a proved theorem declaration' in detail:
+            raise ValueError('SOURCE_KIND_MISMATCH: the declaration is available but is not a proved theorem. '
+                             'Register a definition in D; source any mathematical properties separately. '+detail)
+        raise ValueError('Library probe failed: ' + detail)
     signature = result['stdout'].split(f'BEGIN_SIGNATURE:{identifier}\n', 1)[1].split(f'BEGIN_AXIOMS:{identifier}\n', 1)[0].strip()
     axioms = result['stdout'].split(f'BEGIN_AXIOMS:{identifier}\n', 1)[1].split(f'END_SOURCE:{identifier}\n', 1)[0].strip()
     row = {'declaration': declaration, 'module': module, 'declaration_kind': 'theorem',
@@ -186,13 +222,35 @@ class NL0Contract:
 
     def __call__(self, artifact):
         expanded, patch = expand_submission(artifact, self.documents, self.drafts)
+        self.attempt+=1
+        write(self.directory/f'candidate-{self.attempt:04d}.json',expanded)
+        self.drafts[self.attempt]=json.dumps(expanded,ensure_ascii=False)
         if patch is not None:
-            write(self.directory/f'submission-edits-{self.attempt+1:04d}.json', patch)
+            write(self.directory/f'submission-edits-{self.attempt:04d}.json', patch)
+        try:
+            result=self._validate(expanded)
+        except ValueError as error:
+            self.last_check={'candidate':self.attempt,'status':'STRUCTURE_REJECTED','error':str(error)}
+            write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
+            raise
+        finally:
+            # Preserve authored edits even when a later metadata/source check fails.
+            write(self.directory/f'candidate-{self.attempt:04d}.json',expanded)
+            self.drafts[self.attempt]=json.dumps(expanded,ensure_ascii=False)
+        artifact.clear();artifact.update(expanded)
+        return result
+
+    def _validate(self, expanded):
         spec, graph = expanded['spec'], expanded['graph']
         if not isinstance(spec, dict) or not isinstance(graph, dict):
             raise ValueError('Spec and graph must be objects')
-        if self.case_id is not None and spec.get('case_id') != self.case_id:
-            raise ValueError('Expected spec.case_id='+repr(self.case_id)+'; received '+repr(spec.get('case_id')))
+        if self.case_id is not None:
+            for name,document in [('spec',spec),('graph',graph)]:
+                if 'case_id' in document and document['case_id']!=self.case_id:
+                    raise ValueError('Expected '+name+'.case_id='+repr(self.case_id)+'; received '+repr(document['case_id']))
+                document['case_id']=self.case_id
+        errors=preflight(spec,graph)
+        if errors:raise ValueError('STRUCTURAL_PREFLIGHT:\n'+'\n'.join(errors))
         lock = load_lock()
         # Bind reproducibility metadata and explicitly omitted duplicate aliases.
         # The author's primary statements and all proof text remain unchanged.
@@ -259,15 +317,12 @@ class NL0Contract:
                                    'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}]
             bindings.append({'id': identifier, 'declaration': source['declaration'],
                 'before': before, 'after': {key: source[key] for key in (*fields, 'evidence')}})
-        write(self.directory/f'probe-bindings-{self.attempt+1:04d}.json', {
+        write(self.directory/f'probe-bindings-{self.attempt:04d}.json', {
             'scope': 'Actual library metadata and explicitly omitted aliases only. Authored primary statements, hypotheses, definitions and arguments are unchanged; conflicting duplicates are rejected.',
             'bindings': bindings, 'omitted_aliases': aliases})
         write(self.directory / 'spec.json', spec)
         graph['spec_sha256'] = nl0.sha(self.directory / 'spec.json')
         write(self.directory / 'nl0.json', graph)
-        self.attempt += 1
-        write(self.directory / f'candidate-{self.attempt:04d}.json', {'spec': spec, 'graph': graph})
-        self.drafts[self.attempt]=json.dumps({'spec':spec,'graph':graph},ensure_ascii=False)
         try:
             summary = nl0.validate(self.directory / 'nl0.json', self.directory / 'spec.json')[0]
         except ValueError as error:
@@ -282,8 +337,6 @@ class NL0Contract:
         self.last_valid_candidate=self.attempt
         self.last_check={'candidate':self.attempt,'status':'STRUCTURE_PASSED','mathematical_acceptance':False}
         write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
-        artifact.clear()
-        artifact.update(spec=spec, graph=graph)
         return {'status': 'NL0-STRUCTURALLY-VALID', 'summary': summary,
                 'mathematical_acceptance': False,
                 'note': 'Actual source fidelity, proof replay and Audit A remain required.'}

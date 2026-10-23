@@ -1,4 +1,4 @@
-"""One disclosed, run-local model-stage budget. No subscription-cap guessing."""
+"""Role-scoped, case-local budgets. No subscription-cap guessing."""
 from __future__ import annotations
 
 import threading
@@ -28,14 +28,11 @@ def resolve(requested='auto', *, backend='isolated_codex_cli', known_limit=None,
 
 
 class Budget:
-    """Context-manager replacement for the previous shared semaphore.
-
-    Every actual model stage, including a retry or diagnostic stage, must use
-    this same instance. Source lookup/compiler work is not a model stage.
-    """
-    def __init__(self, configuration, *, execution=None):
+    """A bounded lane for one role; all lanes share the case execution ledger."""
+    def __init__(self, configuration, *, execution=None, role='unspecified'):
         self.configuration = dict(configuration)
         self.execution = execution
+        self.role = role
         self._slots = threading.BoundedSemaphore(configuration['effective'])
         self._lock = threading.Lock()
         self._local = threading.local()
@@ -53,6 +50,7 @@ class Budget:
             if recorder: recorder.check(task)
         try:
             if recorder: recorder.check(task)
+            if recorder: recorder.model_slot(1, role=self.role)
         except BaseException:
             self._slots.release(); raise
         started = time.monotonic()
@@ -65,7 +63,6 @@ class Budget:
         self._local.active = True
         self._local.row = row
         self._local.recorder = recorder
-        if recorder: recorder.model_slot(1)
         return self
 
     def __exit__(self, kind, value, traceback):
@@ -74,13 +71,42 @@ class Budget:
             self._local.row['raised'] = kind.__name__ if kind else None
             self._active -= 1
         self._local.active = False
-        if self._local.recorder: self._local.recorder.model_slot(-1)
+        if self._local.recorder: self._local.recorder.model_slot(-1, role=self.role)
         self._slots.release()
 
     def report(self):
         with self._lock:
-            return {**self.configuration, 'observed_peak_model_stages': self._peak,
+            return {**self.configuration, 'role': self.role, 'observed_peak_model_stages': self._peak,
                     'active_model_stages': self._active, 'model_stages': [dict(x) for x in self._rows],
                     'summed_queue_seconds': sum(x['queue_seconds'] for x in self._rows),
                     'elapsed_seconds': time.monotonic() - self._start,
                     'scope': 'One controller/run; no distributed subscription-wide cap discovery.'}
+
+
+class CaseBudgets:
+    """Serial preparation/review and independently bounded proof work per case."""
+    def __init__(self, requested='auto', *, execution=None):
+        self.serial = Budget(serial_configuration(), execution=execution, role='preparation_review')
+        self.proof = Budget(resolve(requested), execution=execution, role='proof')
+
+    def report(self):
+        return {'preparation_review': self.serial.report(), 'proof': self.proof.report(),
+                'proof_limit_applies_to': 'Lean proof jobs only; Python owner occupies no slot',
+                'all_stage_accounting': 'One shared execution ledger includes both roles.'}
+
+
+def serial_configuration():
+    return {**resolve(1),'reason':'Phase policy: one author/review context per case, independent of the proof limit',
+            'configured_by':'phase_policy'}
+
+
+def serial_budget(budget=None):
+    """Keep standalone reviewers serial too; do not borrow a proof-worker cap."""
+    if budget is not None:
+        ir.need(budget.configuration['effective'] == 1 and budget.role in {'unspecified','preparation_review'},
+                'Preparation/review requires a serial non-proof budget')
+        if budget.role=='unspecified':
+            ir.need(budget.report()['active_model_stages']==0,'Cannot change the role of an active legacy budget')
+            budget.role='preparation_review'
+        return budget
+    return Budget(serial_configuration(), role='preparation_review')
