@@ -33,7 +33,7 @@ dependencies, unknown IDs, and disconnected retained branches fail.
 ## Specification fields
 
 Use [the authoring template](../templates/authoring.md) and the complete small
-[v2 format example](../examples/closed-addition/nl0.json). Its pending audit is
+[v2 format example](../tests/fixtures/closed-addition/nl0.json). Its pending audit is
 not a benchmark or proof certification. Required top-level spec fields are:
 
 - `format_version: 2`, `case_id`, `full_target`, `conclusion` (nonempty strings);
@@ -49,6 +49,13 @@ not a benchmark or proof certification. Required top-level spec fields are:
 - `pins`: `{lean_version, mathlib_commit, mathlib_root}`; the root is a local
   locator, the version/commit are scientific identifiers;
 - `inputs`: evidence records `{path, sha256}` for the original problem/proof.
+
+The exact machine identifiers permitted in `logic.rules` and inference `rules`
+are `direct`, `modus_ponens`, `implication_introduction`, `negation_introduction`,
+`contradiction_classical`, `case_elimination`, `forall_introduction`,
+`exists_elimination`, and `natural_induction`. Describe algebra/analysis in the
+actual proof text; it is not a new trusted logical rule. These identifiers
+describe proof packaging, not a substitute for establishing the implication.
 
 Definitions may be globally visible but guarded. Example: “K is the unique
 fixed curve from N008” requires N008 before K is used. N008 itself must state

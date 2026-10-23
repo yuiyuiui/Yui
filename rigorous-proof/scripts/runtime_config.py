@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -29,6 +30,7 @@ def auth_home():
     return Path(os.environ.get('YUI_CODEX_HOME', str(Path.home() / '.codex'))).expanduser().resolve()
 
 
+@lru_cache(maxsize=1)
 def load_lock():
     lock = json.loads((CORE / 'toolchain/lock.json').read_text())
     shared = Path.home() / 'formalization-tools/lean-mathlib-v4.32.2'
@@ -54,6 +56,15 @@ def verify():
     actual = subprocess.check_output(['git', '-C', lock['mathlib']['local_path'], 'rev-parse', 'HEAD'], text=True).strip()
     if actual != lock['mathlib']['rev']:
         raise ValueError('mathlib revision differs from the frozen pin')
+    library = Path(lock['mathlib']['local_path'])
+    if digest(library/'lake-manifest.json') != lock['mathlib']['manifest_sha256']:
+        raise ValueError('mathlib dependency manifest differs from the frozen pin')
+    for path, revision in [(library, lock['mathlib']['rev']),
+            *((library/'.lake/packages'/d['name'], d['rev']) for d in lock['dependencies'])]:
+        observed = subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip()
+        dirty = subprocess.run(['git','-C',str(path),'diff','--quiet','HEAD','--'],capture_output=True)
+        if observed != revision or dirty.returncode:
+            raise ValueError('A pinned library/dependency has changed tracked sources: '+path.name)
     version = subprocess.check_output([str(Path(lock['lean']['local_path']) / 'bin/lean'), '--version'], text=True)
     if 'version 4.32.2,' not in version:
         raise ValueError('Lean version differs from the frozen pin')

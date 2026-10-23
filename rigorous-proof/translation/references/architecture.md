@@ -2,7 +2,7 @@
 
 Version 1 remains readable without rewriting historical inputs. Version 2 adds
 explicit object views and reviewed shared exports; it does not change NL0's
-mathematical authority. The companion is implemented, not only a design note.
+mathematical authority. This is Yui's implemented translation module.
 
 ## Two layers of authority
 
@@ -24,12 +24,13 @@ acceptance, an IR is a derived artifact:
    a proposition under the shared parameter types and only its listed inputs.
    Its proof is a separate artifact. A well-typed plan can still be false.
 
-The core transition engine consumes a frozen interface contract. The pilot
-also asks a fresh model to propose parameter, premise and output types from
-NL alone plus explicit representation conventions. A withheld owner-reviewed
-development oracle checks the proposed ports by Lean definitional equality;
-this is not an automatic semantic verifier for arbitrary natural language.
-Reports separate owner preparation from model frontend/planning/proof work.
+The core transition engine consumes a frozen interface contract. A fresh model
+or human may author this interface from the accepted NL0, explicit representation
+choices and library tools. A separate actual semantic review compares the result
+with the source; elaboration alone cannot do this. Internal regression fixtures
+also contain prepared interfaces for deterministic controls. Those fixtures and
+their reference ports are never model-visible inputs to a mathematical test.
+Reports include interface authoring/review costs; unmeasured owner work is labeled.
 Legacy extracts do not inherit current Audit A status.
 
 ## Contract file
@@ -109,10 +110,10 @@ must fail before compilation.
 The current `scheduler.py` executes bodies within one graph concurrently,
 including mathematically dependent conditional bodies, after a typecheck gate.
 It records actual start/end intervals and assembles the real proofs. Shared
-exports can be sourced from an explicit checked source store. `model_pilot.py`
+exports can be sourced from an explicit checked source store. `run_graph.py`
 defaults to `max_concurrency=auto`, resolving to a disclosed fallback two when
-the CLI hard cap is unknown. The pilot retains one case worker by default; all
-its model stages share the resolved global budget. Queue intervals and observed
+the CLI hard cap is unknown. All local model stages share the run budget.
+Queue intervals and observed
 peak are recorded separately from requested bounds. Bank access is
 disabled by default and optional when enabled. Historical 0.4 runs still used
 sequential bodies and must retain that interpretation.
@@ -135,4 +136,4 @@ rule/template/checker stage for these generated graphs. It inspects actual
 elaborated types, project structure fields, instances/dependencies and source
 mapping, then requires actual semantic reviews. Earlier fragment checks have
 not retrospectively passed it. A complete generic Lean-repository adapter and
-Audit C/NL1 reconstruction remain outside this candidate.
+Audit C/NL1 reconstruction remain outside Yui.

@@ -17,6 +17,10 @@ within-stage model history, actual tool results and explicit tool schemas.
 Developer/system additions, other user messages, server-conversation references
 and unrelated provider metadata are removed or rejected before transmission.
 No automatic inherited compaction context or model fallback is allowed.
+Outgoing HTTP headers also use an allowlist: authentication/account routing,
+protocol identity and content negotiation only. Carrier session/conversation
+state and premium-speed headers are omitted. Header names are logged; credential
+values are never logged.
 
 Allowed mathematical information consists of the frozen problem, definitions,
 permitted statements, supplied proof, selected Yui rules in the Yui arm, and
@@ -34,3 +38,26 @@ and transmitted-input contract, not an untrained or provably stateless provider.
 The Standard policy removes premium-speed request/header hints. Requested and
 observed tier metadata must be retained; an incompatible actual tier is a
 configuration failure. A missing reported tier remains explicitly unverified.
+
+## Clean text stages
+
+Run `python3 scripts/yui.py stage PROMPT --phase PHASE --inputs MANIFEST --out RUN`.
+The manifest explicitly lists `{id,path,sha256}` documents below its own
+directory. They are frozen in memory before dispatch. `read_task_input` cannot
+open any unlisted local file. Yui stages receive a rule-path catalog and the
+`SKILL.md` entry; direct stages have no Yui reader or rule catalog.
+
+`--kind nl0 --case-id ID` enables the structural authoring contract and the
+restricted `probe_library` tool. Its submission is `{spec,graph}`. The controller
+binds task hashes, toolchain locators and spec hash without editing mathematical
+content. Successful submission means `NL0_STRUCTURE_ONLY`, never Audit A.
+The default JSON contract means `JSON_ARTIFACT_ONLY`, including for review drafts.
+The later dedicated A/B gates must still validate the actual review evidence.
+`report_obstacle` preserves an explicit blocked result without granting proof
+acceptance. A model's substantive-gap judgment can receive an actual bounded
+review; keep both judgments and never silently relabel or erase the first.
+
+Each stage snapshots its runtime/rules, records actual requests and responses,
+and independently reads back exposure and usage. `measurement_valid` requires
+the requested observed model, confirmed Standard tier, complete token ledger,
+and no recorded execution fault. It does not imply mathematical acceptance.

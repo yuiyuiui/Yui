@@ -94,18 +94,11 @@ class StructureTests(unittest.TestCase):
         self.plan['representation_notes']='choices'
         self.rejects(self.plan,'schema placeholder')
 
-    def test_fragment_preparation_matches_retained_development_inputs(self):
-        import prepare_fragments
-        old=prepare_fragments.HERE
-        destination=self.work/'fresh-preparation'
-        try:
-            prepare_fragments.HERE=destination
-            prepare_fragments.main()
-        finally:prepare_fragments.HERE=old
+    def test_retained_development_inputs_are_self_contained(self):
         for case in ('case1_norm_sup','case2_weighted_l2','case2_continuous_representatives'):
-            for name in ('source.json','contract.json'):
-                self.assertEqual((destination/'tests/fixtures/examples'/case/name).read_bytes(),
-                                 (HERE/'tests/fixtures/examples'/case/name).read_bytes())
+            cpath=HERE/'tests/fixtures/examples'/case/'contract.json'
+            contract=ir.contract(cpath)
+            self.assertEqual(ir.digest(cpath.parent/contract['source']['path']),contract['source']['sha256'])
 
 
 class RetrievalTests(unittest.TestCase):

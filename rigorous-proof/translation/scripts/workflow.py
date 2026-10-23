@@ -76,7 +76,11 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
     copied, _ = run_graph.package(contract, plan, out)
     # run_graph.package makes the unchanged source/contract/plan available locally.
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan,interface_review]+review_paths)]
-    tools = [source.binding(p) for p in sorted((ir.HERE/'scripts').glob('*.py'))]
+    runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'scripts').glob('*.py'),
+        ir.ROOT/'SKILL.md',ir.ROOT/'config.json',ir.ROOT/'toolchain/lock.json',
+        *(ir.ROOT/'references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
+        *(ir.ROOT/'templates').glob('*.md'),*(ir.HERE/'templates').glob('*.md')]
+    tools = [source.binding(p) for p in sorted(set(runtime_paths))]
     manifest = {'version': VERSION, 'authority': {'graph':str(graph),'spec':str(spec),
                 'audit_a':str(Path(audit_a).resolve()) if audit_a else None,
                 'incremental':str(Path(incremental).resolve()) if incremental else None},

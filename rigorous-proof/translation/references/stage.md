@@ -1,4 +1,4 @@
-# NL0-to-Lean Translation and Audit B — Candidate 0.4
+# Yui translation and Audit B
 
 Preserve the given mathematical proof route, target, hypotheses and allowed
 external results. Keep the original NL0/Audit A artifacts immutable. Treat
@@ -20,15 +20,15 @@ R nodes, implementation T obligations, actual assembly and Audit B.
 Use [obstacle routing](obstacle-routing.md) when a transition stalls.
 Read [the experiment protocol](experiments.md) before a model run.
 Read [shared lemmas](shared-lemmas.md) when freezing a reusable
-interface or supplying a shared store. Use [the directory map](../../SKILL.md)
-to distinguish this implemented companion from the separate NL0/Audit A part.
+interface or supplying a shared store. [The skill entry](../../SKILL.md)
+connects this translation module to the NL0/Audit A stage.
 
 The IR is a typed proof plan with unproved obligations. Python validates its
 explicit structure and renders Lean; Lean proves transitions and assembly.
 Neither component establishes natural-language fidelity automatically. Record
 a separate statement/dependency/route review and distinguish its actual scope.
 
-Use the scripts and maintained examples described in those references. Keep
+Use the scripts described in those references. Keep
 each input, plan, proof and feedback hash, retain failed attempts, and invalidate
 affected descendants after an interface change. Do not add an assumption,
 external theorem, opaque declaration or structure field to close an obligation.
@@ -65,8 +65,7 @@ This is artifact orchestration; models/humans still choose representations
 and review mathematical fidelity. It does not automatically translate arbitrary
 papers or select optimal types. No-extraction is a normal path.
 
-Use `scripts/run_graph.py` for frozen ports/plans, or `model_pilot.py` for the
-existing NL/interface/planning pilot. Both use `scheduler.py` for bounded
+Use `scripts/run_graph.py` for frozen ports/plans. `model_pilot.py` is the internal isolated proof-stage carrier; clean text author/review stages are in the parent scripts/clean_stage.py. Both use `scheduler.py` for bounded
 graph-internal workers. A duplicate shared job within a graph has one producer; downstream
 conditional bodies may run at the same time. Record pending/running/completed
 jobs. An unfinished producer prevents final closure even if its consumers pass.
@@ -75,7 +74,7 @@ before dispatch. Unknown CLI hard caps use the disclosed fallback of two, not
 a claimed maximum. All model stages in one run share one budget; record actual
 peak, queue time and intervals. Legacy integer options are compatibility aliases.
 
-This candidate produces translation artifacts and preliminary Lean evidence.
+This stage produces translation artifacts and checked local Lean evidence.
 `FRAGMENT-ASSEMBLED` is not an Audit B verdict. After translation, read and apply
 [Audit B](audit-b.md) and its [review template](../templates/audit-b.md).
 Map every source H/E/M/N/P/D to actual complete Lean types and dependencies;

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Fresh subscription-carried model stages for the IR functional pilot.
+"""Fresh subscription-carried Yui model stages for typed Lean obligations.
 
 Uses the existing request-normalizing relay; exposes neither owner references
-nor shell/filesystem access. This is a new harness version, not baseline 0.4.1.
+nor shell/filesystem access. All actual transmitted inputs and usage are retained.
 """
 from __future__ import annotations
 
@@ -35,8 +35,6 @@ def load_lock():
     return runtime_lock()
 
 
-# The existing baseline file is immutable. Only this experiment's carrier
-# reads the newly recorded desktop-CLI pin; Lean/mathlib paths are unchanged.
 carrier.load_lock = load_lock
 
 HARNESS = 'yui-0.1.0'
@@ -56,7 +54,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui'):
         self.logs = Path(logs)
         self.logs.mkdir(parents=True, exist_ok=False)
         self.work = Path(tempfile.mkdtemp(prefix='nl0-ir-model-')).resolve()
@@ -69,6 +67,15 @@ class Stage(carrier.Trial):
         self.harness_version = HARNESS
         self.strict = True
         self.system = SYSTEM
+        if instruction_arm not in {'yui','direct'}:
+            raise ValueError('Unknown instruction arm')
+        self.instruction_arm = instruction_arm
+        if instruction_arm == 'direct':
+            if bank_enabled:
+                raise ValueError('The direct arm cannot use the Yui strategy bank')
+            self.system = ('Prove the exact supplied Lean target from its explicit mathematical inputs. '
+                           'Use only the declared library and checking tools. Submit a tactic proof body '
+                           'through submit_transition; preserve the target and permitted assumptions.')
         if bank_enabled:
             self.system += (' Strategy lookup is optional. Continue directly when the next repair is clear. '
                 'If repeated attempts make no progress, you may query find_strategies with an observed diagnostic. Families: representation, '
@@ -195,6 +202,17 @@ class Stage(carrier.Trial):
 
     def _execute(self):
         user = self.prompt()
+        if not (self.logs/'execution-manifest.json').exists():
+            files = []
+            for path in [*ir.ROOT.glob('scripts/*.py'), *ir.HERE.glob('scripts/*.py'),
+                         ir.ROOT/'toolchain/lock.json', ir.ROOT/'config.json']:
+                target = self.logs/'harness-snapshot'/path.relative_to(ir.ROOT)
+                target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(path,target)
+                files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
+            ir.write(self.logs/'execution-manifest.json',{'model':carrier.MODEL,'effort':'high','speed':'standard',
+                'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
+                'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
@@ -202,6 +220,8 @@ class Stage(carrier.Trial):
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,
                   'queue_seconds':getattr(self, 'queue_seconds', 0),
                   'owner_reference_visible_to_worker':False,'started_at_utc':carrier.now()}
+        result['acceptance_scope'] = (('NL0_STRUCTURE_ONLY' if self.artifact_kind=='nl0' else 'JSON_ARTIFACT_ONLY')
+            if hasattr(self,'artifact_kind') else 'LEAN_LOCAL_OBLIGATION_OR_TYPED_INTERFACE')
         try:
             self.start_process()
             inventory = self.rpc('skills/list',{'cwds':[str(self.work/'input')],'forceReload':True})
@@ -214,11 +234,21 @@ class Stage(carrier.Trial):
             self.thread_id = thread['thread']['id']
             self.solve_turns(user)
             result['status'] = 'ACCEPTED' if self.accepted else 'NO_ACCEPTED_ARTIFACT'
+            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
+                result['status'] = 'BLOCKED'
+                result['task_outcome'] = self.accepted['status']
         except TimeoutError as e:
             result.update({'status':'UNFINISHED','stop_reason':'DEADLINE','error':str(e)})
             try:
                 self.interrupt_active_turn()
                 result['deadline_interrupt_completed'] = True
+            except Exception as stop_error:
+                result['interrupt_error'] = str(stop_error)
+        except KeyboardInterrupt:
+            result.update({'status':'UNFINISHED','stop_reason':'EXTERNAL_EARLY_STOP',
+                           'task_outcome':'UNFINISHED_EXTERNAL_STOP'})
+            try:
+                self.interrupt_active_turn()
             except Exception as stop_error:
                 result['interrupt_error'] = str(stop_error)
         except Exception as e:
@@ -238,13 +268,40 @@ class Stage(carrier.Trial):
             faults = self.logs/'relay-errors.jsonl'
             result['isolation_violation'] = violations.exists() and bool(violations.read_text().strip())
             result['relay_fault'] = faults.exists() and bool(faults.read_text().strip())
+            from execution_health import inspect
+            result['transport_health']=inspect(self.logs)
             result['execution_health'] = ('FAULT' if result.get('execution_fault') or result['relay_fault'] or
-                result['isolation_violation'] else 'NO_RECORDED_FAULT')
+                result['isolation_violation'] else result['transport_health']['status'])
             if result['status']=='UNFINISHED' and result.get('stop_reason')=='DEADLINE':
-                result['task_outcome'] = 'MODEL_BUDGET_EXHAUSTED' if result['execution_health']=='NO_RECORDED_FAULT' else 'UNFINISHED_WITH_EXECUTION_FAULT'
+                result['task_outcome'] = ('MODEL_BUDGET_EXHAUSTED' if result['execution_health']=='NO_RECORDED_FAULT'
+                    else 'UNFINISHED_WITH_EXECUTION_FAULT' if result['execution_health']=='FAULT' else 'UNFINISHED_ATTRIBUTION_UNVERIFIED')
             from usage import summarize_stage
             result['usage'] = summarize_stage(self.logs, phase=self.mode)
             result['speed_policy'] = 'standard'
+            result['instruction_arm'] = getattr(self, 'instruction_arm', 'yui')
+            result['measurement_valid'] = False
+            if (self.logs/'requests.jsonl').exists():
+                from exposure import audit_stage
+                try:
+                    result['exposure'] = audit_stage(self.logs)
+                    result['measurement_valid'] = (result['exposure']['status']=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
+                        and result['exposure']['actual_model_ids']==[carrier.MODEL]
+                        and result['exposure']['standard_tier_verified'] and result['usage']['complete']
+                        and result['execution_health']=='NO_RECORDED_FAULT')
+                    if result['exposure']['errors']:
+                        result['execution_health']='FAULT'
+                        result['execution_fault']='Transmitted exposure readback failed'
+                except (ValueError,KeyError,OSError) as error:
+                    result['execution_health']='FAULT'
+                    result['execution_fault']='Exposure readback error: '+str(error)
+            if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and result['execution_health']=='FAULT':
+                result['task_outcome']='UNFINISHED_WITH_EXECUTION_FAULT'
+            try:
+                shutil.rmtree(self.work)
+                result['temporary_workspace_removed']=True
+            except OSError as cleanup_error:
+                result['temporary_workspace_removed']=False
+                result['cleanup_error']=str(cleanup_error)
             ir.write(self.logs/'result.json',result)
             if self.accepted: ir.write(self.logs/'accepted.json',self.accepted)
         return result,self.accepted

@@ -6,7 +6,7 @@
 2. Typed translation produces an actual Lean proof along that route.
 3. Audit B checks source/formal concordance and real kernel closure.
 
-The parent candidate implements stage 1. This companion implements a typed
+Yui's NL0 module implements stage 1. Its translation module implements a typed
 graph translation prototype and a review-bound Audit B adapter. Neither an
 interface contract nor a local proof plan is itself a proved mathematical step.
 

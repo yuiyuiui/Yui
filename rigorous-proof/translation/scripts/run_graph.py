@@ -32,8 +32,10 @@ def package(cpath, ppath, out):
     return inputs/'contract.json', ir.load(inputs/'plan.json')
 
 
-def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=180, bank=False, budget=None):
+def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=180, bank=False, budget=None, arm='yui'):
     ir.need(timeout_seconds >= 1, 'positive time limit required')
+    ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
+    ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
     budget = budget or concurrency.Budget(concurrency.resolve(max_concurrency))
     configuration = budget.configuration
     print(__import__('json').dumps({'model_concurrency': configuration}, ensure_ascii=False), flush=True)
@@ -49,19 +51,21 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(pilot.__file__),Path(scheduler.__file__),
              Path(__file__).with_name('shared_lemmas.py'),Path(__file__).with_name('strategy_bank.py'),Path(concurrency.__file__),
-             ir.ROOT/'scripts/run_pilot.py',ir.ROOT/'scripts/pilot_common.py']
+             ir.ROOT/'scripts/run_pilot.py',ir.ROOT/'scripts/pilot_common.py',
+             ir.ROOT/'scripts/runtime_config.py',ir.ROOT/'scripts/usage.py',ir.ROOT/'scripts/exposure.py',
+             ir.ROOT/'scripts/execution_health.py']
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
-    ir.write(out/'configuration.json',{'harness':'nl0-frozen-graph-0.2-integrated','model':pilot.carrier.MODEL,
-             'reasoning':'high','lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
+    ir.write(out/'configuration.json',{'harness':'yui-0.1.0','model':pilot.carrier.MODEL,
+             'reasoning':'high','speed':'standard','arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
              'bank_enabled':bank,'initial_shared_input':store.snapshot() if store else None,
              'script_sha256':{p.name:ir.digest(p) for p in files},
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
     def worker(sid, packet):
-        stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget)
-        stage.harness_version = 'nl0-frozen-graph-0.2-integrated'
+        stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm)
+        stage.harness_version = 'yui-0.1.0'
         result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
     result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph')
@@ -70,6 +74,10 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     if result['status'] == 'FRAGMENT_ASSEMBLED':
         ir.write(out/'proofs.json', {'contract_sha256': ir.digest(cpath), 'plan_sha256': ir.digest(out/'inputs/plan.json'), 'proofs': result['proofs']})
     ir.write(out/'report.json',result)
+    from usage import aggregate
+    from exposure import audit_run
+    ir.write(out/'usage-summary.json',aggregate(out))
+    ir.write(out/'exposure-summary.json',audit_run(out))
     return result
 
 
@@ -83,11 +91,12 @@ def main():
     ap.add_argument('--workers',type=int, help='Compatibility alias for --max-concurrency; explicit integers only.')
     ap.add_argument('--timeout-seconds',type=int,default=180)
     ap.add_argument('--bank',action='store_true')
+    ap.add_argument('--arm',choices=['direct','yui'],default='yui')
     args = ap.parse_args()
     ir.need(args.workers is None or args.max_concurrency == 'auto', 'choose --workers or --max-concurrency')
     result = run(args.contract, args.plan, args.out, shared_store=args.shared_store,
                  max_concurrency=args.workers if args.workers is not None else args.max_concurrency,
-                 timeout_seconds=args.timeout_seconds, bank=args.bank)
+                 timeout_seconds=args.timeout_seconds, bank=args.bank, arm=args.arm)
     print(result['status'])
     return 0 if result['status'] == 'FRAGMENT_ASSEMBLED' else 1
 

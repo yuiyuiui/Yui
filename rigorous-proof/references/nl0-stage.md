@@ -1,9 +1,6 @@
-# Structured NL0 and Audit A — Candidate 0.3
+# NL0 and Audit A stage
 
-This directory is an uninstalled candidate. Do not edit, deploy, relink, or
-replace the production `rigorous-proof-development` skill. Do not inherit a
-historical proof or audit verdict. This candidate implements the NL0/Audit A
-boundary; it is not yet a replacement for the full proof-to-publication skill.
+This is stage one of Yui. It may be used independently, or its accepted artifacts may feed the translation stage. Existing production skills and historical proof verdicts are not imported by invoking Yui.
 
 ## Required reading
 
@@ -100,7 +97,7 @@ New spec/graph files use format v2 and audits use v3. Historical v1 files
 require explicit `--legacy`; their receipts cannot establish current-standard
 acceptance. Do not silently migrate, overwrite, or relabel old cases. The
 archived case-2 authoring script no longer manufactures passing reviews.
-The [format example](examples/closed-addition/nl0.json) is a small schema
+The [format example](../tests/fixtures/closed-addition/nl0.json) is a small schema
 example with an unperformed audit, not a new benchmark or certification.
 
 ## Verdicts and invalidation

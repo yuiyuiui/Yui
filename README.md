@@ -14,6 +14,10 @@ external premises. Checking a citation and proving that cited theorem in Lean
 are separate tasks. Neither a schema check nor an LLM review is an automatic
 proof of natural-language mathematics. No speed advantage is claimed yet.
 
+Current status: development candidate. The runtime and its regression controls
+are executable; the three new exercise tests have **not** passed the complete
+NL0/Audit A/Lean/Audit B workflow. See [the test report](test/results/REPORT.md).
+
 ## Layout
 
 | Directory | Purpose |
@@ -54,11 +58,29 @@ installation, or configure `YUI_LEAN_ROOT`, `YUI_MATHLIB_ROOT`,
 subscription authentication directory; credentials are never committed.
 See the skill for the staged author/review/translation commands.
 
+For a clean text stage, explicitly stage its inputs and prompt:
+
+```sh
+python3 rigorous-proof/scripts/yui.py stage /absolute/prompt.txt \
+  --phase nl0-authoring --kind nl0 --case-id selected-case \
+  --inputs /absolute/inputs.json --out /absolute/new-run
+python3 rigorous-proof/scripts/yui.py exposure /absolute/new-run
+python3 rigorous-proof/scripts/yui.py usage /absolute/new-run
+```
+
+The input manifest lists `{id,path,sha256}` documents under its own directory.
+`--kind nl0` checks structural source artifacts; it does not issue Audit A.
+The default JSON stage is suitable for candidate drafts and actual review
+records, which still pass through the dedicated A/B gates. There is no claimed
+universal automatic paper-to-Lean compiler behind this command.
+
 ## Test and benchmark status
 
-The three supplied exercise screenshots are registered under `test/`. Their
-missing textbook definitions and conventions must be resolved before mathematical
-targets are frozen. A registered input is not a passing test.
+The three supplied exercise screenshots and source contexts are registered
+under `test/`. The Lie exercise has been identified as Humphreys, GTM 9,
+section 27, exercise 7. Geometry/PDE target conventions await confirmation;
+the Lie NL0 attempt stopped before acceptance. A registered input, a candidate
+proof or a reported obstacle is not a passing mathematical test.
 
 No paper-scale benchmark has run in this repository. Future results must report
 acceptance, end-to-end and phase time, all-agent token usage, failures, execution

@@ -1,7 +1,7 @@
 # Accepted NL0 revision, frozen translation and Audit B
 
-This is the execution guide for candidate 0.4. Preserve the original NL0/Audit A
-and production skill. The companion's adapters compose their existing checks;
+This is the execution guide for Yui's translation stage. Preserve the accepted
+original NL0/Audit A. The runtime adapters compose their existing checks;
 Python handles exact edits, versions, scheduling and evidence. Models/humans
 still inspect mathematics, choose Lean representations and author local plans.
 Automatic semantic compilation of arbitrary papers is not claimed.
@@ -179,7 +179,7 @@ proof work. Shared production and conditional consumers may run concurrently;
 actual assembly closes every dependency. Failure leaves the root unfinished.
 
 `run_graph.py --max-concurrency auto|N` remains a frozen-port-only command;
-`model_pilot.py` still supports its prepared development extracts. Neither alone
+`model_pilot.py` provides the internal isolated proof stage. Neither alone
 claims whole-proof Audit B. Integer `--workers` / `--max-model-stages` remain
 compatibility aliases, with conflicts rejected.
 

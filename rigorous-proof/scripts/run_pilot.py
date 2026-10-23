@@ -120,6 +120,10 @@ def validate_model_event(event: dict, allowed_names: set[str] | None = None, *, 
             raise PermissionError('上游返回了非白名单工具调用：' + str(item.get('name')))
     if strict and event.get('response', {}).get('model') not in [None, MODEL]:
         raise PermissionError('上游实际返回了其他模型。')
+    if strict and event.get('type') in {'response.completed', 'response.incomplete', 'response.failed'}:
+        tier = event.get('response', {}).get('service_tier')
+        if tier not in [None, 'default', 'standard', 'auto']:
+            raise PermissionError('The actual model response used a non-Standard service tier.')
 
 
 def system_https_proxy() -> tuple[str, int] | None:
@@ -421,10 +425,17 @@ class Trial:
                     payload = trial.normalize_request(json.loads(body))
                     request_number = trial.api_calls
                     data = json.dumps(payload, ensure_ascii=False).encode()
-                    headers = {k: v for k, v in self.headers.items()
-                               if k.lower() not in ['host', 'content-length', 'connection', 'content-encoding', 'upgrade', 'accept-encoding', 'x-codex-service-tier', 'x-openai-service-tier']}
+                    # Authentication/account routing are required by the subscription.
+                    # No carrier conversation/session/state or speed headers cross this boundary.
+                    header_allowlist = {'authorization', 'chatgpt-account-id', 'openai-beta',
+                                        'user-agent', 'originator', 'content-type', 'accept'}
+                    headers = {k: v for k, v in self.headers.items() if k.lower() in header_allowlist}
                     headers['Content-Length'] = str(len(data))
                     headers['Accept-Encoding'] = 'identity'
+                    append(trial.logs / 'request-headers.jsonl', {'request_number':request_number,
+                        'forwarded_names':sorted(k.lower() for k in headers),
+                        'removed_names':sorted(k.lower() for k in self.headers if k.lower() not in header_allowlist),
+                        'policy':'Names only; credential/header values are never logged.'})
                     if trial.network_proxy:
                         host, port = trial.network_proxy
                         upstream = http.client.HTTPSConnection(host, port, timeout=90)

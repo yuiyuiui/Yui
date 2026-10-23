@@ -1,8 +1,8 @@
 # NL0 v2 authoring template
 
 Use this checklist to create canonical JSON, not a parallel proof authority.
-The complete [addition example](../examples/closed-addition/nl0.json) and its
-[specification](../examples/closed-addition/spec.json) demonstrate the format;
+The complete [addition example](../tests/fixtures/closed-addition/nl0.json) and its
+[specification](../tests/fixtures/closed-addition/spec.json) demonstrate the format;
 they are not a benchmark or certification. Their audit remains unperformed.
 
 ## Specification
