@@ -106,7 +106,7 @@ def proof_bundle(cpath, ppath, bpath):
 
 
 def full_type(c, output, inputs):
-    binders = [f"({p['name']} : {p['type']})" for p in c['parameters']]
+    binders = [ir.parameter_text(p) for p in c['parameters']]
     binders += [f"(h_{p['id']} : {p['type']})" for p in inputs]
     return ('∀ '+' '.join(binders)+', ' if binders else '') + output
 
@@ -256,9 +256,9 @@ def export_source(c,mapping):
             text += f"theorem resolved_{p['id']} {context} {ins} : {p['type']} := by\n{ir.proof_text(mapping['entries'][p['id']]['library_term'])}\n\n"
     actual = []
     for p in c['premises']:
-        actual.append(f"(resolved_{p['id']} {arguments})" if p['kind']=='mathlib' else 'h_'+p['id'])
+        actual.append(f"(@resolved_{p['id']} {arguments})" if p['kind']=='mathlib' else 'h_'+p['id'])
     args = ' '.join([p['name'] for p in c['parameters']] + actual)
-    text += f"theorem P {context} {ins} : {c['conclusion']['type']} := by\n  exact Translation.P {args}\n\n#check @P\n#print axioms P\nend AuditBExport\n"
+    text += f"theorem P {context} {ins} : {c['conclusion']['type']} := by\n  exact @Translation.P {args}\n\n#check @P\n#print axioms P\nend AuditBExport\n"
     return text
 
 

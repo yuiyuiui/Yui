@@ -77,6 +77,7 @@ def contract(path):
     need(len(names) == len(set(names)), 'duplicate parameter')
     for p in c['parameters']:
         need(IDENTIFIER.fullmatch(p['name']) is not None, 'invalid parameter name')
+        need(p.get('binder_kind','explicit') in {'explicit','implicit','instance'}, 'invalid parameter binder kind')
         type_text(p['type'])
     ids = [p['id'] for p in c['premises']]
     need(len(ids) == len(set(ids)), 'duplicate premise')
@@ -185,8 +186,15 @@ def validate(cpath, plan):
     return c, by_id, order
 
 
+def parameter_text(p):
+    kind=p.get('binder_kind','explicit')
+    need(kind in {'explicit','implicit','instance'}, 'invalid parameter binder kind')
+    left,right={'explicit':('(',')'),'implicit':('{','}'),'instance':('[',']')}[kind]
+    return left+p['name']+' : '+p['type']+right
+
+
 def binder_text(c):
-    return ' '.join(f"({p['name']} : {p['type']})" for p in c['parameters'])
+    return ' '.join(parameter_text(p) for p in c['parameters'])
 
 
 def premises(c):
@@ -254,7 +262,7 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
         args = ' '.join(p['name'] for p in c['parameters'])
         for sid in order:
             dep = ' '.join('h_' + k for k in nodes[sid]['inputs'])
-            text += f"  have h_{sid} : {nodes[sid]['statement']} := {sid} {args} {dep}\n"
+            text += f"  have h_{sid} : {nodes[sid]['statement']} := @{sid} {args} {dep}\n"
         text += f"  exact h_{plan['terminal']}\n\n#check @P\n#print axioms P\n"
     elif only and not types_only:
         text += f'#check @{only}\n#print axioms {only}\n'
@@ -304,6 +312,8 @@ def check_interface(cpath, draft, timeout=120):
     c = contract(cpath)
     need([p['name'] for p in draft['parameters']] == [p['name'] for p in c['parameters']],
          'keep the specified parameter names and order')
+    need([p.get('binder_kind','explicit') for p in draft['parameters']] ==
+         [p.get('binder_kind','explicit') for p in c['parameters']], 'keep the specified parameter binder kinds')
     need([p['id'] for p in draft['premises']] == [p['id'] for p in c['premises']],
          'keep exactly the original premise IDs and order')
     for p in draft['parameters'] + draft['premises']:
@@ -311,7 +321,7 @@ def check_interface(cpath, draft, timeout=120):
     type_text(draft['conclusion_type'])
     need(isinstance(draft['representation_notes'], str) and draft['representation_notes'].strip(),
          'missing interface representation notes')
-    proposed = ' '.join(f"({p['name']} : {p['type']})" for p in draft['parameters'])
+    proposed = ' '.join(parameter_text(p) for p in draft['parameters'])
     original_inputs = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
     proposed_inputs = ' '.join(f"(h_{p['id']} : {p['type']})" for p in draft['premises'])
     left = f"∀ {binder_text(c)} {original_inputs}, {c['conclusion']['type']}"

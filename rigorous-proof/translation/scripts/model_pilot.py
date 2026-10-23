@@ -172,10 +172,10 @@ class Stage(carrier.Trial):
         if self.mode == 'interface':
             return json.dumps({'task':'Translate this NL fragment into typed Lean parameter, premise and output interfaces, without writing a proof. Preserve listed names and IDs/order.',
                 'header':c['header'],'source':ir.load(self.cpath.parent/c['source']['path'])['mathematical_input'],
-                'parameters':[p['name'] for p in c['parameters']],
+                'parameters':[{'name':p['name'],'binder_kind':p.get('binder_kind','explicit')} for p in c['parameters']],
                 'premises':[{'id':p['id'],'statement':p['statement']} for p in c['premises']],
                 'conclusion':c['conclusion']['statement'],'representation':c['representation'],
-                'output_schema':{'parameters':[{'name':'supplied name','type':'Lean type'}],
+                'output_schema':{'parameters':[{'name':'supplied name','type':'Lean type','binder_kind':'preserve supplied explicit/implicit/instance kind'}],
                     'premises':[{'id':'supplied ID','type':'Lean Prop'}],
                     'conclusion_type':'Lean Prop','representation_notes':'explain choices'}},ensure_ascii=False)
         if self.mode == 'plan':

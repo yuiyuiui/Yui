@@ -8,7 +8,7 @@ from unittest.mock import patch
 import os
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from artifact_validation import NL0Contract, signature_probe
+from artifact_validation import NL0Contract, signature_probe, expand_submission
 
 
 class ArtifactValidationTests(unittest.TestCase):
@@ -18,6 +18,82 @@ class ArtifactValidationTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_explicit_local_edits_preserve_unselected_proof_and_do_not_mutate_base(self):
+        fixture=Path(__file__).parent/'fixtures/closed-addition'
+        base={'spec':json.loads((fixture/'spec.json').read_text()),
+              'graph':json.loads((fixture/'nl0.json').read_text())}
+        text=json.dumps(base)
+        edits={'base_input':'base.json','patches':[
+            {'op':'test','path':'/spec/case_id','value':base['spec']['case_id']},
+            {'op':'replace','path':'/spec/full_target','value':base['spec']['full_target']+' Explicit local revision.'}]}
+        contract=NL0Contract(self.root/'edited',{'base.json':text},case_id=base['spec']['case_id'])
+        self.assertFalse(contract(edits)['mathematical_acceptance'])
+        self.assertEqual(set(edits),{'spec','graph'})
+        self.assertEqual(edits['graph']['inferences'],base['graph']['inferences'])
+        self.assertEqual(json.loads(text),base)
+        self.assertTrue((contract.directory/'submission-edits-0001.json').exists())
+
+    def test_edit_preconditions_and_paths_cannot_silently_replace_other_content(self):
+        docs={'base.json':json.dumps({'spec':{'a/b':[1,2]},'graph':{}})}
+        for edit in [
+            {'op':'test','path':'/spec/a~1b/0','value':9},
+            {'op':'remove','path':'/spec/a~1b/2'},
+            {'op':'replace','path':'/spec/missing','value':1},
+            {'op':'remove','path':'/spec/a~1b/-1'},
+            {'op':'replace','path':'/spec/a~2b','value':1},
+            {'op':'replace','path':'/graph','value':{}},
+            {'op':'replace','path':'/other/x','value':1}]:
+            with self.assertRaises(ValueError):
+                expand_submission({'base_input':'base.json','patches':[edit]},docs)
+        result,_=expand_submission({'base_input':'base.json','patches':[
+            {'op':'add','path':'/spec/a~1b/-','value':3},
+            {'op':'remove','path':'/spec/a~1b/0'}]},docs)
+        self.assertEqual(result['spec']['a/b'],[2,3])
+
+    def test_local_edits_cannot_skip_the_full_producer_gate_or_read_undeclared_files(self):
+        fixture=Path(__file__).parent/'fixtures/closed-addition'
+        base={'spec':json.loads((fixture/'spec.json').read_text()),
+              'graph':json.loads((fixture/'nl0.json').read_text())}
+        contract=NL0Contract(self.root/'invalid-edit',{'base.json':json.dumps(base)},
+                             case_id=base['spec']['case_id'])
+        with self.assertRaises(ValueError):
+            contract({'base_input':'base.json','patches':[
+                {'op':'replace','path':'/graph/inferences','value':[]}]})
+        with self.assertRaises(ValueError):
+            expand_submission({'base_input':'/etc/passwd','patches':[{'op':'remove','path':'/spec/a'}]}, {})
+        with self.assertRaisesRegex(ValueError,'Duplicate JSON key'):
+            expand_submission({'base_input':'duplicate','patches':[{'op':'remove','path':'/spec/a'}]},
+                              {'duplicate':'{"spec":{},"spec":{},"graph":{}}'})
+
+    def test_same_stage_draft_edits_resume_rejected_structure_without_cross_stage_access(self):
+        fixture=Path(__file__).parent/'fixtures/closed-addition'
+        base={'spec':json.loads((fixture/'spec.json').read_text()),
+              'graph':json.loads((fixture/'nl0.json').read_text())}
+        contract=NL0Contract(self.root/'draft',{'problem.txt':'Neutral fixture.'},case_id=base['spec']['case_id'])
+        original=base['graph']['inferences']
+        base['graph']['inferences']=[]
+        with self.assertRaises(ValueError):contract(base)
+        repaired={'base_candidate':1,'patches':[{'op':'replace','path':'/graph/inferences','value':original}]}
+        self.assertFalse(contract(repaired)['mathematical_acceptance'])
+        self.assertEqual(repaired['graph']['inferences'],original)
+        other=NL0Contract(self.root/'other-stage',{'problem.txt':'Separate fixture.'},case_id=base['spec']['case_id'])
+        with self.assertRaisesRegex(ValueError,'same stage'):
+            other({'base_candidate':1,'patches':[{'op':'replace','path':'/graph/inferences','value':original}]})
+
+    def test_later_bookkeeping_edit_cannot_silently_discard_a_previous_proof_edit(self):
+        original={'spec':{'conclusion':'old'},'graph':{'proof':'old proof','objects':[]}}
+        revised={'spec':{'conclusion':'old'},'graph':{'proof':'completed mathematical proof','objects':[]}}
+        docs={'base.json':json.dumps(original)};drafts={1:json.dumps(revised)}
+        changes=[{'op':'replace','path':'/graph/objects','value':['x']}]
+        with self.assertRaisesRegex(ValueError,'preserve your accumulated proof edits'):
+            expand_submission({'base_input':'base.json','patches':changes},docs,drafts)
+        final,_=expand_submission({'base_candidate':1,'patches':changes},docs,drafts)
+        self.assertEqual(final['graph']['proof'],'completed mathematical proof')
+        exact,_=expand_submission({'accept_candidate':1},docs,drafts)
+        self.assertEqual(exact,revised)
+        reset,receipt=expand_submission({'base_input':'base.json','patches':changes,'reset_base':True},docs,drafts)
+        self.assertEqual(reset['graph']['proof'],'old proof');self.assertTrue(receipt['reset_base'])
 
     def test_only_metadata_and_omitted_aliases_are_bound_and_missing_proof_is_rejected(self):
         fixture=Path(__file__).parent/'fixtures/closed-addition'
@@ -72,6 +148,21 @@ class ArtifactValidationTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 signature_probe(self.root/'failed','M001','dimH_empty',
                     'Mathlib.Topology.MetricSpace.HausdorffDimension',1)
+
+    def test_generic_analytic_signature_preserves_conditions_without_recursive_structure_expansion(self):
+        row=signature_probe(self.root/'analytic-signature','M001',
+            'integral_bilinear_hasFDerivAt_right_eq_neg_left_of_integrable',
+            'Mathlib.Analysis.Calculus.LineDeriv.IntegrationByParts',1)
+        self.assertLess(len(row['signature']),20000)
+        for condition in ['FiniteDimensional','IsAddHaarMeasure','Integrable','HasFDerivAt','tsupport']:
+            self.assertIn(condition,row['signature'])
+        self.assertIn('sources',json.loads((self.root/'analytic-signature'/row['evidence'][0]['path']).read_text()))
+
+    def test_importing_module_cannot_be_mislabeled_as_the_declaration_source(self):
+        with self.assertRaisesRegex(ValueError,'Declaration source module differs'):
+            signature_probe(self.root/'wrong-module','M001',
+                'hasFDerivAt_integral_of_dominated_of_fderiv_le',
+                'Mathlib.MeasureTheory.Integral.IntegralEqImproper',1)
 
     def test_library_metadata_is_bound_without_rewriting_mathematics(self):
         contract=NL0Contract(self.root/'bound',{'problem.txt':'Dimension of the empty set.'},case_id='empty')

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 import hashlib
 from pathlib import Path
 import shutil
@@ -41,6 +42,12 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('Task input hash differs from the frozen manifest')
                 self.task_inputs[row['id']] = data.decode('utf-8')
         self.artifact_kind = kind
+        self.continuation_prompt = ('The requested stage artifact has not been accepted. Continue from your own '
+            'same-stage drafts and actual tool feedback, preserving the task, allowed inputs and proof route. '
+            'Complete ordinary source registration, mathematical expansion and format corrections. '
+            'Routine unfinished drafting is progress, not a mathematical gap; report TASK_INCOMPLETE if needed '
+            'and continue within the remaining stage budget. Use a mathematical-gap outcome only for an actual '
+            'unsupported mathematical implication with concrete grounds, not for an unfilled JSON artifact.')
         if kind not in {'json', 'nl0'}:
             raise ValueError('Unknown artifact contract')
         if kind == 'nl0':
@@ -49,7 +56,8 @@ class ArtifactStage(pilot.Stage):
             from artifact_validation import NL0Contract
             self.validator = NL0Contract(self.logs/'case', self.task_inputs, case_id=case_id)
         self.system = ('Complete the supplied mathematical task using only its explicit inputs and tools. '
-                       'Submit the requested JSON artifact through submit_artifact. '
+                       'Submit the requested JSON artifact through structured submit_draft (preferred) '
+                       'or the compatible submit_artifact wrapper. '
                        'Tool feedback is real task feedback; do not invent a successful check.')
         if arm == 'yui':
             self.system += (' This is a Yui workflow stage. Read the relevant declared Yui rules, '
@@ -64,13 +72,22 @@ class ArtifactStage(pilot.Stage):
                 {'path': {'type': 'string'}, 'start': {'type': 'integer'}, 'end': {'type': 'integer'}}, ['path', 'start', 'end']))
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
-                       pilot.json_tool('report_obstacle', 'Stop this stage honestly on a substantive or suspected proof gap, unavailable source, or input conflict. JSON fields: status, location, explanation, basis, partial_progress. Status must be SUBSTANTIVE_GAP, SUSPECTED_GAP, SOURCE_UNAVAILABLE or INPUT_CONFLICT. Difficulty alone is not a mathematical error.', 'obstacle_json')]
+                       pilot.json_tool('report_obstacle', 'Report exact status, location, explanation, basis, partial_progress. SUBSTANTIVE_GAP or SUSPECTED_GAP stops for an actual unsupported mathematical implication; give its premises, conclusion and mathematical grounds. SOURCE_UNAVAILABLE or INPUT_CONFLICT stops for a real source-access/original-input obstacle. Ordinary unfinished drafting, source registration or format work must use TASK_INCOMPLETE: this records progress without ending the stage; continue the actual work. Difficulty or artifact incompletion alone is not a mathematical gap.', 'obstacle_json')]
+        for name in ['check_draft','submit_draft']:
+            self.tools.append(pilot.carrier.tool(name,
+                'Preferred structured-object form of '+('check_artifact' if name=='check_draft' else 'submit_artifact')+
+                ': provide artifact as an actual JSON object, not an escaped JSON string. Same complete validation and acceptance scope.',
+                {'artifact':{'type':'object','additionalProperties':True}},['artifact']))
         if kind == 'nl0' and library:
             self.tools.append(pilot.carrier.tool('probe_library',
                 'Query a proved Mathlib theorem and its exact signature/axioms in the offline sandbox. '
                 'Returns located evidence for an M source; the mathematical statement and applicability still require review.',
                 {'id':{'type':'string'},'declaration':{'type':'string'},'module':{'type':'string'}},
                 ['id','declaration','module']))
+        if kind == 'nl0':
+            self.tools.append(pilot.carrier.tool('read_draft',
+                'Read a JSON pointer in your own same-stage candidate after an actual structural check. No other file/stage is accessible; choose a narrow pointer for large objects.',
+                {'candidate':{'type':'integer'},'pointer':{'type':'string'}},['candidate','pointer']))
         self.tool_names = {t['name'] for t in self.tools}
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
@@ -105,7 +122,21 @@ class ArtifactStage(pilot.Stage):
             'scope':'Only declared task documents and, in the Yui arm, frozen Yui rules are model-visible.'},indent=2)+'\n')
         if kind == 'nl0':
             import nl0
-            self.input_prompt += ('\nSubmission has exactly {"spec": <NL0 v2 specification>, "graph": <NL0 v2 graph>}. '
+            self.input_prompt += ('\nCanonical submission has exactly {"spec": <NL0 v2 specification>, "graph": <NL0 v2 graph>}. '
+                'For a local revision, you may instead submit {"base_input":"<frozen task document ID>", '
+                '"patches":[{"op":"replace","path":"/graph/...","value":...}]}. '
+                'That declared task document must itself contain {spec,graph}; supported JSON edit operations '
+                'are add/remove/replace/test with absolute JSON pointers inside spec or graph. '
+                'Edits always start from that immutable base, not the last rejected edit. '
+                'Array append uses /-. The expanded result undergoes every ordinary metadata/source/structure gate '
+                'and later Audit A. This saves retyping unchanged content; it does not change mathematical authority. '
+                'After check_artifact gives candidate_number N, you may also submit '
+                '{"base_candidate":N,"patches":[...]} to edit that exact own same-stage draft. '
+                'Use read_draft(candidate=N,pointer="/graph/inferences/0") to inspect it. '
+                'Submit {"accept_candidate":N} to resubmit that exact own draft without retyping it. '
+                'Once a same-stage candidate exists, restarting edits from a frozen base_input requires '
+                'explicit reset_base:true, because it discards accumulated edits. '
+                'Candidates from another stage and undeclared files are unavailable. '
                 'The controller binds spec.inputs to all frozen task documents, pins to the verified runtime, '
                 'and graph.spec_sha256 to the resulting spec. Supply these fields as placeholders if needed. '
                 'All mathematical fields remain your responsibility. probe_library returns checked M-source evidence '
@@ -140,9 +171,30 @@ class ArtifactStage(pilot.Stage):
                 'Every read supports at most 250 lines. Start with the entry and follow its relevant links; do not guess filenames.')
         if self.task_inputs:
             self.input_prompt += '\nFrozen task document IDs: '+', '.join(sorted(self.task_inputs))+'. Use read_task_input to read them.'
+        self.input_prompt += ('\nPrefer check_draft/submit_draft with an actual artifact JSON object. '
+            'The older check_artifact/submit_artifact wrappers require artifact_json to be a double-encoded '
+            'valid JSON string; do not supply Python dictionaries or single-quoted keys. Both forms run identical checks.')
 
     def prompt(self):
         return self.input_prompt
+
+    def controller_checkpoint(self):
+        if self.artifact_kind!='nl0' or not self.validator.drafts:return None
+        number=self.validator.attempt
+        candidate=self.validator.directory/f'candidate-{number:04d}.json'
+        check=self.validator.directory/f'check-result-{number:04d}.json'
+        if not candidate.is_file() or not check.is_file():return None
+        data={'kind':'YUI_OWN_STAGE_CHECKPOINT','candidate_number':number,
+            'latest_check':self.validator.last_check,
+            'last_structurally_valid_candidate':self.validator.last_valid_candidate,
+            'acceptance_scope':'NL0_STRUCTURE_ONLY_NOT_AUDIT_A',
+            'resume':'Use read_draft with this exact own-stage candidate and a narrow JSON pointer. Preserve its edits with base_candidate. A passed structural candidate still needs actual Audit A; submit it only when your drafting is complete.',
+            'remaining_stage_seconds':max(0,round(self.timeout-(time.monotonic()-self.started),1)) if self.started else None}
+        sources=[candidate,check]
+        if self.validator.last_valid_candidate is not None:
+            sources.append(self.validator.directory/f'check-result-{self.validator.last_valid_candidate:04d}.json')
+        return {'data':data,'sources':[{'path':str(p.relative_to(self.logs)),
+            'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dict.fromkeys(sources)]}
 
     def dispatch(self, name, args):
         if name in {'search_mathlib', 'read_mathlib'}:
@@ -162,17 +214,31 @@ class ArtifactStage(pilot.Stage):
                 value = json.loads(args['obstacle_json'], object_pairs_hook=pilot.ir.unique)
                 if not isinstance(value,dict) or set(value) != {'status','location','explanation','basis','partial_progress'}:
                     raise ValueError('Expected all five obstacle fields')
-                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
+                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT','TASK_INCOMPLETE'}:
                     raise ValueError('Unknown obstacle status')
                 if any(not isinstance(value[k],str) or not value[k].strip() for k in ['location','explanation','basis','partial_progress']):
                     raise ValueError('Every obstacle field needs a substantive explanation')
-                self.accepted = value
-                result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
+                if value['status']=='TASK_INCOMPLETE':
+                    result={'progress_recorded':True,'stage_complete':False,'mathematical_acceptance':False,
+                            'outcome':'TASK_INCOMPLETE','next_action':self.continuation_prompt}
+                else:
+                    self.accepted = value
+                    result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
             elif name == 'probe_library':
                 from artifact_validation import signature_probe
                 self.lean_calls += 1
                 result = signature_probe(self.validator.directory, args['id'], args['declaration'], args['module'],
                                          self.lean_calls, timeout=self.lean_timeout())
+            elif name == 'read_draft':
+                import nl0
+                number=args['candidate']
+                if type(number) is not int or number not in self.validator.drafts:
+                    raise ValueError('Read only an existing candidate from this same stage')
+                draft=json.loads(self.validator.drafts[number])
+                value=nl0.closure.resolve(draft,args['pointer'])
+                if len(json.dumps(value,ensure_ascii=False))>20000:
+                    raise ValueError('Choose a narrower JSON pointer; this value exceeds 20000 characters')
+                result={'candidate':number,'pointer':args['pointer'],'value':value}
             elif name == 'read_task_input':
                 text = self.task_inputs[args['id']]
                 start, end = args['start'], args['end']
@@ -195,15 +261,19 @@ class ArtifactStage(pilot.Stage):
                 result = {'path': str(relative), 'total_lines': len(lines),
                           'text': '\n'.join(f'{i}: {lines[i-1]}' for i in range(start, min(end, len(lines)) + 1))}
             else:
-                value = json.loads(args['artifact_json'], object_pairs_hook=pilot.ir.unique)
+                value = (deepcopy(args['artifact']) if name in {'check_draft','submit_draft'} else
+                         json.loads(args['artifact_json'], object_pairs_hook=pilot.ir.unique))
                 if not isinstance(value, dict):
                     raise ValueError('Artifact must be a JSON object')
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}
-                result = {'accepted': True, 'validation': checked, 'stage_complete': name == 'submit_artifact'}
-                if name == 'submit_artifact':
+                result = {'accepted': True, 'validation': checked, 'stage_complete': name in {'submit_artifact','submit_draft'}}
+                if name in {'submit_artifact','submit_draft'}:
                     self.accepted = value
         except (ValueError, KeyError, TypeError, PermissionError) as e:
             result = {'accepted': False, 'error': str(e), 'feedback_kind': 'candidate_rejected'}
+        if self.artifact_kind=='nl0' and name in {'check_artifact','submit_artifact','check_draft','submit_draft'}:
+            result['candidate_number']=self.validator.attempt or None
+            result['revision_note']='Preserve accumulated proof edits with base_candidate and explicit patches, or resubmit the exact draft with accept_candidate. Restarting a frozen base_input requires reset_base:true. Full validation still applies.'
         pilot.carrier.append(self.logs / 'tools.jsonl', {'tool': name, 'arguments': args, 'result': result,
                                                        'wall_seconds': time.monotonic() - started})
         return result

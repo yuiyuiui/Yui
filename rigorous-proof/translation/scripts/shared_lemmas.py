@@ -55,11 +55,13 @@ def signature_key(value):
                  'target': normalize(value['target']),
                  'objects': value['objects'], 'representations': value['representations'],
                  'bridges': value['bridges'], 'route': value['route']}
+    kinds=[p.get('binder_kind','explicit') for p in value['parameters']]
+    if any(kind!='explicit' for kind in kinds):canonical['parameter_binders']=kinds
     return hashed(canonical)
 
 
 def quantified(value):
-    binders = [f"({p['name']} : {p['type']})" for p in value['parameters']]
+    binders = [ir.parameter_text(p) for p in value['parameters']]
     binders += [f"({p['binder']} : {p['type']})" for p in value['inputs']]
     return ('∀ ' + ' '.join(binders) + ', ' if binders else '') + value['target']
 
@@ -79,7 +81,7 @@ def reuse_body(entry, requested):
         body += '  intro ' + ' '.join(names) + '\n'
     body += ir.proof_text(entry['proof']) + '\n'
     args = [p['name'] for p in requested['parameters']] + [p['binder'] for p in requested['inputs']]
-    return body + f'exact {local_name}' + ((' ' + ' '.join(args)) if args else '')
+    return body + f'exact @{local_name}' + ((' ' + ' '.join(args)) if args else '')
 
 
 class Store:

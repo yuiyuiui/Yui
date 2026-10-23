@@ -352,11 +352,24 @@ class Trial:
                       'include': ['reasoning.encrypted_content'], 'store': False,
                       'text': {'verbosity': 'low'}, 'prompt_cache_key': self.prompt_cache_key,
                       'service_tier': 'default'}
+        # Native compaction summaries remain untrusted and removed. Restore only
+        # machine facts about this stage's own immutable checked drafts, rather
+        # than forwarding an opaque summary or silently losing working state.
+        checkpoint=None
+        hook=getattr(self,'controller_checkpoint',None)
+        if hook is not None:
+            checkpoint=hook()
+            if checkpoint is not None:
+                text='Current-stage machine checkpoint (no new mathematical premise): '+json.dumps(checkpoint['data'],ensure_ascii=False,sort_keys=True)
+                checkpoint={**checkpoint,'text':text,'text_sha256':hashlib.sha256(text.encode()).hexdigest()}
+                self.allowed_user_messages.add(text)
+                result['input'].append({'type':'message','role':'user','content':[{'type':'input_text','text':text}]})
         self.api_calls += 1
         append(self.logs / 'requests.jsonl', {'request_number': self.api_calls,
             'transport': 'Codex subscription authentication via documented custom provider',
             'upstream_host': 'chatgpt.com', 'upstream_path': '/backend-api/codex/responses',
             'original_payload': payload, 'removed_items': removed, 'sent_payload': result,
+            'controller_checkpoint': checkpoint,
             'dropped_top_level_fields': sorted(set(payload) - set(result)),
             'sent_body_sha256': hashlib.sha256(json.dumps(result, ensure_ascii=False).encode()).hexdigest()})
         # A mistaken adapter must fail before sending an empty first problem.
@@ -630,6 +643,7 @@ tool_suggest = false
         self.started = time.monotonic()
         deadline = self.started + self.timeout
         message = user
+        continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
         while True:
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': MODEL, 'effort': 'high',
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
@@ -647,10 +661,10 @@ tool_suggest = false
             self.continuation_count += 1
             append(self.logs / 'controller.jsonl', {'event': 'continue_after_unaccepted_turn',
                 'continuation_number': self.continuation_count,
-                'previous_turn_id': turn.get('id'), 'prompt': CONTINUE_PROMPT,
+                'previous_turn_id': turn.get('id'), 'prompt': continuation_prompt,
                 'elapsed_seconds': time.monotonic() - self.started})
-            self.allowed_user_messages.add(CONTINUE_PROMPT)
-            message = CONTINUE_PROMPT
+            self.allowed_user_messages.add(continuation_prompt)
+            message = continuation_prompt
 
     def interrupt_active_turn(self) -> None:
         # turn/start may have been sent just before the deadline. Consume its

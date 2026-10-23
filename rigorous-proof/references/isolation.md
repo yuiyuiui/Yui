@@ -17,6 +17,13 @@ within-stage model history, actual tool results and explicit tool schemas.
 Developer/system additions, other user messages, server-conversation references
 and unrelated provider metadata are removed or rejected before transmission.
 No automatic inherited compaction context or model fallback is allowed.
+An opaque native compaction summary is still discarded. An NL0 author instead
+receives a small machine checkpoint naming only its own immutable current-stage
+candidate, actual structural-check result, last structurally valid candidate and
+remaining stage budget. Its source files and transmitted text are hash-bound
+and independently checked during exposure readback. `read_draft` retrieves that
+same-stage artifact. This restores working state after truncation without
+importing a summary, other conversation, new theorem or mathematical judgment.
 Outgoing HTTP headers also use an allowlist: authentication/account routing,
 protocol identity and content negotiation only. Carrier session/conversation
 state and premium-speed headers are omitted. Header names are logged; credential

@@ -44,6 +44,14 @@ output channel. `review` records actual reviewer/exposure and pending issues;
 it cannot grant Audit A/B. `representation` records equality/convergence mode,
 norm/range, measure, representative and normalization choices when relevant.
 
+Parameter records may additionally specify `binder_kind: explicit|implicit|instance`,
+defaulting to `explicit`. This renders `(x : X)`, `{x : X}`, or `[x : X]`
+respectively, so an arbitrary field/space can supply its legitimate typeclass
+data in the Lean context. Binder style is preserved through types, assembly,
+shared-proof keys and Audit B signatures. It supplies no new mathematical
+assumption: the corresponding field/structure prerequisites still need exact
+source correspondence review. Ordinary existing contracts retain their default.
+
 `premises` are exact direct H/E/M/N inputs, not extra convenient facts. In a
 multi-node package, an N port is resolved by its actual upstream declaration.
 Within one fragment, a conditional result may retain its declared N port, but

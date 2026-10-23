@@ -9,6 +9,11 @@ Apply [self-containment](self-containment.md) to the actual mathematical text.
 
 ## Authority and semantics
 
+The isolated authoring carrier offers `check_draft` and `submit_draft`, taking
+an `artifact` JSON object directly. Prefer these to the compatible older
+`artifact_json` string wrappers: an additional string-encoding layer is not
+part of the mathematical format. Both routes execute identical checks.
+
 `spec.json` freezes the original full theorem, the conclusion under its declared
 parameters/hypotheses, the exact H list, global definition pairs, logic policy,
 source-input hashes, and Lean/mathlib pins. A human must confirm that this
@@ -29,6 +34,11 @@ Graph vertices are propositions and inferences. Edges are generated only as
 all inputs. List order is presentation only: a dependency may occur later in
 the JSON array, provided the graph admits a topological order. Actual circular
 dependencies, unknown IDs, and disconnected retained branches fail.
+
+The isolated authoring carrier also reports a hash-bound machine checkpoint of
+its latest own draft and actual structural result. After a context reset, resume
+that candidate with `read_draft`/`base_candidate`; do not claim no draft exists or
+restart the frozen input accidentally. The checkpoint grants no Audit A verdict.
 
 ## Specification fields
 
@@ -104,6 +114,35 @@ submission adapter binds exact signature/source metadata from the successful
 probe matching the selected M ID, declaration and dotted module. Those metadata
 fields may be omitted from that tool's submitted JSON; canonical graph files
 still contain them in full. No unprobed source is filled from model memory.
+The probe checks the declaration's actual defining module, not just a module
+that imports it. `#check @declaration` prints the complete outer telescope,
+including implicit/typeclass conditions, using ordinary notation for nested
+structure applications. Recursive expansion of inherited structure arguments
+is unnecessary; omitted hypotheses or ellipsis are not permitted. The actual
+kernel declaration kind, axioms, source bytes and version pins remain evidence.
+For a local development revision the same tool also accepts
+`{base_input: "declared-task-ID.json", patches: [...]}` when that explicit frozen
+task document contains `{spec, graph}`. Patches are JSON data operations
+`add`, `remove`, `replace`, or `test`, each with an absolute JSON pointer inside
+`/spec/...` or `/graph/...` and a `value` except for `remove`. Array append uses
+`/-`. Every submission starts from the immutable named input, not the previous
+failed candidate. The controller records the base hash and actual edits, then
+performs the identical full source/structure checks. Successful output is still
+the complete canonical `{spec,graph}`. This is an authoring convenience for
+unaccepted candidates, not an incremental Audit A receipt or permission to
+modify accepted/frozen source during a translation run. Actual mathematical
+changes still invalidate affected reviews.
+Within the same authoring stage, an actual check also returns its
+`candidate_number`. Use `{base_candidate: N, patches: [...]}` to revise that
+exact checked draft, including a structurally rejected draft. `read_draft`
+can inspect a narrow JSON pointer in that own draft. These are the model's
+own prior submissions plus bound metadata, not other tasks or local files.
+Every edit still undergoes the full checker, and no draft inherits acceptance.
+Resubmit an exact own draft with `{accept_candidate: N}` after a successful
+check. Once a same-stage draft exists, returning to `base_input` requires an
+explicit `reset_base: true`; this deliberately discards accumulated edits.
+Without that explicit reset, use `base_candidate` so a later bookkeeping fix
+cannot silently discard earlier mathematical corrections.
 The adapter does not rewrite mathematical statements, hypotheses, definitions,
 binders or arguments. Their fidelity remains the author's and auditor's work.
 To avoid retranscribing mandatory duplicate strings, its tool input may omit

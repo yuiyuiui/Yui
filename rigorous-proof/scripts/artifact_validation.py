@@ -17,6 +17,95 @@ def write(path, value):
     Path(path).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
 
 
+def expand_submission(value, documents, drafts=None):
+    """Expand explicit JSON data edits; never execute text or infer missing mathematics."""
+    if set(value) == {'spec', 'graph'}:
+        return deepcopy(value), None
+    if set(value)=={'accept_candidate'}:
+        number=value['accept_candidate']
+        if type(number) is not int or not drafts or number not in drafts:
+            raise ValueError('accept_candidate must name an existing candidate from this same stage')
+        return json.loads(drafts[number],object_pairs_hook=nl0.unique_object), {
+            'base_candidate':number,'base_sha256':hashlib.sha256(drafts[number].encode()).hexdigest(),
+            'patches':[],'operation':'resubmit_exact_own_candidate'}
+    own_candidate = None
+    if set(value) == {'base_candidate', 'patches'}:
+        number=value['base_candidate']
+        if type(number) is not int or not drafts or number not in drafts:
+            raise ValueError('base_candidate must name an existing candidate from this same stage')
+        own_candidate=number
+        documents={'same-stage-candidate':drafts[number]}
+        value={'base_input':'same-stage-candidate','patches':value['patches']}
+    if set(value)=={'base_input','patches','reset_base'}:
+        if value['reset_base'] is not True:raise ValueError('reset_base must be explicitly true')
+        value={k:v for k,v in value.items() if k!='reset_base'}
+        reset=True
+    else:reset=False
+    if drafts and own_candidate is None and set(value)=={'base_input','patches'} and not reset:
+        raise ValueError('This stage already has candidate_number '+str(max(drafts))+
+            '. Use base_candidate to preserve your accumulated proof edits. To deliberately discard them and restart from a frozen input, include reset_base:true.')
+    if (set(value) != {'base_input', 'patches'} or not isinstance(value['base_input'], str)
+            or value['base_input'] not in documents):
+        raise ValueError('Expected {spec,graph} or {base_input:<frozen task ID>,patches:[JSON edits]}')
+    identifier = value['base_input']
+    base = json.loads(documents[identifier], object_pairs_hook=nl0.unique_object)
+    if not isinstance(base, dict) or set(base) != {'spec', 'graph'}:
+        raise ValueError('Patch base must be an explicit frozen {spec,graph} task document')
+    if not isinstance(value['patches'], list) or not value['patches']:
+        raise ValueError('Supply a nonempty list of explicit edits')
+    result = deepcopy(base)
+    for change in value['patches']:
+        if not isinstance(change, dict) or change.get('op') not in {'add', 'remove', 'replace', 'test'}:
+            raise ValueError('Supported edit operations: add, remove, replace, test')
+        op, pointer = change['op'], change.get('path')
+        expected = {'op', 'path'} | ({'value'} if op != 'remove' else set())
+        if set(change) != expected or not isinstance(pointer, str) or not pointer.startswith('/'):
+            raise ValueError('Each edit needs op, an absolute JSON pointer, and value except for remove')
+        if re.search(r'~(?![01])', pointer):
+            raise ValueError('Invalid JSON pointer escape')
+        parts = [p.replace('~1', '/').replace('~0', '~') for p in pointer[1:].split('/')]
+        if parts[0] not in {'spec', 'graph'} or len(parts) < 2:
+            raise ValueError('Edit a field inside spec or graph, not the submission root')
+        parent = result
+        try:
+            for key in parts[:-1]:
+                if isinstance(parent, list):
+                    if not re.fullmatch(r'0|[1-9][0-9]*', key):
+                        raise ValueError('Invalid array index')
+                    parent = parent[int(key)]
+                else:
+                    parent = parent[key]
+            key = parts[-1]
+            if isinstance(parent, list):
+                if key == '-' and op == 'add':
+                    index = len(parent)
+                elif re.fullmatch(r'0|[1-9][0-9]*', key):
+                    index = int(key)
+                else:
+                    raise ValueError('Invalid array index')
+                if not 0 <= index < len(parent) + (op == 'add'):
+                    raise ValueError('Array index is outside the existing document')
+                if op == 'add': parent.insert(index, deepcopy(change['value']))
+                elif op == 'remove': parent.pop(index)
+                elif op == 'replace': parent[index] = deepcopy(change['value'])
+                elif parent[index] != change['value']: raise ValueError('Edit precondition does not match')
+            elif isinstance(parent, dict):
+                if op != 'add' and key not in parent:
+                    raise ValueError('Edit path does not exist')
+                if op == 'remove': del parent[key]
+                elif op in {'add', 'replace'}: parent[key] = deepcopy(change['value'])
+                elif parent[key] != change['value']: raise ValueError('Edit precondition does not match')
+            else:
+                raise ValueError('Edit parent is not a JSON container')
+        except (KeyError, IndexError, TypeError) as error:
+            raise ValueError('Edit path does not resolve: ' + pointer) from error
+    provenance={'base_sha256':hashlib.sha256(documents[identifier].encode()).hexdigest(),
+                'patches':deepcopy(value['patches'])}
+    provenance['base_candidate' if own_candidate is not None else 'base_input']=own_candidate if own_candidate is not None else identifier
+    if reset:provenance['reset_base']=True
+    return result,provenance
+
+
 def signature_probe(case, identifier, declaration, module, sequence, *, timeout=120):
     """Only validated identifiers enter this trusted, sandboxed query program."""
     case=Path(case).resolve()
@@ -37,10 +126,13 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
     work = out / 'work'
     (work / 'input').mkdir(parents=True)
     program = '\n'.join(['import Mathlib', 'set_option pp.universes true',
-        'set_option pp.explicit true', 'open Lean Elab Command in', 'run_elab do',
+        'set_option pp.explicit false', 'open Lean Elab Command in', 'run_elab do',
         '  let env ← getEnv', f'  match env.find? `{declaration} with',
         '  | some (.thmInfo _) => pure ()',
         '  | _ => throwError "This source is not a proved theorem declaration"',
+        f'  let actual ← findModuleOf? `{declaration}',
+        f'  unless actual == some `{module} do',
+        f'    throwError "Declaration source module differs: actual={{actual}}, requested={module}"',
         f'#eval IO.println "BEGIN_SIGNATURE:{identifier}"', f'#check @{declaration}',
         f'#eval IO.println "BEGIN_AXIOMS:{identifier}"', f'#print axioms {declaration}',
         f'#eval IO.println "END_SOURCE:{identifier}"']) + '\n'
@@ -63,6 +155,7 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
         'finished_at': datetime.now(timezone.utc).isoformat(), 'exit_code': 0,
         'lean_version': lock['lean']['version'], 'mathlib_commit': lock['mathlib']['rev'],
         'execution_boundary': 'offline native Lean sandbox', 'sources': {identifier: row},
+        'signature_display_policy':'#check @declaration preserves the complete outer implicit/typeclass/explicit telescope. Nested applications use ordinary Lean notation rather than recursively expanding every inherited structure argument; exact source bytes, environment pins and actual kernel theorem kind/axioms remain checked.',
         'result': result}
     receipt = out / 'library-sources.json'
     write(receipt, report)
@@ -78,6 +171,10 @@ class NL0Contract:
         self.expected_inputs = []
         self.case_id = case_id
         self.attempt = 0
+        self.documents = dict(documents)
+        self.drafts = {}
+        self.last_valid_candidate = None
+        self.last_check = None
         for identifier, text in documents.items():
             if not re.fullmatch(r'[A-Za-z0-9_.-]+', identifier) or identifier in {'.','..'}:
                 raise ValueError('Task document ID is not a safe local filename')
@@ -88,9 +185,10 @@ class NL0Contract:
                 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
 
     def __call__(self, artifact):
-        if set(artifact) != {'spec', 'graph'}:
-            raise ValueError('NL0 artifact must have exactly spec and graph objects')
-        spec, graph = deepcopy(artifact['spec']), deepcopy(artifact['graph'])
+        expanded, patch = expand_submission(artifact, self.documents, self.drafts)
+        if patch is not None:
+            write(self.directory/f'submission-edits-{self.attempt+1:04d}.json', patch)
+        spec, graph = expanded['spec'], expanded['graph']
         if not isinstance(spec, dict) or not isinstance(graph, dict):
             raise ValueError('Spec and graph must be objects')
         if self.case_id is not None and spec.get('case_id') != self.case_id:
@@ -169,15 +267,22 @@ class NL0Contract:
         write(self.directory / 'nl0.json', graph)
         self.attempt += 1
         write(self.directory / f'candidate-{self.attempt:04d}.json', {'spec': spec, 'graph': graph})
+        self.drafts[self.attempt]=json.dumps({'spec':spec,'graph':graph},ensure_ascii=False)
         try:
             summary = nl0.validate(self.directory / 'nl0.json', self.directory / 'spec.json')[0]
         except ValueError as error:
+            self.last_check={'candidate':self.attempt,'status':'STRUCTURE_REJECTED','error':str(error)}
+            write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
             if str(error).startswith('HYPOTHESIS:'):
                 raise ValueError(str(error) + ' The comparison is against spec.hypotheses in your own '
                     'submitted artifact, not an undisclosed controller H list. Preserve its mathematical '
                     'meaning and copy each H statement exactly into the corresponding graph node; '
                     'the controller binds only inputs, pins and spec_sha256.') from error
             raise
+        self.last_valid_candidate=self.attempt
+        self.last_check={'candidate':self.attempt,'status':'STRUCTURE_PASSED','mathematical_acceptance':False}
+        write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
+        artifact.clear()
         artifact.update(spec=spec, graph=graph)
         return {'status': 'NL0-STRUCTURALLY-VALID', 'summary': summary,
                 'mathematical_acceptance': False,

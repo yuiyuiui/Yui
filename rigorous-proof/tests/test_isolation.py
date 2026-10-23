@@ -87,6 +87,17 @@ class IsolationTests(unittest.TestCase):
         result=self.worker.dispatch('search_mathlib',{'query':'dimH_empty'})
         self.assertFalse(result['accepted'])
 
+    def test_structured_artifact_tools_do_not_mutate_model_call_arguments(self):
+        from copy import deepcopy
+        args={'artifact':{'status':'candidate','text':'A formula with "quotes" and a real\nnewline.'}}
+        original=deepcopy(args)
+        result=self.worker.dispatch('check_draft',args)
+        self.assertTrue(result['accepted'])
+        self.assertEqual(args,original)
+        done=self.worker.dispatch('submit_draft',args)
+        self.assertTrue(done['stage_complete'])
+        self.assertEqual(self.worker.accepted,original['artifact'])
+
     def test_yui_prompt_names_the_entry_and_real_rule_paths(self):
         prompt=self.worker.prompt()
         self.assertIn('path="SKILL.md"',prompt)
@@ -106,6 +117,40 @@ class IsolationTests(unittest.TestCase):
             prompt=worker.prompt()
             self.assertIn('spec.case_id=graph.case_id="EXPLICIT_CASE"',prompt)
             for rule in nl0.RULES:self.assertIn('"'+rule+'"',prompt)
+            fixture=Path(__file__).parent/'fixtures/closed-addition'
+            value={'spec':json.loads((fixture/'spec.json').read_text()),
+                   'graph':json.loads((fixture/'nl0.json').read_text())}
+            value['spec']['case_id']=value['graph']['case_id']='EXPLICIT_CASE'
+            checked=worker.dispatch('check_artifact',{'artifact_json':json.dumps(value)})
+            self.assertTrue(checked['accepted'],checked)
+            self.assertEqual(checked['candidate_number'],1)
+            own=worker.dispatch('read_draft',{'candidate':1,'pointer':'/spec/conclusion'})
+            self.assertEqual(own['value'],value['spec']['conclusion'])
+            # Simulate native context compaction. Its opaque summary is still
+            # rejected; only actual own-stage draft/check records restore state.
+            worker.allowed_user_messages={'EXPLICIT_TASK'};worker.initial_user_message='EXPLICIT_TASK'
+            request=self.payload();request['input'].append({'type':'message','role':'user',
+                'content':[{'type':'input_text','text':'Another language model started: FOREIGN_SUMMARY_CANARY'}]})
+            sent=worker.normalize_request(request)
+            self.assertNotIn('FOREIGN_SUMMARY_CANARY',json.dumps(sent))
+            checkpoint=json.loads((worker.logs/'requests.jsonl').read_text().splitlines()[-1])['controller_checkpoint']
+            self.assertEqual(checkpoint['data']['candidate_number'],1)
+            self.assertEqual(checkpoint['data']['last_structurally_valid_candidate'],1)
+            self.assertEqual(sent['input'][-1]['content'][0]['text'],checkpoint['text'])
+            (worker.logs/'system.txt').write_text(worker.system+'\n')
+            (worker.logs/'tools.json').write_text(json.dumps(worker.tools))
+            import exposure
+            self.assertEqual(exposure.audit_stage(worker.logs)['status'],'TRANSMITTED-EXPOSURE-CHECK-PASSED')
+            row=json.loads((worker.logs/'requests.jsonl').read_text())
+            row['controller_checkpoint']['sources'][0]['sha256']='0'*64
+            (worker.logs/'requests.jsonl').write_text(json.dumps(row)+'\n')
+            audit=exposure.audit_stage(worker.logs)
+            self.assertIn({'request':1,'check':'own_stage_checkpoint_binding'},audit['errors'])
+            self.assertFalse(worker.dispatch('read_draft',{'candidate':2,'pointer':'/spec/conclusion'})['accepted'])
+            self.assertFalse(worker.dispatch('read_draft',{'candidate':1,'pointer':'/../../other-stage'})['accepted'])
+            submitted=worker.dispatch('submit_artifact',{'artifact_json':'{"accept_candidate":1}'})
+            self.assertTrue(submitted['stage_complete'])
+            self.assertFalse(worker.dispatch('read_draft',{'candidate':1,'pointer':'/spec/conclusion'})['accepted'])
         finally:
             import shutil
             shutil.rmtree(worker.work)
@@ -146,6 +191,17 @@ class IsolationTests(unittest.TestCase):
             'partial_progress':'The earlier inputs remain intact.'})})
         self.assertTrue(value['stage_complete'])
         self.assertFalse(value['mathematical_acceptance'])
+
+    def test_unfinished_registration_is_nonterminal_progress_not_a_mathematical_gap(self):
+        value=self.worker.dispatch('report_obstacle',{'obstacle_json':json.dumps({
+            'status':'TASK_INCOMPLETE','location':'source inventory',
+            'explanation':'A conventional source application still needs registration.',
+            'basis':'Actual draft feedback, not evidence against the theorem.',
+            'partial_progress':'The source was found and the draft is retained.'})})
+        self.assertTrue(value['progress_recorded'])
+        self.assertFalse(value['stage_complete'])
+        self.assertIsNone(self.worker.accepted)
+        self.assertIn('Continue',value['next_action'])
 
 
 if __name__ == '__main__':

@@ -134,6 +134,14 @@ report an "unresolved suspected proof gap" rather than declaring the original
 theorem false. Prolonged runtime, network or tool faults, and model capability
 limitations alone are not evidence of a mathematical error.
 
+In the isolated carrier, unfinished source registration, JSON bookkeeping or
+ordinary drafting is `TASK_INCOMPLETE` progress. Recording it does not end the
+stage: retain the actual draft and continue within its remaining budget. A
+terminal mathematical-gap report must identify a genuinely unsupported
+mathematical implication and its grounds, rather than merely restating that
+the requested artifact is not finished. A stage outcome is not whole-task
+completion; ordinary failed candidates return to bounded correction/review.
+
 Incorporate completed corrections into the argument and its actual dependency
 records. Audit A reviews that revised version; existing hash binding and
 invalidation rules still apply.
