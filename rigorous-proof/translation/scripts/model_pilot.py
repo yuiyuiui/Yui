@@ -82,6 +82,10 @@ class Stage(carrier.Trial):
                 'analysis, calculation, interface, provenance, execution, unknown. Example tags: norm, '
                 'supremum, ENNReal, ae, representative, weight, Lp, measurability, coercion, API. '
                 'Only put established conditions in facts. Verify suggested preconditions; never assume a missing one.')
+        self.system += (' End this stage immediately when a submit tool reports stage_complete:true; '
+                        'the controller handles later stages. Within a proof stage, checked helper attempts '
+                        'are available through read_lean_draft. After a context reset, query its index '
+                        'before claiming no draft or helper exists. Helpers never become new premises.')
         self.phase = 'proof'
         self.tools = [dict(t) for t in carrier.TOOLS[:2]]
         self.tools[0]['description']='Search the pinned mathlib Lean source using a regular expression; at most 100 lines.'
@@ -95,10 +99,18 @@ class Stage(carrier.Trial):
         else:
             self.tools += [json_tool('check_transition','Compile a tactic body for the fixed target; no leading by, declarations, or placeholders.','proof'),
                            json_tool('submit_transition','Submit and check the final tactic body for the same target.','proof')]
+        if mode=='proof':
+            self.tools += [carrier.tool('check_auxiliary','Compile one helper proposition and tactic body in exactly this local port context. This never accepts the final goal or adds a premise.',
+                {'statement':{'type':'string'},'proof':{'type':'string'}},['statement','proof']),
+                carrier.tool('read_lean_draft','Read only your own same-stage proof/helper attempts. kind=index lists attempts; proof/auxiliary returns the selected body lines and actual check. No other stage or file is accessible.',
+                {'kind':{'type':'string','enum':['index','proof','auxiliary']},'candidate':{'type':'integer'},'start':{'type':'integer'},'end':{'type':'integer'}},['kind','candidate','start','end'])]
         if bank_enabled:
             self.tools += [json_tool('find_strategies','Query the indexed bank using a JSON diagnostic. Fields: family, tags, facts, lean_version. Advice is not a premise.','query_json')]
         self.tool_names = {t['name'] for t in self.tools}
         self.accepted = None
+        self.own_lean_drafts={'proof':{},'auxiliary':{}}
+        self.stop_on_submission=True
+        self.submission_closed=False
         self.api_calls = self.lean_calls = self.rpc_id = 0
         self.inbox = queue.Queue()
         self.started = None
@@ -117,6 +129,7 @@ class Stage(carrier.Trial):
         if name in ('search_mathlib','read_mathlib'):
             return super().dispatch(name,args)
         begin = time.monotonic()
+        record=None;record_path=None
         try:
             if self.accepted:
                 raise ir.Invalid('stage already accepted; no overwrite')
@@ -145,10 +158,34 @@ class Stage(carrier.Trial):
                     self.accepted = value
             elif name in ('check_transition','submit_transition'):
                 value = args['proof']
+                number=len(self.own_lean_drafts['proof'])+1
+                record={'proof':value,'statement':self.plan['steps'][next(i for i,s in enumerate(self.plan['steps']) if s['id']==self.step)]['statement']}
+                self.own_lean_drafts['proof'][number]=record;record_path=self.logs/'lean-drafts'/f'proof-{number:04d}.json'
                 result = ir.check(self.cpath,self.plan,{self.step:value},only=self.step,timeout=self.lean_timeout())
                 self.lean_calls += 1
                 if result['exit_code'] == 0 and name.startswith('submit'):
                     self.accepted = {'proof':value}
+            elif self.mode=='proof' and name=='check_auxiliary':
+                number=len(self.own_lean_drafts['auxiliary'])+1
+                record={'statement':args['statement'],'proof':args['proof']}
+                self.own_lean_drafts['auxiliary'][number]=record;record_path=self.logs/'lean-drafts'/f'auxiliary-{number:04d}.json'
+                result=ir.check_auxiliary(self.cpath,self.plan,self.step,args['statement'],args['proof'],
+                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout())
+                self.lean_calls+=1
+                result['candidate']=number
+            elif self.mode=='proof' and name=='read_lean_draft':
+                kind=args['kind']
+                if kind=='index':
+                    result={'own_same_stage_attempts':{key:[{'candidate':n,'statement_preview':r['statement'][:300],
+                        'actual_check':{k:r.get('check',{}).get(k) for k in ['status','exit_code','auxiliary_valid','error']}}
+                        for n,r in rows.items()] for key,rows in self.own_lean_drafts.items()},
+                        'scope':'Only actual own-stage attempts; no helper has been added as a premise.'}
+                else:
+                    ir.need(kind in self.own_lean_drafts,'unknown draft kind')
+                    number=args['candidate'];ir.need(type(number) is int and number in self.own_lean_drafts[kind],'unknown own-stage draft')
+                    start,end=args['start'],args['end'];ir.need(type(start) is int and type(end) is int and 1<=start<=end and end-start<250,'Read at most 250 positive body lines')
+                    row=self.own_lean_drafts[kind][number];lines=row['proof'].splitlines()
+                    result={'statement':row['statement'],'proof':'\n'.join(lines[start-1:end]),'total_lines':len(lines),'actual_check':row.get('check')}
             else:
                 raise PermissionError('tool not allowed for this stage')
             if 'exit_code' in result:
@@ -157,6 +194,8 @@ class Stage(carrier.Trial):
                 self.last_diagnostic = result.get('stdout','')[:14000] if result['exit_code'] else ''
         except (ir.Invalid, KeyError, ValueError, TypeError) as e:
             result = {'accepted':False,'error':str(e),'feedback_kind':'candidate_rejected'}
+        if record is not None:
+            record['check']=dict(result);ir.write(record_path,record)
         carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
                                                'wall_seconds':time.monotonic()-begin})
         # Keep owner oracle signatures out of compiler feedback for interface work.
@@ -254,6 +293,12 @@ class Stage(carrier.Trial):
         except Exception as e:
             result.update({'status':'UNFINISHED','execution_fault':type(e).__name__+': '+str(e)})
         finally:
+            if getattr(self,'submission_completion',None):
+                result['submission_completion']=self.submission_completion
+                result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
+                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'} else 'ACCEPTED_ARTIFACT')
+            if getattr(self,'post_acceptance_closing_error',None):
+                result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
                            'continuations':self.continuation_count,'finished_at_utc':carrier.now()})
@@ -261,7 +306,11 @@ class Stage(carrier.Trial):
                 self.proc.terminate()
                 try: self.proc.wait(timeout=5)
                 except Exception: self.proc.kill();self.proc.wait()
-            if self.relay: self.relay.shutdown()
+            if self.relay:
+                self.relay.shutdown()
+                try:self.drain_relay_streams()
+                except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
+                self.relay.server_close()
             for name in ('auth.json','models_cache.json'):
                 (self.work/'state'/name).unlink(missing_ok=True)
             violations = self.logs/'isolation-violations.jsonl'

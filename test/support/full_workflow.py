@@ -38,13 +38,21 @@ def translate(case,source,interface_name,workflow_name,budget,progress):
     if not interface.exists():author.prepare(source,a.ROOT/'test'/case,interface)
     progress(case,'INTERFACE_AUTHORING',directory=str(interface))
     author.run(interface,1800,budget=budget);accepted(interface)
-    review=results/(interface_name+'-review');interface_review.prepare(interface,review)
+    return from_interface(case,source,interface_name,workflow_name,budget,progress)
+
+
+def from_interface(case,source,interface_name,workflow_name,budget,progress,candidate=None):
+    """Review an actual submitted or explicitly recovered typed model artifact."""
+    source=Path(source).resolve();results=a.ROOT/'test/results';interface=results/interface_name
+    review=results/(interface_name+'-review');interface_review.prepare(interface,review,candidate=candidate)
     progress(case,'INTERFACE_SEMANTIC_REVIEW',directory=str(review))
     interface_review.run(review,1200,budget=budget)
     checked=interface_review.collect(review)
     if not checked['all_checks_passed']:raise ValueError('Actual interface review did not pass: '+str(review))
-    paths=ir.load(interface/'accepted-interface-paths.json');destination=results/workflow_name
-    workflow.freeze(source/'nl0.json',source/'spec.json',paths['contract'],paths['plan'],review/'review.json',destination,
+    bindings=ir.load(review/'bindings.json');destination=results/workflow_name
+    if bindings['source_graph']!=a.bind(source/'nl0.json') or bindings['spec']!=a.bind(source/'spec.json'):
+        raise ValueError('The recovered interface is not bound to this exact source')
+    workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract']['path'],bindings['plan']['path'],review/'review.json',destination,
         audit_a=source/'audit-a.json',max_concurrency='auto')
     frozen=workflow.bound(destination)
     progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(destination))

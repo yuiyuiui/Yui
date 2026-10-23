@@ -59,6 +59,8 @@ class ArtifactStage(pilot.Stage):
                        'Submit the requested JSON artifact through structured submit_draft (preferred) '
                        'or the compatible submit_artifact wrapper. '
                        'Tool feedback is real task feedback; do not invent a successful check.')
+        self.system += (' When a submit tool returns stage_complete:true, end your turn immediately. '
+                        'This controller handles subsequent stages; do not keep calling tools or seek a later-stage verdict here.')
         if arm == 'yui':
             self.system += (' This is a Yui workflow stage. Read the relevant declared Yui rules, '
                             'preserve the supplied proof route and exact allowed assumptions, '

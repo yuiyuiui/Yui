@@ -395,6 +395,8 @@ class Trial:
 
     def start_relay(self) -> int:
         trial = self
+        self.relay_streams={}
+        self.relay_stream_lock=threading.Lock()
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
@@ -429,7 +431,19 @@ class Trial:
                 self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
 
             def do_POST(self):
+                if getattr(trial,'submission_closed',False):
+                    length=int(self.headers.get('Content-Length','0'))
+                    self.rfile.read(length)
+                    append(trial.logs/'local-cancellations.jsonl',{
+                        'layer':'post_submission_request_suppressed','upstream_transmitted':False,
+                        'reason':'A real submit tool already completed this stage; no further model request is needed.'})
+                    body=b'{"error":{"message":"Stage closed after accepted submission"}}'
+                    self.send_response(409);self.send_header('Content-Type','application/json')
+                    self.send_header('Content-Length',str(len(body)));self.send_header('Connection','close')
+                    self.end_headers();self.wfile.write(body);self.close_connection=True
+                    return
                 upstream = None
+                stream_done=None
                 try:
                     if self.path.rstrip('/') != '/responses':
                         raise PermissionError('只允许指定模型的 responses 路径。')
@@ -437,6 +451,9 @@ class Trial:
                     if self.headers.get('Content-Encoding') == 'gzip': body = gzip.decompress(body)
                     payload = trial.normalize_request(json.loads(body))
                     request_number = trial.api_calls
+                    stream_done=threading.Event()
+                    with trial.relay_stream_lock:
+                        trial.relay_streams[request_number]=stream_done
                     data = json.dumps(payload, ensure_ascii=False).encode()
                     # Authentication/account routing are required by the subscription.
                     # No carrier conversation/session/state or speed headers cross this boundary.
@@ -502,11 +519,24 @@ class Trial:
                         pass
                 finally:
                     if upstream: upstream.close()
+                    if stream_done is not None:stream_done.set()
 
         self.relay = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         self.relay.daemon_threads = True
         threading.Thread(target=self.relay.serve_forever, daemon=True).start()
         return self.relay.server_port
+
+    def drain_relay_streams(self,timeout=10):
+        """Finish logging already transmitted responses before usage readback."""
+        deadline=time.monotonic()+timeout
+        lock=getattr(self,'relay_stream_lock',None)
+        if lock is None:return
+        with lock:pending=list(self.relay_streams.items())
+        unfinished=[]
+        for number,event in pending:
+            if not event.wait(max(0,deadline-time.monotonic())):unfinished.append(number)
+        if unfinished:
+            raise RuntimeError('Response logging did not finish before bounded shutdown: '+str(unfinished))
 
     def send(self, method: str, params: dict | None = None) -> int:
         self.rpc_id += 1
@@ -536,6 +566,13 @@ class Trial:
                 self.validate_tool_rpc(params)
                 result = self.dispatch(params['tool'], params['arguments'])
                 self.tool_history[params['callId']] = result
+                if (getattr(self,'stop_on_submission',False) and self.accepted is not None
+                        and not getattr(self,'submission_closed',False)):
+                    self.submission_closed=True
+                    self.submission_completion={'at_utc':now(),'elapsed_seconds':time.monotonic()-self.started,
+                        'tool':params['tool'],'call_id':params['callId'],
+                        'scope':'Accepted stage artifact only; later mathematical gates remain required.'}
+                    append(self.logs/'controller.jsonl',{'event':'stage_submission_completed',**self.submission_completion})
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
                     'contentItems': [{'type': 'inputText', 'text': json.dumps(result, ensure_ascii=False)}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
@@ -649,7 +686,16 @@ tool_suggest = false
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
                 seconds=min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
-            done = self.receive_until(lambda m: m.get('method') == 'turn/completed', deadline)
+            done = self.receive_until(lambda m: m.get('method') == 'turn/completed'
+                or getattr(self,'submission_closed',False), deadline)
+            if getattr(self,'submission_closed',False):
+                try:
+                    self.drain_relay_streams()
+                    self.interrupt_active_turn(reason='ACCEPTED_ARTIFACT')
+                except Exception as error:self.post_acceptance_closing_error=type(error).__name__+': '+str(error)
+                event=self.last_turn_event or done
+                self.turn_results.append(event)
+                return event
             self.turn_results.append(done)
             turn = done.get('params', {}).get('turn', {})
             if turn.get('status') != 'completed':
@@ -666,7 +712,7 @@ tool_suggest = false
             self.allowed_user_messages.add(continuation_prompt)
             message = continuation_prompt
 
-    def interrupt_active_turn(self) -> None:
+    def interrupt_active_turn(self, reason='DEADLINE') -> None:
         # turn/start may have been sent just before the deadline. Consume its
         # own acknowledgement before deciding which turn to interrupt.
         if self.pending_turn_start_id is not None:
@@ -677,18 +723,19 @@ tool_suggest = false
         if (self.last_turn_event and self.last_turn_event.get('params', {}).get('turn', {}).get('id')
                 == self.active_turn_id):
             return
-        append(self.logs / 'deadline.jsonl', {'event': 'interrupt_requested',
+        record=self.logs/('deadline.jsonl' if reason=='DEADLINE' else 'cancellation.jsonl')
+        append(record, {'event': 'interrupt_requested','reason':reason,
             'thread_id': self.thread_id, 'turn_id': self.active_turn_id,
             'request_number': self.api_calls})
         self.cancelled_requests[self.api_calls] = {'thread_id': self.thread_id,
-            'turn_id': self.active_turn_id, 'interrupt_requested_at_utc': now()}
+            'turn_id': self.active_turn_id, 'interrupt_requested_at_utc': now(),'reason':reason}
         self.rpc('turn/interrupt', {'threadId': self.thread_id, 'turnId': self.active_turn_id}, seconds=15)
         if not (self.last_turn_event and self.last_turn_event.get('params', {}).get('turn', {}).get('id')
                 == self.active_turn_id):
             self.receive_until(lambda m: m.get('method') == 'turn/completed'
                 and m.get('params', {}).get('turn', {}).get('id') == self.active_turn_id,
                 time.monotonic() + 15)
-        append(self.logs / 'deadline.jsonl', {'event': 'interrupt_completed',
+        append(record, {'event': 'interrupt_completed','reason':reason,
             'thread_id': self.thread_id, 'turn_id': self.active_turn_id,
             'status': self.last_turn_event.get('params', {}).get('turn', {}).get('status')})
 

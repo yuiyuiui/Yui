@@ -303,6 +303,38 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
     return result
 
 
+def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=120):
+    """Check one closed helper in exactly this port's context; add no premise."""
+    c,nodes,_=validate(cpath,plan)
+    need(step in nodes,'unknown auxiliary context port')
+    need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
+         'forbidden command or placeholder in auxiliary statement')
+    body=proof_text(proof)
+    types={**premises(c),**{key:value['statement'] for key,value in nodes.items()}}
+    inputs=' '.join(f'(h_{key} : {types[key]})' for key in nodes[step]['inputs'])
+    # Parse a complete term from a string literal. This permits ordinary letI
+    # expressions without exposing a command-injection splice into Lean source.
+    parser='''
+open Lean Elab Term
+elab "yui_aux_type% " text:str : term => do
+  let parsed ← ofExcept <| Parser.runParserCategory (← getEnv) `term text.getString
+  Term.elabTerm parsed none
+'''
+    source=c['header'].rstrip()+'\n'+parser+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
+    source+=f'theorem checked {binder_text(c)} {inputs} : yui_aux_type% '+json.dumps(statement,ensure_ascii=False)+' := by\n'+body+'\n'
+    source+='#check @checked\n#print axioms checked\nend YuiAuxiliary\n'
+    work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
+    path=work/'output/Auxiliary.lean';path.write_text(source)
+    result=run_lean(path,work,timeout=timeout)
+    match=re.search(r"'YuiAuxiliary.checked' depends on axioms: \[([^]]*)\]",result['stdout'])
+    axioms={v.strip() for v in match[1].split(',') if v.strip()} if match else set() if "'YuiAuxiliary.checked' does not depend on any axioms" in result['stdout'] else {'MISSING_AXIOM_REPORT'}
+    valid=result['exit_code']==0 and not axioms-{'propext','Classical.choice','Quot.sound'}
+    result.update(auxiliary_valid=valid,axioms=sorted(axioms),
+        scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
+    out=Path(out);out.mkdir(parents=True,exist_ok=False);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
+    return result
+
+
 def check_interface(cpath, draft, timeout=120):
     """Development oracle: compare proposed ports with owner-reviewed ports.
 

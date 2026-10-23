@@ -32,7 +32,7 @@ def bind(path):
 
 
 def manifest(directory):
-    rows = [{'id': p.name, **bind(p)} for p in sorted(directory.iterdir()) if p.is_file()]
+    rows = [{'id': p.name, **bind(p)} for p in sorted(directory.iterdir()) if p.is_file() and p.name!='inputs.json']
     for row in rows:
         row['path'] = Path(row['path']).name
     write(directory / 'inputs.json', {'inputs': rows})
@@ -87,6 +87,12 @@ GLOBAL = '''Perform actual global/source Audit A A0-A3/A5 target-edge checks for
 the exact frozen candidate. Read every task input and relevant Yui rules. Check
 the original problem against spec: full target, each H, all domains/quantifiers,
 and edge cases. Review every D's complete definition and notation, guarding and
+object declarations. Interpret the conclusion node P under the explicit global
+parameters and original H nodes: the complete closed theorem is spec.full_target
+with that context, not P's conclusion text read in isolation. Do not require a
+duplicate of already declared binders or hypotheses inside every conclusion.
+Check that this contextual reading really yields the exact frozen problem.
+Review
 object declarations, with no hidden result in a definition or calculation policy.
 For each M inspect the supplied actual full-signature evidence AND the pinned
 official source through read_mathlib: complete restatement, implicit/typeclass
@@ -126,6 +132,12 @@ different proof. For packet_replay judge sufficiency from this packet alone.
 Carrier identity, canonical hash binding and transmitted-material readback
 are checked outside your mathematical review. State your real input boundary,
 without inventing runtime attestation or asking for extra source proofs.
+The packet_replay verdict is the mathematical conditional: given the externally
+checked carrier/input boundary, does this packet alone suffice? You do not
+certify execution isolation. Missing access to runtime logs is therefore not a
+mathematical UNVERIFIED finding for packet_replay. Preserve actual mathematical
+uncertainty or insufficiency, and state your own read boundary honestly. The
+controller separately rejects unqualified execution before accepting the review.
 '''
 
 

@@ -15,6 +15,7 @@ import shutil
 import sys
 import tempfile
 import time
+from copy import deepcopy
 
 from audit_a_campaign import ROOT,CORE,write,bind,manifest
 sys.path.insert(0,str(CORE/'scripts'))
@@ -25,6 +26,27 @@ import source_preparation
 import concurrency
 from clean_stage import ArtifactStage
 import model_pilot as pilot
+from artifact_validation import expand_submission
+
+
+def expand_interface(value,documents,drafts):
+    """Reuse the validated data-edit engine without executing model code."""
+    if not any(key in value for key in ['base_input','base_candidate','accept_candidate']):
+        return deepcopy(value),None
+    wrapped={}
+    for key,text in documents.items():
+        try:row=json.loads(text)
+        except (ValueError,TypeError):continue
+        if isinstance(row,dict) and 'conclusion_type' in row:
+            wrapped[key]=json.dumps({'spec':row,'graph':{}},ensure_ascii=False)
+    own={n:json.dumps({'spec':v,'graph':{}},ensure_ascii=False) for n,v in drafts.items()}
+    command=deepcopy(value)
+    for change in command.get('patches',[]):
+        if not isinstance(change,dict) or not isinstance(change.get('path'),str) or not change['path'].startswith('/'):
+            raise ValueError('Edit an existing interface field with an absolute JSON pointer')
+        change['path']='/spec'+change['path']
+    result,receipt=expand_submission(command,wrapped,own)
+    return result['spec'],receipt
 
 
 PROMPT='''Author the actual Lean interface and local typed plan for the exact
@@ -109,8 +131,12 @@ class InterfaceContract:
         self.spec=json.loads((self.out/'inputs/spec.json').read_text())
         self.graph=json.loads((self.out/'inputs/nl0.json').read_text())
         self.source=json.loads((self.out/'inputs/source-map.json').read_text())
+        self.documents={p.name:p.read_text() for p in (self.out/'inputs').iterdir() if p.is_file() and p.name!='inputs.json'}
+        self.drafts={}
 
     def __call__(self,value):
+        expanded,edits=expand_interface(value,self.documents,self.drafts)
+        value.clear();value.update(expanded)
         expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs'}
         if set(value)!=expected:raise ValueError('Expected exactly '+', '.join(sorted(expected)))
         header=value['header']
@@ -125,6 +151,9 @@ class InterfaceContract:
         if set(value['source_outputs'])!=set(self.source['source_outputs']):
             raise ValueError('Map exactly every source N/P to its primary typed T')
         self.attempt+=1;directory=self.out/'candidates'/f'{self.attempt:04d}';directory.mkdir(parents=True)
+        self.drafts[self.attempt]=deepcopy(value)
+        write(directory/'artifact.json',value)
+        if edits is not None:write(directory/'explicit-edits.json',edits)
         shutil.copyfile(self.out/'inputs/nl0.json',directory/'nl0.json')
         contract={'version':2,'id':self.spec['case_id'].replace('-','_'),
             'source':{'path':'nl0.json','sha256':ir.digest(directory/'nl0.json')},
@@ -155,6 +184,17 @@ class InterfaceStage(ArtifactStage):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.type_probes=0
+        self.input_prompt+=('\nYou may revise an explicit frozen prior-interface.json through '
+            '{"base_input":"prior-interface.json","patches":[{"op":"replace","path":"/header","value":"complete replacement header"}]}. '
+            'The result is fully expanded and checked; this never supplies missing mathematics. After a full '
+            'candidate exists, preserve it with base_candidate:N and explicit patches, or submit '
+            '{"accept_candidate":N} only when that actual candidate is complete and faithful. '
+            'read_interface_draft kind=index lists your own actual full candidates and partial type probes; '
+            'kind=candidate reads a JSON pointer of a full candidate, kind=probe reads its own actual partial '
+            'header/types. After context reset, inspect this index rather than starting from a vacuous True '
+            'template. A placeholder is not a translation. Fewer real closed obligations are allowed.')
+        self.tools.append(pilot.carrier.tool('read_interface_draft','Read only own current-stage typed candidates or partial type probes; index lists them. No other stage files are accessible.',
+            {'kind':{'type':'string','enum':['index','candidate','probe']},'candidate':{'type':'integer'},'pointer':{'type':'string'}},['kind','candidate','pointer']))
         self.tools.append(pilot.carrier.tool('check_lean_types',
             'Compile a partial mathematical definition header and selected Lean type or ordinary API term expressions with explicit parameters. Never accepts a final interface or adds a proved premise.',
             {'header':{'type':'string'},'parameters':{'type':'array','items':{'type':'object'}},
@@ -162,6 +202,18 @@ class InterfaceStage(ArtifactStage):
         self.tool_names={t['name'] for t in self.tools}
 
     def dispatch(self,name,args):
+        if name=='read_interface_draft':
+            try:
+                if args['kind']=='index':result={'candidates':sorted(self.validator.drafts),'type_probes':list(range(1,self.type_probes+1))}
+                else:
+                    number=args['candidate'];ir.need(type(number) is int and number>0,'Use a positive own-stage draft number')
+                    if args['kind']=='candidate':row=self.validator.drafts[number]
+                    elif args['kind']=='probe':row=ir.load(self.logs/'type-probes'/f'{number:04d}'/'input.json')
+                    else:raise ValueError('Unknown own-stage draft kind')
+                    value=nl0.closure.resolve(row,args['pointer']);ir.need(len(json.dumps(value,ensure_ascii=False))<=20000,'Choose a narrower JSON pointer')
+                    result={'value':value,'scope':'Own actual current-stage draft only; not semantic acceptance'}
+            except (ValueError,KeyError,TypeError,OSError) as error:result={'error':str(error),'accepted':False}
+            pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0});return result
         if name!='check_lean_types':return super().dispatch(name,args)
         start=time.monotonic()
         try:
@@ -185,6 +237,7 @@ class InterfaceStage(ArtifactStage):
             (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
             native=ir.run_lean(file,work,timeout=self.lean_timeout());self.lean_calls+=1
             destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
+            write(destination/'input.json',args)
             shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
             result={'stage_complete':False,'scope':'EXPRESSION_ELABORATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
                 'types_checked':native['exit_code']==0,'exit_code':native['exit_code'],

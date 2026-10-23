@@ -52,5 +52,19 @@ class InstanceBinderTests(unittest.TestCase):
         ir.write(self.cp,self.c)
         with self.assertRaisesRegex(ir.Invalid,'binder kind'):ir.contract(self.cp)
 
+    def test_auxiliary_checks_only_the_ports_explicit_inputs(self):
+        good=ir.check_auxiliary(self.cp,self.plan,'T001','x = x','exact h_H001',out=self.root/'aux-good')
+        self.assertTrue(good['auxiliary_valid'],good['stdout'])
+        bad=ir.check_auxiliary(self.cp,self.plan,'T001','x + 0 = x','exact h_T002',out=self.root/'aux-bad')
+        self.assertFalse(bad['auxiliary_valid'])
+        self.assertIn('h_T002',bad['stdout'])
+        self.assertEqual(len(self.plan['steps']),2)
+
+    def test_auxiliary_allows_scoped_let_but_rejects_placeholder(self):
+        result=ir.check_auxiliary(self.cp,self.plan,'T001','let z : K := x; z = x','rfl',out=self.root/'aux-let')
+        self.assertTrue(result['auxiliary_valid'],result['stdout'])
+        with self.assertRaisesRegex(ir.Invalid,'forbidden|placeholder'):
+            ir.check_auxiliary(self.cp,self.plan,'T001','x=x','sorry',out=self.root/'aux-sorry')
+
 
 if __name__=='__main__':unittest.main()

@@ -35,6 +35,14 @@ class ReviewControllerTests(unittest.TestCase):
             ids={x['id'] for x in json.loads((self.out/job['id']/'inputs.json').read_text())['inputs']}
             self.assertEqual(ids,{'packet.json'})
 
+    def test_rebuilding_an_input_manifest_never_hashes_itself(self):
+        directory=self.out/'global'
+        (directory/'new-explicit-source.txt').write_text('Synthetic manifest control only.\n')
+        a.manifest(directory)
+        rows=json.loads((directory/'inputs.json').read_text())['inputs']
+        self.assertNotIn('inputs.json',{r['id'] for r in rows})
+        for row in rows:self.assertEqual(a.bind(directory/row['path'])['sha256'],row['sha256'])
+
     def test_a_failure_finding_cannot_be_hidden_by_all_pass_summary_fields(self):
         spec=json.loads((self.out/'global/spec.json').read_text())
         value={'target_review':self.judgment(),'structure_review':self.judgment(),
@@ -124,6 +132,18 @@ class ReviewControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'both original source'):i.validate(value,out)
         value['checks']['parameters_and_allowed_inputs']['locations'][0]['pointer']='/missing'
         with self.assertRaises(KeyError):i.validate(value,out)
+
+    def test_interface_data_edits_preserve_the_actual_immutable_base(self):
+        base={'conclusion_type':'a = b','header':'import Mathlib\n','parameters':[]}
+        documents={'prior-interface.json':json.dumps(base)}
+        changed,receipt=t.expand_interface({'base_input':'prior-interface.json','patches':[
+            {'op':'replace','path':'/conclusion_type','value':'b = a'}]},documents,{})
+        self.assertEqual(changed['conclusion_type'],'b = a')
+        self.assertEqual(json.loads(documents['prior-interface.json']),base)
+        resumed,_=t.expand_interface({'accept_candidate':1},documents,{1:changed})
+        self.assertEqual(resumed,changed)
+        with self.assertRaisesRegex(ValueError,'same stage|same-stage'):
+            t.expand_interface({'accept_candidate':2},documents,{1:changed})
 
     def test_partial_type_probes_do_not_accept_an_interface_or_proof(self):
         stage=t.InterfaceStage(self.root/'type-stage','Neutral controller test only.',phase='interface-authoring',library=False)
