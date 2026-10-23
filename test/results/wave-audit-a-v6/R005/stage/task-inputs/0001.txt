@@ -1,0 +1,182 @@
+{
+  "contract_version": 2,
+  "case_id": "wave-map-energy",
+  "graph_sha256": "07a309f08337324082b71dbbba463cb19fd51dfa280d3191b6d02b4da9ced0e0",
+  "spec_sha256": "cb9ef27b17e439c9bace085881c76e03828aabf4bbf2946b63a39bc1f53e7d10",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "positive integer"
+    },
+    {
+      "symbol": "m",
+      "type": "positive integer"
+    },
+    {
+      "symbol": "u",
+      "type": "jointly smooth map R^n×(0,∞)→R^m"
+    },
+    {
+      "symbol": "q",
+      "type": "unit vector in R^m"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "exists_elimination"
+    ],
+    "calculations": [
+      "Finite-dimensional differentiation and inner-product identities."
+    ],
+    "primitives": [
+      {
+        "symbol": "R",
+        "type": "real numbers",
+        "meaning": "Real field and Lebesgue measure."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "definitions": [
+    {
+      "id": "D003",
+      "symbol": "Δ_x",
+      "type": "For smooth u:ℝⁿ×(0,∞)→ℝᵐ, a differential operator with Δ_xu:ℝⁿ×(0,∞)→ℝᵐ.",
+      "definition": "For each (x,r), (Δ_xu)(x,r)=∑_{j=1}^n ∂²u(x,r)/∂x_j², with each second derivative taken componentwise in ℝᵐ.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [],
+      "objects": [
+        "u",
+        "n",
+        "m"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "For all x,r>0, |u(x,r)|=1.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "u"
+      ]
+    },
+    {
+      "id": "H002",
+      "kind": "hypothesis",
+      "statement": "For all x,r>0 there exists a∈R with u_tt−Δ_xu=a u.",
+      "definitions": [
+        "D003"
+      ],
+      "binders": [],
+      "objects": [
+        "u",
+        "Δ_x"
+      ]
+    }
+  ],
+  "output": {
+    "id": "N004",
+    "kind": "internal",
+    "statement": "For every (x,r)∈ℝⁿ×(0,∞), u_t(x,r)·(u_{tt}(x,r)−Δ_xu(x,r))=0.",
+    "definitions": [
+      "D003"
+    ],
+    "binders": [],
+    "objects": [
+      "u",
+      "Δ_x"
+    ]
+  },
+  "inference": {
+    "id": "R005",
+    "inputs": [
+      "H001",
+      "H002"
+    ],
+    "output": "N004",
+    "definitions": [
+      "D003"
+    ],
+    "rules": [
+      "direct",
+      "forall_introduction"
+    ],
+    "locals": [
+      {
+        "symbol": "x",
+        "type": "ℝⁿ",
+        "scope": "R005",
+        "start": "S001",
+        "end": "S001",
+        "kind": "arbitrary",
+        "declaration": "Fix arbitrary x∈ℝⁿ and r>0.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "r",
+        "type": "positive real",
+        "scope": "R005",
+        "start": "S001",
+        "end": "S001",
+        "kind": "arbitrary",
+        "declaration": "Fix arbitrary x∈ℝⁿ and r>0.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "a",
+        "type": "real number",
+        "scope": "R005",
+        "start": "S001",
+        "end": "S001",
+        "kind": "witness",
+        "declaration": "At the fixed (x,r), choose the scalar a supplied by H002 so u_{tt}(x,r)−Δ_xu(x,r)=a u(x,r).",
+        "from_inputs": [
+          "H002"
+        ],
+        "from_local": [],
+        "objects": [
+          "x",
+          "r",
+          "u",
+          "Δ_x"
+        ]
+      }
+    ],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "Differentiate H001 in time: 2u·u_t=0, hence u·u_t=0. H002 supplies a scalar a at this point with u_{tt}−Δ_xu=a u. Dot with u_t to obtain u_t·(u_{tt}−Δ_xu)=a(u_t·u)=0. No regularity of a is used.",
+        "uses": [
+          "H001",
+          "H002"
+        ],
+        "uses_local": [],
+        "objects": [
+          "u",
+          "Δ_x"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      }
+    ],
+    "applications": []
+  },
+  "warning": "Only listed inputs are premises. No source proof, ancestor proof, or ambient H is supplied. A packet is not an audit certificate.",
+  "packet_sha256": "5a3a213e65c089a9aba451576aa0b8eac9995fe14cb1bd5b71ead4435e7a8b28"
+}

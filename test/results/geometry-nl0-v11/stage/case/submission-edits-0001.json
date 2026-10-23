@@ -1,0 +1,43 @@
+{
+  "base_sha256": "4fd58632cd465db1f7558a3a65aefd07d9cf2e574ae64fe2b5d0b8df209bbe06",
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/applications/3/bindings",
+      "value": "Let X=ℝⁿ×ℝ be the complete ambient Euclidean product and Y=ℝ. Define f:X→Y on every pair (x,t) by f(x,t)=t. Apply to A=F=E×[0,1]⊆X. Since E is nonempty, f '' F=[0,1]."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/applications/3/hypothesis_checks/1",
+      "value": "f is defined on all of X, not only on F. For ambient pairs, |t−u|≤sqrt(|x−y|²+|t−u|²), so f is 1-Lipschitz. Nonemptiness of E gives f ''(E×[0,1])=[0,1], identifying the source theorem's image."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/locals/13/kind",
+      "value": "witness"
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/locals/13/declaration",
+      "value": "After the argument has proved existence of an open interval enclosing B_i with length at most ρ_i+η_i, choose that interval as J_i."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/locals/13/from_inputs",
+      "value": [
+        "M008"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/locals/9/declaration",
+      "value": "Define ν=volume.restrict([0,1]) on ambient Borel ℝ; this definition asserts no mass property."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/text",
+      "value": "For D>0 fix 0<s<D. For a>0 define C_a(A,δ) as the ENNReal infimum of ∑'ᵢ ediam(Uᵢ)^a over all Nat-indexed sequences U:ℕ→Set(X) such that A⊆⋃ᵢUᵢ and ediam(Uᵢ)≤δ for every i. This is exactly the scale infimum in M008: its supremum over nonempty witnesses equals the power on nonempty sets and equals zero for the empty set, since a>0. Consequently H^a(A)=sup_{δ>0}C_a(A,δ); and if δ₁≤δ₂ then C_a(A,δ₁)≥C_a(A,δ₂). M001 gives H^s(E)=⊤, so for every finite K and every sufficiently small δ>0, C_s(E,δ)>K. Now fix δ>0 and an arbitrary Nat-indexed δ-cover V:ℕ→Set(F) of F; thus F⊆⋃ᵢVᵢ and ediam(Vᵢ)≤δ for every i. For each t∈[0,1], define the Nat-indexed family W^t:ℕ→Set(ℝⁿ) by W^t(i)=π₁(Vᵢ) when t∈Jᵢ, and W^t(i)=∅ otherwise. Its terms satisfy diam(W^t(i))≤ediam(Vᵢ)≤δ. For every x∈E, (x,t)∈F, hence some index i has (x,t)∈Vᵢ; then x∈π₁(Vᵢ), t∈π₂(Vᵢ)⊆Jᵢ, and x∈W^t(i). Thus W^t is an admissible Nat-indexed δ-cover of E. By the defining infimum, C_s(E,δ)≤∑'ᵢ ediam(W^t(i))^s≤∑'ᵢ 1_{Jᵢ∩[0,1]}(t)ρᵢ^s. This establishes the pointwise cost comparison for each t, not merely an inequality for an unspecified filtered family. Given ε>0, set ρᵢ=ediam(Vᵢ), interpreted as its finite nonnegative real value (since ρᵢ≤δ), and ηᵢ=ε·2^(−i−1)/(1+ρᵢ^s). The projection Bᵢ=π₂(Vᵢ) is bounded and has diameter at most ρᵢ. If Bᵢ is nonempty, its real infimum and supremum are finite; enlarging their closed interval by total width ηᵢ produces an open interval Jᵢ containing Bᵢ with length ≤ρᵢ+ηᵢ. If Bᵢ is empty take an arbitrary open interval of length ηᵢ. This proves the interval existence and quantitative bound before selecting Jᵢ. Put ν=volume.restrict([0,1]). By the restriction definition ν(ℝ)=volume([0,1]); M011 at endpoints 0,1 gives this mass as ofReal(1−0)=1. Also ν(S)=volume(S) for every Borel S⊆[0,1]. Extend the pointwise slicing inequality to ℝ by multiplying its left side by 1_[0,1]; outside [0,1] the left side and all Jᵢ∩[0,1] indicators vanish. The summand functions are measurable, hence AEMeasurable for ν, because Jᵢ∩[0,1] is Borel and each coefficient ρᵢ^s is constant. Integrate the inequality: M010 on [0,1] with constant C_s(E,δ), the mass-one calculation above, M009 monotonicity, M002 for the explicitly ℕ-indexed series, and M010 termwise give C_s(E,δ)≤∑'ᵢρᵢ^sν(Jᵢ∩[0,1]). For each i, restrict-measure identity gives ν(Jᵢ∩[0,1])=volume(Jᵢ∩[0,1]); enclose this set in a closed interval of length at most ρᵢ+ηᵢ (if empty use a singleton). M013 monotonicity and M011 evaluate the enclosing interval's volume, giving ν(Jᵢ∩[0,1])≤ofReal(ρᵢ+ηᵢ). Hence the integral is at most ∑'ᵢρᵢ^(s+1)+∑'ᵢηᵢρᵢ^s≤∑'ᵢρᵢ^(s+1)+ε, because ηᵢρᵢ^s≤ε2^(−i−1) and these weights sum to 1. As ε>0 was arbitrary, C_s(E,δ)≤the cost of this fixed cover; if that cost is infinite this is immediate, and otherwise let ε decrease to zero. Since V was an arbitrary Nat-indexed δ-cover, taking the infimum over precisely this class of admissible covers yields C_s(E,δ)≤C_(s+1)(F,δ), not merely comparison with one selected cover. As δ decreases to zero the left side diverges, hence the right side diverges, so M008 gives H^(s+1)(F)=⊤. M014 implies s+1≤dim_H(F). Taking the supremum over all 0<s<D yields D+1≤dim_H(F)."
+    }
+  ],
+  "base_input": "prior-candidate.json"
+}

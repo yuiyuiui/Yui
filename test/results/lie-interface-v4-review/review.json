@@ -1,0 +1,214 @@
+{
+  "version": "nl0-lean-workflow-1",
+  "source_graph_sha256": "adb2bafaa23e5a49cebf6f83580027d3e919f851079fca08067ac01d8844fcfb",
+  "contract_sha256": "95e709f0664d67f751537103b455507b2940791b53e89d6aab895f6eef9104ab",
+  "plan_sha256": "08320668fcfb14d8d5f9f7473347302af89280ff23536fbe071fe1d767ee23ec",
+  "reviewer": {
+    "identity": "gpt-6-luna high Standard",
+    "mode": "fresh_model_review",
+    "independent": true,
+    "disclosure": "Separate clean semantic reviewer; read only the explicit source, typed candidate and Yui rules, with pinned Mathlib tools. No author history, previous verdict or proof reference."
+  },
+  "checks": {
+    "source_route_and_coverage": {
+      "verdict": "FAIL",
+      "notes": "The source has R001 with direct inputs H001–H004 and output P, and S001–S008 give the accepted route. Plan explanations narrate these source steps, including the arbitrary-lattice coordinate-module/rank-one argument rather than a standard-lattice replacement. But T001 is only ∀ i, True; T002 is also True-valued and T003–T007 are True. They export none of the formulas, lattice facts, conversions or witness facts described in their explanations. T008's terminal theorem therefore has no meaningful typed derivations of those claims. This is not a complete typed implementation of the source route.",
+      "locations": [
+        {
+          "document": "nl0.json",
+          "pointer": "/inferences/0"
+        },
+        {
+          "document": "nl0.json",
+          "pointer": "/inferences/0/argument"
+        },
+        {
+          "document": "source-map.json",
+          "pointer": "/direct_boundaries/R001"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps/0/statement"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps/1/statement"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps/2/statement"
+        }
+      ]
+    },
+    "parameters_and_allowed_inputs": {
+      "verdict": "FAIL",
+      "notes": "The binders include K with Field K, p : ℕ, lam : ℤ, M with additive/module instances, and D; hypotheses include primality, CharP K p, and 0 ≤ lam ∧ lam < p, retaining p=2 and lam=0. But H004 is not a faithful encoding of the source hypothesis: its actual predicate includes LieIrreducible ℂ D.V D.x D.y D.z. This assumes a substantial characteristic-zero irreducibility conclusion absent from the source assumptions. Thus apparent use of only H001–H004 conceals a stronger assumption. D's remaining data encode bases, embedding and compatible operators; these must be distinguished from the added conclusion.",
+      "locations": [
+        {
+          "document": "spec.json",
+          "pointer": "/hypotheses/3"
+        },
+        {
+          "document": "source-map.json",
+          "pointer": "/roots/3"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/header"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/premises/3/type"
+        },
+        {
+          "document": "type-result.json",
+          "pointer": "/stdout"
+        },
+        {
+          "document": "nl0.json",
+          "pointer": "/inferences/0/inputs"
+        }
+      ]
+    },
+    "representations_and_conversion_obligations": {
+      "verdict": "FAIL",
+      "notes": "The free ℤ-module and injective embedding can represent an arbitrary lattice, rather than merely a standard lattice. However source P and S004 use M ⊗[ℤ] K, while the actual contract conclusion and terminal plan type use K ⊗[ℤ] M. The notes acknowledge a required TensorProduct.comm conversion, but neither contract nor plan includes a typed bridge and operator-compatibility proof or an assembly step consuming it. The two presentations are not definitionally identical; mentioning the commutor does not establish transport of irreducibility. H004's extra characteristic-zero irreducibility is also an unallowed hidden assumption.",
+      "locations": [
+        {
+          "document": "nl0.json",
+          "pointer": "/propositions/4"
+        },
+        {
+          "document": "nl0.json",
+          "pointer": "/inferences/0/argument/3"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/conclusion/type"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/representation"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/header"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/representation_notes"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps/7"
+        }
+      ]
+    },
+    "statements_and_local_plans": {
+      "verdict": "FAIL",
+      "notes": "The elaborated signatures give T001 : ∀ i : Fin (lam.toNat + 1), True; T002 : ∀ i j, True; and T003–T007 : True. They are not the basis/action, matrix-unit, arbitrary-lattice, scalar-extension, or invariant-subspace results claimed in explanations, so they cannot supply the described source reasoning. T008 concludes LieIrreducible on K ⊗[ℤ] M, not source P on M ⊗[ℤ] K, and no bridge obligation transports it back. Its H004 premise also directly contains characteristic-zero LieIrreducibility. Elaboration verifies these signatures only, not semantic fidelity or proof completion.",
+      "locations": [
+        {
+          "document": "nl0.json",
+          "pointer": "/propositions/4"
+        },
+        {
+          "document": "nl0.json",
+          "pointer": "/inferences/0/argument"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/premises/3/type"
+        },
+        {
+          "document": "contract.json",
+          "pointer": "/conclusion/type"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps"
+        },
+        {
+          "document": "plan.json",
+          "pointer": "/steps/7/statement"
+        },
+        {
+          "document": "type-result.json",
+          "pointer": "/stdout"
+        }
+      ]
+    }
+  },
+  "paragraph_mapping": {
+    "S001": {
+      "inference": "R001",
+      "paragraph": "S001"
+    },
+    "S002": {
+      "inference": "R001",
+      "paragraph": "S002"
+    },
+    "S003": {
+      "inference": "R001",
+      "paragraph": "S003"
+    },
+    "S004": {
+      "inference": "R001",
+      "paragraph": "S004"
+    },
+    "S005": {
+      "inference": "R001",
+      "paragraph": "S005"
+    },
+    "S006": {
+      "inference": "R001",
+      "paragraph": "S006"
+    },
+    "S007": {
+      "inference": "R001",
+      "paragraph": "S007"
+    },
+    "S008": {
+      "inference": "R001",
+      "paragraph": "S008"
+    }
+  },
+  "source_outputs": {
+    "P": "T008"
+  },
+  "evidence": [
+    {
+      "path": "stage/accepted.json",
+      "sha256": "26ace5bf30420c2e5165f6bf31910fe291d2a460f84949cee4f3bbf850c248da"
+    },
+    {
+      "path": "stage/result.json",
+      "sha256": "7978a79151b67cfd6c816a0a64704e009d9fe9083cae077c931de7e29aa58c9e"
+    },
+    {
+      "path": "stage/exposure-audit.json",
+      "sha256": "342e343f878a21700f017376e7abbe4daeb349f8db8186d015cbfb7e232a312d"
+    },
+    {
+      "path": "stage/execution-manifest.json",
+      "sha256": "9ab2e48977ed2df34d0a068e5b86c308317aa7fb5c54bc32f5500a97feb39764"
+    }
+  ],
+  "preparation_cost": {
+    "status": "DEVELOPMENT_ITERATIONS_NOT_COLD_BENCHMARK",
+    "owner_work": "UNMEASURED",
+    "author_stage": "/Users/syyui/projects/Yui/test/results/lie-interface-v4/stage",
+    "semantic_review_stage": "/Users/syyui/projects/Yui/test/results/lie-interface-v4-review/stage",
+    "candidate_selection": {
+      "mode": "ACTUAL_SUBMITTED_ARTIFACT",
+      "author_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/lie-interface-v4/stage/result.json",
+        "sha256": "98c1377217a52afe88b6ee18b94c2a2e1cb93dfb397430a96494af61b2c221b1"
+      }
+    }
+  }
+}

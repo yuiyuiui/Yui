@@ -1,0 +1,119 @@
+{
+  "inference": "R002",
+  "packet_sha256": "256d9e87b9aeb82c3dbce6a95001c92edac37b6dca7ed29da9041013041a40c0",
+  "verdict": "FAIL",
+  "notes": "Fresh review used only packet.json in full and the declared Yui Audit A, self-containment, and format rules. No source proof, other inference body, original manuscript, or external mathematical material was used. Source fidelity and carrier identity/hash binding/transmitted-material readback are outside this mathematical review; no runtime isolation or carrier attestation is claimed. The first unsupported step is the assertion that the Euclidean measurable/topological and Lebesgue hypotheses required by M001 hold, particularly that Lebesgue measure is finite on compact sets. These facts are not direct inputs and are not among the explicitly permitted finite-dimensional differentiation and inner-product calculations. Merely listing them as application checks does not prove them, so M001 cannot be applied on the supplied grounds and N001's integrability conclusion is not established. Other checks are diagnostic and cannot restore acceptance.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The only listed proposition inputs are H003 and M001, and S001 declares both as used. H003 supplies the compact C condition on the selected J; M001 supplies the integrability implication conditional on its listed hypotheses. This checks packet input accounting, not external source fidelity or truth of unstated hypotheses.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inference/inputs",
+        "/inference/argument/0/uses"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "The first unsupported implication is in the assertion that Euclidean opens are Borel measurable and Lebesgue measure is finite on compact sets (and the associated measurable-topological structure). These are required M001 premises, not established by H003, M001, or the declared calculation policy. Thus the M001 application and integrability conclusion do not follow packet-only. The derivative/support reasoning is consistent with smoothness and constancy off C on an interval, but does not cure this earlier gap.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/applications/0/hypothesis_checks",
+        "/inputs/1/source_contract/hypotheses",
+        "/logic/calculations"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "S001 identifies H003 and M001, but its factual assertions about Euclidean Borel structure and local finiteness of Lebesgue measure have no direct-input or locally proved basis. Listing them as hypothesis checks is application accounting, not proof. The calculation policy cannot import those results.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/applications/0/hypothesis_checks",
+        "/logic/calculations"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "The argument purports to establish the exact N001 statement: arbitrary t is fixed and the claimed J,C and field properties are asserted, along with integrability. No mismatch in quantifier order or stated endpoint/scope content is apparent. Its proof is nevertheless blocked by the argument failure.",
+      "locations": [
+        "/output/statement",
+        "/inference/locals",
+        "/inference/argument/0"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The arbitrary t is introduced; J is defined from t, and C is chosen using H003 for that J. This yields the claimed existential local interval/compact set for each arbitrary t; no temporary assumption or witness is exported free. Claimed witness properties must still be proved; integrability remains blocked.",
+      "locations": [
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0"
+      ]
+    },
+    "applicability": {
+      "verdict": "FAIL",
+      "notes": "M001 is bound to X=ℝⁿ, V=ℝ, μ=Lebesgue, f=e(·,t). The checks for measurable topology, measurable opens, and finite measure on compact sets are asserted but not proved or supplied as inputs. Continuity/compact support of f is argued from smoothness and H003, but M001's required premises are not all established packet-only.",
+      "locations": [
+        "/inference/applications/0",
+        "/inputs/1/source_contract/hypotheses",
+        "/inference/argument/0/text"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "H003 and M001 state their relevant proposition content in the packet, and N001 gives its full claimed conclusion including t, J, C, and field properties. The output's e is linked to D001. No theorem name or external equation number is needed to interpret these statements.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/output/statement",
+        "/definitions/0"
+      ]
+    },
+    "object_closure": {
+      "verdict": "UNVERIFIED",
+      "notes": "The locals t,J,C have declarations and introduction bases. The prose additionally uses ℝⁿ with Euclidean topology/Borel measurable structure, Lebesgue measure and compact-set finiteness, derivatives and fields such as e_t. The primitive only states 'Real field and Lebesgue measure'; it does not declare the relevant topological/measurable structures and their properties. Complete reverse object closure is therefore unavailable from the packet; nothing is supplied from outside.",
+      "locations": [
+        "/logic/primitives/0",
+        "/inference/locals",
+        "/inference/argument/0/text",
+        "/inference/applications/0/bindings",
+        "/output/statement"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "Factual uses of Borel measurability and finiteness of Lebesgue measure on compact sets are not mapped to a direct input or prior local proof. They are essential dependencies for M001. This is the first unsupported implication and blocks the output proof.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/applications/0/hypothesis_checks",
+        "/logic/calculations"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "PASS",
+      "notes": "The packet alone contains the complete R002 inference, inputs/contracts, definitions, locals, applications, and declared logic/calculations needed to identify and judge the gap; no other R body or source proof was needed. Actual input boundary: packet.json in full plus the declared Yui rules read for this audit. This is packet sufficiency for replay, not carrier identity, canonical hash binding, transmitted-material readback, or runtime isolation, none of which is attested here.",
+      "locations": [
+        "/warning",
+        "/inference"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "location": "/inference/applications/0/hypothesis_checks/0",
+      "premises": "M001 requires X to be a measurable topological space and its opens measurable; the selected X is ℝⁿ. No direct input or local proof of the asserted Euclidean/Borel measurability properties is included.",
+      "conclusion": "The measurable-topological hypotheses for applying M001 hold.",
+      "verdict": "UNSUPPORTED",
+      "effect": "M001 application is not established; N001 integrability is blocked."
+    },
+    {
+      "location": "/inference/applications/0/hypothesis_checks/3",
+      "premises": "M001 requires μ finite on compact sets; the selected μ is Lebesgue measure. No input or local proof establishes this property, and the permitted calculations do not include measure-theoretic results.",
+      "conclusion": "Lebesgue measure is finite on compact subsets of ℝⁿ.",
+      "verdict": "UNSUPPORTED",
+      "effect": "Independent missing M001 premise, also blocking the application."
+    }
+  ]
+}

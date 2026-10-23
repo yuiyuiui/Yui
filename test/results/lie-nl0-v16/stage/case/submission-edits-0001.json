@@ -1,0 +1,255 @@
+{
+  "base_sha256": "5d690756afa80bb72b2707424bee0cd0b3a084ba74a5bad80abbc94ce26aba56",
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/4/text",
+      "value": "For each 0<=r<=lambda<p, r! is invertible modulo p, so X_r and Y_r on the reduced module are the respective nonzero scalar multiples 1/r! of x^r and y^r; for r=0 the scalar is 1. The matrix-unit identities from S002 persist after reduction: their coefficients binom(lambda,j) are nonzero modulo p, and the same identities hold as operators on the K-basis b_0,...,b_lambda corresponding to the characteristic-zero e-basis. Thus any K-subspace W invariant under x and y is invariant under every E_i,j. Let W be arbitrary. If W=0, it is the zero subspace. For the other case, temporarily assume L1: W is nonzero. By the definition of nonzero subspace, there exists a vector w in W with w nonzero; record this existence before selecting w in S006."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/4/objects",
+      "value": [
+        "R",
+        "Z",
+        "p",
+        "r",
+        "lambda",
+        "X_r",
+        "Y_r",
+        "x",
+        "y",
+        "E_i,j",
+        "i",
+        "j",
+        "K",
+        "W",
+        "b_i",
+        "module dimension",
+        "factorials",
+        "binomial coefficients"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/4/introduces",
+      "value": [
+        "L1"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/4/produces",
+      "value": [
+        {
+          "id": "F002",
+          "statement": "There exists w in W such that w is nonzero.",
+          "binders": [
+            {
+              "symbol": "w",
+              "type": "vector in M tensor_Z K"
+            }
+          ],
+          "objects": [
+            "W",
+            "M",
+            "K"
+          ],
+          "assumptions": [
+            "L1"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/4/discharges",
+      "value": []
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/argument/-",
+      "value": {
+        "id": "S006",
+        "text": "By existential elimination applied to the existence fact F002, choose a witness w in W with w nonzero; its private identity is used only in this branch. Since b_0,...,b_lambda were established in S004 as a K-basis of M tensor_Z K, there are unique scalars c_0,...,c_lambda in K with w=sum_i c_i b_i. At least one coefficient is nonzero, since if all c_i were zero the displayed expansion would give w=0, contrary to the witness property. Choose an index i in the range 0<=i<=lambda with c_i nonzero; establish this existential fact before selecting i.",
+        "uses": [],
+        "uses_local": [
+          "F002"
+        ],
+        "objects": [
+          "w",
+          "W",
+          "b_i",
+          "K",
+          "lambda"
+        ],
+        "produces": [
+          {
+            "id": "F003",
+            "statement": "There exists an index i with 0<=i<=lambda and c_i is nonzero.",
+            "binders": [
+              {
+                "symbol": "i",
+                "type": "integer index from 0 through lambda"
+              }
+            ],
+            "objects": [
+              "lambda",
+              "c_i",
+              "K"
+            ],
+            "assumptions": [
+              "L1"
+            ]
+          }
+        ],
+        "introduces": [],
+        "discharges": []
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/argument/-",
+      "value": {
+        "id": "S007",
+        "text": "By existential elimination from F003 choose such an index i. For every j with 0<=j<=lambda, matrix-unit action gives E_j,i w=c_i b_j. Because W is invariant under x and y it is invariant under E_j,i, so E_j,i w lies in W. The scalar c_i is nonzero in the field K and hence invertible; since W is a K-subspace, b_j=c_i^{-1}E_j,i w lies in W. This holds for each basis vector b_j, so W is the whole module. The chosen w and i are used only under L1.",
+        "uses": [],
+        "uses_local": [
+          "F003"
+        ],
+        "objects": [
+          "w",
+          "i",
+          "j",
+          "E_i,j",
+          "W",
+          "K",
+          "b_i",
+          "c_i"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/argument/-",
+      "value": {
+        "id": "S008",
+        "text": "The zero-subspace branch and the branch under L1 both establish that W is either zero or the whole module; discharge L1 by the two-case argument. The module has dimension lambda+1, which is positive because lambda>=0, so it is nonzero. Therefore it is irreducible as stated, including lambda=0 and p=2.",
+        "uses": [
+          "H002",
+          "H003",
+          "H004"
+        ],
+        "uses_local": [],
+        "objects": [
+          "W",
+          "lambda",
+          "M",
+          "K",
+          "L(K)"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": [
+          "L1"
+        ]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/locals/19/end",
+      "value": "S008"
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/locals/-",
+      "value": {
+        "symbol": "L1",
+        "type": "assumption that W is nonzero",
+        "scope": "nonzero-W-branch",
+        "start": "S005",
+        "end": "S008",
+        "kind": "witness",
+        "declaration": "Temporarily assume that the arbitrary invariant subspace W is nonzero; this assumption is discharged by the zero/nonzero case argument.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "W"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/locals/-",
+      "value": {
+        "symbol": "w",
+        "type": "vector in M tensor_Z K",
+        "scope": "nonzero-witness",
+        "start": "S006",
+        "end": "S007",
+        "kind": "witness",
+        "declaration": "Choose w in W with w nonzero using the earlier local existence fact F002.",
+        "from_inputs": [],
+        "from_local": [
+          "F002"
+        ],
+        "objects": [
+          "W",
+          "M",
+          "K"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/locals/-",
+      "value": {
+        "symbol": "c_i",
+        "type": "K-scalar coordinates of w in the b-basis",
+        "scope": "coordinates-of-w",
+        "start": "S006",
+        "end": "S007",
+        "kind": "definition",
+        "declaration": "Define the unique coordinates c_i in K by the expansion of the already selected vector w in the already established K-basis b_0,...,b_lambda.",
+        "from_inputs": [
+          "H002",
+          "H003"
+        ],
+        "from_local": [
+          "F002"
+        ],
+        "objects": [
+          "w",
+          "b_i",
+          "K",
+          "lambda"
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/locals/-",
+      "value": {
+        "symbol": "i",
+        "type": "integer index 0<=i<=lambda with c_i nonzero",
+        "scope": "selected-coordinate",
+        "start": "S007",
+        "end": "S007",
+        "kind": "witness",
+        "declaration": "Choose i with 0<=i<=lambda and c_i nonzero using the local existence fact F003.",
+        "from_inputs": [],
+        "from_local": [
+          "F003"
+        ],
+        "objects": [
+          "c_i",
+          "lambda"
+        ]
+      }
+    }
+  ],
+  "base_input": "prior-candidate.json"
+}

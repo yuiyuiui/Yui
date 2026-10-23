@@ -1,0 +1,657 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "full_target": "For every nonnegative integer n and every nonempty compact E⊆ℝ^n, with I=[0,1] and E×I equipped with the concatenated Euclidean metric, dim_H(E×I)=dim_H(E)+1.",
+    "conclusion": "dim_H(E×I)=dim_H(E)+1.",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "nonnegative integer"
+      },
+      {
+        "symbol": "E",
+        "type": "subset of ℝ^n"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "E is nonempty.",
+        "origin": "frozen-target.md:7-9"
+      },
+      {
+        "id": "H002",
+        "statement": "E is compact.",
+        "origin": "frozen-target.md:7-9"
+      }
+    ],
+    "definitions": [],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "case_elimination",
+        "contradiction_classical",
+        "direct",
+        "exists_elimination",
+        "forall_introduction",
+        "implication_introduction",
+        "modus_ponens",
+        "natural_induction",
+        "negation_introduction"
+      ],
+      "calculations": [
+        "Squared concatenated product distance is the sum of squared coordinate distances; coordinate projections are 1-Lipschitz. diam(U×J)≤√(diam(U)^2+diam(J)^2)."
+      ],
+      "primitives": [
+        {
+          "symbol": "ℝ^n",
+          "type": "Euclidean space",
+          "meaning": "The n-dimensional Euclidean space, with ℝ^0 a singleton."
+        },
+        {
+          "symbol": "dim_H",
+          "type": "Hausdorff dimension",
+          "meaning": "Critical exponent of Hausdorff measures."
+        },
+        {
+          "symbol": "I",
+          "type": "subset of ℝ",
+          "meaning": "[0,1]."
+        },
+        {
+          "symbol": "Hausdorff measure",
+          "type": "ENNReal-valued measure indexed by nonnegative real exponent",
+          "meaning": "For d≥0 and A in the pinned Euclidean extended-metric/Borel space, H^d(A) denotes the pinned unnormalized Hausdorff measure Measure.hausdorffMeasure (↑d) A."
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/audit-findings.json",
+        "sha256": "e5b9df94ab722a3e123340ef09b533caaf2943d3cbaf8c1a35ac0e53604e8f03"
+      },
+      {
+        "path": "inputs/frozen-target.md",
+        "sha256": "01ba4435cea1270cca979c2bc45c642c54f010dcf8f9ae3af7129e1f0266ed0c"
+      },
+      {
+        "path": "inputs/measure-bridge.json",
+        "sha256": "0132dc04067d1f7bcc00d53c63c74c9e6d9bc25687acd63ee29dfad19f9983b1"
+      },
+      {
+        "path": "inputs/prior-candidate.json",
+        "sha256": "5ee38f4a47b527fed3b97df82c170aa984215c1be546c3e2007cf546fc09acda"
+      },
+      {
+        "path": "inputs/prior-source-queries.json",
+        "sha256": "7ef78d65184273f1255210e70ec804cec1a50120e58ed389e31a0c69c3c049b4"
+      },
+      {
+        "path": "inputs/problem.md",
+        "sha256": "1e1f8eadda708f481994a9df952e0c00d25dc8b9758ac77a9e8391c12949cc47"
+      },
+      {
+        "path": "inputs/prompt.txt",
+        "sha256": "c286a5ce8cb123ae8fc97bdede9d5a2fee63fa64d7bc7e6996f2ba740d3c1de1"
+      },
+      {
+        "path": "inputs/source-context.md",
+        "sha256": "5287828a60c7329a2428f21c96d7a2757e1f39b0f8e13609b0551aab835760a4"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "geometry-product-dimension",
+    "spec_sha256": "8d215d03bfd4b00de90e8d2aec7edda7a49adc54017394ad0602602f6b6a89ba",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "statement": "E is nonempty.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "statement": "E is compact.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E"
+        ]
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "For every extended metric space X equipped with a measurable space and its Borel measurable-space structure, every set A⊆X, and every d:NNReal, if ↑d<dimH(A), then Measure.hausdorffMeasure (↑d) A=⊤.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H"
+        ],
+        "source": {
+          "statement": "For every extended metric space X equipped with a measurable space and its Borel measurable-space structure, every set A⊆X, and every d:NNReal, if ↑d<dimH(A), then Measure.hausdorffMeasure (↑d) A=⊤.",
+          "hypotheses": [
+            "A is a set in a Borel extended metric space and d is NNReal."
+          ],
+          "evidence": [
+            {
+              "path": "library/M001-0001/library-sources.json",
+              "sha256": "c7580ea12871905cb53c08394da0f4b4f6372314b56267c589de8dc2aaadc683"
+            }
+          ],
+          "declaration": "hausdorffMeasure_of_lt_dimH",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31",
+          "signature": "@hausdorffMeasure_of_lt_dimH.{u_1} : ∀ {X : Type u_1} [inst : EMetricSpace.{u_1} X] [inst_1 : MeasurableSpace.{u_1} X]\n  [inst_2 : BorelSpace.{u_1} X] {s : Set.{u_1} X} {d : NNReal},\n  LT.lt.{0} (↑d) (dimH.{u_1} s) → Eq.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_1} ↑d) s) Top.top.{0}",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "For every measurable space (α,m), measure μ on α, countable type β, and function f:β→α→ENNReal, if for every i:β the function f(i) is AEMeasurable with respect to μ, then ∫⁻ a, ∑' i, f(i,a) ∂μ = ∑' i, ∫⁻ a, f(i,a) ∂μ.",
+        "definitions": [],
+        "binders": [],
+        "objects": [],
+        "source": {
+          "statement": "For every measurable space (α,m), measure μ on α, countable type β, and function f:β→α→ENNReal, if for every i:β the function f(i) is AEMeasurable with respect to μ, then ∫⁻ a, ∑' i, f(i,a) ∂μ = ∑' i, ∫⁻ a, f(i,a) ∂μ.",
+          "hypotheses": [
+            "Countable index type; each summand is AEMeasurable ENNReal."
+          ],
+          "evidence": [
+            {
+              "path": "library/M002-0002/library-sources.json",
+              "sha256": "bfb69180d5ae07b26a5713233343fc06cadfb42a876327db5cfbb55ff2058a81"
+            }
+          ],
+          "declaration": "MeasureTheory.lintegral_tsum",
+          "module": "Mathlib.MeasureTheory.Integral.Lebesgue.Add",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/Lebesgue/Add.lean",
+          "source_sha256": "14da3dd3c2692219eec43e91c6b22bb02d5db7f00e03c789661c72dffecf7b4a",
+          "signature": "@MeasureTheory.lintegral_tsum.{u_1,\n    u_2} : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α}\n  [Countable.{u_2 + 1} β] {f : β → α → ENNReal},\n  (∀ (i : β), AEMeasurable.{u_1, 0} (f i) μ) →\n    Eq.{1} (∫⁻ (a : α), ∑' (i : β), f i a ∂μ) (∑' (i : β), ∫⁻ (a : α), f i a ∂μ)",
+          "declaration_kind": "theorem"
+        }
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "statement": "dim_H(E×I)=dim_H(E)+1.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "E",
+          "I",
+          "dim_H"
+        ]
+      },
+      {
+        "id": "M003",
+        "kind": "mathlib",
+        "statement": "For every extended metric space X equipped with a measurable space and its Borel structure, every set A⊆X, and d:NNReal, if dimH(A)<↑d, then Measure.hausdorffMeasure (↑d) A=0.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H",
+          "Hausdorff measure"
+        ],
+        "source": {
+          "statement": "For every extended metric space X equipped with a measurable space and its Borel structure, every set A⊆X, and d:NNReal, if dimH(A)<↑d, then Measure.hausdorffMeasure (↑d) A=0.",
+          "hypotheses": [
+            "X has an extended metric, a measurable space, and its Borel structure."
+          ],
+          "evidence": [
+            {
+              "path": "library/M003-0003/library-sources.json",
+              "sha256": "1125abdd045414b77de535b6a894fe6f0b00405f9a789322387abc73ce3b44ae"
+            }
+          ],
+          "declaration": "hausdorffMeasure_of_dimH_lt",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "signature": "@hausdorffMeasure_of_dimH_lt.{u_1} : ∀ {X : Type u_1} [inst : EMetricSpace.{u_1} X] [inst_1 : MeasurableSpace.{u_1} X]\n  [inst_2 : BorelSpace.{u_1} X] {s : Set.{u_1} X} {d : NNReal},\n  LT.lt.{0} (dimH.{u_1} s) ↑d → Eq.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_1} ↑d) s) 0",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31"
+        }
+      },
+      {
+        "id": "M004",
+        "kind": "mathlib",
+        "statement": "For extended metric spaces X,Y, K:NNReal, and f:X→Y, if f is LipschitzWith K, then for every set A⊆X, dimH(f '' A)≤dimH(A).",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H",
+          "Lipschitz map"
+        ],
+        "source": {
+          "statement": "For extended metric spaces X,Y, K:NNReal, and f:X→Y, if f is LipschitzWith K, then for every set A⊆X, dimH(f '' A)≤dimH(A).",
+          "hypotheses": [
+            "X and Y have extended metric structures.",
+            "K is NNReal and f is K-Lipschitz."
+          ],
+          "evidence": [
+            {
+              "path": "library/M004-0004/library-sources.json",
+              "sha256": "dd30ba1d4513237567f5df27221dc686c3b7ce34f3904b593c6d8f3f5152cbc4"
+            }
+          ],
+          "declaration": "LipschitzWith.dimH_image_le",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "signature": "@LipschitzWith.dimH_image_le.{u_1,\n    u_2} : ∀ {X : Type u_1} {Y : Type u_2} [inst : EMetricSpace.{u_1} X] [inst_1 : EMetricSpace.{u_2} Y] {K : NNReal}\n  {f : X → Y},\n  LipschitzWith.{u_1, u_2} K f → ∀ (s : Set.{u_1} X), LE.le.{0} (dimH.{u_2} (Set.image.{u_1, u_2} f s)) (dimH.{u_1} s)",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31"
+        }
+      },
+      {
+        "id": "M005",
+        "kind": "mathlib",
+        "statement": "For a finite-dimensional real normed vector space V and set A⊆V, if interior(A) is nonempty, then dimH(A)=↑(finrank ℝ V).",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "dim_H",
+          "interior",
+          "finrank"
+        ],
+        "source": {
+          "statement": "For a finite-dimensional real normed vector space V and set A⊆V, if interior(A) is nonempty, then dimH(A)=↑(finrank ℝ V).",
+          "hypotheses": [
+            "V is a real normed additive commutative group and real normed space.",
+            "V is finite-dimensional over ℝ.",
+            "The interior of A is nonempty."
+          ],
+          "evidence": [
+            {
+              "path": "library/M005-0005/library-sources.json",
+              "sha256": "da2415f5b7b6ce489c280c1151bcde21a066080ee38cd6ba0184807c807b8757"
+            }
+          ],
+          "declaration": "Real.dimH_of_nonempty_interior",
+          "module": "Mathlib.Topology.MetricSpace.HausdorffDimension",
+          "signature": "@Real.dimH_of_nonempty_interior.{u_1} : ∀ {E : Type u_1} [inst : NormedAddCommGroup.{u_1} E]\n  [inst_1 : NormedSpace.{0, u_1} ℝ E] [FiniteDimensional.{0, u_1} ℝ E] {s : Set.{u_1} E},\n  Set.Nonempty.{u_1} (interior.{u_1} s) → Eq.{1} (dimH.{u_1} s) ↑(Module.finrank.{0, u_1} ℝ E)",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Topology/MetricSpace/HausdorffDimension.lean",
+          "source_sha256": "fdc61e7f179044cd714058f209b100e51b6f8af69aff295e3ee629ed45dcee31"
+        }
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H001",
+          "H002",
+          "M001",
+          "M002",
+          "M003",
+          "M004",
+          "M005"
+        ],
+        "output": "P",
+        "definitions": [],
+        "rules": [
+          "direct",
+          "case_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "D",
+            "type": "ENNReal, dim_H(E)",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S003",
+            "kind": "definition",
+            "declaration": "Define D=dim_H(E).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "E",
+              "dim_H"
+            ]
+          },
+          {
+            "symbol": "F",
+            "type": "subset ℝ^(n+1), E×[0,1]",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S003",
+            "kind": "definition",
+            "declaration": "Define F=E×[0,1].",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "E",
+              "n"
+            ]
+          },
+          {
+            "symbol": "q",
+            "type": "real exponent",
+            "scope": "R001/S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "arbitrary",
+            "declaration": "Fix q>D.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "D"
+            ]
+          },
+          {
+            "symbol": "δ",
+            "type": "positive scale",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Fix 0<δ≤1.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "r_j",
+            "type": "positive real sequence",
+            "scope": "R001/S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "witness",
+            "declaration": "Choose positive cover diameters r_j≤δ with arbitrarily small q-cost; replace zero-diameter sets by small balls if n>0.",
+            "from_inputs": [
+              "H002"
+            ],
+            "from_local": [],
+            "objects": [
+              "E",
+              "δ",
+              "q"
+            ]
+          },
+          {
+            "symbol": "s",
+            "type": "positive real exponent",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "If D>0 fix 0<s<D.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "D"
+            ]
+          },
+          {
+            "symbol": "ε",
+            "type": "positive real",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Fix ε>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "V_i",
+            "type": "sequence of subsets of F",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary countable δ-cover of F.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "F",
+              "δ"
+            ]
+          },
+          {
+            "symbol": "ρ_i",
+            "type": "ENNReal sequence ediam(V_i)",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Put ρ_i=ediam(V_i).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "V_i"
+            ]
+          },
+          {
+            "symbol": "A_i",
+            "type": "projection of V_i to ℝⁿ",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Put A_i=π₁(V_i).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "V_i"
+            ]
+          },
+          {
+            "symbol": "B_i",
+            "type": "projection of V_i to ℝ",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Put B_i=π₂(V_i).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "V_i"
+            ]
+          },
+          {
+            "symbol": "η_i",
+            "type": "positive real sequence",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Set η_i=ε·2^(−i)/(1+ρ_i^s).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "ε",
+              "ρ_i",
+              "s"
+            ]
+          },
+          {
+            "symbol": "J_i",
+            "type": "open interval containing bounded set B_i",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Choose J_i containing B_i with length at most ρ_i+η_i, by enclosing B_i between its infimum and supremum and adding η_i total width.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "B_i",
+              "ρ_i",
+              "η_i"
+            ]
+          },
+          {
+            "symbol": "c_s",
+            "type": "Hausdorff content at scale δ",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "definition",
+            "declaration": "Let C_s(A,δ) be the infimum of Nat-indexed δ-cover sums of ENNReal diameters to exponent s.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "s",
+              "δ"
+            ]
+          },
+          {
+            "symbol": "x₀",
+            "type": "point of E",
+            "scope": "R001/S003",
+            "start": "S003",
+            "end": "S003",
+            "kind": "witness",
+            "declaration": "Choose x₀∈E from H001.",
+            "from_inputs": [
+              "H001"
+            ],
+            "from_local": [],
+            "objects": [
+              "E"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Let D=dim_H(E) and let F=E×[0,1] with the stipulated concatenated Euclidean metric. First, 0≤D≤n<∞: for n=0 the ambient space is a singleton. For n>0, compactness gives a bounded box containing E; cover that box by a grid of cubes of side h. For 0<h≤1 the number is at most C h^(−n), for a constant C depending only on the box and n, each cube has Euclidean diameter at most √n h, and for every real m>n their total m-power diameter cost is at most C(√n)^m h^(m−n), tending to zero. The definition of Hausdorff dimension as the critical exponent therefore gives D≤n. In particular D is a finite real number and all subsequent choices of exponents are legitimate. For the upper bound, fix any real q>D. Since D≥0, q>0. The threshold definition of Hausdorff dimension gives H^q(E)=0. Here, explicitly, the scale-δ content is the infimum over Nat-indexed sequences (U_j) with E⊆⋃j U_j and diam(U_j)≤δ of the extended nonnegative sum Σ'j diam(U_j)^q; the Hausdorff measure is the increasing-small-scale limit of these contents (the pinned convention has no normalization factor). Thus for each δ>0 and each ζ>0 there is such a cover with total q-cost below ζ. Empty sets may be removed. At n=0, F is isometric to [0,1], so its dimension is 1 and the theorem follows directly; this branch is taken before any positive-diameter replacement. Hence suppose n>0. For any zero-diameter nonempty member U_j choose a point u_j∈U_j and replace U_j by an open Euclidean ball centered at u_j with positive diameter r_j≤δ; choose the radii so their q-costs sum to less than any prescribed additional ζ (for countably many indices, assign the j-th replacement cost <ζ2^(−j)). Keep positive-diameter members, and write r_j for their diameters; the resulting cover has 0<r_j≤δ and arbitrarily small Σj r_j^q. Take δ≤1. Partition [0,1] into at most 1/r_j+1 closed intervals of lengths at most r_j. Their products with U_j cover U_j×[0,1]. In the concatenated metric, squared distance is the sum of squared coordinate distances, so diam(U_j×K)≤√(r_j²+r_j²)=√2 r_j. Consequently the total (q+1)-power cost of all these product sets is bounded by Σj(1/r_j+1)(√2 r_j)^(q+1)≤2(√2)^(q+1)Σj r_j^q, since r_j≤1. Their diameters are ≤√2δ. As the original q-cost and replacement cost can be made arbitrarily small, the (q+1)-dimensional Hausdorff measure of F is zero. The dimension threshold implication gives dim_H(F)≤q+1. This holds for every q>D, and taking the infimum over q>D yields dim_H(F)≤D+1.",
+            "uses": [
+              "H002",
+              "M003"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "n",
+              "q",
+              "δ",
+              "r_j"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "For the lower bound when D>0, fix a real s with 0<s<D. Let C_a(A,δ) denote exactly the infimum of Σ'i (ediam U_i)^a over Nat-indexed covers (U_i) of A with ediam(U_i)≤δ for all i. Here ediam takes values in ENNReal, and a>0 is interpreted through its NNReal/ENNReal coercions; 0^a=0. From the pinned formula for Hausdorff measure, H^a(A)=sup_{δ>0} C_a(A,δ)=lim_{δ↓0}C_a(A,δ): both use the same Nat-indexed cover sequences, the same ediam diameter cutoff, and the same tsum, and the formula's supremum over nonempty-member witnesses contributes the term ediam(U_i)^a for nonempty U_i and zero for empty U_i, equal to that term since ediam(∅)=0. For δ1≤δ2, the admissible δ1 covers are a subset of the δ2 covers, so C_a(A,δ1)≥C_a(A,δ2); hence the decreasing-scale limit equals the supremum over positive δ. The dimension threshold theorem applied at NNReal exponent s says H^s(E)=∞ because (s:ENNReal)<dim_H(E). Therefore C_s(E,δ) tends to ∞ as δ decreases to zero. Fix 0<δ≤1 and an arbitrary Nat-indexed δ-cover (V_i) of F; discard empty members and put ρ_i=ediam(V_i)≤δ. Let A_i and B_i be its coordinate projections. The coordinate projections are 1-Lipschitz for the concatenated metric, so ediam(A_i),ediam(B_i)≤ρ_i. Choose η_i=ε·2^(−(i+1))/(1+ρ_i^s)>0, so Σ'i η_iρ_i^s≤ε, and choose an open interval J_i containing B_i with length at most ρ_i+η_i. Such an interval exists because B_i is bounded (its diameter is at most finite ρ_i); take an interval extending each side of its infimum/supremum by a total additional width no more than η_i. For every t∈[0,1], the A_i with t∈J_i cover E: if x∈E then (x,t) lies in some V_i; thus x∈A_i and t∈B_i⊆J_i. Each A_i has diameter ≤δ, so the definition of C_s gives pointwise C_s(E,δ)≤Σ'i 1_{J_i∩[0,1]}(t)ρ_i^s. Each summand is a nonnegative ENNReal-valued measurable function on [0,1] with restricted Lebesgue measure, since J_i∩[0,1] is Borel. Integrate this pointwise inequality: monotonicity of the ENNReal lintegral gives C_s(E,δ)≤∫⁻_{[0,1]} Σ'i 1_{J_i∩[0,1]}ρ_i^s. Countable Tonelli, applied to these AEMeasurable summands, identifies the integral with Σ'i ∫⁻ 1_{J_i∩[0,1]}ρ_i^s. The integral of each indicator is the measure of J_i∩[0,1], namely its interval length clipped to [0,1], and is at most ρ_i+η_i; the restricted Lebesgue measure of [0,1] is one. Thus C_s(E,δ)≤Σ'i(ρ_i+η_i)ρ_i^s≤Σ'iρ_i^(s+1)+ε. Terms with ρ_i=0 vanish because s>0. Since ε>0 was arbitrary, C_s(E,δ)≤Σ'iρ_i^(s+1) for every chosen cover V_i. Taking the infimum over all such covers gives C_s(E,δ)≤C_(s+1)(F,δ). As δ↓0 the left side tends to infinity, so the right side does also; the exact scale-content formula then gives H^(s+1)(F)=∞. The dimension threshold implication in the reverse direction yields s+1≤dim_H(F). This holds for every 0<s<D; taking the supremum over those s proves D+1≤dim_H(F). All scalar use of the threshold results is at NNReal exponents: s is represented by its NNReal coercion and the measure formula uses the corresponding real coercion, with no identification of distinct scalar types suppressed.",
+            "uses": [
+              "M001",
+              "M002"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "D",
+              "I",
+              "s",
+              "δ",
+              "V_i",
+              "ρ_i",
+              "A_i",
+              "B_i",
+              "J_i",
+              "η_i",
+              "ε",
+              "c_s"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "If D=0, choose x₀∈E by H001. Define p:F→[0,1] by p(x,t)=t. Since |t−u|≤((|x−y|²+|t−u|²))^(1/2), p is 1-Lipschitz. It is onto because p(x₀,t)=t for every t∈[0,1]. Apply the general Lipschitz image dimension inequality to p and the set F: dim_H([0,1])=dim_H(p(F))≤dim_H(F). The interval dimension is 1: [0,1] has nonempty interior in the one-dimensional real vector space, so the pinned theorem Real.dimH_of_nonempty_interior gives dimension finrank_R(R)=1. Therefore dim_H(F)≥1=D+1. This branch includes n=0, but the direct n=0 isometry branch in S001 already handled the upper bound without any positive-diameter replacement. Combining this lower bound when D=0, the slicing lower bound when D>0, and the upper bound for all D proves dim_H(F)=dim_H(E)+1.",
+            "uses": [
+              "H001",
+              "M004",
+              "M005"
+            ],
+            "uses_local": [],
+            "objects": [
+              "E",
+              "F",
+              "I",
+              "x₀",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M001",
+            "at": "S002",
+            "bindings": "Instantiate with X=ℝⁿ, s=E, and d the NNReal coercion of the positive exponent below dim_H(E).",
+            "hypothesis_checks": [
+              "Apply to E with 0<s<D in Euclidean Borel space."
+            ]
+          },
+          {
+            "input": "M002",
+            "at": "S002",
+            "bindings": "Instantiate with α=[0,1], β=ℕ, restricted Lebesgue measure, and f(i,t)=ρ_i^s times the indicator of J_i∩[0,1].",
+            "hypothesis_checks": [
+              "Summands are ρ_i^s times indicators of open J_i, hence AEMeasurable on I."
+            ]
+          },
+          {
+            "input": "M003",
+            "at": "S001",
+            "bindings": "Instantiate X=ℝⁿ, A=E, and d with the NNReal coercion of q.",
+            "hypothesis_checks": [
+              "Euclidean ℝⁿ has its standard extended metric, measurable structure, and Borel structure; q is positive and lies above dimH(E), so the theorem gives H^q(E)=0."
+            ]
+          },
+          {
+            "input": "M004",
+            "at": "S003",
+            "bindings": "Instantiate X=E×[0,1] with the concatenated Euclidean metric, Y=[0,1], f(x,t)=t, K=1, and A=F.",
+            "hypothesis_checks": [
+              "X and Y carry the extended metric structures induced by their Euclidean metrics.",
+              "The map (x,t)↦t has Lipschitz constant 1 since |t-u|≤sqrt(|x-y|²+|t-u|²)."
+            ]
+          },
+          {
+            "input": "M005",
+            "at": "S003",
+            "bindings": "Instantiate V=ℝ and A=[0,1].",
+            "hypothesis_checks": [
+              "ℝ has its usual real normed additive commutative group and real normed-space structures.",
+              "ℝ is finite-dimensional over ℝ with finrank 1.",
+              "The interval [0,1] has nonempty interior because (0,1) is a nonempty open subset contained in [0,1]."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

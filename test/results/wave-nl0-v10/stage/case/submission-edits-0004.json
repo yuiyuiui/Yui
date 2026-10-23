@@ -1,0 +1,99 @@
+{
+  "base_sha256": "477c991d39ce538e164c2edd3ae895fb2368cc420014f759c8ea91b3309c991b",
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/inputs",
+      "value": [
+        "H001",
+        "H002",
+        "H003",
+        "M001",
+        "M002",
+        "M003",
+        "M004",
+        "M005",
+        "M006",
+        "M007"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/0/uses",
+      "value": [
+        "H003",
+        "M001",
+        "M004",
+        "M005",
+        "M006"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/uses",
+      "value": [
+        "H001",
+        "H002",
+        "M001",
+        "M002",
+        "M003",
+        "M007"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/text",
+      "value": "For fixed r and each j define g_j(x)=u_t(x,r)·u_{x_j}(x,r). The factors and their derivatives vanish outside C, so g_j and ∂_j g_j are smooth and compactly supported; M001 proves their integrability. Product differentiation gives ∂_j g_j=(∂_j u_t)·u_{x_j}+u_t·u_{x_jx_j}, with each dot product the finite sum over m components. For fixed other coordinates y, z↦g_j(x(y,z)) is smooth and zero for |z|>L. Apply M007 with u(z)=g_j(x(y,z)), v(z)=1, u′(z)=∂_j g_j(x(y,z)), v′(z)=0, endpoints −L,L. Both functions are continuous on the closed interval, differentiable in its interior, and their derivatives are interval-integrable because they are continuous there; M007 therefore gives ∫_{−L}^L ∂_j g_j dz=g_j(L)−g_j(−L)=0. The derivative vanishes outside this interval, so its whole-line integral on each coordinate fiber is zero. For n=1 the other-coordinate space is the singleton ℝ⁰. The coordinate-permuted derivative is continuous compactly supported, hence product-integrable by M001. Coordinate permutation preserves Lebesgue measure (it permutes orthonormal coordinate axes); the factor Lebesgue measures are σ-finite, hence S-finite, and ℝ is real normed, so M003 identifies its whole-space integral with the iterated integral, equal to zero. Thus ∫∂_j g_j=0 and ∫(∂_j u_t)·u_{x_j}=−∫u_t·u_{x_jx_j}; all fields are integrable by M001. Differentiate the exact Frobenius energy formula: e_t=2u_t·u_{tt}+2Σ_j u_{x_j}·∂_j u_t. Finite sums commute with integration. Summing the integration-by-parts identities and using Δ_xu=Σ_j u_{x_jx_j} gives E′(r)=2∫u_t·(u_{tt}−Δ_xu). Differentiating H001 gives 2u·u_t=0, hence u·u_t=0. At the same point H002 supplies a scalar a with u_{tt}−Δ_xu=a u. Inner product with u_t gives u_t·(u_{tt}−Δ_xu)=a(u_t·u)=0. The zero integrand is integrable, so E′(r)=0. No regularity of a is used; r>0 was arbitrary."
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/applications/-",
+      "value": {
+        "input": "M005",
+        "at": "S001",
+        "bindings": "X=ℝⁿ, Y=ℝ, s=C, t=J, product identified with C×J.",
+        "hypothesis_checks": [
+          "ℝⁿ and ℝ carry their Euclidean topologies.",
+          "C is compact by its witness basis H003.",
+          "J=[r/2,3r/2] is compact as a closed bounded interval."
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/applications/-",
+      "value": {
+        "input": "M006",
+        "at": "S001",
+        "bindings": "α=ℝⁿ, μ=Lebesgue, 𝕜=ℝ, E=ℝ, x₀=r, s=(r/2,3r/2), F(τ)(x)=e(x,τ), F′(τ)(x)=e_t(x,τ), bound(x)=K·1_C(x).",
+        "hypothesis_checks": [
+          "r belongs to the open interval (r/2,3r/2), so it is a neighborhood of x₀.",
+          "For every τ in that interval F(τ) is continuous, hence measurable and a.e. strongly measurable.",
+          "F(r)=e(·,r) is integrable by M001 using continuity and compact support.",
+          "F′(r)=e_t(·,r) is continuous and thus a.e. strongly measurable.",
+          "On compact C×J the continuous e_t is bounded by finite K; outside C it vanishes. Therefore |F′(τ)(x)|≤K·1_C(x) for all x,τ in the interval.",
+          "K·1_C is integrable: C is compact measurable of finite Lebesgue measure and the function is bounded with support in C.",
+          "Smoothness gives τ↦e(x,τ) derivative e_t(x,τ) for every x and τ in the interval."
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/applications/-",
+      "value": {
+        "input": "M007",
+        "at": "S002",
+        "bindings": "A=ℝ, a=−L, b=L, u(z)=g_j(x(y,z)), v(z)=1, u′(z)=∂_j g_j(x(y,z)), v′(z)=0, for each j and fixed remaining coordinates y.",
+        "hypothesis_checks": [
+          "u and v are continuous on uIcc(−L,L) by smoothness.",
+          "u and v are differentiable on the open interval with the stated derivatives.",
+          "u′ and v′ are interval-integrable since continuous on the compact interval.",
+          "The scalar field ℝ has the complete normed algebra structure required.",
+          "The endpoint values u(±L) are zero since C lies in the box and g_j vanishes outside C; v(±L)=1.",
+          "M007 yields the interval integral of u′v+uv′ as the endpoint difference, here zero."
+        ]
+      }
+    }
+  ],
+  "base_candidate": 3
+}

@@ -1,0 +1,77 @@
+{
+  "status": "ANALYTIC_ARGUMENTS_COMPLETE_CONDITIONALLY_ON_DECLARED_M_CANDIDATES",
+  "node_plan": [
+    {
+      "id": "F1",
+      "statement": "Fix n,m∈ℕ+, smooth u and unit q satisfying H001–H003; fix arbitrary t₀>0. Let J=[t₀/2,3t₀/2] and select compact C⊂ℝⁿ from H003 such that u(x,s)=q for x∉C and s∈J. For every s∈J, the maps u_t(·,s), u_{x_j}(·,s), e(·,s), and e_t(·,s) are continuous and vanish on ℝⁿ\\C; hence e(·,s) is measurable, compactly supported, and integrable, and so are the indicated scalar/vector derivative fields.",
+      "inputs": [
+        "H003; joint smoothness from frozen target; definitions D001–D003; M001; standard fixed instances: Euclidean topology/Borel-Lebesgue measure on ℝⁿ with opens measurable and Lebesgue measure finite on compact sets; scalar/vector finite-dimensional normed additive groups"
+      ],
+      "complete_derivation": "J is a compact interval contained in (0,∞) and t₀ lies in its interior, so H003 gives compact C and the stated equality for all s∈J. For fixed x∉C, the function s↦u(x,s) is constant q on the interval J; since t₀/2<s<3t₀/2 (and at endpoints by one-sided continuity when needed), its derivative is zero at every interior s, in particular throughout int(J). For such s, x lies in the open set ℝⁿ\\C and y↦u(y,s) is constant on that open neighborhood; every spatial derivative is zero there. The same holds for time and spatial derivatives jointly at (x,s) for s∈int(J), so e and e_t vanish off C. Smoothness implies these fields are continuous; the support (closure of the nonzero set) is a closed subset of compact C, hence compact. In particular each fixed-time scalar e(·,s) is continuous with compact support. Instantiate M001 with X=ℝⁿ, V=ℝ, μ=Lebesgue measure, f(x)=e(x,s): the ambient measurable/topological structure, measurable opens, finite-on-compacts measure, normed additive group, continuity, and compact support have just been specified/proved; conclude Integrable(e(·,s)). The same application gives integrability for any other continuous scalar compactly supported fields used below. Frobenius square means precisely the finite sum of squares of the m Euclidean components of each of the n spatial derivative vectors; all sums are finite for arbitrary n,m."
+    },
+    {
+      "id": "F2",
+      "statement": "With F1 and t₀,J,C as above, E is differentiable at t₀ and E'(t₀)=∫_C e_t(x,t₀)dx=∫_{ℝⁿ}e_t(x,t₀)dx.",
+      "inputs": [
+        "F1; M002 (interval FTC); M004 (compact Heine–Cantor); compact product theorem IsCompact.prod at Mathlib/Topology/Compactness/Compact.lean:1062–1069; J compact; standard measure fact Lebesgue(C)<∞ for compact C"
+      ],
+      "complete_derivation": "Let K=C×J. It is compact by the cited IsCompact.prod theorem from compactness of C and J. The map (x,s)↦e_t(x,s) is continuous by smoothness and finite-dimensional product differentiation; M004 applied to this continuous map on K proves uniform continuity there. For |h| small enough t₀+h∈J, set Q_h(x)=(e(x,t₀+h)-e(x,t₀))/h on C. At each x∈C apply M002 to the real function s↦e(x,s) on the interval between t₀ and t₀+h: it is differentiable with derivative e_t(x,s) by smoothness, and that derivative is interval-integrable because it is continuous on the compact interval. Thus Q_h(x)=∫₀¹ e_t(x,t₀+θh)dθ (orientation is also valid for h<0, by the substitution s=t₀+θh). Given ε>0, uniform continuity on C×J gives δ>0 such that |e_t(x,s)-e_t(x,t₀)|<ε whenever x∈C and |s-t₀|<δ. For 0<|h|<δ with t₀+h∈J, every θ∈[0,1] obeys this bound, so |Q_h(x)-e_t(x,t₀)|≤ε uniformly for x∈C. Since C is compact, Lebesgue(C)<∞. Consequently |∫_C Q_h-∫_C e_t(·,t₀)|≤Leb(C)ε, proving convergence of the integral difference quotients to ∫_C e_t. For every s∈J, e(·,s) vanishes off C by F1, so the global integral E(s) equals ∫_C e(·,s); therefore these are exactly E's difference quotients. Also e_t(·,t₀) vanishes off C, so its C integral equals its ℝⁿ integral. This proves the derivative and its stated value. No differentiability at t=0 is used."
+    },
+    {
+      "id": "F3",
+      "statement": "At t₀, E'(t₀)=2∫_{ℝⁿ}u_t·(u_{tt}-Δ_xu)dx.",
+      "inputs": [
+        "F2; F1; smoothness; M001 (continuous compactly supported functions integrable); M002 (one-dimensional interval FTC); M003 (product-integral/Fubini theorem); Euclidean coordinate-permutation measure identity for Lebesgue measure"
+      ],
+      "complete_derivation": "For each j=1,…,n define g_j(x)=u_t(x,t₀)·u_{x_j}(x,t₀), a real scalar. It is smooth. Both factors vanish outside C by F1, so g_j and its spatial derivative vanish there and are continuous compactly supported; M001 yields integrability of the derivative. Product differentiation gives ∂_{x_j}g_j=(∂_{x_j}u_t)·u_{x_j}+u_t·u_{x_jx_j}. To justify its integral is zero without assuming a boundary formula, choose a finite coordinate box containing C (existence: C compact implies each coordinate projection is compact/bounded; take R greater than all finitely many coordinate bounds). Then g_j=0 outside the box. Apply M003 to the function on ℝ^{n−1}×ℝ obtained by permuting coordinates so the final coordinate is x_j and setting f(y,z)=∂_{x_j}g_j(x(y,z)). It is continuous compactly supported, hence integrable by M001 on ℝⁿ; Lebesgue factors are σ-finite (thus S-finite), and the scalar codomain is real normed, so every M003 assumption is met. M003 identifies its whole-space integral with the iterated integral. For each fixed y, z↦g_j(x(y,z)) is smooth and zero for |z| sufficiently large; one-dimensional FTC gives ∫_{−L}^{L}∂_z g_j(x(y,z))dz=g_j(x(y,L))-g_j(x(y,−L))=0 for a common sufficiently large L enclosing the box. The integrand is zero outside that finite interval, so its integral over ℝ is zero. Thus M003 gives ∫ℝⁿ∂_{x_j}g_j=0, and the product-rule identity yields ∫(∂_{x_j}u_t)·u_{x_j}=−∫u_t·u_{x_jx_j}. These integrals exist by continuity and common compact support. From F2 and finite-dimensional differentiation of D001, e_t=2u_t·u_{tt}+2Σ_j u_{x_j}·∂_{x_j}u_t. Integrate, substitute the identity for each j, and use Δ_xu=Σ_j u_{x_jx_j}; this gives the displayed equality. Euclidean vector dot products are summed over m components, and the spatial energy is the Frobenius sum over j, exactly matching the Laplacian sum."
+    },
+    {
+      "id": "F4",
+      "statement": "For every (x,t), u·u_t=0 and u_t·(u_{tt}-Δ_xu)=0; consequently F3 implies E'(t₀)=0.",
+      "inputs": [
+        "H001; H002; F3; smoothness; finite-dimensional product/chain rules and Euclidean inner-product identities"
+      ],
+      "complete_derivation": "Differentiate the pointwise identity u(x,t)·u(x,t)=1 in t: 2u·u_t=0, hence u·u_t=0. H002 supplies at this same point a real scalar a(x,t) with u_{tt}-Δ_xu=a(x,t)u. Take the Euclidean inner product with u_t: u_t·(u_{tt}-Δ_xu)=a(x,t)(u_t·u)=0. No regularity or differentiability of a is used. This pointwise zero is integrable (it is identically zero); substituting it in the formula of F3 gives E'(t₀)=0. If desired the multiplier itself is identified, without any regularity claim, by differentiating |u|² twice in t and in each spatial coordinate: u·u_{tt}=-|u_t|² and u·u_{x_jx_j}=-|u_{x_j}|²; dotting H002 with u and using |u|²=1 yields a=Σ_j|u_{x_j}|²-|u_t|². This confirms the sphere-normal equation derived from the stated scalar-multiple hypothesis, not a stronger PDE assumption."
+    }
+  ],
+  "source_inventory": [
+    {
+      "id": "M001",
+      "status": "existing candidate, source declaration previously identified; retain only after required signature probe and Audit A",
+      "declaration": "Continuous.integrable_of_hasCompactSupport",
+      "location": "Mathlib/MeasureTheory/Function/LocallyIntegrable.lean:621–625; global-findings identifies official source lines 621–625"
+    },
+    {
+      "id": "M002",
+      "status": "existing candidate; interval FTC, used pointwise for difference quotient and coordinate FTC; exact signature probe and Audit A remain required",
+      "declaration": "intervalIntegral.integral_eq_sub_of_hasDerivAt",
+      "location": "Mathlib/MeasureTheory/Integral/IntervalIntegral/FundThmCalculus.lean:1146–1151"
+    },
+    {
+      "id": "M003",
+      "status": "existing candidate; Fubini conditional on actual product integrability; exact signature probe/Audit A required",
+      "declaration": "MeasureTheory.integral_prod",
+      "location": "Mathlib/MeasureTheory/Integral/Prod.lean:438–444"
+    },
+    {
+      "id": "M004",
+      "status": "existing candidate; uniform continuity on compact domain; exact signature probe/Audit A required",
+      "declaration": "IsCompact.uniformContinuousOn_of_continuous",
+      "location": "Mathlib/Topology/UniformSpace/HeineCantor.lean:45–52"
+    },
+    {
+      "id": "M005",
+      "status": "additional exact library compact-product candidate; must be added to source inventory and signature-probed/Audit-A reviewed before reliance",
+      "declaration": "IsCompact.prod",
+      "location": "Mathlib/Topology/Compactness/Compact.lean:1062–1069"
+    }
+  ],
+  "remaining_obligations": [
+    "Restore exact frozen hypothesis domains x∈ℝⁿ and exact Euclidean/Frobenius definitions in the revised specification; do not strengthen H.",
+    "The stated Lebesgue topology/measure facts and compact sets having finite Lebesgue measure are standard library instances/results whose exact declarations must be source-inventoried and signature-probed if not treated as fixed ambient structure.",
+    "For the coordinate permutation in F3, source-register/prove the Lebesgue measure-preserving coordinate permutation identity; alternatively formulate the integrand on the (n−1) other coordinates and cite its exact product-volume identification. Product integrability follows explicitly from continuity and compact support via M001, not from Fubini itself.",
+    "The containing-box step in F3 requires a source-backed compact-implies-bounded/projection fact, or a local proof; take a single finite R bounding the finitely many coordinate projections of compact C. Ensure n=1 is handled with the zero-dimensional singleton factor ℝ⁰.",
+    "All M sources remain candidates pending later exact full-signature probes and Audit A; this artifact supplies derivations/applicability analysis, not acceptance or source certification.",
+    "Reconcile the definition of E as a real-valued integral with explicit integrability guard/interpretation per review-qualification; prove integrability before using E as the physical energy."
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "inference": "R001",
+  "packet_sha256": "325449a2ded070bd3d8a4431d56a0f251062a6a586c7b027279c8b5ad92010ff",
+  "verdict": "FAIL",
+  "notes": "Fresh packet-only mathematical review. Boundary: the complete frozen packet.json (including its declared premises, source-contract statements, and calculation policy) and the declared Audit A/self-containment/format rules only. I did not use source proofs, other inference bodies, historical reviews, or outside mathematical task material. Carrier identity and canonical hash binding are external checks; I make no runtime-isolation attestation. The first unsupported implication is in S002: the measure of J_i∩[0,1] under restricted Lebesgue measure is bounded by ρ_i+η_i merely by enclosing that set in a closed interval and citing M011. M011 gives the volume of an interval, but neither it nor any other direct input establishes monotonicity of measure / the comparison of the restricted measure with the enclosing interval's volume. This implication is needed to bound each integral by ρ_i^s(ρ_i+η_i), so subsequent slicing estimates and the lower bound are not established by this packet. I do not repair the argument. Source fidelity is outside this review.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The listed H and M statements are the direct inputs used in the corresponding paragraphs, with the visible parameter choices generally identified. This is a judgment about the packet's stated conditional premises, not independent source-fidelity verification.",
+      "locations": [
+        "/inputs",
+        "/inference/inputs",
+        "/inference/argument/0/uses",
+        "/inference/argument/1/uses",
+        "/inference/argument/2/uses"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "S002's comparison of restricted measure of J_i∩[0,1] with the length of an enclosing interval does not follow from M011, which states only the volume of a closed interval. The missing monotonicity/comparison fact is then used in the integral estimate and conclusion C_s(E,δ)≤C_(s+1)(F,δ). This is the first unsupported implication located in the prose. Other downstream claims in that paragraph cannot establish the output once this estimate is unsupported.",
+      "locations": [
+        "/inference/argument/1/text",
+        "/inference/applications/7",
+        "/inference/applications/8"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The interval-measure comparison in S002 is a nontrivial imported measure fact not supplied as an input or derived locally; the author's declarations of the calculation policy cover only the listed product-metric calculations. Thus a factual dependency is hidden at the point identified, notwithstanding the explicit M-input list.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/1/text",
+        "/inference/applications/7"
+      ]
+    },
+    "output": {
+      "verdict": "UNVERIFIED",
+      "notes": "The final text states the requested equality for F=E×[0,1], but the proof of the D>0 lower bound depends on the unsupported S002 estimate. Hence exact statement agreement is visible, while derivation of the output is not established.",
+      "locations": [
+        "/output/statement",
+        "/inference/locals/1/declaration",
+        "/inference/argument/2/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The prose separates the D=0 and D>0 cases and concludes by combining the stated upper and lower bounds. No escaped temporary assumption is apparent in the supplied argument. This does not discharge the missing measure comparison.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "applicability": {
+      "verdict": "FAIL",
+      "notes": "M011 is applied for the measure of a closed interval, but S002 additionally needs the distinct assertion that the restricted measure of J_i∩[0,1] is at most the measure/length of its enclosing closed interval. That hypothesis/conclusion mapping is not furnished by M011. The listed M010 and M002 applications do not provide it.",
+      "locations": [
+        "/inputs/9",
+        "/inference/argument/1/text",
+        "/inference/applications/6",
+        "/inference/applications/7"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "FAIL",
+      "notes": "The locally introduced content C_a(A,δ) and the upper proof's covering cost are described in prose, but the packet does not state a complete definition specifying the precise range/types of admissible sets, the ENNReal power convention, and how the cover infimum corresponds to the nested infima in M008. The critical measure comparison is also not part of any complete input statement. Thus the content statements used in the argument are not fully closed from the supplied text.",
+      "locations": [
+        "/inference/locals/14/declaration",
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inputs/5/source_contract/signature"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "The actual prose uses objects and constructions not fully declared in the local inventory/text, including the restricted Lebesgue measure, the closed interval enclosure and its endpoints, and positive-scale cover/content constructions. In particular the alleged enclosure comparison cannot be justified merely by declarations of J_i and M011. The witness r_j also is declared from H002 although its required small-cost cover existence is grounded in M003/M008, not compactness alone.",
+      "locations": [
+        "/inference/locals/4",
+        "/inference/locals/12",
+        "/inference/locals/13",
+        "/inference/argument/0/text",
+        "/inference/argument/1/text"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "Actual factual use of measure monotonicity/comparison in S002 has no listed input or prior local proof. Also the S001 asserted grid covering bound and dimension-definition conversion are only briefly asserted, but the earliest decisive dependency defect is the S002 interval comparison.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/applications/7"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "UNVERIFIED",
+      "notes": "I reviewed the full packet and relevant declared rules in this task context, but no distinct isolated carrier execution evidence or fresh-carrier identity is available to me. I therefore cannot certify the required operational fresh replay mode. The mathematical review above is the actual packet-only judgment; carrier identity, hash binding, and transmitted-material readback are outside my attestation.",
+      "locations": [
+        "/packet_sha256",
+        "/warning"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "location": "/inference/argument/1/text",
+      "premises": "M010 computes the integral of the indicator constant; M011 states Lebesgue volume of a closed interval; J_i∩[0,1] is said to lie in a closed interval of length at most ρ_i+η_i.",
+      "conclusion": "The restricted Lebesgue measure of J_i∩[0,1] is at most ρ_i+η_i, and therefore the integral term is bounded by ρ_i^s(ρ_i+η_i).",
+      "basis": "Neither M011 nor another listed input states measure monotonicity or the comparison of restricted measure with the volume of an enclosing interval, and no local proof establishes that comparison. This is the first unsupported implication; later S002 estimates and its lower-bound conclusion are blocked."
+    }
+  ]
+}

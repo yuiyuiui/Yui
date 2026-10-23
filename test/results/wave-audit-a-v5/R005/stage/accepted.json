@@ -1,0 +1,110 @@
+{
+  "inference": "R005",
+  "packet_sha256": "e75b11b3ad6ce106ef0bda30a87287757986e284525adc9c5ed4b8234a30baee",
+  "verdict": "UNVERIFIED",
+  "notes": "Packet-only mathematical review: the argument supports N004 from H001 and H002, using the stated smoothness and permitted finite-dimensional differentiation and inner-product calculations. I read packet.json in full and used no other mathematical task material. The available record does not attest a fresh carrier identity or execution isolation, so I do not certify those replay properties. Source fidelity is outside this review.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "H001 and H002 are the listed direct inputs. At arbitrary x and positive r, H001 gives the unit-length condition and H002 supplies a scalar a with the stated equation. The witness is instantiated at that point.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inference/inputs",
+        "/inference/locals/2"
+      ]
+    },
+    "argument": {
+      "verdict": "PASS",
+      "notes": "Smoothness permits differentiating the unit-length identity in time; the finite-dimensional chain rule gives u·u_t=0. Substituting the H002 equation and taking its inner product with u_t gives u_t·(u_tt−Δ_xu)=a(u_t·u)=0. No regularity of a is needed. The permitted calculation policy covers these finite-dimensional differentiation and inner-product steps; it is not being used to import an analysis theorem.",
+      "locations": [
+        "/parameters/2",
+        "/logic/calculations/0",
+        "/inference/argument/0/text",
+        "/inputs/0/statement",
+        "/inputs/1/statement"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "PASS",
+      "notes": "H001 supplies the differentiated constraint; H002 supplies the equation and scalar. Both have identifiable roles. No other substantive theorem is invoked; the remaining steps are the stated finite-dimensional calculations.",
+      "locations": [
+        "/inference/inputs",
+        "/inference/argument/0/uses",
+        "/inference/argument/0/text"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "The pointwise conclusion proved at arbitrary x∈ℝⁿ and r>0 is exactly the formula in N004, with the same Δ_x definition and no extra conditions or constants.",
+      "locations": [
+        "/output/statement",
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/argument/0/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "x and r are fixed arbitrarily over the output's stated domain, and the argument establishes the conclusion at that point. The scalar witness is supplied by H002 at the fixed point and is used only within the inference; universal generalization then yields the output.",
+      "locations": [
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0/text",
+        "/output/statement"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "There are no E or M applications. H001 and H002 are applied at the same arbitrary x and positive r; H002's existential scalar is used at that point.",
+      "locations": [
+        "/inference/applications",
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inference/locals/2"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The inputs and output state the formulas, domains and quantification needed for this inference. The argument's u_t notation is understood as the time derivative of the supplied smooth map; the packet consistently uses r for the positive second-coordinate value. The scalar a is explicitly supplied by H002.",
+      "locations": [
+        "/parameters/2",
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/output/statement",
+        "/inference/argument/0/text"
+      ]
+    },
+    "object_closure": {
+      "verdict": "PASS",
+      "notes": "The point variables are introduced as arbitrary locals; u, n, m and Δ_x are declared in the parameters and D003. The scalar a is introduced from H002's existential at the fixed point. Derivatives are available from the declared smoothness of u and Δ_x from D003.",
+      "locations": [
+        "/parameters",
+        "/definitions/0",
+        "/inference/locals",
+        "/inference/argument/0/objects"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "PASS",
+      "notes": "Actual factual uses in S001 trace to H001, H002, the smoothness in the parameter declaration, D003, and the explicitly permitted finite-dimensional calculations. No ancestor proof or unlisted theorem is needed.",
+      "locations": [
+        "/parameters/2",
+        "/definitions/0",
+        "/logic/calculations/0",
+        "/inference/argument/0"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "UNVERIFIED",
+      "notes": "The mathematical sufficiency review used only the complete packet and declared Yui procedure; no source proof, other inference body, prior audit, or external mathematical material was used. The actual input boundary is packet.json plus the relevant declared Yui rules. The available execution record does not establish carrier identity or isolation, so I cannot certify those replay conditions.",
+      "locations": [
+        "/packet_sha256",
+        "/warning",
+        "/inference/argument/0"
+      ]
+    }
+  },
+  "findings": []
+}

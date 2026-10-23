@@ -1,0 +1,21 @@
+BEGIN_SIGNATURE:M007
+@intervalIntegral.integral_deriv_mul_eq_sub_of_hasDerivAt.{u_1} : ∀ {a b : ℝ} {A : Type u_1} [inst : NormedRing.{u_1} A]
+  [inst_1 : NormedAlgebra.{0, u_1} ℝ A] [CompleteSpace.{u_1} A] {u v u' v' : ℝ → A},
+  ContinuousOn.{0, u_1} u (Set.uIcc.{0} a b) →
+    ContinuousOn.{0, u_1} v (Set.uIcc.{0} a b) →
+      (∀ (x : ℝ), Membership.mem.{0, 0} (Set.Ioo.{0} (min.{0} a b) (max.{0} a b)) x → HasDerivAt.{0, u_1} u (u' x) x) →
+        (∀ (x : ℝ),
+            Membership.mem.{0, 0} (Set.Ioo.{0} (min.{0} a b) (max.{0} a b)) x → HasDerivAt.{0, u_1} v (v' x) x) →
+          IntervalIntegrable.{u_1} u' MeasureTheory.volume.{0} a b →
+            IntervalIntegrable.{u_1} v' MeasureTheory.volume.{0} a b →
+              Eq.{u_1 + 1}
+                (∫ (x : ℝ) in a..b,
+                  HAdd.hAdd.{u_1, u_1, u_1} (HMul.hMul.{u_1, u_1, u_1} (u' x) (v x))
+                    (HMul.hMul.{u_1, u_1, u_1} (u x) (v' x)))
+                (HSub.hSub.{u_1, u_1, u_1} (HMul.hMul.{u_1, u_1, u_1} (u b) (v b))
+                  (HMul.hMul.{u_1, u_1, u_1} (u a) (v a)))
+BEGIN_AXIOMS:M007
+'intervalIntegral.integral_deriv_mul_eq_sub_of_hasDerivAt' depends on axioms: [propext,
+ Classical.choice.{u},
+ Quot.sound.{u}]
+END_SOURCE:M007

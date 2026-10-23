@@ -1,0 +1,212 @@
+[
+  {
+    "type": "function",
+    "name": "search_mathlib",
+    "description": "在固定 mathlib 的 Lean 源码中搜索正则表达式，返回至多 100 行。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "read_mathlib",
+    "description": "读取固定 mathlib 中一个 Mathlib/...lean 文件的指定行。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "start_line": {
+          "type": "integer"
+        },
+        "line_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start_line",
+        "line_count"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "read_task_input",
+    "description": "Read an explicitly frozen task document by ID; no other local files are accessible.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "read_yui",
+    "description": "Read declared Yui rules/templates; no tests, historical runs or personal files.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_artifact",
+    "description": "Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "artifact_json": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "submit_artifact",
+    "description": "Submit a JSON artifact after its stage checks.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "artifact_json": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "report_obstacle",
+    "description": "Report exact status, location, explanation, basis, partial_progress. SUBSTANTIVE_GAP or SUSPECTED_GAP stops for an actual unsupported mathematical implication; give its premises, conclusion and mathematical grounds. SOURCE_UNAVAILABLE or INPUT_CONFLICT stops for a real source-access/original-input obstacle. Ordinary unfinished drafting, source registration or format work must use TASK_INCOMPLETE: this records progress without ending the stage; continue the actual work. Difficulty or artifact incompletion alone is not a mathematical gap.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "obstacle_json": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "obstacle_json"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_draft",
+    "description": "Preferred structured-object form of check_artifact: provide artifact as an actual JSON object, not an escaped JSON string. Same complete validation and acceptance scope.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "submit_draft",
+    "description": "Preferred structured-object form of submit_artifact: provide artifact as an actual JSON object, not an escaped JSON string. Same complete validation and acceptance scope.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "check_lean_types",
+    "description": "Compile a partial mathematical definition header and selected Lean type expressions with explicit parameters. Type-only scratch work: never accepts a final interface or adds a proved premise.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "header": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "header",
+        "parameters",
+        "types"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

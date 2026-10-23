@@ -1,0 +1,113 @@
+{
+  "inference": "R001",
+  "packet_sha256": "f42b4fa9d77ce4e6155682ed6b5c70fc192fea79ac287cda504c200f84155926",
+  "verdict": "FAIL",
+  "notes": "Fresh packet-only mathematical review: I read packet.json in full and the declared Audit A, self-containment, and format rules. The mathematical boundary was this packet plus those procedural rules; I did not use source proofs, other inference bodies, a prior audit, or outside mathematical task material. Carrier identity and canonical-hash/transmission binding are outside this review, so I make no runtime attestation. First unsupported implication: S003 uses rank_R(J) and concludes n=n rank_R(J), hence rank one, although the packet defines rank_R only for a finite free R-module and has not proved J finite free; it also supplies no local justification of the rank/tensor identity there. Later fractional-ideal reasoning relies on this asserted rank-one identification. This blocks acceptance without asserting the target theorem is false.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "H001–H004 are present as the graph inputs. Their stated prime, characteristic, weight-range, representation, and module conditions supply the hypotheses the proof invokes; no external result is cited.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inputs/2",
+        "/inputs/3",
+        "/inference/inputs"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "First unsupported step: S003 asserts n=n rank_R(J), hence rank one, from the direct-sum decomposition and tensoring with Q. rank_R is defined only for finite free R-modules, but J has not been proved finite free. The tensor/rank identity is also asserted rather than derived at this point. The later Q-linear identification and ideal argument rely on this step.",
+      "locations": [
+        "/inference/locals/33",
+        "/inference/argument/2/text",
+        "/inference/argument/2/produces/0"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "S003 imports an unestablished rank computation/finite-free-module property in the claim n=n rank_R(J), then relies on rank one for the Q-linear identification. The calculation-policy sentence names localization and ideal calculations but cannot import these omitted facts.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/locals/33",
+        "/inference/argument/2/text"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "P fully states the target conclusion, and S008 purports to conclude it without an apparent change in its invariant-subspace condition or nonzero requirement. Statement match does not cure the failed derivation.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/7/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "L1 is introduced in S005 and discharged in S008. F002 and F003 record L1 as an open assumption, and the chosen witnesses are confined to the nonzero branch. This is a judgment about scope bookkeeping, not proof of the branch arguments.",
+      "locations": [
+        "/inference/locals/39",
+        "/inference/argument/4",
+        "/inference/argument/4/produces/0",
+        "/inference/argument/5/produces/0",
+        "/inference/argument/7"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "There are no E/M inputs or applications requiring bindings. The H inputs are used for the stated representation and parameter facts; the rank issue is local, not a source-application defect.",
+      "locations": [
+        "/inference/inputs",
+        "/inference/applications",
+        "/inference/argument/0",
+        "/inference/argument/2"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The packet states the H propositions and target completely, and gives explicit F statements for the reused local existence facts. The identified problem is inferential rather than an omitted target/input formula.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inputs/3/statement",
+        "/output/statement",
+        "/inference/argument/2/produces/0"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "The occurrence rank_R(J) is used before J is shown to lie in the finite-free domain specified for rank_R. The packet declares rank_R's domain but does not discharge that prerequisite before this use.",
+      "locations": [
+        "/inference/locals/33",
+        "/inference/argument/2/text",
+        "/inference/locals/8"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "The factual claim n=n rank_R(J), used to conclude rank one, has no established premise or derivation at S003. The calculation policy cannot substitute for that derivation, and descendant steps relying on the result are not closed.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/argument/2/produces/0",
+        "/inference/argument/3/text"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "The replay used only the supplied packet and declared procedure; no source proof, other R body, prior audit, or answer key was read. On this packet alone S003 lacks the finite-free/rank justification needed for its rank conclusion, so the argument is insufficient for acceptance. No claim is made about identity, isolation mechanism, or canonical transmission binding.",
+      "locations": [
+        "/warning",
+        "/inference/argument/2/text",
+        "/inference/locals/33"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "location": "/inference/argument/2/text",
+      "premises": "S003 establishes M_R as a direct sum of the J e_i and states rank_R(M_R)=n.",
+      "conclusion": "n=n rank_R(J), hence J has rank one, and Q tensor_R J is identified with Q.",
+      "judgment": "Unsupported in this packet at this point: rank_R is defined for finite free R-modules, but J has not yet been proved finite free; no local rank/tensor calculation justifies the equality. The later ideal/principality reasoning uses the rank-one consequence rather than supplying its prior justification."
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "inference": "R001",
+  "packet_sha256": "f137aaa18381ba1dcbccb617b121d1d21e96727a95a2b8dc5ebdfd8f353ac2b4",
+  "verdict": "FAIL",
+  "notes": "Fresh packet-only mathematical review of the complete packet, with declared Yui Audit A/self-containment/format rules as procedure only. No source proof or other mathematical material was consulted. First defect: S005 uses e_i as vectors of M tensor_Z K, but e_i was declared in the complex V(lambda); S004 instead describes the reduced basis as images of a e_i, also named b_i. S005 does not identify its e_i with those images. Therefore the expansion of w and the conclusion that all basis vectors belong to W are not established as written. I do not repair the argument. Input boundary: packet.json read in full and the declared rules. No runtime-attestation claim; carrier identity, canonical hash binding and transmitted-material readback are outside this review.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "H001-H004 are the stated direct inputs, and the argument uses no outside premise.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inputs/2",
+        "/inputs/3",
+        "/inference/inputs"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "The first unsupported step is S005's expansion in e_i and the ensuing matrix-unit conclusion: the proof needs a basis of the K-module, while the declared e_i are complex vectors and the reduced images are separately named/described.",
+      "locations": [
+        "/inference/argument/3/text",
+        "/inference/argument/4/text",
+        "/inference/locals/2",
+        "/inference/locals/14"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "S005 relies on identifying its e_i with the reduced/scalar-extended basis. Although S004 describes that basis and b_i is declared, S005 does not use or state that identification in the critical calculation.",
+      "locations": [
+        "/inference/argument/3/text",
+        "/inference/argument/4/text",
+        "/inference/locals/14"
+      ]
+    },
+    "output": {
+      "verdict": "UNVERIFIED",
+      "notes": "S005 purports to prove nonzeroness and the invariant-subspace criterion, but the basis argument needed for irreducibility is not closed.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/4/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "W is introduced as an arbitrary invariant subspace; no temporary assumption or witness escapes. The defect is the basis-object mismatch.",
+      "locations": [
+        "/inference/locals/12",
+        "/inference/argument/4/text"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "No E/M inputs or source applications occur; H inputs are the only premises.",
+      "locations": [
+        "/inference/inputs",
+        "/inference/applications"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The full input and target statements, including the nonzero and invariant-subspace content, are present in the packet. This does not establish the proof.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inputs/3/statement",
+        "/output/statement"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "S005 uses e_i as K-module vectors, whereas the local declaration defines e_i in V(lambda) over C. The reduced images are described in S004 and declared as b_i, but S005 does not identify its occurrences with those objects.",
+      "locations": [
+        "/inference/locals/2",
+        "/inference/locals/14",
+        "/inference/argument/3/text",
+        "/inference/argument/4/text"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "The decisive implication that every basis vector is in W depends on an unestablished identification of the e_i in S005 with the reduced/scalar-extended basis.",
+      "locations": [
+        "/inference/argument/3/text",
+        "/inference/argument/4/text",
+        "/inference/locals/14"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "From this packet alone the argument is insufficient as written at S005 for the identified basis-object gap. No source or other inference proof was used. Replay judgment does not authenticate carrier identity, hash binding or readback.",
+      "locations": [
+        "/inference/argument/4/text",
+        "/inference/locals/2",
+        "/inference/locals/14"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "verdict": "FAIL",
+      "location": "/inference/argument/4/text",
+      "explanation": "The step w=sum_i c_i e_i and E_j,i w=c_i e_j requires e_i to denote basis vectors in M tensor_Z K. e_i is declared as a complex vector in V(lambda); the reduced/scalar-extended images are separately identified as a e_i/b_i in S004 and the locals. No identification is stated in S005, so this implication is not established within the packet."
+    }
+  ]
+}

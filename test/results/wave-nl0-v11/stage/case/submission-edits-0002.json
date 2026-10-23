@@ -1,0 +1,89 @@
+{
+  "base_sha256": "3a94501705a3534e7cdbc1e1aaf01a4c2efb77e6a61eaaafc1594d82117dbf6e",
+  "patches": [
+    {
+      "op": "add",
+      "path": "/graph/propositions/-",
+      "value": {
+        "id": "M015",
+        "kind": "mathlib",
+        "statement": "For any measurable space (X,Σ), measure μ, and real normed additive commutative group V, the integral over X of the identically zero V-valued function is zero.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "X",
+            "type": "type with measurable space Σ"
+          },
+          {
+            "symbol": "μ",
+            "type": "measure on X"
+          },
+          {
+            "symbol": "V",
+            "type": "real normed additive commutative group"
+          }
+        ],
+        "objects": [
+          "X",
+          "μ",
+          "V"
+        ],
+        "source": {
+          "declaration": "MeasureTheory.integral_zero",
+          "module": "Mathlib.MeasureTheory.Integral.Bochner.Basic",
+          "hypotheses": [
+            "V is a normed additive commutative group and real normed space.",
+            "X has a measurable space and μ is a measure on X."
+          ],
+          "statement": "For any measurable space (X,Σ), measure μ, and real normed additive commutative group V, the integral over X of the identically zero V-valued function is zero.",
+          "evidence": [
+            {
+              "path": "library/M015-0016/library-sources.json",
+              "sha256": "680de6f0e3792b01d2303a5f4c8b17c7ba484f3636c65e3f065d36ecf57903bd"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/inputs",
+      "value": [
+        "N001",
+        "N002",
+        "N003",
+        "N004",
+        "M015"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/text",
+      "value": "N003 gives E′(r)=2∫_{ℝⁿ} h(x) dx, where h(x)=u_t(x,r)·(u_{tt}(x,r)−Δ_xu(x,r)). N004 says h(x)=0 for every x, so this integrand is the identically zero real-valued function. Apply M015 with X=ℝⁿ, μ=Lebesgue measure and V=ℝ: its whole-space integral is zero. Hence E′(r)=0. Together with N001 and N002 this proves all three clauses for arbitrary r>0."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/uses",
+      "value": [
+        "N003",
+        "N004",
+        "M015"
+      ]
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/applications/-",
+      "value": {
+        "input": "M015",
+        "at": "S002",
+        "bindings": "X=ℝⁿ with its Borel measurable space; μ=Lebesgue measure; V=ℝ; the integrand is h(x)=u_t(x,r)·(u_{tt}(x,r)−Δ_xu(x,r))=0 for every x by N004.",
+        "hypothesis_checks": [
+          "ℝ is a normed additive commutative group and real normed space.",
+          "ℝⁿ has its declared measurable space and Lebesgue measure.",
+          "N004 identifies the integrand pointwise with the zero function."
+        ]
+      }
+    }
+  ],
+  "base_candidate": 1
+}

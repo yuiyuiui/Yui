@@ -1,0 +1,110 @@
+{
+  "inference": "R003",
+  "packet_sha256": "6df4d35773e0d84e172f13631e1048d153580778caf5aea5ddff2ae4a3ea6699",
+  "verdict": "FAIL",
+  "notes": "Fresh packet-only mathematical review: I read packet.json in full and the declared Audit A, self-containment, and format rules. Mathematical input boundary: only this packet’s declared inputs, definitions, and fixed logic/calculations; no producer proof, original source proof, or ambient premise was used. The conditional argument does not close: the symbol e_t occurs in the packet, but no declaration defines it as the time derivative of e. Consequently the prose’s claim that smoothness yields HasDerivAt for F(τ)(x)=e(x,τ) with derivative Fprime(τ)(x)=e_t(x,τ) is not established. This blocks M006’s derivative hypothesis and thus the output. Packet replay is FAIL conditional on the stated external carrier/input boundary; this is not a certification of execution isolation. I make no source-fidelity or runtime-attestation claim.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The listed proposition inputs are available as conditional premises, and the argument identifies relevant uses. N001 supplies the integrability/support/continuity facts; H003 supplies the interval support compact; the M inputs supply the named compactness, differentiation-under-integral, integrability, bounded-image, and measurability results. Source fidelity is outside this mathematical review.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inputs/2",
+        "/inputs/3",
+        "/inputs/4",
+        "/inputs/5",
+        "/inputs/6",
+        "/inputs/7"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "First unsupported implication: smoothness implies HasDerivAt (τ↦e(x,τ)) with derivative e_t(x,τ). The packet has no declaration that e_t denotes the time derivative of e; continuity/vanishing of the maps named e_t in N001 does not itself establish that derivative identity. Therefore the pointwise derivative premise required by M006 is unavailable, so its conclusion and N002 do not follow from this packet.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/locals/7/declaration",
+        "/inputs/0/statement"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The listed theorem inputs have identifiable roles and the prose does not rely on a proof body or unlisted ancestor. However, the derivative identity attributed to smoothness uses the undeclared meaning of e_t as a factual bridge. The author’s calculation policy covers finite-dimensional differentiation and inner-product identities but cannot supply that missing definition or a substantive theorem.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/0/text",
+        "/inputs/0/statement"
+      ]
+    },
+    "output": {
+      "verdict": "FAIL",
+      "notes": "The attempted conclusion has the stated derivative formula, but the proof does not establish the integrand derivative required for that formula. Thus the complete output is not derived.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/0/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The arbitrary r is introduced for the sole paragraph, and the argument states that arbitrary r proves the universally quantified output. The chosen interval and compact witness remain within that local argument; no witness or temporary assumption escapes.",
+      "locations": [
+        "/inference/locals/0",
+        "/inference/locals/1",
+        "/inference/locals/2",
+        "/inference/argument/0"
+      ]
+    },
+    "applicability": {
+      "verdict": "FAIL",
+      "notes": "The bindings and stated premise checks for M005, M008, M009, M019, and M020 are otherwise compatible on the packet’s conditional facts. M006 is not applicable: its pointwise derivative obligation is asserted from smoothness, but Fprime=e_t is not established to be the derivative of F=e. Its separate hypotheses are described in the source contract and application record; that missing derivative condition prevents its conclusion.",
+      "locations": [
+        "/inputs/3/source_contract/hypotheses",
+        "/inference/applications/1",
+        "/inference/argument/0/text"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "N001 and N002 state their relevant integrability, support, differentiability, and derivative-formula content in full. The intended notation e_t is used, although its object meaning is not closed; that defect is recorded under object closure rather than treating the statement text itself as absent.",
+      "locations": [
+        "/inputs/0/statement",
+        "/output/statement"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "Actual prose and declarations use e_t as a function and Fprime(τ)(x)=e_t(x,τ), but no packet definition or declaration specifies e_t’s meaning/type as the time derivative of e. N001’s occurrence and continuity claims are not a definition. This leaves a mathematical object/semantic link undeclared and also prevents the claimed derivative application.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inference/locals/7/declaration",
+        "/inference/argument/0/text",
+        "/output/statement"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "The uses of the listed inputs are accounted for, but the factual claim that the section derivative equals e_t is not grounded in a declared definition or a prior local proof. N001 only states continuity and vanishing properties for e_t; it does not establish that it is ∂τe.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inference/argument/0/text",
+        "/inference/applications/1/hypothesis_checks/6"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "On the packet alone and conditional on the externally checked carrier/input boundary, the proof is insufficient for the reason located above: the derivative premise of M006 is unsupported because e_t is not defined as the time derivative of e. I read only packet.json as mathematical task material; Yui rules supplied procedure, not premises. I do not certify execution isolation.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/applications/1",
+        "/inputs/0/statement"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "severity": "blocking",
+      "location": "/inference/argument/0/text",
+      "finding": "The prose claims smoothness yields the section derivative with value e_t, but the packet never defines e_t as the time derivative of e. N001’s continuity and vanishing assertions for e_t do not prove the derivative identity. This is the first unsupported implication and blocks M006’s derivative hypothesis and the output."
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "version": 2,
+  "contract_sha256": "ce9bf8a426b1bdd3f461977377da8113d9e73c1d9262f67a587e4cddfa6067d4",
+  "representation_notes": "M is an arbitrary free abelian lattice with its Z-basis, embedded injectively into the complex highest-weight space; the basis is a complex basis and the three Z-actions are restrictions of the characteristic-zero sl2 actions. H004 contains the source-stated complex highest-weight relations, nonzero highest vector, dimension-indexed basis, characteristic-zero irreducibility (explicitly present in the accepted H004), and preservation under all divided powers; no characteristic-p irreducibility is assumed. The scalar extension is kept in source order M ⊗[Z] K, and the Lie operators are induced on its K-module structure from the actual integral actions. No tensor commutor is used. The input is expressed as a structured bundle whose fields are precisely constituent H004 data and whose H004 proposition exposes those field conditions; there are no conclusion-valued fields.",
+  "steps": [
+    {
+      "id": "T001",
+      "statement": "∀ i : Fin (lam.toNat + 1), ∃ z : D.V, z = D.basisV i ∧ z ≠ 0",
+      "inputs": [
+        "H003",
+        "H004"
+      ],
+      "source_steps": [
+        "S001"
+      ],
+      "explanation": "Derive nonvanishing of each divided-power vector from the highest-weight lowering/raising identities and nonzero highest vector. Use the complex highest-weight space and its dimension; retain endpoint termination and divided-power action formulas as the mathematical work of this source paragraph."
+    },
+    {
+      "id": "T002",
+      "statement": "∀ i j : Fin (lam.toNat + 1), ∃ f : D.V →ₗ[ℂ] D.V, f (D.basisV j) = D.basisV i ∧ ∀ t, t ≠ j → f (D.basisV t) = 0",
+      "inputs": [
+        "H001",
+        "H003",
+        "H004",
+        "T001"
+      ],
+      "source_steps": [
+        "S002"
+      ],
+      "explanation": "Define actual endomorphisms from the established basis, calculate the divided-power composites on every basis vector, and establish that the binomial coefficients are units in the localization at p, including the lambda=0 and p=2 cases."
+    },
+    {
+      "id": "T003",
+      "statement": "Module.Free ℤ M ∧ Module.Finite ℤ M",
+      "inputs": [
+        "H001",
+        "H003",
+        "H004",
+        "T002"
+      ],
+      "source_steps": [
+        "S003"
+      ],
+      "explanation": "Use the arbitrary source lattice basis, localized coordinate modules J_i, matrix-unit preservation to identify them, and the direct-sum decomposition. Compute the fraction-field dimension first, then prove rank one and use the valuation argument in Z_(p) to obtain a generator; this free/finite consequence is not a replacement by a standard lattice."
+    },
+    {
+      "id": "T004",
+      "statement": "∀ i : Fin (lam.toNat + 1), ∃ b : M ⊗[ℤ] K, b ≠ 0",
+      "inputs": [
+        "H002",
+        "H003",
+        "H004",
+        "T003"
+      ],
+      "source_steps": [
+        "S004"
+      ],
+      "explanation": "Reduce the arbitrary lattice's established basis modulo p and extend scalars to K in the original tensor order. Track the canonical basis and x,y,h action formulas through reduction; do not use distinctness of reduced h-eigenvalues."
+    },
+    {
+      "id": "T005",
+      "statement": "∀ W : Submodule K (M ⊗[ℤ] K), InvariantUnder K (M ⊗[ℤ] K) (TensorProduct.AlgebraTensorModule.lTensor K K D.xM) W → InvariantUnder K (M ⊗[ℤ] K) (TensorProduct.AlgebraTensorModule.lTensor K K D.yM) W → ∀ i j : Fin (lam.toNat + 1), ∀ z ∈ W, True",
+      "inputs": [
+        "H001",
+        "H002",
+        "H003",
+        "H004",
+        "T002",
+        "T004"
+      ],
+      "source_steps": [
+        "S005"
+      ],
+      "explanation": "The final True conjunct is intentionally not a claimed matrix-unit or stability conclusion: this port is rejected as a substantive implementation and must be replaced before proof-work freeze; it merely marks the need to derive reduced matrix-unit stability and nonzero-subspace witness existence."
+    },
+    {
+      "id": "T006",
+      "statement": "∀ W : Submodule K (M ⊗[ℤ] K), W ≠ ⊥ → ∃ w : M ⊗[ℤ] K, w ∈ W ∧ w ≠ 0",
+      "inputs": [
+        "H002",
+        "H003",
+        "H004",
+        "T005"
+      ],
+      "source_steps": [
+        "S006"
+      ],
+      "explanation": "For an arbitrary nonzero subspace choose a nonzero vector, expand it in the established scalar-extension basis, and prove some coordinate is nonzero by contradiction."
+    },
+    {
+      "id": "T007",
+      "statement": "∀ W : Submodule K (M ⊗[ℤ] K), W ≠ ⊥ → (∀ j : Fin (lam.toNat + 1), D.basisM j ∈ (⊥ : Submodule ℤ M) → False)",
+      "inputs": [
+        "H002",
+        "H003",
+        "H004",
+        "T005",
+        "T006"
+      ],
+      "source_steps": [
+        "S007"
+      ],
+      "explanation": "Use the chosen nonzero coordinate and actual reduced matrix units to put each scalar-extension basis vector in W by division by the nonzero coordinate. The displayed type currently does not encode that result and is not ready for acceptance."
+    },
+    {
+      "id": "T008",
+      "statement": "LieIrreducible K (M ⊗[ℤ] K) (TensorProduct.AlgebraTensorModule.lTensor K K D.xM) (TensorProduct.AlgebraTensorModule.lTensor K K D.yM) (TensorProduct.AlgebraTensorModule.lTensor K K D.hM)",
+      "inputs": [
+        "H001",
+        "H002",
+        "H003",
+        "H004",
+        "T001",
+        "T002",
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007"
+      ],
+      "source_steps": [
+        "S008"
+      ],
+      "explanation": "Assemble the zero/nonzero subspace cases and prove the scalar-extension module is nonzero, discharging all local witnesses. Exact terminal is source-order M tensor_Z K, with characteristic 2 and lambda=0 retained."
+    }
+  ],
+  "terminal": "T008"
+}

@@ -1,0 +1,106 @@
+{
+  "inference": "R001",
+  "packet_sha256": "a9fee8509b39a6ed660827619c10e3d54bc93335fe645d4a32080f877402c8af",
+  "verdict": "FAIL",
+  "notes": "Packet-only mathematical review: the direct inputs are treated as the allowed conditional premises; source fidelity is not assessed. I read the complete packet and the declared Audit A, self-containment, and format rules. I do not claim runtime/carrier attestation or an independently authenticated fresh carrier replay. The first clear unsupported application is in S003: p is declared only as a map F→[0,1], but M004 requires a map defined on the whole ambient extended metric space X, with F supplied separately as the set A. The stated Lipschitz argument establishes the property only for p's declared domain and does not supply the required X→Y map. This blocks that application and the lower-bound conclusion in that branch; no repair is supplied here.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "H001 and H002 are the stated conditional premises. Each theorem used in the prose is present among the listed inputs; this judgment does not verify the source contracts or source fidelity.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inference/inputs"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "At S003 the map p is declared with domain F, whereas M004 requires f:X→Y and then applies it to a set A⊆X. The inequality for points of F does not by itself provide the required function on all of X. First unsupported application: M004's hypothesis (X=E×[0,1], A=F) is not established by the declaration of p.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/applications/3/bindings",
+        "/inputs/3/source_contract/signature"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The listed M004 is identifiable as the intended dependency, but its required domain-level Lipschitz map is not established by the prose. The application record cannot add that missing fact.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/applications/3"
+      ]
+    },
+    "output": {
+      "verdict": "UNVERIFIED",
+      "notes": "S001 and S002 attempt the upper and positive-D lower bounds, respectively, but the stated D=0 lower-bound route has the M004 applicability defect, so the whole claimed equality is not established by this argument.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The proof text treats the D=0 and D>0 cases as branches and the variables used in the identified M004 application do not escape a temporary witness scope. This does not resolve the domain mismatch.",
+      "locations": [
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/locals/11"
+      ]
+    },
+    "applicability": {
+      "verdict": "FAIL",
+      "notes": "M004's stated signature requires f:X→Y. The binding declares p:F→[0,1] only; its pointwise distance estimate covers points in F, not arbitrary points of X. Other source applicability checks are not independently certified by this packet-only review.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/applications/3/bindings",
+        "/inputs/3/source_contract/signature"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The input and output propositions relevant to the identified failure are stated in full enough to understand the intended sets and dimension conclusion without producer proofs. This is not a source-fidelity judgment.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/output/statement"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "The actual map p in S003 has a declared domain F, but the M004 application treats it as a map on X=E×[0,1]. The declarations do not close that object/domain mismatch.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/applications/3/bindings",
+        "/inference/locals/11"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "The factual use of M004 at S003 requires a whole-ambient-space Lipschitz map; the prose supplies only a map whose declared domain is F. No direct input or earlier local proof supplies the missing domain extension.",
+      "locations": [
+        "/inference/argument/2/text",
+        "/inference/applications/3",
+        "/inference/locals/11"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "UNVERIFIED",
+      "notes": "I read packet.json in full in this context and used only that packet as mathematical task material, along with the declared Yui rules. The available interaction does not provide independent carrier/execution evidence, so I cannot attest that this was an authenticated fresh-carrier replay. I make no runtime or identity claim.",
+      "locations": [
+        "/packet_sha256",
+        "/warning"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "location": "/inference/argument/2/text",
+      "premises": "The prose defines p:F→[0,1] and verifies its Lipschitz inequality for points in F; M004 has signature f:X→Y and applies dimension to f '' A for A⊆X.",
+      "conclusion": "dim_H([0,1])≤dim_H(F) by M004.",
+      "verdict": "FAIL",
+      "reason": "The required map on X=E×[0,1] is not declared or proved. The asserted map on F is not a binding of M004's function argument."
+    }
+  ]
+}

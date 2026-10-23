@@ -1,0 +1,119 @@
+{
+  "inference": "R001",
+  "packet_sha256": "3f426f3b9cad696b6ccd5c049ce80a884508f35ef4935a6d942c76f13c1bfac2",
+  "verdict": "FAIL",
+  "notes": "Packet-only replay boundary: I read packet.json in full (including all declarations, proof prose, and metadata) and the declared Yui Audit A, self-containment, and format rules. No source proof or other mathematical task material was used. This is a mathematical review of the packet, not a claim of carrier identity, runtime attestation, or external source-fidelity verification. The first located defect is in S005: it reasons using a chosen nonzero w in W and its coordinates, but w has no declaration or legitimate witness basis in the inference inventory. The conditional argument for any nonzero w is mathematically sound, but the actual object and its coordinate expansion are not closed by this packet as written. This blocks object closure and packet sufficiency; no repair is supplied here. The remaining matrix, localization, and scalar-extension calculations appear supported by the stated inputs and explicit calculation policy, and there are no E/M applications.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The four listed inputs are exactly H001–H004; S001–S003 use the stated prime, parameter, representation, and admissible-lattice facts, and S004–S005 use the stated characteristic-p field, parameter range, and representation/lattice facts. The local fact F001 is derived in S003 before its use in S004 and in the declaration of a.",
+      "locations": [
+        "/inputs/0",
+        "/inputs/1",
+        "/inputs/2",
+        "/inputs/3",
+        "/inference/inputs",
+        "/inference/argument/0",
+        "/inference/argument/2",
+        "/inference/argument/3"
+      ]
+    },
+    "argument": {
+      "verdict": "PASS",
+      "notes": "The displayed sl2 calculations establish the characteristic-zero basis and divided-power actions; the matrix-unit constructions use the indicated unit binomial coefficients; the localization argument establishes rank-one freeness of J; and reduction and matrix units yield the invariant-subspace conclusion. I find no unsupported mathematical implication in these calculations under the packet's explicit finite-matrix, localization, and free-module-reduction calculation allowance. This judgment does not cure the separate missing declaration of w.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text",
+        "/inference/argument/3/text",
+        "/inference/argument/4/text"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "PASS",
+      "notes": "The factual grounds used in the prose are the direct H inputs, the earlier locally produced F001, and the stated elementary calculations. The author-written calculation policy is not being treated as a license for unrelated theorems; the indicated computations are the specified matrix, localization, and free-module reduction work. No E/M theorem application or unlisted substantive theorem is invoked.",
+      "locations": [
+        "/logic/calculations/0",
+        "/inference/argument/0",
+        "/inference/argument/1",
+        "/inference/argument/2",
+        "/inference/argument/3",
+        "/inference/argument/4",
+        "/inference/applications"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "S005's conclusion is exactly that the module is nonzero and every invariant K-subspace under x,y,h is zero or the whole module. The argument establishes the nonzero case via matrix units and states positive dimension, including the lambda=0 endpoint. The missing w declaration is an object-closure defect rather than a different output statement.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/4/text"
+      ]
+    },
+    "scope": {
+      "verdict": "FAIL",
+      "notes": "S005's coordinate argument invokes a chosen nonzero w in W and coefficients c_i, but the local declarations contain no w and no existential witness declaration for such a vector. Thus the chosen object/coordinate argument is not explicitly scoped or grounded in the packet. The proof does not make this a declared local witness or spell out a case/quantifier closure establishing the nonzero-subspace case from the conditional argument.",
+      "locations": [
+        "/inference/argument/4/text",
+        "/inference/locals"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "There are no external or mathlib propositions and no source-theorem applications. The four H inputs are used with compatible parameters and stated ranges; F001 is used after its local derivation in S003.",
+      "locations": [
+        "/inference/applications",
+        "/inference/inputs",
+        "/inference/argument/2/produces/0",
+        "/inference/argument/3"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The packet gives complete direct input and target statements and supplies the full basis, operator, coordinate-module, and scalar-extension content used in the argument. There is no dependence on an original equation number or another inference's proof body. The undeclared w is handled under object/scope closure, not as missing statement text.",
+      "locations": [
+        "/inputs",
+        "/output/statement",
+        "/inference/argument/0/text",
+        "/inference/argument/4/text"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "Reverse-checking the actual prose finds w in S005 ('If w=... is nonzero in W') and a coordinate expansion in the b-basis, but no local declaration for w. The c_i declaration is conditional on 'the chosen nonzero w' and does not itself introduce or prove existence of w. A nonzero witness cannot be supplied by its appearance in the prose.",
+      "locations": [
+        "/inference/argument/4/text",
+        "/inference/locals/22",
+        "/inference/locals"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "PASS",
+      "notes": "Apart from the object/scope defect already recorded, factual steps map to direct H inputs, the earlier F001, or explicit elementary calculations. No ancestor proof or unlisted proposition is needed for the inspected algebraic claims.",
+      "locations": [
+        "/inference/argument/0",
+        "/inference/argument/1",
+        "/inference/argument/2",
+        "/inference/argument/3",
+        "/inference/argument/4",
+        "/inference/argument/2/produces/0"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "Sufficiency judged from this packet alone: it is not sufficient for a closed replay of the full inference because the S005 nonzero vector w is used without a declaration or witness basis. The actual mathematical-material boundary was packet.json plus the declared Yui review rules. Carrier identity and canonical hash binding are outside this mathematical judgment; I do not claim runtime attestation or a separate carrier-level freshness certificate.",
+      "locations": [
+        "/inference/argument/4/text",
+        "/inference/locals"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "severity": "blocking",
+      "location": "/inference/argument/4/text",
+      "finding": "S005 uses a chosen nonzero vector w in W, expands it in the b-basis, and uses its coefficients, but no local declaration or witness introduction for w exists. The coordinate-coefficient declaration at /inference/locals/22 presupposes that missing object.",
+      "effect": "object_closure and scope fail; packet_replay cannot pass on packet sufficiency."
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "inference": "R004",
+  "packet_sha256": "66defaf9cb55cf7d34687518f02a1bc02434d8404be9cfb3b7ec973e7b93a46c",
+  "verdict": "FAIL",
+  "notes": "Fresh packet-only mathematical review. Input boundary: packet.json in full (including the listed conditional propositions and source_contract text) plus the declared Yui Audit A, self-containment, and NL0-format rules. No source proof, other inference body, original problem, or external mathematical material was used. Carrier identity, canonical hash binding, and transmitted-material readback are outside this mathematical review and are not attested here. First unsupported implication: joint smoothness of u (the only parameter condition relevant here) does not imply that its derivatives are compactly supported or integrable, nor that g_j vanishes at the endpoints of a sufficiently large coordinate interval. The proof then uses those missing properties to invoke M001/M003 and to set the integration-by-parts boundary term to zero. Do not accept R004 or descendants on this packet.",
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The five cited propositions are all direct packet inputs. The declared application bindings identify the proposed specializations; whether their hypotheses hold is assessed separately under applicability.",
+      "locations": [
+        "/inputs",
+        "/inference/inputs",
+        "/inference/applications"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "First unsupported step is “Smoothness and compact support give continuous compactly supported derivatives”: compact support of u or its derivatives is not an input or consequence of joint smoothness. Subsequent invocation of M001/M003 and the assertion that boundary values of g_j vanish are therefore unsupported. More basically, no decay/integrability condition is supplied to ensure the displayed whole-space integrals exist. The coordinate line integration by parts over [-L,L] does not establish zero boundary values from the stated premises.",
+      "locations": [
+        "/parameters",
+        "/inference/argument/0/text",
+        "/inference/applications/0/hypothesis_checks",
+        "/inference/applications/1/hypothesis_checks",
+        "/inference/applications/2/hypothesis_checks"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The argument's compact-support, integrability, and vanishing-boundary facts are substantive factual premises not supplied by any listed input or local derivation. Naming M001, M003, and M007 does not prove their hypotheses; M001 only yields integrability after compact support and continuity are established, while the asserted compact support is absent.",
+      "locations": [
+        "/inference/inputs",
+        "/inference/argument/0/text",
+        "/inference/applications/0",
+        "/inference/applications/1",
+        "/inference/applications/2"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "N003 states the same energy-derivative identity asserted at the end of S001, with the same r>0 scope, integrand, factor 2, and definitions. This judgment concerns statement correspondence only, not derivability.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/0/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The inference fixes arbitrary r>0 and purports to establish the corresponding identity; this matches the output's universal r>0 quantification. No temporary assumption is introduced or discharged. The failure is mathematical support, not a quantifier-scope mismatch.",
+      "locations": [
+        "/output/statement",
+        "/inference/locals/0",
+        "/inference/argument/0"
+      ]
+    },
+    "applicability": {
+      "verdict": "FAIL",
+      "notes": "M001 requires the instantiated integrand to be continuous and compactly supported; continuity may follow from smoothness, but compact support is not given or proved. Consequently M003's product-integrability hypothesis is not established. M007 can provide the interval product-derivative identity only with its stated regularity/integrability hypotheses and yields endpoint values; the proof's further claim that the boundary values vanish is not established. The M010 coordinate-reindexing claim does not supply any of these analytic facts. The specific missing premise is compact support/decay (or another appropriate integrability and boundary argument), not an unchecked source-fidelity issue.",
+      "locations": [
+        "/inference/applications/0",
+        "/inference/applications/1",
+        "/inference/applications/2",
+        "/inference/applications/3",
+        "/inference/argument/0/text"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "The input and output propositions state their formulas and r>0 quantifier directly; the energy and Laplacian meanings are given by the referenced definitions. The stated formulas can be understood without another inference's proof body.",
+      "locations": [
+        "/inputs/0/statement",
+        "/output/statement",
+        "/definitions/0",
+        "/definitions/1",
+        "/definitions/2"
+      ]
+    },
+    "object_closure": {
+      "verdict": "FAIL",
+      "notes": "The actual prose introduces/uses g_j, the spatial coordinate j, coordinate lines, and L without any local declarations or corresponding statement binders. The packet's locals list declares only r. Even treating these as intended shorthand for standard indices, L is used as a freely chosen endpoint and no scope/introduction basis is recorded. This is an object-closure defect in addition to the substantive missing compact-support fact.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/locals",
+        "/output/objects",
+        "/definitions/0"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "Actual factual uses of compact support, whole-space integrability, product integrability, and zero boundary values have no listed input or prior local proof. M001 is conditional and cannot itself supply compact support; the M003 applicability statement relies on the same unsupported premise. Thus the prose's dependency closure fails at its first compact-support assertion.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/applications/0/hypothesis_checks",
+        "/inference/applications/1/hypothesis_checks",
+        "/inference/argument/0/produces"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "Judged from this packet alone: it is insufficient to support R004 because smoothness alone does not provide the compact support, integrability, or vanishing boundary facts used in S001. This is a mathematical review of the supplied packet, not a claim of carrier identity, canonical hash binding, or transmitted-material readback; those are outside this review. No additional source proof or task material was consulted.",
+      "locations": [
+        "/parameters",
+        "/inference/argument/0/text",
+        "/inference/applications/0",
+        "/inference/applications/1",
+        "/inference/applications/2"
+      ]
+    }
+  },
+  "findings": [
+    {
+      "severity": "blocking",
+      "location": "/inference/argument/0/text",
+      "premises": "The packet gives n,m,u as a jointly smooth map and lists N002 and M001/M003/M007/M010 as inputs; none states compact support or decay of u or its derivatives.",
+      "conclusion_used": "The derivatives are compactly supported/integrable, and g_j has vanishing boundary values on the coordinate line, so M001/M003 apply and the line integral of ∂_j g_j is zero.",
+      "reason": "Joint smoothness does not imply compact support, whole-space integrability, or vanishing at infinity. M001 is conditional on compact support, and M007's interval identity retains endpoint terms. No local proof establishes the required facts."
+    },
+    {
+      "severity": "blocking",
+      "location": "/inference/locals",
+      "premises": "Only r is declared as a local object.",
+      "conclusion_used": "The proof uses g_j, j, coordinate lines, and L as mathematical objects/indices, including a finite interval [-L,L].",
+      "reason": "These occurrences have no declaration/introduction and scope in the packet. In particular, no choice or quantification of L is supplied."
+    }
+  ]
+}

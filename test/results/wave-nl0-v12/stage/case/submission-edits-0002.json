@@ -1,0 +1,104 @@
+{
+  "base_sha256": "5baa700e6fdeb64ad8303bfd33e094327800f751c0ae97ce17504e5d596161f8",
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/graph/propositions/8/statement",
+      "value": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E′(r)=∫_{ℝⁿ}e_t(x,r)dx."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/propositions/8/objects",
+      "value": [
+        "E",
+        "e",
+        "u"
+      ]
+    },
+    {
+      "op": "add",
+      "path": "/graph/propositions/-",
+      "value": {
+        "id": "M020",
+        "kind": "mathlib",
+        "statement": "If α and β are topological spaces, α has measurable opens, β is pseudo-metrizable, and the spaces satisfy the second-countability condition SecondCountableTopologyEither, then every continuous f:α→β is a.e. strongly measurable for any measure on α.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "α",
+            "type": "topological space with measurable space"
+          },
+          {
+            "symbol": "β",
+            "type": "topological space"
+          },
+          {
+            "symbol": "μ",
+            "type": "measure on α"
+          },
+          {
+            "symbol": "f",
+            "type": "α→β"
+          }
+        ],
+        "objects": [
+          "α",
+          "β",
+          "μ",
+          "f"
+        ],
+        "source": {
+          "declaration": "Continuous.aestronglyMeasurable",
+          "module": "Mathlib.MeasureTheory.Function.StronglyMeasurable.AEStronglyMeasurable",
+          "hypotheses": [
+            "α has a topological space and measurable space, with measurable opens.",
+            "β is pseudo-metrizable.",
+            "SecondCountableTopologyEither α β holds."
+          ],
+          "statement": "If α and β are topological spaces, α has measurable opens, β is pseudo-metrizable, and the spaces satisfy the second-countability condition SecondCountableTopologyEither, then every continuous f:α→β is a.e. strongly measurable for any measure on α."
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/3/inputs/-",
+      "value": "M020"
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/3/argument/0/text",
+      "value": "Fix arbitrary r>0. Choose J=[r/2,3r/2], a compact interval contained in (0,∞) with r in its interior, and choose compact C from H003 for this J. Define C*=C∪{0}; it is compact and nonempty. The support condition implies u=q off C* for every τ∈J, hence all time and spatial derivatives occurring in e_t vanish there. The function (x,τ)↦|e_t(x,τ)| is continuous on C*×J by smoothness, and C*×J is compact by M005; apply M019 with target ℝ to obtain a finite real bound K≥0 with |e_t(x,τ)|≤K on C*×J. Define b(x)=K·1_{C*}(x). Then |e_t(x,τ)|≤b(x) for all x and τ∈J, including x outside C* where e_t=0. By N001, C* is measurable and has finite measure. Apply M008 to the constant K on C* and M009 to its indicator extension to obtain integrability of b on all ℝⁿ. Define F(τ)(x)=e(x,τ) and Fprime(τ)(x)=e_t(x,τ). For each τ∈J these are continuous in x by N001; under the Euclidean topology/Borel measurable structure on ℝⁿ, ℝ is pseudo-metrizable, and Euclidean ℝⁿ is second-countable, so M020 applies to each continuous section and gives a.e. strong measurability of F(τ) and Fprime(τ). In particular F(r) is integrable by N001 and Fprime(r) is a.e. strongly measurable. For each x, smoothness gives HasDerivAt (τ↦F(τ)(x)) (Fprime(τ)(x)) τ throughout the open interval (r/2,3r/2). M006 applies with α=ℝⁿ, μ=Lebesgue measure, scalar and target ℝ, x₀=r, s=(r/2,3r/2), F, Fprime and bound b: the neighborhood condition holds; the near-r a.e. strong measurability follows from M020 at every τ in that neighborhood; base integrability is N001; derivative-section measurability is M020; the pointwise-a.e. derivative condition holds everywhere by smoothness; domination holds everywhere by the bound above; and b is integrable. Its conclusion gives integrability of Fprime(r) and HasDerivAt of τ↦∫e(x,τ)dx with derivative ∫e_t(x,r)dx. By the guarded definition D002 (whose prerequisite N001 directly supplies integrability at r), this is differentiability of E at r and E′(r)=∫e_t(x,r)dx. Arbitrary r proves the complete output."
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/3/argument/0/uses/-",
+      "value": "M020"
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/3/applications/0/bindings",
+      "value": "X=ℝⁿ, Y=ℝ, s=C*, t=J, so IsCompact.prod gives compactness of C*×J."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/3/applications/4/bindings",
+      "value": "β=ℝⁿ×ℝ, α=ℝ with its usual linear order and topology, K=C*×J, f(x,τ)=|e_t(x,τ)|."
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/3/applications/-",
+      "value": {
+        "input": "M020",
+        "at": "S001",
+        "bindings": "α=ℝⁿ with Euclidean topology and Borel measurable space; β=ℝ; μ=Lebesgue measure; f is either continuous section x↦e(x,τ) or x↦e_t(x,τ), for each τ∈J.",
+        "hypothesis_checks": [
+          "ℝⁿ has measurable opens because its measurable structure is the Borel σ-algebra generated by Euclidean opens.",
+          "ℝ is pseudo-metrizable by its usual metric.",
+          "Euclidean ℝⁿ and ℝ satisfy SecondCountableTopologyEither (both are second-countable).",
+          "The sections are continuous by N001 for every τ∈J."
+        ]
+      }
+    }
+  ],
+  "base_candidate": 1
+}

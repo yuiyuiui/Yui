@@ -1,0 +1,448 @@
+{
+  "contract_version": 2,
+  "case_id": "geometry-product-dimension",
+  "graph_sha256": "0f768e56aa375354829b496ce9dd6b7cdb813dc76caa84eba46d4e3e605d4993",
+  "spec_sha256": "42eb79a41d40b1ae20c267d620d13f5cac16af48059507d94f0dbc9ec35881e3",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "nonnegative integer"
+    },
+    {
+      "symbol": "E",
+      "type": "subset of ℝ^n"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "case_elimination",
+      "contradiction_classical",
+      "direct",
+      "exists_elimination",
+      "forall_introduction",
+      "implication_introduction",
+      "modus_ponens",
+      "natural_induction",
+      "negation_introduction"
+    ],
+    "calculations": [
+      "Squared concatenated product distance is the sum of squared coordinate distances; coordinate projections are 1-Lipschitz. diam(U×J)≤√(diam(U)^2+diam(J)^2)."
+    ],
+    "primitives": [
+      {
+        "symbol": "ℝ^n",
+        "type": "Euclidean space",
+        "meaning": "The n-dimensional Euclidean space, with ℝ^0 a singleton."
+      },
+      {
+        "symbol": "dim_H",
+        "type": "Hausdorff dimension",
+        "meaning": "Critical exponent of Hausdorff measures."
+      },
+      {
+        "symbol": "I",
+        "type": "subset of ℝ",
+        "meaning": "[0,1]."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "definitions": [],
+  "inputs": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "E is nonempty.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "E"
+      ]
+    },
+    {
+      "id": "H002",
+      "kind": "hypothesis",
+      "statement": "E is compact.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "E"
+      ]
+    },
+    {
+      "id": "M001",
+      "kind": "mathlib",
+      "statement": "If d<dim_H(A), then H^d(A)=∞.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "dim_H"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "A is a set in a Borel extended metric space and d is NNReal."
+        ],
+        "declaration": "hausdorffMeasure_of_lt_dimH",
+        "signature": "@hausdorffMeasure_of_lt_dimH.{u_1} : ∀ {X : Type u_1} [inst : EMetricSpace.{u_1} X] [inst_1 : MeasurableSpace.{u_1} X]\n  [inst_2 :\n    @BorelSpace.{u_1} X\n      (@UniformSpace.toTopologicalSpace.{u_1} X\n        (@PseudoEMetricSpace.toUniformSpace.{u_1} X (@EMetricSpace.toPseudoEMetricSpace.{u_1} X inst)))\n      inst_1]\n  {s : Set.{u_1} X} {d : NNReal},\n  @LT.lt.{0} ENNReal (@Preorder.toLT.{0} ENNReal (@PartialOrder.toPreorder.{0} ENNReal ENNReal.instPartialOrder)) (↑d)\n      (@dimH.{u_1} X inst s) →\n    @Eq.{1} ENNReal\n      (@DFunLike.coe.{u_1 + 1, u_1 + 1, 1} (@MeasureTheory.Measure.{u_1} X inst_1) (Set.{u_1} X) (fun x => ENNReal)\n        (@MeasureTheory.Measure.instFunLike.{u_1} X inst_1)\n        (@MeasureTheory.Measure.hausdorffMeasure.{u_1} X inst inst_1 inst_2 ↑d) s)\n      (@Top.top.{0} ENNReal ENNReal.instTop)"
+      }
+    },
+    {
+      "id": "M002",
+      "kind": "mathlib",
+      "statement": "The integral of a countable sum of nonnegative measurable ENNReal functions equals the sum of their integrals.",
+      "definitions": [],
+      "binders": [],
+      "objects": [],
+      "source_contract": {
+        "hypotheses": [
+          "Countable index type; each summand is AEMeasurable ENNReal."
+        ],
+        "declaration": "MeasureTheory.lintegral_tsum",
+        "signature": "@MeasureTheory.lintegral_tsum.{u_1,\n    u_2} : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : @MeasureTheory.Measure.{u_1} α m}\n  [Countable.{u_2 + 1} β] {f : β → α → ENNReal},\n  (∀ (i : β), @AEMeasurable.{u_1, 0} α ENNReal ENNReal.measurableSpace m (f i) μ) →\n    @Eq.{1} ENNReal\n      (@MeasureTheory.lintegral.{u_1} α m μ fun a =>\n        @tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace (fun i => f i a)\n          (SummationFilter.unconditional.{u_2} β))\n      (@tsum.{0, u_2} ENNReal β ENNReal.instAddCommMonoid ENNReal.instTopologicalSpace\n        (fun i => @MeasureTheory.lintegral.{u_1} α m μ fun a => f i a) (SummationFilter.unconditional.{u_2} β))"
+      }
+    }
+  ],
+  "output": {
+    "id": "P",
+    "kind": "target",
+    "statement": "dim_H(E×I)=dim_H(E)+1.",
+    "definitions": [],
+    "binders": [],
+    "objects": [
+      "E",
+      "I",
+      "dim_H"
+    ]
+  },
+  "inference": {
+    "id": "R001",
+    "inputs": [
+      "H001",
+      "H002",
+      "M001",
+      "M002"
+    ],
+    "output": "P",
+    "definitions": [],
+    "rules": [
+      "direct",
+      "case_elimination"
+    ],
+    "locals": [
+      {
+        "symbol": "D",
+        "type": "ENNReal, dim_H(E)",
+        "scope": "R001",
+        "start": "S001",
+        "end": "S003",
+        "kind": "definition",
+        "declaration": "Define D=dim_H(E).",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "E",
+          "dim_H"
+        ]
+      },
+      {
+        "symbol": "F",
+        "type": "subset ℝ^(n+1), E×[0,1]",
+        "scope": "R001",
+        "start": "S001",
+        "end": "S003",
+        "kind": "definition",
+        "declaration": "Define F=E×[0,1].",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "E",
+          "n"
+        ]
+      },
+      {
+        "symbol": "q",
+        "type": "real exponent",
+        "scope": "R001/S001",
+        "start": "S001",
+        "end": "S001",
+        "kind": "arbitrary",
+        "declaration": "Fix q>D.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "D"
+        ]
+      },
+      {
+        "symbol": "δ",
+        "type": "positive scale",
+        "scope": "R001",
+        "start": "S001",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix 0<δ≤1.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "r_j",
+        "type": "positive real sequence",
+        "scope": "R001/S001",
+        "start": "S001",
+        "end": "S001",
+        "kind": "witness",
+        "declaration": "Choose positive cover diameters r_j≤δ with arbitrarily small q-cost; replace zero-diameter sets by small balls if n>0.",
+        "from_inputs": [
+          "H002"
+        ],
+        "from_local": [],
+        "objects": [
+          "E",
+          "δ",
+          "q"
+        ]
+      },
+      {
+        "symbol": "s",
+        "type": "positive real exponent",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "If D>0 fix 0<s<D.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "D"
+        ]
+      },
+      {
+        "symbol": "ε",
+        "type": "positive real",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix ε>0.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "V_i",
+        "type": "sequence of subsets of F",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix an arbitrary countable δ-cover of F.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "F",
+          "δ"
+        ]
+      },
+      {
+        "symbol": "ρ_i",
+        "type": "ENNReal sequence ediam(V_i)",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Put ρ_i=ediam(V_i).",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "V_i"
+        ]
+      },
+      {
+        "symbol": "A_i",
+        "type": "projection of V_i to ℝⁿ",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Put A_i=π₁(V_i).",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "V_i"
+        ]
+      },
+      {
+        "symbol": "B_i",
+        "type": "projection of V_i to ℝ",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Put B_i=π₂(V_i).",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "V_i"
+        ]
+      },
+      {
+        "symbol": "η_i",
+        "type": "positive real sequence",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Set η_i=ε·2^(−i)/(1+ρ_i^s).",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "ε",
+          "ρ_i",
+          "s"
+        ]
+      },
+      {
+        "symbol": "J_i",
+        "type": "open interval containing bounded set B_i",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Choose J_i containing B_i with length at most ρ_i+η_i, by enclosing B_i between its infimum and supremum and adding η_i total width.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "B_i",
+          "ρ_i",
+          "η_i"
+        ]
+      },
+      {
+        "symbol": "c_s",
+        "type": "Hausdorff content at scale δ",
+        "scope": "R001/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "definition",
+        "declaration": "Let C_s(A,δ) be the infimum of Nat-indexed δ-cover sums of ENNReal diameters to exponent s.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "s",
+          "δ"
+        ]
+      },
+      {
+        "symbol": "x₀",
+        "type": "point of E",
+        "scope": "R001/S003",
+        "start": "S003",
+        "end": "S003",
+        "kind": "witness",
+        "declaration": "Choose x₀∈E from H001.",
+        "from_inputs": [
+          "H001"
+        ],
+        "from_local": [],
+        "objects": [
+          "E"
+        ]
+      }
+    ],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "Let D=dim_H(E), F=E×I. Boundedness and cube coverings of a bounded Euclidean box show D≤n. For q>D, the definition gives H^q(E)=0. At scale δ cover E by positive-diameter r_j≤δ with arbitrarily small Σr_j^q, replacing singleton members by tiny balls with arbitrarily small total added cost. Cover I by ≤1/r_j+1 intervals of length ≤r_j; products have diameter ≤√2r_j and total (q+1)-cost ≤2(√2)^(q+1)Σr_j^q. Therefore dim_H(F)≤D+1.",
+        "uses": [
+          "H002"
+        ],
+        "uses_local": [],
+        "objects": [
+          "E",
+          "F",
+          "D",
+          "I",
+          "n",
+          "q",
+          "δ",
+          "r_j"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S002",
+        "text": "If D>0 choose 0<s<D. M001 gives H^s(E)=∞, so scale contents c_s(E,δ)→∞. For any cover V_i of F at scale δ, put ρ_i=diam(V_i) and project to A_i,B_i. Enclose B_i in open intervals J_i with length ≤ρ_i+η_i and Ση_iρ_i^s<ε. For each t∈I, the A_i with t∈J_i cover E; thus c_s(E,δ)≤Σ1_{J_i}(t)ρ_i^s pointwise. Indicators are measurable nonnegative; M002 integrates this series to obtain c_s(E,δ)≤Σ(ρ_i+η_i)ρ_i^s≤Σρ_i^(s+1)+ε. Zero diameters contribute zero. Let ε→0 and infimize over covers; c_s(E,δ)≤c_(s+1)(F,δ), implying H^(s+1)(F)=∞ and dim_H(F)≥s+1. Let s↑D.",
+        "uses": [
+          "M001",
+          "M002"
+        ],
+        "uses_local": [],
+        "objects": [
+          "E",
+          "F",
+          "D",
+          "I",
+          "s",
+          "δ",
+          "V_i",
+          "ρ_i",
+          "A_i",
+          "B_i",
+          "J_i",
+          "η_i",
+          "ε",
+          "c_s"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S003",
+        "text": "If D=0 choose x₀∈E using H001. Projection F→I is onto and 1-Lipschitz; the interval has dimension 1, so dim_H(F)≥1=D+1. If n=0, E is the singleton and F is isometric to I, so the equality follows directly without positive-diameter replacement. Combine the dimension bounds.",
+        "uses": [
+          "H001"
+        ],
+        "uses_local": [],
+        "objects": [
+          "E",
+          "F",
+          "I",
+          "x₀",
+          "n"
+        ],
+        "produces": [],
+        "introduces": [],
+        "discharges": []
+      }
+    ],
+    "applications": [
+      {
+        "input": "M001",
+        "at": "S002",
+        "bindings": "Instantiate with X=ℝⁿ, s=E, and d the NNReal coercion of the positive exponent below dim_H(E).",
+        "hypothesis_checks": [
+          "Apply to E with 0<s<D in Euclidean Borel space."
+        ]
+      },
+      {
+        "input": "M002",
+        "at": "S002",
+        "bindings": "Instantiate with α=[0,1], β=ℕ, restricted Lebesgue measure, and f(i,t)=ρ_i^s times the indicator of J_i∩[0,1].",
+        "hypothesis_checks": [
+          "Summands are ρ_i^s times indicators of open J_i, hence AEMeasurable on I."
+        ]
+      }
+    ]
+  },
+  "warning": "Only listed inputs are premises. No source proof, ancestor proof, or ambient H is supplied. A packet is not an audit certificate.",
+  "packet_sha256": "6d2f5d8b91400bdc4399538836c54d930195c94289d939c88c3c3e29628f1b28"
+}

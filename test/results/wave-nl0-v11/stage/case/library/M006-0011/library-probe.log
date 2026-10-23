@@ -1,0 +1,19 @@
+BEGIN_SIGNATURE:M006
+@hasDerivAt_integral_of_dominated_loc_of_deriv_le.{u_1, u_2,
+    u_3} : ∀ {α : Type u_1} [inst : MeasurableSpace.{u_1} α] {μ : MeasureTheory.Measure.{u_1} α} {𝕜 : Type u_2}
+  [inst_1 : RCLike.{u_2} 𝕜] {E : Type u_3} [inst_2 : NormedAddCommGroup.{u_3} E] [inst_3 : NormedSpace.{0, u_3} ℝ E]
+  [inst_4 : NormedSpace.{u_2, u_3} 𝕜 E] {bound : α → ℝ} {F : 𝕜 → α → E} {x₀ : 𝕜} {s : Set.{u_2} 𝕜},
+  Membership.mem.{u_2, u_2} (nhds.{u_2} x₀) s →
+    (∀ᶠ (x : 𝕜) in nhds.{u_2} x₀, MeasureTheory.AEStronglyMeasurable.{u_1, u_3} (F x) μ) →
+      MeasureTheory.Integrable.{u_3, u_1} (F x₀) μ →
+        ∀ {F' : 𝕜 → α → E},
+          MeasureTheory.AEStronglyMeasurable.{u_1, u_3} (F' x₀) μ →
+            (∀ᵐ (a : α) ∂μ, ∀ (x : 𝕜), Membership.mem.{u_2, u_2} s x → LE.le.{0} (norm.{u_3} (F' x a)) (bound a)) →
+              MeasureTheory.Integrable.{0, u_1} bound μ →
+                (∀ᵐ (a : α) ∂μ,
+                    ∀ (x : 𝕜), Membership.mem.{u_2, u_2} s x → HasDerivAt.{u_2, u_3} (fun x => F x a) (F' x a) x) →
+                  MeasureTheory.Integrable.{u_3, u_1} (F' x₀) μ ∧
+                    HasDerivAt.{u_2, u_3} (fun n => ∫ (a : α), F n a ∂μ) (∫ (a : α), F' x₀ a ∂μ) x₀
+BEGIN_AXIOMS:M006
+'hasDerivAt_integral_of_dominated_loc_of_deriv_le' depends on axioms: [propext, Classical.choice.{u}, Quot.sound.{u}]
+END_SOURCE:M006

@@ -1,0 +1,33 @@
+{
+  "header": "import Mathlib\nopen scoped TensorProduct\nnoncomputable instance sourceTensorModule (K : Type*) [Field K] (M : Type*) [AddCommGroup M] [Module ℤ M] : Module K (M ⊗[ℤ] K) where\n  smul k z := (TensorProduct.comm ℤ K M) (k • (TensorProduct.comm ℤ K M).symm z)\n  one_smul z := by\n    change (TensorProduct.comm ℤ K M) (1 • (TensorProduct.comm ℤ K M).symm z) = z\n    simp\n  mul_smul k l z := by\n    change (TensorProduct.comm ℤ K M) ((k*l) • (TensorProduct.comm ℤ K M).symm z) = (TensorProduct.comm ℤ K M) (k • (TensorProduct.comm ℤ K M).symm (l • (TensorProduct.comm ℤ K M).symm z))\n    simp [mul_smul]\n  smul_zero k := by\n    change (TensorProduct.comm ℤ K M) (k • (TensorProduct.comm ℤ K M).symm 0) = 0\n    simp\n  smul_add k a b := by\n    change (TensorProduct.comm ℤ K M) (k • (TensorProduct.comm ℤ K M).symm (a+b)) = _\n    simp\n  add_smul k l z := by\n    change (TensorProduct.comm ℤ K M) ((k+l) • (TensorProduct.comm ℤ K M).symm z) = _\n    simp [add_smul]\n  zero_smul z := by\n    change (TensorProduct.comm ℤ K M) (0 • (TensorProduct.comm ℤ K M).symm z) = 0\n    simp\n",
+  "parameters": [
+    {
+      "name": "K",
+      "type": "Type*",
+      "binder_kind": "implicit"
+    },
+    {
+      "name": "instK",
+      "type": "Field K",
+      "binder_kind": "instance"
+    },
+    {
+      "name": "M",
+      "type": "Type*",
+      "binder_kind": "implicit"
+    },
+    {
+      "name": "instM",
+      "type": "AddCommGroup M",
+      "binder_kind": "instance"
+    },
+    {
+      "name": "instZ",
+      "type": "Module ℤ M",
+      "binder_kind": "instance"
+    }
+  ],
+  "types": [
+    "Module K (M ⊗[ℤ] K)"
+  ]
+}

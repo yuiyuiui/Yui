@@ -1,0 +1,219 @@
+{
+  "status": "BEHAVIORAL-CONTROLS-PASSED",
+  "scope": "Five finite procedure controls; not a guarantee of all future mathematical review decisions.",
+  "results": [
+    {
+      "packet": "44564e7a02854742b7920bfd16d1784b.json",
+      "expected": {
+        "expected_verdict": "PASS",
+        "reason": "complete local equality proof",
+        "location": null,
+        "packet_sha256": "3baaaed2e510b8167dcd84a6cca673b998fcfef7789648fe59927ff97d5dc59a"
+      },
+      "actual": {
+        "verdict": "PASS",
+        "findings": []
+      },
+      "healthy": true,
+      "detected_as_expected": true,
+      "evidence": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/44564e7a02854742b7920bfd16d1784b/stage/accepted.json",
+        "sha256": "f925bdf1362d0f06f97f690f5bb40b5c795e95383861e0a214a4c02f9b971442"
+      },
+      "stage_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/44564e7a02854742b7920bfd16d1784b/stage/result.json",
+        "sha256": "5fd19e409120ac7ebf3b61adcf50cd1260880189e18ebf203599ee6f87f2fdb1"
+      }
+    },
+    {
+      "packet": "7f18528e313944ed8f4ddc7f17a9647b.json",
+      "expected": {
+        "expected_verdict": "FAIL",
+        "reason": "W has no legitimate declaration or application rule",
+        "location": "/inference/argument/1/text",
+        "packet_sha256": "25bc1749ac51b9bdc14e0db39e0eaf29778a4affdf2852046d6ffa9fcb387f54"
+      },
+      "actual": {
+        "verdict": "FAIL",
+        "findings": [
+          {
+            "location": "/inference/argument/1/text",
+            "check": "dependency_closure; argument",
+            "explanation": "The step claims that applying ‘W’ to F001 yields the target, but W is not defined or declared as a permitted rule or input, and no statement or application of W is supplied. The packet therefore does not justify this inference. Although the listed equalities may suggest a way to derive the target, supplying that derivation would repair rather than review the exact argument."
+          }
+        ]
+      },
+      "healthy": true,
+      "detected_as_expected": true,
+      "evidence": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/7f18528e313944ed8f4ddc7f17a9647b/stage/accepted.json",
+        "sha256": "9021e69099d65382e8c7017020ff149f8d22bdb709f91ae9c85c2d1931f40c62"
+      },
+      "stage_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/7f18528e313944ed8f4ddc7f17a9647b/stage/result.json",
+        "sha256": "6de3b65d4cc90d0f1d1175d49a01460f3cca7fd62e1d2b11df79003a31130e3d"
+      }
+    },
+    {
+      "packet": "90eeed7c7bce4e2eb5d8af44def919bc.json",
+      "expected": {
+        "expected_verdict": "FAIL",
+        "reason": "witness is chosen with the desired conclusion without an existence basis",
+        "location": "/inference/locals/0",
+        "packet_sha256": "dd35d32982e24371546ce6f3cdf10547e4f95315142a6c10389b84a266629065"
+      },
+      "actual": {
+        "verdict": "FAIL",
+        "findings": [
+          {
+            "location": "/inference/locals/0",
+            "check": "object_closure and witness existence",
+            "explanation": "The local declaration introduces c as a witness satisfying c=a+0 and c=b, but gives no existence basis: from_inputs and from_local are empty. S001 merely says to choose such a c and cites no input. N001 states b=a, so the witness could be constructed from the inputs, but the packet does not derive or use that existence fact before choosing c. A witness requires an input or an earlier local existence proof; the declared witness is therefore unsupported."
+          },
+          {
+            "location": "/inference/argument/1/text",
+            "check": "dependency_closure and argument sufficiency",
+            "explanation": "This step calls c=a+0 a definition, but the packet declares no definition of c: the local declaration says only that c is a witness with c=a+0 and c=b. The argument neither defines c nor explicitly invokes the witness condition c=a+0. Even treating that condition as available would not repair the independently unsupported witness introduction at S001."
+          }
+        ]
+      },
+      "healthy": true,
+      "detected_as_expected": true,
+      "evidence": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/90eeed7c7bce4e2eb5d8af44def919bc/stage/accepted.json",
+        "sha256": "3a13c23ebaebd07b4791a613c5a0b19b87718593ed66bf7dff6821317f3b466a"
+      },
+      "stage_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/90eeed7c7bce4e2eb5d8af44def919bc/stage/result.json",
+        "sha256": "134d3441b93e5283275c2539bc2e41bc4a35917c2afe6eacf9e1a0e60ffe0ea1"
+      }
+    },
+    {
+      "packet": "93b1416546ae4dceabbcf755616f14c6.json",
+      "expected": {
+        "expected_verdict": "FAIL",
+        "reason": "input statement refers to a missing formula",
+        "location": "/inputs/0/statement",
+        "packet_sha256": "9eebbba3c1ade49d1315323a4d0233402a8a069144a4820d69d26b00895acefc"
+      },
+      "actual": {
+        "verdict": "FAIL",
+        "findings": [
+          {
+            "location": "/inputs/0/statement",
+            "check": "statement_closure and dependency_closure",
+            "explanation": "The sole premise is stated only as ‘The identity (8.3) holds.’ No formula for identity (8.3) appears anywhere in the packet. Thus its content cannot be instantiated or checked, and the packet does not state that it implies b=a."
+          },
+          {
+            "location": "/inference/argument/1/text",
+            "check": "argument and inputs",
+            "explanation": "The step ‘N001 gives b=a’ uses a consequence not contained in the complete stated input N001. Without the missing identity formula, this inference is unsupported; equality symmetry, F001, and substitution cannot establish the target from the packet as written."
+          }
+        ]
+      },
+      "healthy": true,
+      "detected_as_expected": true,
+      "evidence": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/93b1416546ae4dceabbcf755616f14c6/stage/accepted.json",
+        "sha256": "12d635d1cdc76571ebe39e442ddd6725e478a0695c7a08acd7f91c2f1851180c"
+      },
+      "stage_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/93b1416546ae4dceabbcf755616f14c6/stage/result.json",
+        "sha256": "e3d4f2da8346cc35437ff088901ee5b8df3a287c0f924e0c4a315f3ca4cb773c"
+      }
+    },
+    {
+      "packet": "b2101cb165df4705b867f8a491d3eb2e.json",
+      "expected": {
+        "expected_verdict": "FAIL",
+        "reason": "the global transfer lemma is neither an input nor locally proved",
+        "location": "/inference/argument/1/text",
+        "packet_sha256": "78f92c2d4b4522a3f3ec3159e6e5a4395c9b4294be4490520fb47d3fd3005fa3"
+      },
+      "actual": {
+        "verdict": "FAIL",
+        "findings": [
+          {
+            "location": "/inference/argument/1/text",
+            "check": "dependency_closure; argument validity",
+            "explanation": "The step asserts that an undeclared ‘global transfer lemma’ yields a+0=b. No such lemma appears among the packet's inputs, definitions, primitives, or allowed calculations. N001 states b=a, and the allowed calculation states a+0=a, but this paragraph does not supply the equality-symmetry/substitution derivation; invoking an unavailable lemma is an unsupported factual dependency. I do not replace that invocation with a different derivation, so this exact argument is not a complete conditional proof from the packet."
+          }
+        ]
+      },
+      "healthy": true,
+      "detected_as_expected": true,
+      "evidence": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/b2101cb165df4705b867f8a491d3eb2e/stage/accepted.json",
+        "sha256": "5393deaa1d925943dee0db9a19f245ff40b1ed0f87235c8f25ae3f7aa28f8022"
+      },
+      "stage_result": {
+        "path": "/Users/syyui/projects/Yui/test/results/audit-a-behavior-v1/cases/b2101cb165df4705b867f8a491d3eb2e/stage/result.json",
+        "sha256": "1ce845bd610d41c1326b6fc527e919d2059e062f5b812759ad27f19601c6a13c"
+      }
+    }
+  ],
+  "concurrency": {
+    "requested": "auto",
+    "effective": 2,
+    "backend": "isolated_codex_cli",
+    "known_backend_limit": null,
+    "reason": "backend hard limit unavailable; disclosed fallback, not a maximum",
+    "fallback": 2,
+    "observed_peak_model_stages": 2,
+    "active_model_stages": 0,
+    "model_stages": [
+      {
+        "id": 1,
+        "queue_seconds": 1.0750023648142815e-05,
+        "started_offset_seconds": 0.14932775008492172,
+        "finished_offset_seconds": 21.24070170894265,
+        "raised": null
+      },
+      {
+        "id": 2,
+        "queue_seconds": 9.875046089291573e-06,
+        "started_offset_seconds": 0.1902402089908719,
+        "finished_offset_seconds": 29.569146499969065,
+        "raised": null
+      },
+      {
+        "id": 3,
+        "queue_seconds": 21.04529545782134,
+        "started_offset_seconds": 21.240748249925673,
+        "finished_offset_seconds": 83.70370354200713,
+        "raised": null
+      },
+      {
+        "id": 4,
+        "queue_seconds": 29.373481042217463,
+        "started_offset_seconds": 29.5691977920942,
+        "finished_offset_seconds": 85.99614920909517,
+        "raised": null
+      },
+      {
+        "id": 5,
+        "queue_seconds": 62.443246457958594,
+        "started_offset_seconds": 83.7037704999093,
+        "finished_offset_seconds": 105.03768854192458,
+        "raised": null
+      },
+      {
+        "id": 6,
+        "queue_seconds": 56.40628350013867,
+        "started_offset_seconds": 85.99619375006296,
+        "finished_offset_seconds": 110.0468764170073,
+        "raised": null
+      },
+      {
+        "id": 7,
+        "queue_seconds": 2.62516550719738e-06,
+        "started_offset_seconds": 105.05356925004162,
+        "finished_offset_seconds": 140.88287362502888,
+        "raised": null
+      }
+    ],
+    "summed_queue_seconds": 169.2683297083713,
+    "elapsed_seconds": 140.88304983405396,
+    "scope": "One controller/run; no distributed subscription-wide cap discovery."
+  }
+}

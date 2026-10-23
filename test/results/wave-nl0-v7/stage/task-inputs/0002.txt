@@ -1,0 +1,116 @@
+{
+  "target_review": {
+    "verdict": "FAIL",
+    "notes": "The candidate's frozen target is the approved nontrivial support interpretation, and its principal energy conclusion is aligned. However, spec H001 and H002 say ‘For all x,r>0’ without declaring x∈R^n; literally this restricts x to positive scalars and is not the frozen hypothesis (every x∈R^n). The candidate's compressed full_target also omits explicit Euclidean/Frobenius conventions, though frozen-target.md supplies them. This fidelity defect blocks accepting the exact specification.",
+    "locations": [
+      "spec.json#/hypotheses/0/statement",
+      "spec.json#/hypotheses/1/statement",
+      "spec.json#/full_target",
+      "frozen-target.md:7-26"
+    ]
+  },
+  "definition_reviews": {
+    "D001": {
+      "verdict": "UNVERIFIED",
+      "notes": "The formula matches the density, but the declaration does not state the Euclidean/Frobenius norm convention or clearly type u_t and spatial derivatives as R^m-valued; the symbol inventory lists only u,n. These are material to distinguishing the stipulated sum of componentwise squares from an operator norm.",
+      "locations": [
+        "spec.json#/definitions/0",
+        "frozen-target.md:18-26"
+      ]
+    },
+    "D002": {
+      "verdict": "FAIL",
+      "notes": "E is declared positive-reals→R as a total Lebesgue integral with no integrability prerequisite or extended-real codomain. Before integrability is proved, the Lebesgue integral may be infinite/undefined as a real-valued quantity. This cannot serve as a well-typed real definition on the full parameter domain; the target explicitly requires proving integrability to make it well-defined.",
+      "locations": [
+        "spec.json#/definitions/1",
+        "frozen-target.md:28-32"
+      ]
+    },
+    "D003": {
+      "verdict": "UNVERIFIED",
+      "notes": "The Laplacian description agrees with the componentwise sum in the frozen target, but type ‘operator’ is not a complete domain/codomain declaration and the binder/object declaration does not specify its action on R^m-valued maps. No hidden theorem is evident in the definition itself.",
+      "locations": [
+        "spec.json#/definitions/2",
+        "frozen-target.md:23-24"
+      ]
+    }
+  },
+  "source_reviews": {
+    "M001": {
+      "verdict": "PASS",
+      "notes": "Successful full-signature probe identifies a theorem at the pinned commit; official source states Continuous.integrable_of_hasCompactSupport with measurable/topological X, NormedAddCommGroup E, OpensMeasurableSpace, IsFiniteMeasureOnCompacts μ, continuity and compact support, concluding Integrable. It supports the generic stated result. In the proposed application, R^n/Lebesgue and R satisfy appropriate structures in principle, but e continuity and compact support are only asserted in prose, not fully justified; this is an application defect, not source-signature mismatch. Probe reports propext, Classical.choice, Quot.sound.",
+      "locations": [
+        "signature-evidence.json#/M001/0/actual_report/sources/M001",
+        "Mathlib/MeasureTheory/Function/LocallyIntegrable.lean:621-625",
+        "nl0.json#/inferences/0/argument/0"
+      ]
+    },
+    "M002": {
+      "verdict": "PASS",
+      "notes": "The successful signature and official theorem agree: complete real normed additive group/NormedSpace, derivative on uIcc(a,b), interval integrability of f′, and interval integral equals f(b)-f(a). The NL restatement is compressed but materially faithful. Its proposed uses do not establish the required interval-integrability/differentiation-under-space-integral argument: the stated FTC identity alone does not justify the quotient limit for E. Mapped use A003 additionally describes f=e(x,t) without resolving the spatial variable/integral; A006 needs the full derivative and integrability arguments. Probe reports the standard three axioms.",
+      "locations": [
+        "signature-evidence.json#/M002/0/actual_report/sources/M002",
+        "Mathlib/MeasureTheory/Integral/IntervalIntegral/FundThmCalculus.lean:1146-1151",
+        "nl0.json#/inferences/0/applications/2",
+        "nl0.json#/inferences/0/applications/5"
+      ]
+    },
+    "M003": {
+      "verdict": "PASS",
+      "notes": "The pinned official declaration is the Bochner Fubini theorem for a product-integrable function and equals the iterated integral; the probe's full signature also includes measurable spaces, SFinite μ and ν, NormedAddCommGroup and real NormedSpace. NL statement is an adequate broad restatement. In S002 the alleged coordinate-permutation application does not specify a product integrand, the product-integrability proof, or the exact iterated integrals; it is not established as a valid use. Probe reports propext, Classical.choice, Quot.sound.",
+      "locations": [
+        "signature-evidence.json#/M003/0/actual_report/sources/M003",
+        "Mathlib/MeasureTheory/Integral/Prod.lean:438-444",
+        "nl0.json#/inferences/0/applications/4",
+        "nl0.json#/inferences/0/argument/1"
+      ]
+    },
+    "M004": {
+      "verdict": "PASS",
+      "notes": "The official declaration and successful full signature establish compact s and ContinuousOn f s imply UniformContinuousOn f s; the NL statement is faithful. For the stated application, α=B×J, s=B×J are plausible if product compactness is proved and e_t is continuous, but this theorem only gives uniform continuity. It does not itself prove differentiation under the integral or convergence of difference quotients; those key steps are asserted without a complete argument. Probe reports propext, Classical.choice, Quot.sound.",
+      "locations": [
+        "signature-evidence.json#/M004/0/actual_report/sources/M004",
+        "Mathlib/Topology/UniformSpace/HeineCantor.lean:45-52",
+        "nl0.json#/inferences/0/applications/1",
+        "nl0.json#/inferences/0/argument/0"
+      ]
+    }
+  },
+  "structure_review": {
+    "verdict": "FAIL",
+    "notes": "There is a single producer R001 for P and all listed non-H propositions are in the graph. But the sole inference is not a valid complete producer: S001 only asserts the difference-quotient/limit passage from M002 and M004, without constructing the required spatially integrated difference quotients or proving their convergence; S002's Fubini/integration-by-parts steps and integrability obligations are likewise only labels. The AND-closure therefore does not accept P. First substantive proof blocker is R001/S001, after the specification-domain mismatch.",
+    "locations": [
+      "nl0.json#/inferences/0/argument/0",
+      "nl0.json#/inferences/0/argument/1",
+      "nl0.json#/inferences/0/inputs",
+      "nl0.json#/propositions/5"
+    ]
+  },
+  "findings": [
+    {
+      "verdict": "FAIL",
+      "location": "spec.json#/hypotheses/0/statement; spec.json#/hypotheses/1/statement",
+      "notes": "H001/H002 omit x∈R^n and literally quantify only positive x,r, contrary to the frozen original hypothesis domains."
+    },
+    {
+      "verdict": "FAIL",
+      "location": "spec.json#/definitions/1",
+      "notes": "D002 makes a potentially nonintegrable Lebesgue integral R-valued before integrability; definition is not well-typed as stated."
+    },
+    {
+      "verdict": "FAIL",
+      "location": "nl0.json#/inferences/0/argument/0",
+      "notes": "The asserted derivative of E via FTC and uniform continuity is not a complete differentiation-under-the-integral proof; the applications do not establish its required limit passage."
+    },
+    {
+      "verdict": "FAIL",
+      "location": "nl0.json#/inferences/0/argument/1",
+      "notes": "Integration by parts/Fubini and product integrability are asserted without complete application derivations; listed M results do not by themselves establish these steps."
+    },
+    {
+      "verdict": "UNVERIFIED",
+      "location": "nl0.json#/inferences/0",
+      "notes": "Per-inference fresh packet-only replay was not performed; no replay evidence supplied or invented."
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "inference": "R001",
+  "packet_sha256": "d5956561bc1d44243cedeab1c7d3ef8051ed412b2ac7956abb5d75e701128d69",
+  "verdict": "FAIL",
+  "notes": "I read the complete packet and relevant declared Yui Audit A, self-containment, and format rules. Mathematical inputs are treated as conditional premises; source fidelity is separate. First unsupported implication: S001 asserts that because n=0, ℝ⁰ is a singleton and E is that singleton, D=dim_H(E)=0. The singleton identification is given, but its zero Hausdorff dimension is neither proved from the packet's definition/formula nor supplied as an input. This blocks the upper-bound branch and the whole inference. I do not repair the argument. This is the packet-only mathematical conditional; I make no runtime-isolation or carrier-attestation claim.",
+  "findings": [
+    {
+      "location": "/inference/argument/0/text",
+      "verdict": "FAIL",
+      "notes": "First unsupported implication: n=0 and nonempty E⊆ℝ⁰ imply D=0. No local cover argument establishes the singleton's Hausdorff dimension, and no listed input supplies it."
+    }
+  ],
+  "checks": {
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "The listed H and M propositions are the direct inputs. Under the requested conditional-premise boundary, their stated propositions can be instantiated as described; source fidelity is outside this review.",
+      "locations": [
+        "/inputs",
+        "/inference/inputs"
+      ]
+    },
+    "argument": {
+      "verdict": "FAIL",
+      "notes": "The n=0 singleton branch asserts D=0 without establishing the required Hausdorff-dimension fact. Later substantial cover and slicing arguments cannot close this unsupported branch.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/logic/primitives/1"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "FAIL",
+      "notes": "The singleton's zero Hausdorff dimension is a factual dependency used in S001, but is neither a direct listed input nor a locally derived fact. The author-written calculation policy cannot import it.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/0/uses",
+        "/logic/calculations"
+      ]
+    },
+    "output": {
+      "verdict": "UNVERIFIED",
+      "notes": "The intended equality matches the target's form and the cases are stated, but the unsupported n=0 upper-bound step prevents deriving the full output.",
+      "locations": [
+        "/output/statement",
+        "/inference/argument/0/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "The proof's arbitrary choices and case-local choices are described within the relevant argument sections; no witness escape is needed to identify the first failure. This does not validate the failed dimension inference.",
+      "locations": [
+        "/inference/locals",
+        "/inference/argument"
+      ]
+    },
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "On the supplied conditional source contracts, applications identify relevant bindings and obligations for the cited dimension, Hausdorff-measure, Lipschitz, integration, and measure inputs. This is not independent source verification and does not prove their results locally.",
+      "locations": [
+        "/inputs/2/source_contract",
+        "/inputs/3/source_contract",
+        "/inputs/4/source_contract",
+        "/inputs/5/source_contract",
+        "/inputs/6/source_contract",
+        "/inputs/7/source_contract",
+        "/inputs/8/source_contract",
+        "/inputs/9/source_contract",
+        "/inputs/10/source_contract",
+        "/inputs/11/source_contract",
+        "/inputs/12/source_contract",
+        "/inputs/13/source_contract",
+        "/inference/applications"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "Input and output statements are present in the packet, and the argument states its claimed estimates and case conclusions rather than relying on external equation numbers. The identified defect is an inference gap, not missing target text.",
+      "locations": [
+        "/inputs",
+        "/output/statement",
+        "/inference/argument"
+      ]
+    },
+    "object_closure": {
+      "verdict": "UNVERIFIED",
+      "notes": "The principal constructions and witnesses have stated local introductions. The prose uses many mathematical objects through inline descriptions, so inventories alone cannot resolve all occurrences. In particular, identifying the singleton does not establish the separate dimension claim.",
+      "locations": [
+        "/inference/locals",
+        "/inference/argument/0/text",
+        "/inference/argument/1/text",
+        "/inference/argument/2/text"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "FAIL",
+      "notes": "S001 uses the unproved singleton-dimension fact, absent from direct inputs and local derivations. Therefore actual factual dependency closure fails at this point.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/0/uses",
+        "/inference/argument/0/produces"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "FAIL",
+      "notes": "Given the externally checked input/carrier boundary, this packet alone does not suffice: S001's n=0 inference to D=0 is unsupported. I read the complete packet and relevant rules; I do not certify execution isolation or runtime identity.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/logic/primitives/1",
+        "/output/statement"
+      ]
+    }
+  }
+}

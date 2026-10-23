@@ -1,0 +1,15 @@
+{
+  "verdict": "FAIL",
+  "findings": [
+    {
+      "location": "/inference/locals/0",
+      "check": "object_closure and witness existence",
+      "explanation": "The local declaration introduces c as a witness satisfying c=a+0 and c=b, but gives no existence basis: from_inputs and from_local are empty. S001 merely says to choose such a c and cites no input. N001 states b=a, so the witness could be constructed from the inputs, but the packet does not derive or use that existence fact before choosing c. A witness requires an input or an earlier local existence proof; the declared witness is therefore unsupported."
+    },
+    {
+      "location": "/inference/argument/1/text",
+      "check": "dependency_closure and argument sufficiency",
+      "explanation": "This step calls c=a+0 a definition, but the packet declares no definition of c: the local declaration says only that c is a witness with c=a+0 and c=b. The argument neither defines c nor explicitly invokes the witness condition c=a+0. Even treating that condition as available would not repair the independently unsupported witness introduction at S001."
+    }
+  ]
+}

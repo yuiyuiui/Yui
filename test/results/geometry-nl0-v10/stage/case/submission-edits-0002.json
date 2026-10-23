@@ -1,0 +1,58 @@
+{
+  "base_sha256": "a578844de8fa1c18fda106a5c0f792225585e8263740f0067e9a6b326e031309",
+  "patches": [
+    {
+      "op": "add",
+      "path": "/graph/propositions/-",
+      "value": {
+        "id": "M013",
+        "kind": "mathlib",
+        "statement": "For every outer measure μ and sets A,B, if A⊆B then μ(A)≤μ(B).",
+        "definitions": [],
+        "binders": [],
+        "objects": [],
+        "source": {
+          "statement": "For every outer measure μ and sets A,B, if A⊆B then μ(A)≤μ(B).",
+          "hypotheses": [
+            "μ is an outer measure on the type containing A and B; A and B are sets; A⊆B."
+          ],
+          "declaration": "MeasureTheory.measure_mono",
+          "module": "Mathlib.MeasureTheory.OuterMeasure.Basic"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/inputs/-",
+      "value": "M013"
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/applications/-",
+      "value": {
+        "input": "M013",
+        "at": "S002",
+        "bindings": "Apply measure_mono with μ=Lebesgue volume, A=J_i∩[0,1], B=[a_i,b_i], an enclosing closed interval.",
+        "hypothesis_checks": [
+          "A⊆B by the enclosure construction; Lebesgue volume is an outer measure."
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/graph/inferences/0/argument/1/uses/-",
+      "value": "M013"
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/text",
+      "value": "For D>0 fix 0<s<D. For a>0 define C_a(A,δ)=inf{∑'ᵢ ediam(Uᵢ)^a : U:ℕ→Set(X), A⊆⋃ᵢUᵢ and ∀i ediam(Uᵢ)≤δ}. Empty members have diameter zero and hence zero cost. In M008, the supremum over nonempty witnesses is the ordinary power for a nonempty member and zero for the empty member; thus its inner infimum is exactly this content and H^a(A)=sup_{δ>0}C_a(A,δ), with no normalization factor. If δ₁≤δ₂, every δ₁-admissible cover is δ₂-admissible, so C_a(A,δ₁)≥C_a(A,δ₂). The one-sided limit as scale decreases to zero therefore equals this supremum. M001 gives H^s(E)=∞; hence C_s(E,δ)→∞, meaning that for every finite K all sufficiently small positive δ have C_s(E,δ)>K. Fix δ>0 and any countable δ-cover (Vᵢ) of F. Set ρᵢ=ediam(Vᵢ), Aᵢ=π₁(Vᵢ), Bᵢ=π₂(Vᵢ). Coordinate projections are 1-Lipschitz in the concatenated Euclidean metric, so diam(Aᵢ),diam(Bᵢ)≤ρᵢ≤δ. Given ε>0 set ηᵢ=ε2^(−i−1)/(1+ρᵢ^s)>0. Each Bᵢ is bounded; extending the interval between its infimum and supremum by total width ηᵢ gives an open interval Jᵢ⊇Bᵢ with length ≤ρᵢ+ηᵢ. For every t∈[0,1] and x∈E, (x,t) lies in some Vᵢ. Thus x∈Aᵢ and t∈Bᵢ⊆Jᵢ; so the Aᵢ with t∈Jᵢ cover E at scale δ. By the definition of the infimum, C_s(E,δ)≤∑'ᵢ1_{Jᵢ∩[0,1]}(t)ρᵢ^s pointwise. Let ν=volume.restrict([0,1]). Each Jᵢ∩[0,1] is Borel, hence its indicator multiplied by ρᵢ^s is measurable and AEMeasurable for ν. Also ν([0,1])=volume([0,1])=ofReal(1−0)=1, by the restriction definition and M011; thus ν is finite. Integrate the pointwise inequality by M009 and use M002 to interchange the countable sum and lintegral; its hypotheses hold because the index is ℕ and every summand is AEMeasurable. By M010 each integral equals ρᵢ^sν(Jᵢ∩[0,1]). For S=Jᵢ∩[0,1], ν(S)=volume(S) since S⊆[0,1]; this is at most volume([aᵢ,bᵢ]) by M013, where [aᵢ,bᵢ] encloses S and bᵢ−aᵢ≤ρᵢ+ηᵢ. M011 computes that enclosing interval measure as ofReal(bᵢ−aᵢ)≤ofReal(ρᵢ+ηᵢ). Consequently C_s(E,δ)≤∑'ᵢρᵢ^(s+1)+∑'ᵢηᵢρᵢ^s≤∑'ᵢρᵢ^(s+1)+ε, since ηᵢρᵢ^s≤ε2^(−i−1) and ∑ᵢ2^(−i−1)=1. The cover is fixed and ε arbitrary: if its (s+1)-cost is finite, taking ε↓0 proves C_s(E,δ)≤that cost; if it is infinite the bound is immediate. Since this holds for every cover, taking the infimum gives C_s(E,δ)≤C_(s+1)(F,δ). As δ decreases to zero the left side diverges, so the right side diverges too; M008 gives H^(s+1)(F)=∞. Apply M001 with NNReal exponent s+1 to obtain s+1≤dim_H(F). This is true for all 0<s<D, so density of the reals implies D+1≤dim_H(F). At each use s is coerced to NNReal for dimension theorems and the corresponding real exponent in M008."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/0/text",
+      "value": "Let D=dim_H(E), F=E×[0,1]. First show 0≤D≤n<∞. Nonnegativity is part of the critical-exponent definition. For n=0, ℝ⁰ is a singleton and E is that singleton, so D=0. For n>0 compactness H002 implies boundedness, so E lies in a bounded box. For each h∈(0,1], grid subdivision covers the box by at most C h^(−n) cubes of diameter at most √n h, with C independent of h. For every m>n, the sum of m-power diameters is at most C n^(m/2)h^(m−n), tending to zero. By the scale-cover definition, H^m(E)=0; hence D≤n. Fix q>D and use the NNReal exponent q in M003. It gives H^q(E)=0. Unfold M008: H^q(E)=sup_{r>0}C_q(E,r), so nonnegativity forces each C_q(E,r)=0. For every r>0 and γ>0 the infimum definition therefore supplies a Nat-indexed r-cover Uᵢ of E with q-cost <γ; admissible covers exist, for example the singleton cover (with empty sets appended). For a sequence r_j↓0 choose γ_j↓0 and such covers. A nonempty zero-diameter member in Euclidean space is a singleton; replace its k-th occurrence by an open ball of positive radius with q-cost <γ_j2^(−k−1). The total replacement cost is <γ_j. Retain positive-diameter members, and retain empty members at zero cost. The resulting countable cover has positive diameter dᵢ≤r_j for each nonempty member and total q-cost <2γ_j. For each such member, partition [0,1] into at most 1/dᵢ+1≤2/dᵢ closed intervals of length at most dᵢ. The products Uᵢ×Kᵢℓ cover F and have diameter at most √2dᵢ by the concatenated metric. Their total (q+1)-cost for each i is at most (2/dᵢ)(√2dᵢ)^(q+1)=2(√2)^(q+1)dᵢ^q. Summing gives total cost ≤4(√2)^(q+1)γ_j→0 at scales √2r_j→0. M008's supremum/infimum formula then gives H^(q+1)(F)=0, and M012 yields dim_H(F)≤q+1. As this holds for every q>D, density gives dim_H(F)≤D+1. In n=0, F is isometric to [0,1]; intervals of lengths tending to zero likewise give H^a(F)=0 for every a>1 and hence the same upper bound D+1=1. Isometries preserve diameters and the exact M008 cover formula."
+    }
+  ],
+  "base_candidate": 1
+}

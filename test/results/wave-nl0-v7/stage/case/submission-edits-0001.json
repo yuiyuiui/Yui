@@ -1,0 +1,94 @@
+{
+  "base_input": "prior-candidate.json",
+  "base_sha256": "d74f752e992a294c5861ed3254f378ec230bccb37acb1d2e99ae020182f9e819",
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/spec/full_target",
+      "value": "Let n,m be arbitrary positive integers, u: R^n×(0,∞)→R^m jointly smooth, and q∈R^m a fixed Euclidean unit vector. Assume for every x∈R^n and t>0 that |u(x,t)|=1 and there exists a real scalar a(x,t) with u_tt(x,t)−Δ_xu(x,t)=a(x,t)u(x,t), where Δ_x is the componentwise sum of the n second spatial partial derivatives. Assume also that for every finite closed interval J⊂(0,∞) there is a compact C_J⊂R^n such that u(x,t)=q for every x∉C_J and t∈J. Define e(x,t)=||u_t(x,t)||_2^2+Σ_{j=1}^n||∂_{x_j}u(x,t)||_2^2, with Euclidean norms (equivalently the Frobenius/Hilbert–Schmidt spatial-gradient square), and E(t)=∫_{R^n}e(x,t)dx using Lebesgue measure. Prove e(·,t) is Lebesgue integrable for every t>0, E is differentiable at each t>0, and E'(t)=0. No endpoint assertion at t=0."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/hypotheses/0/statement",
+      "value": "For every x∈R^n and t>0, the Euclidean norm of u(x,t) is one."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/hypotheses/1/statement",
+      "value": "For every x∈R^n and t>0 there exists a∈R such that u_tt(x,t)−Δ_xu(x,t)=a u(x,t), with Δ_x the componentwise sum of the second spatial partial derivatives."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/0/type",
+      "value": "e:R^n×(0,∞)→R; u_t and each ∂_{x_j}u are R^m-valued; all vector norms are Euclidean, and the spatial square is the Frobenius/Hilbert–Schmidt sum."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/0/definition",
+      "value": "For x∈R^n,t>0, e(x,t)=||u_t(x,t)||_2^2+Σ_{j=1}^n||∂_{x_j}u(x,t)||_2^2, the Euclidean squared time-derivative norm plus the sum of Euclidean squared spatial-derivative norms."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/0/objects",
+      "value": [
+        "u",
+        "n",
+        "m",
+        "R^n",
+        "R^m",
+        "Euclidean norm"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/1/type",
+      "value": "E:(0,∞)→R, the totalized real-valued Lebesgue integral of the nonnegative real function e(·,t); prior to the separately proved integrability, this notation denotes the totalized integral only, and the theorem asserts integrability before interpreting E as finite energy."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/1/definition",
+      "value": "E(t)=∫_{R^n}e(x,t)dx, Lebesgue measure, using the totalized real Bochner/Lebesgue integral convention; finiteness and integrability are proved in the target and are not definition prerequisites."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/2/type",
+      "value": "For smooth u:R^n×(0,∞)→R^m, Δ_xu:R^n×(0,∞)→R^m, the R^m-valued operator summing the n componentwise second spatial partial derivatives."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/2/definition",
+      "value": "(Δ_xu)(x,t)=Σ_{j=1}^n ∂_{x_j}^2u(x,t), where each derivative is taken componentwise in R^m."
+    },
+    {
+      "op": "replace",
+      "path": "/spec/definitions/2/objects",
+      "value": [
+        "u",
+        "n",
+        "m",
+        "R^n",
+        "R^m"
+      ]
+    },
+    {
+      "op": "replace",
+      "path": "/graph/propositions/0/statement",
+      "value": "For every x∈R^n and t>0, the Euclidean norm of u(x,t) is one."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/propositions/1/statement",
+      "value": "For every x∈R^n and t>0 there exists a∈R such that u_tt(x,t)−Δ_xu(x,t)=a u(x,t), with Δ_x the componentwise sum of the second spatial partial derivatives."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/0/text",
+      "value": "Fix an arbitrary t0>0. Let J=[t0/2,3t0/2], a closed interval contained in (0,∞), and take compact C=C_J from H003. For each x outside C, u(x,t)=q for every t∈J, so its time derivatives vanish on the interior of J; at the endpoints they vanish by continuity from interior times. For every fixed t∈J, the spatial derivatives vanish on the open complement of C because u(·,t) is constant there, and vanish on the boundary by continuity (each boundary point is a limit of points in the complement; if C has empty interior this remains true, and for any boundary point the complement is dense in a neighborhood only when needed—more directly, the derivative is zero on the complement and continuity gives zero on its closure). Thus each spatial derivative and u_t is zero outside C. The function e(·,t0) is continuous, real-valued, and supported in compact C. Apply M001 with X=R^n, E=R, μ Lebesgue measure: R^n is a measurable topological space with measurable opens, its Lebesgue measure is finite on compact sets, and e(·,t0) is continuous with compact support. Hence e(·,t0) is integrable. This argument does not infer integrability from totalization of its integral. For differentiation, choose R>0 large enough that C⊂B=[−R,R]^n, and note E(t)=∫_B e(x,t)dx throughout J because e vanishes outside C. On the compact rectangle B×J the smooth function e_t is continuous and uniformly continuous. Compactness of this rectangle follows from compactness of closed bounded intervals in finite-dimensional Euclidean space and finite products of compact spaces; boundedness/containment follows from compactness of C. For h≠0 small enough that t0+h∈J, the one-variable FTC applied for each fixed x gives [e(x,t0+h)−e(x,t0)]/h=∫_0^1 e_t(x,t0+θh)dθ. Uniform continuity on B×J implies that the supremum over x∈B of the absolute difference between this quotient and e_t(x,t0) tends to zero as h→0: it is at most sup{|e_t(x,s)−e_t(x,t0)|:x∈B, |s−t0|≤|h|}. Since B has finite Lebesgue measure, the absolute difference between the integrals is bounded by |B| times this supremum and tends to zero. Therefore the difference quotient of E tends to ∫_B e_t(x,t0)dx, proving E'(t0)=∫_{R^n}e_t(x,t0)dx. The FTC identity, uniform-continuity theorem M004, and finite-measure estimate are used only after the stated compactness and continuity conditions have been established."
+    },
+    {
+      "op": "replace",
+      "path": "/graph/inferences/0/argument/1/text",
+      "value": "Write u_j=∂_{x_j}u and u_{jj}=∂_{x_j}²u. The finite-dimensional product rule and commutation of mixed partials for smooth u give e_t=2u_t·u_{tt}+2Σ_{j=1}^n u_j·∂_{x_j}u_t. These terms are continuous and vanish outside C, so all displayed integrals are absolutely integrable (continuous compactly supported scalar functions are integrable by M001). For each j define g_j(x)=u_t(x,t0)·u_j(x,t0). It is smooth and supported in C, and ∂_{x_j}g_j=(∂_{x_j}u_t)·u_j+u_t·u_{jj}. Choose R so C⊂[−R,R]^n. For fixed values of the other n−1 coordinates, g_j as a function of x_j is identically zero for |x_j|>R, so the one-dimensional FTC gives ∫_{−R}^R ∂_{x_j}g_j dx_j=g_j(...,R,...)-g_j(...,−R,...)=0. The derivative is continuous and supported in C, hence absolutely integrable on R^n. Apply M003 to its zero extension on the coordinate product R^{n−1}×R: Lebesgue measures are S-finite and the scalar integrand is product-integrable, since it is continuous with compact support by M001. The iterated integral therefore equals its product integral, and the inner coordinate integral is zero for every fixed remaining coordinate. Thus ∫_{R^n}(∂_{x_j}u_t)·u_j dx=−∫_{R^n}u_t·u_{jj}dx. Summing the finite set of identities and using Δ_xu=Σ_j u_{jj} yields E'(t0)=2∫_{R^n}u_t·(u_{tt}−Δ_xu)dx. Differentiate |u|²=1 in time and in each spatial coordinate: u·u_t=0, |u_t|²+u·u_{tt}=0, and |u_j|²+u·u_{jj}=0. The hypothesis H002 gives pointwise u_{tt}−Δ_xu=a u for some real a; thus u_t·(u_{tt}−Δ_xu)=a(u_t·u)=0. The integrand is zero everywhere, so E'(t0)=0. Since t0>0 was arbitrary, the asserted conclusions hold at every positive time."
+    }
+  ]
+}
