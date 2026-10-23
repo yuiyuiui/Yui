@@ -1,0 +1,64 @@
+{
+  "id": "ST002",
+  "version": 1,
+  "title": "Separate quotient equality from representative evaluation",
+  "family": "representation",
+  "tags": [
+    "ae",
+    "representative",
+    "quotient",
+    "pointwise"
+  ],
+  "preconditions": [
+    "ae_equality",
+    "representative_regularities"
+  ],
+  "contraindications": [
+    "arbitrary_point_evaluation"
+  ],
+  "obstacle": "An Lp/a.e. statement is being consumed as a pointwise fact.",
+  "procedure": [
+    "Record whether each object is a quotient class, selected measurable function or continuous representative.",
+    "Prove the a.e. identification first.",
+    "Use proved regularity and positive-measure neighborhood conditions only when a pointwise conclusion is required."
+  ],
+  "verification": "Reject an unproved continuity condition or fixed-point value of an arbitrary Lp class.",
+  "positive_example": "A continuous representative inherits an essential bound via positive measure of open neighborhoods.",
+  "negative_example": "Changing a function at one point preserves its Lp class and may change its point value.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "version_boundary": "Pattern observed in these pinned sources; exact APIs must be checked at application.",
+  "status": "RETROSPECTIVE_PATTERN",
+  "speedup_evidence": "NOT_MEASURED",
+  "evidence": [
+    {
+      "path": "translation/bank/sources/7238d795e7a7bd592aab6980c5d14826aa1adfe4699a2ddb07db3f975be760a7.txt",
+      "sha256": "7238d795e7a7bd592aab6980c5d14826aa1adfe4699a2ddb07db3f975be760a7",
+      "start_line": 1,
+      "end_line": 6,
+      "excerpt": "The essential \\(L^\\infty\\) bound becomes a pointwise bound for the\ncontinuous representative: a strict pointwise violation would persist on a\nset of positive measure.\n\nLet \\(I=[-M,M]\\), and let \\(\\mathscr F\\subset C(I;\\mathbb C)\\) satisfy\n(5.3c).  Given \\(\\eta>0\\), choose a finite grid",
+      "original_source": {
+        "path": "bench_cases/bench_case_2/input/NL0.md",
+        "sha256": "9cfb6c7aa623fa498cc092d44badc20bcc2cdf91337ac8e335c91bc57765bbf9",
+        "start_line": 3252,
+        "end_line": 3257
+      },
+      "scope": "Located excerpt copied from the audited historical source; not a full source-file copy."
+    },
+    {
+      "path": "translation/bank/sources/41984d8270f74e5ef4e2c54c46bad8514f7d95cfa7fd9bc8a3d2bd49344fac12.txt",
+      "sha256": "41984d8270f74e5ef4e2c54c46bad8514f7d95cfa7fd9bc8a3d2bd49344fac12",
+      "start_line": 1,
+      "end_line": 19,
+      "excerpt": "theorem l1_l2_forwardFourier_agree_ae\n    (f : \u211d \u2192 \u2102)\n    (hf1 : Integrable f (volume : Measure \u211d))\n    (hf2 : MemLp f 2 (volume : Measure \u211d)) :\n    (FourierTransform.fourier (hf2.toLp f) : \u211d \u2192 \u2102) =\u1d50[\n      (volume : Measure \u211d)] FourierTransform.fourier f := by\n  apply ae_eq_of_integral_contDiff_smul_eq\n  \u00b7 exact (Lp.memLp (FourierTransform.fourier (hf2.toLp f))).locallyIntegrable\n      (by norm_num)\n  \u00b7 exact (continuous_forwardFourier_of_integrable f hf1).locallyIntegrable\n  \u00b7 intro g hg hsupp\n    have hgcpt : HasCompactSupport (Complex.ofRealCLM \u2218 g) :=\n      hsupp.comp_left rfl\n    have hgsmooth : ContDiff \u211d (\u2191(\u22a4 : \u2115\u221e) : WithTop \u2115\u221e)\n        (Complex.ofRealCLM \u2218 g) := by\n      exact (Complex.ofRealCLM.contDiff.of_le (by exact le_top)).comp hg\n    let phi : SchwartzMap \u211d \u2102 := hgcpt.toSchwartzMap hgsmooth\n    calc\n      \u222b x : \u211d, g x \u2022 FourierTransform.fourier (hf2.toLp f) x =",
+      "original_source": {
+        "path": "bench_cases/bench_case_2/reference/lean/BOConditionalProof/Lockstep/ForwardFourierAgreement.lean",
+        "sha256": "1dc63c4d88059e953c699e4872142395833a8a702e2e57e72d4b16be49a32d98",
+        "start_line": 53,
+        "end_line": 71
+      },
+      "scope": "Located excerpt copied from the audited historical source; not a full source-file copy."
+    }
+  ]
+}

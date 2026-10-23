@@ -1,0 +1,149 @@
+{
+  "format_version": 2,
+  "case_id": "closed-addition-format-example",
+  "spec_sha256": "70b99c30a0ecced48be916c5e9c77224fad4939c95b816f59443428358bc7dd4",
+  "propositions": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "a=b.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "id": "N001",
+      "kind": "internal",
+      "statement": "b=a.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "a",
+        "b"
+      ],
+      "origin": "Equality symmetry applied to the original hypothesis."
+    },
+    {
+      "id": "P",
+      "kind": "target",
+      "statement": "a+0=b.",
+      "definitions": [],
+      "binders": [],
+      "objects": [
+        "a",
+        "b",
+        "0"
+      ]
+    }
+  ],
+  "inferences": [
+    {
+      "id": "R001",
+      "inputs": [
+        "H001"
+      ],
+      "output": "N001",
+      "definitions": [],
+      "rules": [
+        "direct"
+      ],
+      "locals": [],
+      "argument": [
+        {
+          "id": "S001",
+          "text": "H001 gives a=b. Equality symmetry gives b=a.",
+          "uses": [
+            "H001"
+          ],
+          "uses_local": [],
+          "objects": [
+            "a",
+            "b"
+          ],
+          "produces": [],
+          "introduces": [],
+          "discharges": []
+        }
+      ],
+      "applications": []
+    },
+    {
+      "id": "R002",
+      "inputs": [
+        "N001"
+      ],
+      "output": "P",
+      "definitions": [],
+      "rules": [
+        "direct"
+      ],
+      "locals": [
+        {
+          "symbol": "c",
+          "type": "natural number",
+          "scope": "R002/argument",
+          "start": "S001",
+          "end": "S002",
+          "kind": "definition",
+          "declaration": "Define c=a+0.",
+          "from_inputs": [],
+          "from_local": [],
+          "objects": [
+            "a",
+            "0"
+          ]
+        }
+      ],
+      "argument": [
+        {
+          "id": "S001",
+          "text": "Define c=a+0. The declared additive identity a+0=a yields c=a.",
+          "uses": [],
+          "uses_local": [],
+          "objects": [
+            "a",
+            "c",
+            "0"
+          ],
+          "produces": [
+            {
+              "id": "F001",
+              "statement": "c=a.",
+              "objects": [
+                "a",
+                "c"
+              ],
+              "assumptions": [],
+              "binders": []
+            }
+          ],
+          "introduces": [],
+          "discharges": []
+        },
+        {
+          "id": "S002",
+          "text": "N001 gives b=a; equality symmetry gives a=b. F001 gives c=a, hence c=b by substitution. Substituting the definition c=a+0 yields a+0=b.",
+          "uses": [
+            "N001"
+          ],
+          "uses_local": [
+            "F001"
+          ],
+          "objects": [
+            "a",
+            "b",
+            "c",
+            "0"
+          ],
+          "produces": [],
+          "introduces": [],
+          "discharges": []
+        }
+      ],
+      "applications": []
+    }
+  ]
+}

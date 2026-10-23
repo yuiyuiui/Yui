@@ -1,0 +1,50 @@
+{
+  "id": "ST007",
+  "version": 1,
+  "title": "Track the boundary term when extending across a half-line",
+  "family": "analysis",
+  "tags": [
+    "boundary",
+    "distribution",
+    "zero_extension",
+    "trace"
+  ],
+  "preconditions": [
+    "trace_defined",
+    "distribution_convention"
+  ],
+  "contraindications": [
+    "discarded_boundary_term"
+  ],
+  "obstacle": "A half-line derivative is incorrectly identified with a full-line derivative.",
+  "procedure": [
+    "State the zero-extension distribution identity including the boundary Dirac term.",
+    "Prove the actual trace or show the zero-trace condition that removes the term.",
+    "Only then transport the ODE/Fourier identity and select a representative."
+  ],
+  "verification": "Check boundary coefficient, Fourier convention and the justified trace.",
+  "positive_example": "The zero-trace BO free representative is connected to its distributional equation.",
+  "negative_example": "An arbitrary nonzero trace cannot be dropped by a zero-extension notation change.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "version_boundary": "Pattern observed in these pinned sources; exact APIs must be checked at application.",
+  "status": "RETROSPECTIVE_PATTERN",
+  "speedup_evidence": "NOT_MEASURED",
+  "evidence": [
+    {
+      "path": "translation/bank/sources/d542426243a1dc8ce4b8ca15f642f9e3d206ddb90d3f3145b7889b3a04b59e7b.txt",
+      "sha256": "d542426243a1dc8ce4b8ca15f642f9e3d206ddb90d3f3145b7889b3a04b59e7b",
+      "start_line": 1,
+      "end_line": 25,
+      "excerpt": "theorem selectedFreePhysical_hasDistributionalD\n    (DNPV : PublishedDNPVCoreReal)\n    {sigma : \u211d} (hsigma : 1 / 2 < sigma) (hsigma_one : sigma < 1)\n    {u0 : RealField} {hu0 : MemLp u0 2 (volume : Measure \u211d)}\n    (E4 : ChenE4OperatorCore u0 hu0)\n    {t : \u211d} (ht : 0 < t) (ell eps : \u211d) (heps : 0 < eps)\n    (Q : HalfLineFractionalSpace sigma) :\n    let P := halfLineHolderPackage_of_DNPVCore DNPV hsigma hsigma_one\n    let f := chenFreeResolventVector E4 t (ell / Real.sqrt t) eps heps\n      (((2 * t : \u211d) : \u2102) \u2022 HalfLineFractionalSpace.profile Q)\n    let v : ComplexField := hardyPhysicalL2 (ChenDomain.spectrum f)\n    let q : ComplexField :=\n      hardyPhysicalL2 (HalfLineFractionalSpace.profile Q)\n    HasDistributionalD v (fun x =>\n      -q x +\n        (freeODECoefficient t ell eps x * v x +\n          freeBoundaryValue t ell eps (P.representative Q) /\n            (4 * (Real.pi : \u2102) * Complex.I * (t : \u2102)))) := by\n  dsimp only\n  let P := halfLineHolderPackage_of_DNPVCore DNPV hsigma hsigma_one\n  let f := chenFreeResolventVector E4 t (ell / Real.sqrt t) eps heps\n    (((2 * t : \u211d) : \u2102) \u2022 HalfLineFractionalSpace.profile Q)\n  let v : ComplexField := hardyPhysicalL2 (ChenDomain.spectrum f)\n  let q : ComplexField :=\n    hardyPhysicalL2 (HalfLineFractionalSpace.profile Q)",
+      "original_source": {
+        "path": "bench_cases/bench_case_2/reference/lean/BOConditionalProof/Lockstep/ZeroTraceDistributionalODE.lean",
+        "sha256": "0f3626631b00b2d43e560964c4955ad92fe766912e5530f7960772cbe34daa1b",
+        "start_line": 125,
+        "end_line": 149
+      },
+      "scope": "Located excerpt copied from the audited historical source; not a full source-file copy."
+    }
+  ]
+}
