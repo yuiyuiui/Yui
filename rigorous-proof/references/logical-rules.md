@@ -4,6 +4,10 @@ The main graph has only E/M/H source propositions. A temporary assumption is
 an argument-local device, never a trusted graph vertex. Every exported N/P is
 a complete claim under the frozen original context. The audit inspects the
 local derivation; surface implication syntax alone is insufficient.
+The complete [neutral JSON example](../templates/quantified-implication-example.md)
+shows an arbitrary binder, a local antecedent, its discharge and the full
+quantified output. Follow this accounting rather than silently granting a
+property in a local object's type.
 
 ## Implication and contradiction
 

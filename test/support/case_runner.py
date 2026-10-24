@@ -15,7 +15,7 @@ def execute(job,root):
     recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='preparation')
     budgets=a.concurrency.CaseBudgets(job.get('max_concurrency','auto'),execution=recorder)
     budget=budgets.serial
-    result={}
+    result={};author_artifact=None
     def progress(case,phase,**extra):
         recorder.check();recorder.update(phase=phase,stage_artifacts=extra);recorder.flush(force=True)
     try:
@@ -24,11 +24,19 @@ def execute(job,root):
                 out=a.ROOT/'test/results'/job['run'];progress(job['case'],'NL0_AUTHORING',directory=str(out))
                 stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',case_id=job['case'],
                     inputs=out/'inputs.json',timeout=1800,budget=budget)
-                stage.execute();recorder.check();f.accepted(out);source=out/'stage/case'
+                stage.execute();recorder.check();author_artifact=f.nl0_artifact_for_audit(out)
+                a.write(Path(root)/'author-artifact-eligibility.json',author_artifact)
+                source=out/'stage/case'
             else:source=(a.ROOT/'test/results'/job['source']).resolve()
             if job['kind'] not in {'translate','checked_interface','submitted_interface'}:
-                f.audit_source(job['case'],source,job['audit'],budget,progress,
-                    reuse_from=[a.ROOT/'test/results'/name for name in job.get('reuse_audits',[])])
+                audited=f.audit_source(job['case'],source,job['audit'],budget,progress,
+                    reuse_from=[a.ROOT/'test/results'/name for name in job.get('reuse_audits',[])],
+                    controls=(a.ROOT/'test/results'/job['audit_controls']/'behavioral-summary.json') if job.get('audit_controls') else None)
+                if job.get('stop_after')=='audit_a':
+                    result={'status':'DRAFT-AUDIT-PASSED','acceptance_scope':'NL0_AND_AUDIT_A_ONLY',
+                            'source':str(source),'audit':str(a.ROOT/'test/results'/job['audit']),
+                            'full_acceptance':audited['full_acceptance']}
+                    return result
             result=(f.from_interface(job['case'],source,job['interface'],job['workflow'],budget,progress,
                     candidate=job.get('candidate'),review_name=job.get('review'),
                     proof_budget=budgets.proof)
@@ -42,6 +50,14 @@ def execute(job,root):
         result={'status':'CANCELLED' if recorder.cancelled() else 'ARTIFACT_OR_CONTRACT_REJECTED' if isinstance(error,ValueError) else 'EXECUTION_FAULT',
                 'error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
     finally:
+        if author_artifact is not None:result['author_artifact']=author_artifact
+        target='AUDIT_A_PASS' if job.get('stop_after')=='audit_a' else 'AUDIT_B_PASS'
+        passed=result.get('status')==('DRAFT-AUDIT-PASSED' if target=='AUDIT_A_PASS' else 'WORKFLOW-PASSED')
+        result['completion']={'acceptance_target':target,'acceptance_target_satisfied':passed,
+            'logical_worker':'NL0 worker' if target=='AUDIT_A_PASS' else 'translation workflow',
+            'case_state':'ACCEPTED' if passed else 'INCOMPLETE',
+            'follow_up_required':not passed,
+            'scope':'Executor exit does not imply acceptance; follow-up follows the authorized outer run policy.'}
         recorder.close(result.get('status','EXECUTION_FAULT'),outcome=result)
         a.write(Path(root)/'case-result.json',{'job':job,'result':result,'concurrency':budgets.report()})
     return result

@@ -95,7 +95,7 @@ RULES = {
     "contradiction_classical", "case_elimination", "forall_introduction",
     "exists_elimination", "natural_induction",
 }
-CHECKS = {"inputs", "argument", "dependency_accounting", "output", "scope", "applicability"}
+CHECKS = closure.acceptance.current().check_ids('inference')
 EXTERNAL_CHECKS = {"literature_identity", "result_location", "statement_fidelity",
                    "context_completeness", "version_and_eligibility"}
 VERDICTS = {"PASS", "FAIL", "UNVERIFIED"}
@@ -271,7 +271,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
             string(step["text"], f"{key}.text")
             for field in ("uses", "introduces", "discharges"):
                 strings(step[field], f"{key}.{field}")
-            require(set(step["uses"]) <= set(item["inputs"]), "CITATION", f"undeclared graph citation in {key}")
+            require(set(step["uses"]) <= set(item["inputs"]), "CITATION", f"undeclared graph citation in {key}/{step.get('id','step')}: {sorted(set(step['uses'])-set(item['inputs']))}")
             used.update(step["uses"])
             for assumption in step["introduces"]:
                 require(re.fullmatch(r"L[1-9]\d*", assumption) and assumption not in introduced,
@@ -299,8 +299,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
             applied_sources.add(aid)
             string(app["bindings"], f"{key}/{aid}.bindings")
             strings(app["hypothesis_checks"], f"{key}/{aid}.hypothesis_checks", unique=False)
-            require(len(app["hypothesis_checks"]) == len(sources[aid]["hypotheses"]), "APPLICATION", f"incomplete hypothesis mapping {key}/{aid}")
-        require(applied_sources == set(item["inputs"]) & sources.keys(), "APPLICATION", f"missing source application in {key}")
+            require(len(app["hypothesis_checks"]) == len(sources[aid]["hypotheses"]), "APPLICATION", f"incomplete hypothesis mapping {key}/{aid}: expected {len(sources[aid]['hypotheses'])}, received {len(app['hypothesis_checks'])}; source obligations={sources[aid]['hypotheses']}")
+        expected_sources=set(item['inputs']) & sources.keys()
+        require(applied_sources == expected_sources, "APPLICATION", f"missing source application in {key}: missing={sorted(expected_sources-applied_sources)}, extra={sorted(applied_sources-expected_sources)}. Record actual at/bindings/hypothesis_checks; a source lookup alone is not an application.")
 
     require(set(producer) == {p for p, v in propositions.items() if v["kind"] in {"internal", "target"}}, "PRODUCER", "unproved internal/target proposition")
     ordered, closure_cache = [], {}
@@ -322,7 +323,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         ancestors(key)
     target_closure = ancestors("P")
     require(all(p in target_closure for p, v in propositions.items() if v["kind"] != "hypothesis"),
-            "ORPHAN", "a retained non-H proposition is outside P's proof closure")
+            "ORPHAN", "retained non-H IDs outside P's proof closure="+
+            repr(sorted(p for p,v in propositions.items() if v['kind']!='hypothesis' and p not in target_closure))+
+            ". Remove only genuinely unused inventory; a theorem still invoked in prose must instead be registered and actually used.")
     for key, item in inferences.items():
         available = set().union(*(ancestors(p) for p in item["inputs"])) if item["inputs"] else set()
         refs = set(item["definitions"]) | set(propositions[item["output"]]["definitions"])
@@ -558,9 +561,43 @@ def packet(data, inference):
             "inference": step, "warning": "This packet is a view, not an independent proof or audit certificate."}
 
 
+def global_overview(data):
+    """Exhaustive global records/edges; no proof or source verdict is produced."""
+    result,graph,spec=data[:3];props=graph['propositions']
+    producers={r['output']:r['inputs'] for r in graph['inferences']}
+    reachable=set();pending=['P']
+    while pending:
+        node=pending.pop()
+        if node in reachable:continue
+        reachable.add(node);pending.extend(producers.get(node,[]))
+    unused=sorted(h['id'] for h in spec['hypotheses'] if h['id'] not in reachable)
+    return {'schema':'yui-global-overview-2',
+        'scope':'Lossless global-context/statement projection of the bound canonical files. No proof judgment, extra premise or author/reviewer note. Proof bodies and full native source readbacks remain in the other task documents.',
+        'canonical_hashes':{'spec.json':result['spec_sha256'],'nl0.json':result['graph_sha256']},
+        'context':{key:spec[key] for key in ['full_target','conclusion','parameters','logic']},
+        'spec_hypotheses':[{'pointer':f'spec.json#/hypotheses/{i}','record':row}
+            for i,row in enumerate(spec['hypotheses'])],
+        'graph_hypotheses':[{'pointer':f'nl0.json#/propositions/{i}','record':row}
+            for i,row in enumerate(props) if row['kind']=='hypothesis'],
+        'definitions':[{'pointer':f'spec.json#/definitions/{i}','record':row}
+            for i,row in enumerate(spec['definitions'])],
+        'other_propositions':[{'pointer':f'nl0.json#/propositions/{i}','record':row}
+            for i,row in enumerate(props) if row['kind']!='hypothesis'],
+        'inference_edges':[{'pointer':f'nl0.json#/inferences/{i}',
+            **{key:row[key] for key in ['id','inputs','output','definitions','rules']}}
+            for i,row in enumerate(graph['inferences'])],
+        'inventory':{'spec_H_ids':[h['id'] for h in spec['hypotheses']],
+            'graph_H_ids':[p['id'] for p in props if p['kind']=='hypothesis'],
+            'unused_original_hypotheses':unused,
+            'reachability_basis':'Declared R input/output edges only; actual prose uses still require audit.',
+            'all_proposition_ids':[p['id'] for p in props],
+            'all_definition_ids':[d['id'] for d in spec['definitions']],
+            'all_inference_ids':[r['id'] for r in graph['inferences']]}}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check", "inspect-audit", "render", "packet", "audit-template"])
+    parser.add_argument("command", choices=["check", "inspect-audit", "render", "packet", "overview", "audit-template"])
     parser.add_argument("graph", type=Path)
     parser.add_argument("--spec", type=Path, required=True)
     parser.add_argument("--audit", type=Path)
@@ -577,6 +614,9 @@ def main():
         elif args.command == "render":
             require(args.out is not None, "CLI", "render requires --out")
             result = render(data, args.out)
+        elif args.command == 'overview':
+            require(not args.legacy and args.audit is None,'CLI','Create a current source overview without importing an audit receipt')
+            result=global_overview(data)
         elif args.command == "audit-template":
             require(args.audit is None and not args.legacy, "CLI", "Create a new pending audit without inheriting a receipt")
             result = closed_call(closure.audit_template, data, CHECKS, EXTERNAL_CHECKS,
@@ -585,12 +625,12 @@ def main():
         else:
             require(args.inference is not None, "CLI", "packet requires --inference")
             result = packet(data, args.inference)
-        if args.out is not None and args.command in {"audit-template", "packet"}:
-            require(args.out.parent.resolve() == args.graph.parent.resolve() or args.command == "packet",
+        if args.out is not None and args.command in {"audit-template", "packet", "overview"}:
+            require(args.out.parent.resolve() == args.graph.parent.resolve() or args.command in {"packet","overview"},
                     "PATH", "Store audit templates beside the canonical graph")
             with args.out.open("x") as handle:
                 handle.write(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-            result = {"written": str(args.out), "status": "AUDIT-UNREVIEWED" if args.command == "audit-template" else "PACKET-WRITTEN"}
+            result = {"written": str(args.out), "status": "AUDIT-UNREVIEWED" if args.command == "audit-template" else "GLOBAL-OVERVIEW-WRITTEN" if args.command=='overview' else "PACKET-WRITTEN"}
     except (Invalid, OSError, ValueError, KeyError, TypeError, RecursionError, subprocess.SubprocessError) as error:
         print(json.dumps({"status": "INVALID", "error": str(error), "mathematics_automatically_verified": False}, ensure_ascii=False, indent=2))
         return 1

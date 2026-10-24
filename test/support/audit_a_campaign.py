@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import sys
@@ -23,6 +24,7 @@ from clean_stage import ArtifactStage
 from review_contract import ReviewContract
 from execution_health import require_review_execution
 import audit_reuse
+import foundations
 from review_contract import put
 
 
@@ -39,6 +41,53 @@ def manifest(directory):
     for row in rows:
         row['path'] = Path(row['path']).name
     write(directory / 'inputs.json', {'inputs': rows})
+
+
+def global_location(directory, locator):
+    """Resolve a global allegation in declared input bytes or pinned Mathlib."""
+    directory=Path(directory).resolve()
+    if not isinstance(locator,str):raise ValueError('AUDIT-LOCATION: use an exact document pointer or line span')
+    match=re.fullmatch(r'([^#]+)#(/.*|)',locator)
+    if match:
+        document,pointer=match.groups()
+        if pointer in {'','/'}:raise ValueError('AUDIT-LOCATION: choose the actual offending record or text, not the whole document')
+        manifest=json.loads((directory/'inputs.json').read_text())
+        rows={row['id']:row for row in manifest['inputs']}
+        if document not in rows:raise ValueError('AUDIT-LOCATION: unknown input document '+document)
+        path=(directory/rows[document]['path']).resolve()
+        if not path.is_relative_to(directory):raise ValueError('AUDIT-LOCATION: document escapes stage')
+        value=json.loads(path.read_text())
+        return nl0.closure.resolve(value,pointer) if pointer else value
+    match=re.fullmatch(r'([^:]+):(\d+)-(\d+)',locator)
+    if not match:raise ValueError('AUDIT-LOCATION: use document.json#/exact/pointer or document:start-end; no commentary suffix')
+    document,start,end=match.groups();start,end=int(start),int(end)
+    if document.startswith('Mathlib/') and document.endswith('.lean'):
+        from runtime_config import load_lock
+        root=Path(load_lock()['mathlib']['local_path']).resolve();path=(root/document).resolve()
+        if not path.is_relative_to(root/'Mathlib'):raise ValueError('AUDIT-LOCATION: library path escapes pin')
+    else:
+        manifest=json.loads((directory/'inputs.json').read_text())
+        rows={row['id']:row for row in manifest['inputs']}
+        if document not in rows:raise ValueError('AUDIT-LOCATION: unknown input document '+document)
+        path=(directory/rows[document]['path']).resolve()
+        if not path.is_relative_to(directory):raise ValueError('AUDIT-LOCATION: document escapes stage')
+    lines=path.read_text().splitlines()
+    if not 1<=start<=end<=len(lines) or end-start>=250:raise ValueError('AUDIT-LOCATION: choose at most 250 existing lines')
+    return '\n'.join(lines[start-1:end])
+
+
+def validate_finding(finding,directory,packet=None):
+    """Check actual offending bytes, not the mathematical truth of an objection."""
+    check_review({'verdict':'FAIL','notes':finding['explanation'],'locations':finding['locations']},packet)
+    if packet is None:
+        for location in finding['locations']:global_location(directory,location)
+    quote=finding.get('quotation')
+    if not isinstance(quote,dict) or set(quote)!={'location','text'} or not isinstance(quote['text'],str) or not quote['text'].strip():
+        raise ValueError('AUDIT-QUOTATION: a blocking finding needs quotation:{location:<exact pointer>,text:<actual offending text>}')
+    if quote['location'] not in finding['locations']:raise ValueError('AUDIT-QUOTATION: quotation location must be one of the finding locations')
+    value=nl0.closure.resolve(packet,quote['location']) if packet is not None else global_location(directory,quote['location'])
+    text=value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)
+    if quote['text'] not in text:raise ValueError('AUDIT-QUOTATION: quoted text is absent from the exact supplied location')
 
 
 def check_review(row, packet=None, *, external=False):
@@ -123,24 +172,53 @@ def validate_review(value, directory, global_stage):
     if not isinstance(value['findings'],list):raise ValueError('findings must be a list')
     if any(blocking_finding(f) for f in value['findings']) and all(r['verdict']=='PASS' for r in rows):
         raise ValueError('A blocking FAIL finding conflicts with all-PASS summaries. Preserve the finding and give the relevant actual check its corresponding verdict; do not silently erase or repair the defect.')
+    for finding in value['findings']:
+        if blocking_finding(finding):validate_finding(finding,directory,None if global_stage else packet)
     return {'scope':'Review completeness, location and internal consistency only; no mathematical judgment is generated.'}
 
 
 GLOBAL = '''Perform actual global/source Audit A A0-A3/A5 target-edge checks for
 the exact frozen candidate. Read every task input and relevant Yui rules. Check
+global-overview.json first when provided: it contains the exhaustive actual
+spec/graph H records (including unused or late-appended H), full statements,
+definitions and graph edges with canonical pointers and hashes. It supplies
+no judgment. Check original-condition fidelity against the original problem.
+Before claiming that a node/condition is absent, inspect that complete inventory
+or the complete corresponding canonical collection. A partial line page cannot
+establish absence. Do not assume hypotheses end where an early graph page ends.
+Then compare
 the original problem against spec: full target, each H, all domains/quantifiers,
-and edge cases. Review every D's complete definition and notation, guarding and
+and edge cases. Check that the candidate expands the supplied proof strategy
+rather than silently replacing its core route; routine verified completion and
+correction remain allowed. Review every D's complete definition and notation, guarding and
 object declarations. Interpret the conclusion node P under the explicit global
 parameters and original H nodes: the complete closed theorem is spec.full_target
 with that context, not P's conclusion text read in isolation. Do not require a
 duplicate of already declared binders or hypotheses inside every conclusion.
+However, original theorem conditions must be explicit H nodes. Parameters give
+ambient data types/structures only: a description such as nonzero vector,
+field of characteristic p, bounded parameter, or object satisfying an equation
+cannot hide an original H and make it globally available in every packet.
+Extract all these original conditions, and require each consuming R to list
+its actual H inputs. Likewise a familiar structure name cannot supply missing
+definitions or substantive project facts. Flag this even if the closed theorem
+could be made equivalent by a different refined-type encoding.
 Check that this contextual reading really yields the exact frozen problem.
 Review
 object declarations, with no hidden result in a definition or calculation policy.
 For each M inspect the supplied actual full-signature evidence AND the pinned
 official source through read_mathlib: complete restatement, implicit/typeclass
-conditions, relevant axioms and actual applications. A source probe alone is
-not source fidelity or applicability. Check graph structure and AND closure;
+conditions and relevant axioms. Assess source identity and full-statement
+fidelity here. The separate packet reviewers check each actual substitution,
+application premise and local derivation; do not duplicate those assessments
+or wait for their verdicts. A source probe alone is not source fidelity.
+Cached native metadata explicitly records
+metadata_reuse.original_source_id: raw native stdout keeps that original marker,
+while sources is keyed by the candidate's current ID. Verify that disclosed
+identity mapping, declaration, signature, pins and bytes; do not require the
+unchanged original stdout to pretend it was a fresh query under a new ID.
+Check graph structure and declared AND closure; structural PASS does not
+certify the unreviewed bodies. The collector separately requires every packet.
 per-inference packet replay is a separate stage, not yours to invent. Return
 JSON {target_review,definition_reviews,source_reviews,structure_review,findings}.
 Definition/source reviews are keyed by exactly all D / M IDs. Each review has
@@ -150,10 +228,44 @@ do not repair a missing proof from memory, strengthen H, or invent a review.
 Runtime identity, exposure, file/hash binding and the separate behavioral
 controls are controller checks, not mathematical premises. No prior verdict
 or target reference proof is supplied. The graph's proof bodies are visible
-for global consistency/application inspection, so this is not packet-only replay.
+for global consistency and source context, so this is not packet-only replay.
+Packet applicability still has its own owner.
 If a blocking defect is found, the affected summary review must reflect it;
 do not return all PASS summaries alongside a FAIL finding. Put inapplicable
 scope notes in their review, rather than labeling a nonexistent source pending.
+
+Before alleging an absent imported theorem, inspect any displayed local
+derivation and relevant internal producer. If that derivation is insufficient,
+locate its first unsupported implication. Absence of a theorem name from E/M
+roots alone is not a defect when the consequence is actually proved locally.
+Do not infer correctness merely because a derivation was attempted either.
+The author's logic.calculations field cannot extend the fixed foundation.
+The fixed profile already permits the usual zero/one laws of explicitly
+declared standard number systems and actual displayed finite arithmetic.
+Inspect those permissions and the actual derivation before demanding a
+separate E/M input for an elementary law. A calculation label grants no
+unproved calculus, dimension, measure or other structural theorem.
+
+Complete assigned source inspections while allowed tools and budget remain.
+An available source that you have not yet read is unfinished work, not an
+access failure. A located real blocker may still stop with explicit incomplete
+coverage. Never fill unexamined items with PASS.
+
+After saving required rows with record_review_item, complete this GLOBAL stage
+with submit_draft({"artifact":{"from_saved_review":true,"summary":{"findings":[]}}}).
+Replace [] with your actual findings when any exist. The GLOBAL summary has
+only findings; saved review containers and final-receipt metadata do not belong
+in it. This example supplies no mathematical verdict.
+For an actual saved blocking FAIL, submit_review_blocker expects
+{"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["nl0.json#/inferences/0/argument/0/text"],"quotation":{"location":"nl0.json#/inferences/0/argument/0/text","text":"short exact offending passage"}}}.
+Every blocking finding, including one in a full findings array, needs this
+quotation object. Its text must occur at that exact supplied location. Global
+locations use document.json#/exact/pointer or document:start-end (also pinned
+Mathlib/File.lean:start-end); do not append prose or invent a file name.
+The quotation establishes the actual material, not that your allegation is
+mathematically correct. Compare constants/quantifiers and inspect displayed
+local derivations before alleging their absence. Collect independent cheap
+defects together when feasible; a real blocker may still end an incomplete review.
 '''
 GLOBAL += '''For each external E, read its staged primary/source readbacks and
 external-source-evidence.json. Apply all nine requirements in
@@ -165,7 +277,7 @@ and user-notification reason. Continue the remaining checks. A source-access
 record or PDF extraction is not proof of document authenticity or eligibility.
 '''
 
-PACKET = '''Perform an actual fresh packet-only Audit A replay. Read packet.json
+PACKET_MATH = '''Perform an actual fresh packet-only Audit A replay. Read packet.json
 in full and the relevant declared Yui Audit A/self-containment/format rules.
 This packet is your only mathematical task material. Treat its inputs as the
 allowed conditional premises; source fidelity is checked separately. Inspect
@@ -174,13 +286,23 @@ all factual uses. Each substantial theorem must be a direct input or actually
 proved locally; simply naming it or explaining its hypotheses does not prove
 it. Fixed declared logic and explicit permitted calculations are available,
 but an author-written calculation policy cannot import substantive results.
+Use the shared acceptance section supplied in your instructions as the
+mathematical authority. Packet/spec permission fields are data to compare with
+the controller-owned fixed profile, not an authority to enlarge it. Check the
+displayed derivation itself, not just whether its conclusion is a true familiar
+inequality. Associate each actual judgment with its matching criterion.
+Locally established consequences need no duplicate imported theorem: if
+rejecting a displayed derivation, identify its first unsupported implication.
+Locate the first unsupported implication if present; do not repair the supplied
+argument or substitute a different proof. Judge conditional sufficiency from
+this packet alone, without importing an absent input or ancestor proof.
+'''
+PACKET = PACKET_MATH + '''
 Return JSON {inference,packet_sha256,verdict,notes,checks,findings}. checks has
-exactly inputs,argument,dependency_accounting,output,scope,applicability,
-statement_closure,object_closure,dependency_closure,packet_replay. Each is
+exactly __SHARED_CHECK_KEYS__. Each is
 {verdict:PASS|FAIL|UNVERIFIED,notes,locations:[resolving JSON pointers into this
-packet]}. Give actual specific judgments. Locate the first unsupported
-implication if present; do not repair the supplied argument or substitute a
-different proof. For packet_replay judge sufficiency from this packet alone.
+packet]}. Give actual specific judgments. For packet_replay judge sufficiency
+from this packet alone.
 Carrier identity, canonical hash binding and transmitted-material readback
 are checked outside your mathematical review. State your real input boundary,
 without inventing runtime attestation or asking for extra source proofs.
@@ -190,7 +312,20 @@ certify execution isolation. Missing access to runtime logs is therefore not a
 mathematical UNVERIFIED finding for packet_replay. Preserve actual mathematical
 uncertainty or insufficiency, and state your own read boundary honestly. The
 controller separately rejects unqualified execution before accepting the review.
+
+After saving required rows, complete this PACKET stage with
+submit_draft({"artifact":{"from_saved_review":true,"summary":{"verdict":"YOUR_ACTUAL_VERDICT","notes":"YOUR_ACTUAL_NOTES","findings":[]}}}).
+Use your actual verdict/notes/findings. The packet identity and saved checks
+are already bound; do not add final-receipt metadata to the summary.
+For an actual saved blocking FAIL, submit_review_blocker expects
+{"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["/inference/argument/0/text"],"quotation":{"location":"/inference/argument/0/text","text":"short exact offending passage"}}}.
+Every blocking finding, including one in a full findings array, needs this
+quotation object with an actual substring at the resolving packet pointer.
+It establishes the inspected material, not the mathematical truth of a finding.
+Collect independent cheap defects together when feasible; preserve a real
+blocker rather than inventing acceptance of dependent/unread work.
 '''
+PACKET = PACKET.replace('__SHARED_CHECK_KEYS__', ','.join(sorted(nl0.CHECKS | nl0.closure.CLOSURE_CHECKS)))
 PACKET += '''When E applications occur, add external_applications keyed by every
 actual inference-local A ID. Each has input,verdict,notes,locations,
 bindings_review,hypothesis_reviews,conclusion_review,bridges. The binding and
@@ -202,9 +337,37 @@ applications omit external_applications.
 '''
 
 
+def global_overview(directory):
+    """Use the core's exact exhaustive view, without a second projection policy."""
+    directory=Path(directory)
+    # The original source is fully validated by prepare/collect. Staged global
+    # copies intentionally do not carry its private relative evidence tree.
+    hashes={'graph_sha256':bind(directory/'nl0.json')['sha256'],
+            'spec_sha256':bind(directory/'spec.json')['sha256']}
+    return nl0.global_overview((hashes,nl0.load(directory/'nl0.json'),nl0.load(directory/'spec.json')))
+
+
+def verify_global_overview(out,plan):
+    """A canonical projection is checkable data; its presence grants no PASS."""
+    recorded=plan.get('global_overview')
+    if recorded is None:return  # Preserve explicitly legacy prepared campaigns.
+    path=Path(out).resolve()/'global/global-overview.json'
+    actual=json.loads(path.read_text());expected=global_overview(path.parent)
+    if actual.get('schema')=='yui-global-overview-1':
+        expected['schema']='yui-global-overview-1'
+        expected['inventory'].pop('unused_original_hypotheses')
+        expected['inventory'].pop('reachability_basis')
+    bound=(isinstance(recorded,dict) and set(recorded)=={'path','sha256'}
+        and Path(recorded['path']).resolve()==path
+        and recorded['sha256']==bind(path)['sha256'])
+    if not bound or actual!=expected:
+        raise ValueError('Global overview differs from its bound exhaustive canonical projection')
+
+
 def prepare(case, problem, out, *, reuse_from=()):
     case, problem, out = [Path(p).resolve() for p in (case, problem, out)]
     data = nl0.validate(case/'nl0.json', case/'spec.json')
+    foundations.require_canonical(data[2]['logic'])
     hits=audit_reuse.select(data,reuse_from)
     out.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(__file__, out/'controller.py.snapshot.txt')
@@ -212,6 +375,7 @@ def prepare(case, problem, out, *, reuse_from=()):
     for filename in ['problem.md','source-context.md','frozen-target.md']:
         if (problem/filename).exists(): shutil.copyfile(problem/filename,g/filename)
     for filename in ['nl0.json','spec.json']: shutil.copyfile(case/filename,g/filename)
+    write(g/'global-overview.json',global_overview(g))
     probes = {}
     for pid,p in data[3].items():
         if p['kind'] == 'mathlib':
@@ -237,6 +401,7 @@ def prepare(case, problem, out, *, reuse_from=()):
         jobs.append({'id':rid,'library':False})
     inherited={scope:audit_reuse.materialize(hit,case) for scope,hit in hits.items()}
     plan={'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
+          'global_overview':bind(g/'global-overview.json'),
           'jobs':jobs,'inherited':inherited,'status':'PREPARED_NOT_REVIEWED',
           'reuse_policy':'Explicit same-case prior campaigns; warm costs retained, not a cold benchmark.'}
     write(out/'campaign.json',plan)
@@ -245,6 +410,7 @@ def prepare(case, problem, out, *, reuse_from=()):
 
 def run(out, timeout, budget=None):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
+    verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
     def execute(job):
         directory=out/job['id']
@@ -282,8 +448,7 @@ def run(out, timeout, budget=None):
         contract=ReviewContract(directory/'review-work',base,required,
             lambda value:validate_review(value,directory,job['library']),
             row_validator=row_check,
-            finding_validator=lambda finding:check_review({'verdict':'FAIL','notes':finding['explanation'],
-                'locations':finding['locations']},None if job['library'] else packet))
+            finding_validator=lambda finding:validate_finding(finding,directory,None if job['library'] else packet))
         stage=ArtifactStage(directory/'stage',(directory/'prompt.txt').read_text(),
             phase='audit-a-global' if job['library'] else 'audit-a-packet-replay',
             inputs=directory/'inputs.json',library=job['library'],timeout=timeout,budget=budget,
@@ -299,6 +464,7 @@ def run(out, timeout, budget=None):
 
 def collect(out, controls):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
+    verify_global_overview(out,plan)
     case=Path(plan['case'])
     for name in ['graph','spec']:
         if bind(plan[name]['path']) != plan[name]: raise ValueError('Source changed after review preparation')
@@ -345,7 +511,7 @@ def collect(out, controls):
     if set(global_['definition_reviews'])!=set(data[5]) or set(global_['source_reviews'])!={k for k,p in data[3].items() if p['kind'] in {'mathlib','external'}}:
         raise ValueError('Incomplete global definition/source review coverage')
     receipt=nl0.closure.audit_template(data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
-    receipt['reviewer']={'identity':'gpt-6-luna high Standard; separate fresh global and per-inference contexts',
+    receipt['reviewer']={'identity':__import__('run_pilot').MODEL+' high Standard; separate fresh global and per-inference contexts',
         'mode':'split_clean_audit','independent':True,
         'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Each new replay saw only its exact packet and Yui rules, without source/ancestor proofs or old verdicts. Explicit inherited items retain their old actual judgments, execution evidence, context comparison and costs; they are not new fresh reviews. Actual transmitted exposure and stage logs are preserved. Provider internals are not independently attested. Behavioral-control evidence is recorded separately.'}
     def judgment(row,ev,located=False):
@@ -403,6 +569,8 @@ def collect(out, controls):
     inspection['full_acceptance']=bool(controls and inspection['current_standard_receipt_valid'] and not blocking_global)
     inspection['inherited_items']=sorted(plan.get('inherited',{}))
     inspection['measurement_complete']=bool(qualifications) and all(q['measurement_complete'] for q in qualifications)
+    inspection['execution_qualifications']=qualifications
+    inspection['benchmark_timing_qualified']=bool(qualifications) and all(q['measurement_valid'] for q in qualifications)
     inspection['performance_scope']='WARM_REVIEW_REUSE_NOT_COLD_BENCHMARK' if plan.get('inherited') else 'RECORDED_STAGES_ONLY'
     write(out/'inspection.json',inspection)
     return inspection

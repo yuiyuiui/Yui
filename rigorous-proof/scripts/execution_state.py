@@ -128,10 +128,11 @@ class Recorder:
         self._usage_errors = []; self._signals = {}; self._locals = threading.local()
         owner = identity(os.getpid())
         if owner is None: raise RuntimeError('Cannot establish controller process identity')
+        profile = json.loads((Path(__file__).resolve().parents[1]/'config.json').read_text())['model']
         self.state = {'schema_version': 'yui-execution-1', 'case_id': case_id, 'run_id': str(uuid.uuid4()),
             'updated_at_utc': now(), 'controller_heartbeat_at_utc': now(),
             'controller': {**owner, 'ppid': os.getppid(), 'state': 'RUNNING'}, 'phase': phase,
-            'bindings': {}, 'model': {'id':'gpt-6-luna','effort':'high','speed':'standard'},
+            'bindings': {}, 'model': {'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']},
             'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0,
                 'roles': {}, 'proof_limit_scope': 'Lean proof jobs only'},
             'tasks': {}, 'processes': {}, 'usage': {},
@@ -234,12 +235,17 @@ class Recorder:
         with self.lock: self._requests.add((stage,number)); self.dirty=True
 
     def model_event(self, task, stage, number, event):
+        from output_guard import substantive_event, TERMINAL_EVENTS
         if task:
             with self.lock:
                 row = self.state['tasks'].get(task, {})
                 values = {'last_model_event_at_utc': now()}
-                if not row.get('current_lean_check') and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED'}:
+                values['last_transport_event_at_utc']=now()
+                if substantive_event(event):values['last_substantive_model_event_at_utc']=now()
+                if (substantive_event(event) and not row.get('current_lean_check')
+                        and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED'}):
                     values.update(activity='MODEL_RUNNING', last_activity_at_utc=now())
+                if event.get('type') in TERMINAL_EVENTS:values['last_provider_terminal_at_utc']=now()
                 self.task(task, **values)
         if event.get('type') not in {'response.completed','response.incomplete','response.failed'}:return
         response = event.get('response') or {}

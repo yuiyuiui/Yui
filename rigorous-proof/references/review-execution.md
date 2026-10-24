@@ -51,6 +51,25 @@ evidence and rules. They receive no author repair history, previous verdict,
 unused candidate, personal memory or foreign-case material. Packet replay
 retains its packet-only boundary even when the global reviewer saw sources.
 
+For a blocking Audit A finding, give an exact supplied location and a short
+verbatim `quotation:{location,text}`. Global references use an input document
+ID plus a resolving JSON pointer, or an existing input/pinned-library line
+span. Packet references resolve in the packet. Program checks bind quoted
+bytes, not the truth of the objection. Compare the actual constants, domains
+and quantifiers before requiring a repair. A disputed objection retains its
+raw verdict; one explicitly disclosed targeted adjudication is permitted,
+and unresolved disagreement stays disputed. Do not resample an unchanged
+proof/review until PASS. Ordinary independent defects should be collected
+together when feasible within the current review budget.
+
+Authorized warm author inputs may include `repair-obligations.json` with
+`version:yui-repair-obligations-1`, `baseline_input` naming an explicit input,
+`baseline_content_sha256` binding that input's canonical `{spec,graph}` and
+`issues:[{id,criterion,location,note},...]`. Issue locations resolve in that
+baseline. These diagnostics persist until actual located author resolutions
+and fresh scoped review; they are not mathematical premises or prior PASS.
+Cold authors receive none of this file, the old source or prior findings.
+
 ## Interface phase and disputes
 
 Review complete typed obligations, direct inputs, source mappings and planned

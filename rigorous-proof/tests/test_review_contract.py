@@ -39,6 +39,16 @@ class ReviewCompletionTests(unittest.TestCase):
             self.c({'from_saved_review':True,'summary':{'checks':{'b':self.row()},'findings':[]}})
         self.assertEqual(self.c.items['/checks/b']['coverage'],'unread')
 
+    def test_record_acknowledgment_does_not_repeat_prior_long_judgments(self):
+        long_note=self.row();long_note['notes']='Preserved reviewer evidence. '*1000
+        first=self.c.record('/checks/a','assessed',long_note)
+        second=self.c.record('/checks/b','assessed',self.row())
+        self.assertEqual(first['remaining'],['/checks/b'])
+        self.assertEqual(second['assessed_count'],2)
+        self.assertNotIn('items',second)
+        self.assertNotIn('required',second)
+        self.assertEqual(self.c.progress()['items']['/checks/a']['judgment'],long_note)
+
     def test_early_real_blocker_keeps_untouched_work_incomplete(self):
         finding={'verdict':'FAIL','explanation':'Synthetic located defect.','locations':['/explicit']}
         with self.assertRaises(ValueError):self.c.blocker(finding)
@@ -68,7 +78,7 @@ class ReviewCompletionTests(unittest.TestCase):
 class QualificationTests(unittest.TestCase):
     def test_missing_usage_does_not_erase_qualified_actual_judgment(self):
         row={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},
-             'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':['gpt-6-luna'],
+             'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],
                          'standard_tier_verified':True}}
         self.assertTrue(require_review_execution(row,'synthetic-result')['execution_qualified'])
         self.assertFalse(qualification(row)['measurement_valid'])

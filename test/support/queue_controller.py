@@ -23,7 +23,15 @@ CASES={'geometry-product-dimension','lie-module-irreducibility','wave-map-energy
 
 
 def validate_job(value):
-    common={'id','kind','case','interface','workflow'}
+    common={'id','kind','case'}
+    if 'stop_after' in value:
+        if value['stop_after']!='audit_a' or value.get('kind') not in {'nl0','audit_source'}:
+            raise ValueError('stop_after=audit_a requires an NL0/Audit A job')
+        common.add('stop_after')
+    else:common|={'interface','workflow'}
+    if 'audit_controls' in value:
+        if value.get('kind') not in {'nl0','audit_source'}:raise ValueError('Audit controls require an Audit A job')
+        common.add('audit_controls')
     if 'max_concurrency' in value:
         a.concurrency.resolve(value['max_concurrency']);common.add('max_concurrency')
     if 'reuse_audits' in value and value.get('kind') in {'nl0','audit_source'}:
@@ -38,7 +46,7 @@ def validate_job(value):
     if value.get('kind') not in {'nl0','audit_source','translate','checked_interface','submitted_interface'} or set(value)!=expected:raise ValueError('Invalid explicit job schema')
     if value['kind']=='checked_interface' and (type(value['candidate']) is not int or value['candidate']<1):raise ValueError('Select an actual positive candidate number')
     if value['case'] not in CASES:raise ValueError('Only the three frozen exercise IDs are permitted')
-    for key in ['id','interface','workflow',*(['review'] if 'review' in value else []),*(['audit'] if 'audit' in value else []),*(['run'] if 'run' in value else [])]:
+    for key in ['id',*[k for k in ['interface','workflow','review','audit','run','audit_controls'] if k in value]]:
         if not isinstance(value[key],str) or not re.fullmatch(r'[a-z][a-z0-9-]*',value[key]):raise ValueError('Use a plain unique job/run identifier')
     if 'source' in value:
         path=(a.ROOT/'test/results'/value['source']).resolve()
@@ -136,8 +144,14 @@ def serve(queue,wait_for=None,*,case_concurrency=3):
                 if row['identity']:terminate_owned(row['process'],row['identity'])
         for sig,handler in previous.items():signal.signal(sig,handler)
         atomic(queue/'progress.json',states)
+        outcomes={}
+        for path in (queue/'results').glob('*.json'):
+            value=json.loads(path.read_text()).get('result',{})
+            outcomes[path.stem]={'status':value.get('status'),
+                'accepted':value.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED'}}
         atomic(queue/'final-concurrency.json',{'case_concurrency':case_concurrency,'active_case_processes':0,
             'case_budgets':'INDEPENDENT','status':'CANCELLED' if stopping else 'FINITE_BATCH_FINISHED',
+            'case_outcomes':outcomes,'all_cases_accepted':bool(outcomes) and all(x['accepted'] for x in outcomes.values()) and len(outcomes)==len(states),
             'scope':'No mathematical or execution acceptance inferred from controller termination.'})
 
 

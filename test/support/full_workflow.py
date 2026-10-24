@@ -10,7 +10,7 @@ import ir
 import workflow
 import run_graph
 import execution_state
-from execution_health import StageFailure, qualification, review_outcome
+from execution_health import StageFailure, qualification, review_outcome, record_qualification
 
 
 def accepted(directory):
@@ -26,7 +26,51 @@ def accepted(directory):
     return row
 
 
-def audit_source(case,source,name,budget,progress,*,reuse_from=()):
+def nl0_artifact_for_audit(directory):
+    """Complete isolated source eligibility is distinct from timing qualification."""
+    from author_check import digest
+    directory=Path(directory);stage=directory/'stage'
+    row=ir.load(stage/'result.json');checked=record_qualification(row)
+    if row.get('status')=='CANCELLED':raise execution_state.Cancelled('NL0 author cancelled externally')
+    def reject(message):
+        raise StageFailure(row.get('task_outcome') or 'AUTHOR_ARTIFACT_INELIGIBLE',message,
+            evidence=stage/'result.json',details=checked)
+    if row.get('status')!='ACCEPTED' or not checked['identity_and_input_boundary_verified']:
+        reject('No complete identity/input-bound definitive NL0 submission')
+    if (row.get('isolation_violation') or row.get('execution_fault')
+            or row.get('temporary_workspace_removed') is not True):
+        reject('Isolation, controller or cleanup evidence is not eligible for automatic mathematical review')
+    if not checked['submitted_record_qualified']:
+        reject('Only a disclosed recovered transport interruption may qualify a complete NL0 for first A')
+    source=stage/'case'
+    try:
+        submitted=ir.load(stage/'accepted.json')
+        canonical={'spec':ir.load(source/'spec.json'),'graph':ir.load(source/'nl0.json')}
+        progress=ir.load(source/'author-check-progress.json')
+        authority=row['exposure'].get('acceptance_contract')
+        if (submitted!=canonical or progress.get('content_sha256')!=digest(canonical)
+                or progress.get('author_release_ready') is not True
+                or progress.get('reported_readiness')!='no_known_issue' or progress.get('open_issues')
+                or not authority or progress.get('acceptance_contract')!=authority):
+            reject('Canonical NL0 differs from the actual submitted/release-ready author artifact')
+        a.nl0.validate(source/'nl0.json',source/'spec.json')
+        tools=[__import__('json').loads(line) for line in (stage/'tools.jsonl').read_text().splitlines() if line.strip()]
+        if not any(t.get('tool') in {'submit_artifact','submit_draft'}
+            and t.get('result',{}).get('stage_complete') is True
+            and t['result'].get('author_closing_check',{}).get('author_release_ready') is True
+            and t['result']['author_closing_check'].get('content_sha256')==digest(canonical) for t in tools):
+            reject('No actual matching complete author submit-tool result')
+    except (OSError,KeyError,ValueError) as error:
+        if isinstance(error,StageFailure):raise
+        reject('NL0 submission/release binding failed: '+str(error))
+    return {'author_artifact_ready_for_audit':True,'content_sha256':digest(canonical),
+        'author_stage_result':str(stage/'result.json'),'execution':checked,
+        'author_timing_qualified':checked['measurement_valid'],
+        'transport_recovery_disclosure':row.get('transport_health') if checked['execution_health']!='NO_RECORDED_FAULT' else None,
+        'scope':'Eligibility for first independent mathematical review only; not Audit A acceptance or benchmark qualification.'}
+
+
+def audit_source(case,source,name,budget,progress,*,reuse_from=(),controls=None):
     source=Path(source).resolve();directory=a.ROOT/'test/results'/name
     if (source/'audit-a.json').is_file():
         prior=a.nl0.validate(source/'nl0.json',source/'spec.json',source/'audit-a.json',allow_unresolved=True)[0]
@@ -44,7 +88,7 @@ def audit_source(case,source,name,budget,progress,*,reuse_from=()):
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
     a.run(directory,1200,budget=budget)
     if budget.execution:budget.execution.check()
-    result=a.collect(directory,a.ROOT/'test/results/audit-a-behavior-v1/behavioral-summary.json')
+    result=a.collect(directory,controls or a.ROOT/'test/results/audit-a-behavior-v1/behavioral-summary.json')
     if not result['full_acceptance']:
         status=review_outcome(row['verdict'] for row in result.get('unresolved_reviews',[]))
         if status=='REVIEW_PASSED':status='REVIEW_INCOMPLETE'

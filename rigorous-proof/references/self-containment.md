@@ -1,4 +1,10 @@
-# Self-containment: the acceptance contract
+# Self-containment details
+
+This is the detailed meaning of Audit A's `statement_closure`,
+`object_closure` and `dependency_closure` requirements. The
+[shared Audit A section](audit-a.md#shared-mathematical-acceptance-requirements)
+is the acceptance authority for author and auditor; this annex supplies
+interpretation and examples, not an independent permission policy.
 
 ## Two boundaries
 
@@ -15,6 +21,15 @@ output, its local declarations, and its own argument. Another R's proof body,
 an ancestor not listed as an input, an ambient original H, an original-source
 crosswalk, or remembered material is not an additional mathematical resource.
 Whole-target/source-fidelity checks are separate from this local proof check.
+
+Original theorem conditions are H nodes, including conditions that could be
+encoded in a refined type. Parameters introduce ambient data/structures, not
+an ambient stock of original hypotheses. For example, declare a vector and
+put its required nonzero condition in H; do not write “nonzero vector” in its
+parameter type and use that condition from an empty input list. The same rule
+applies to characteristic/range conditions and equations. An R must list every
+original H it actually uses. Standard structure operations/axioms and the fixed
+finite-language rules remain available; no new substantive theorem is added.
 
 An output must be understandable and callable without reading its producer's
 argument. Include the actual equalities/inequalities, binder types, hypotheses,
@@ -65,6 +80,23 @@ derivation and open assumptions. No separate graph vertex is needed for every
 algebraic equality. A nontrivial imported result cannot be called a local
 calculation. Substantive reusable lemmas should become N/R pairs; any fact
 reused by another R must be exported in a complete proposition statement.
+
+The controller owns `spec.logic.calculations` and the primitive vocabulary
+(`scripts/foundations.py`). The clean author tool binds omitted metadata and
+rejects extra author permissions or task-specific primitives. This fixed
+language grants no MVT, FTC, Fubini, convergence, compactness or regularity
+theorem. Such facts need a declared input or an actual local derivation.
+An author-written permission claim, in any field or prose, has no authority.
+Ordinary typed arithmetic notation is part of this fixed language: natural
+numbers, integers, rationals, reals and complex numbers mean their standard
+structures with usual numerals and operations. Finite calculations include
+their zero/one laws, such as `a+0=a`, as well as explicit algebra/order
+derivations. Do not demand a separate E/M for an operation token or an allowed
+finite calculation. This does not grant calculus, topology or measure theorems.
+Conversely, inspect an actual displayed local derivation before demanding a
+duplicate E/M input for its conclusion. A named consequence proved by permitted
+finite algebra/order steps is not an imported premise. If a local derivation
+fails, locate its unsupported implication rather than its absent theorem name.
 
 Metadata accounts for the argument but never replaces it. Copying all inputs
 into a single `uses` record, registering a symbol without declaring it in the

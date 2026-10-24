@@ -218,7 +218,7 @@ def collect(out):
         p=out/'stage'/name;files.append({**bind(p),'path':str(p.relative_to(out))})
     review={'version':workflow.VERSION,'source_graph_sha256':bindings['source_graph']['sha256'],
         'contract_sha256':bindings['contract']['sha256'],'plan_sha256':bindings['plan']['sha256'],
-        'reviewer':{'identity':'gpt-6-luna high Standard','mode':'fresh_model_review','independent':True,
+        'reviewer':{'identity':__import__('run_pilot').MODEL+' high Standard','mode':'fresh_model_review','independent':True,
             'disclosure':'Separate clean semantic reviewer; read only the explicit source, typed candidate and Yui rules, with pinned Mathlib tools. No author history, previous verdict or proof reference.'},
         'checks':raw['checks'],'paragraph_mapping':bindings['paragraph_mapping'],
         'source_outputs':bindings['source_outputs'],'evidence':files,

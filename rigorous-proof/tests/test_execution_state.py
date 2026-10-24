@@ -30,6 +30,8 @@ class ExecutionTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_atomic_coalescing_and_usage_unknown_until_reported(self):
+        profile=json.loads((SCRIPTS.parent/'config.json').read_text())['model']
+        self.assertEqual(self.r.state['model'],{'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']})
         with patch.object(e,'atomic',wraps=e.atomic) as writer:
             for n in range(50):self.r.task('T001',sequence=n);self.r.flush()
             self.assertEqual(writer.call_count,0)
@@ -92,6 +94,18 @@ class ExecutionTests(unittest.TestCase):
         self.r.model_event('T001','stage',1,{'type':'response.output_item.done'})
         self.assertEqual(self.r.state['tasks']['T001']['activity'],'LEAN_CHECKING')
         self.assertIn('last_model_event_at_utc',self.r.state['tasks']['T001'])
+
+    def test_keepalive_is_transport_activity_and_not_proof_progress(self):
+        self.r.task('T001',state='RUNNING',activity='AWAITING_PROVIDER_TERMINAL',
+                    last_activity_at_utc='actual-old-tool-result')
+        self.r.model_event('T001','stage',1,{'type':'keepalive'})
+        row=self.r.state['tasks']['T001']
+        self.assertEqual(row['last_activity_at_utc'],'actual-old-tool-result')
+        self.assertEqual(row['activity'],'AWAITING_PROVIDER_TERMINAL')
+        self.assertIn('last_transport_event_at_utc',row)
+        self.r.model_event('T001','stage',1,{'type':'response.output_text.delta','delta':'New output'})
+        self.assertEqual(row['activity'],'MODEL_RUNNING')
+        self.assertIn('last_substantive_model_event_at_utc',row)
 
     def test_usage_conflicts_remain_partial_and_do_not_recount_response(self):
         self.r.request_started('stage',1)

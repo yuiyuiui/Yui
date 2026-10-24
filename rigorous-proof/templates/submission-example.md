@@ -4,7 +4,8 @@ This is a neutral format example, not a reference solution to any exercise or
 an accepted Audit A. It is available through `read_yui`; test fixtures and old
 proofs remain inaccessible. Copy the data shape, not its mathematical contents.
 The clean NL0 tool binds `inputs`, `pins` and `spec_sha256` before checking.
-Every other field is authored and reviewed. Empty arrays are intentional.
+It also binds omitted fixed calculation/primitive metadata. All mathematical
+statements and proof fields are authored and reviewed. Empty arrays are intentional.
 The clean tool also permits omitting redundant H/P statements and E/M
 `source.statement`: it copies their primary spec/proposition statement.
 Conflicting supplied duplicates are rejected. The canonical files always
@@ -39,16 +40,6 @@ contain the complete texts, and source fidelity still needs actual review.
       "classical": false,
       "rules": [
         "direct"
-      ],
-      "calculations": [
-        "Equality symmetry, substitution, and the natural-number additive identity a+0=a."
-      ],
-      "primitives": [
-        {
-          "symbol": "0",
-          "type": "natural number",
-          "meaning": "The additive identity of natural numbers."
-        }
       ]
     },
     "pins": {

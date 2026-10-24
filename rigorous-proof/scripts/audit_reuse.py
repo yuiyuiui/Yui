@@ -62,7 +62,8 @@ def context(data,scope,*,semantic_rules=None):
     elif kind=='source':
         common['source']=props[key]
         common['definitions']=[defs[d] for d in sorted(closure(props[key]['definitions']))]
-        common['applications']=[r for r in steps.values() if key in r['inputs']]
+        # Source fidelity has no consumer-body dependency under A7. Actual
+        # application and proof changes invalidate their packet contexts.
     elif kind=='target':
         common['target']=props['P']
         common['definitions']=[defs[d] for d in sorted(closure(props['P']['definitions']))]
@@ -70,7 +71,7 @@ def context(data,scope,*,semantic_rules=None):
         common['graph']={k:v for k,v in graph.items() if k!='spec_sha256'}
         common['definitions']=spec['definitions']
     else:raise ValueError('Unknown review scope '+scope)
-    return common
+    return deepcopy(common)
 
 
 def all_pass(row):

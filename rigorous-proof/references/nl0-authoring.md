@@ -1,112 +1,164 @@
-# Author a structured NL0
+# Construct NL0 against Audit A
 
-Apply [self-containment](self-containment.md) and the
-[authoring template](../templates/authoring.md) throughout. Use format v2;
-historical examples are source material, not accepted current templates.
+[Audit A's shared requirements](audit-a.md#shared-mathematical-acceptance-requirements)
+are the sole mathematical acceptance authority. This document is an execution
+guide. Follow the table IDs, not an independently maintained approximation of
+what the auditor might want. The clean carrier supplies that exact frozen
+section to both roles. [The schema](nl0-format.md) describes serialization;
+[the author template](../templates/authoring.md) gives tool shapes and examples.
+The elementary permissions come from the same controller-owned foundation.
 
-## 1. Understand before freezing
+## 1. Understand and freeze the supplied work
 
-Read the whole supplied work sufficiently to identify the exact target, actual
-mechanism, source boundary, definitions, and potential gaps. Record initial
-screening as screening, not an audit pass. Keep exploration out of canonical
-NL0 until a route is selected. Do not invent a replacement theorem or route
-because the existing proof is inconvenient to translate.
+Read the original target and entire supplied proof. Identify its phases and
+potential gaps, without adopting an alternative research route. Extract the
+original H, parameters and definition pairs into spec.json. Preserve their
+source locations. This supplies the `target` check; naming a condition inside
+a parameter type does not satisfy its H inventory. Inspect material endpoint,
+zero-object and ambient-dimension cases before building the graph.
+Each H must itself state the complete given condition; phrases such as
+"as specified in the target" do not supply that condition to a packet reader.
+When an original GIVEN passage is already adequate, select its exact frozen
+lines for `spec.hypotheses[i].statement`, using the same literal binding as D
+definitions and S text. Preserve its origin and distinguish original givens
+from desired conclusions and claims established later in the proof. Copying
+does not turn those latter claims into hypotheses or certify fidelity.
 
-## 2. Freeze the original problem
+Inventory each object's construction guards before exporting it with a type.
+If a guard is a result of this work, establish it in an earlier N producer
+before using the guarded D; do not promise that a later argument will make the
+current declaration well-defined. Alternatively specify an actually total
+construction and prove its intended property separately. Do not add a missing
+guard as an original H. This is graph organization along the given proof,
+not permission to change that proof or its hypotheses.
+When the original already gives a complete adequate definition, use the
+explicit frozen-input line binding for D.definition if helpful. This preserves
+the selected text and its provenance without granting a property. Rewriting
+notation still requires a complete faithful definition and its declarations.
+Use the [complete neutral construction pattern](../templates/guarded-definition-example.md)
+when P includes both a well-definedness claim and a property of the object:
+prove the guard without the object, then use that guard as a direct input to
+the object-using inference. A global list's textual order is not graph order.
 
-Write `spec.json` first. Extract the target's parameters and all its H nodes
-from the original statement. H is already authorized at this point. Record
-their source positions; never create candidate hypotheses for later promotion.
-Define global symbols once, including parameter ranges, normalization, norms,
-representatives, and endpoint meaning. Reserve the entire global symbol set.
-Bound indices/quantified variables of external statements remain local binders.
-Explicitly freeze the logical primitives. They describe the fixed mathematical
-language, not a new place to assume analysis results.
+## 2. Design outputs from their consumers
 
-Store definitions and notation together. Separate a formula defining an object
-from claims that the object exists, is well defined, belongs to a space, or has
-a property. Guard a definition requiring a previously proved existence result.
-The resulting prerequisite chain must itself be noncircular.
-When an R needs a guarded definition, list its proof guards as direct inputs.
-Ancestor availability is insufficient to import a property into the argument.
+Follow the existing proof phases to choose N/R units. Work backward from P:
+what exact formulas, maps, parameter ranges and representation identifications
+will each consumer actually use? Put those in its input proposition's exported
+statement. Read that statement without the producer body. If the consumer
+cannot reconstruct a needed fact from it, enlarge the producer's proved
+output or give the consumer another genuine direct input. Then write the
+producer under precisely its inputs. This implements `statement_closure`,
+`inputs` and `output`; it is not permission to invent a stronger theorem.
 
-Fix the logic policy. It may allow classical logic, quantifier rules,
-induction, and explicit finite algebra/order calculations. It may not license
-unnamed compactness, measure, functional-analysis, or limit theorems.
+Start another S when the local parameters or purpose change; export a reused
+result as N and a within-R result as a complete F. Avoid one giant copied S
+followed by a long sequence of isolated symbol patches. Copy exact supplied
+calculations through task-line text binding when helpful, then close the
+copied unit's actual declarations and premises. Keep all required coefficients,
+normalizations, limiting arguments and exceptional cases.
+Retain every calculation needed for P and the supplied core route. An
+independent optional comment/corollary outside that dependency may be omitted;
+note a material omission in the existing context note. This never licenses
+dropping a needed derivation or weakening an output. Any retained claim must
+itself have its complete grounds.
 
-## 3. Extract the proof interface
+## 3. Construct the proof and its factual grounds together
 
-Work backward from P and forward through the actual proof. Write a complete
-statement for each useful intermediate lemma, then a producing R with explicit
-direct inputs. Do not infer proof dependencies merely from paragraph order.
-Each N/P has exactly one accepted producer. Keep alternative routes outside
-the accepted graph. Array order need not be topological; render topologically.
+An isomorphism or structural identification supplies its stated maps and
+relations, not every subsequent dimension/rank claim by name alone. For a
+needed count, display the basis, spanning/independence and finite count, or
+invoke an appropriate verified source. Likewise regularity closure and
+differentiation rules need their actual grounds; a familiar operation name
+does not extend the fixed calculation profile. Prefer an adequate verified
+background input to unnecessarily rebuilding its whole theory.
 
-Split when the premise set or mathematical mechanism changes, when a result is
-reused independently, or when a passage deserves a separate audit (density,
-uniformity, limit interchange, domain identification). Merge short explicit
-calculations with the same local purpose. A conjunction is one proposition,
-but do not hide several unrelated difficult obligations in one giant node.
+For each S, identify each factual use's direct input, earlier F derivation or
+permitted explicit calculation while writing the actual argument. Check the
+unit at that point; do not postpone its source inventory until after the whole
+proof. Read `dependency_closure`, `argument`, `dependency_accounting` and
+`scope` as construction obligations, not final assurances to fill in later.
 
-Every local task must be understandable from its expanded definitions, input
-statements, and own statement. Never refer to an unexplained “previous bound.”
-Choose binders and constant dependencies explicitly: `forall n exists C` is
-not `exists C forall n`. Where induction is applied to rescaled points, formulate
-the induction invariant universally over those points before starting induction.
-State the output so that it can be read without its producing proof. Expand
-every claimed formula in the statement itself. Do not write "identity (8.3)
-holds", "the previous estimate", or "notation as in the paper". Keep source
-labels/locations in provenance. Use declared input IDs/local F IDs in proofs.
+If a fact needs an M/E, inspect the real pinned/primary source, register its
+full contract, and write its actual application. Follow `sources` and
+`applicability`: substitute the actual function/domain/scalars and ground each
+premise in an available input or displayed derivation. A source-hypothesis
+field saying a condition holds is not itself a derivation. Prefer an already
+proved adequate general theorem to rebuilding it. A specialized bridge still
+needs its local proof. For E follow [external-source review](external-theorems.md).
+For inaccessible text follow Audit A's [retrieval/deferred checks](audit-a.md#paywalled-or-inaccessible-primary-text).
 
-## 4. Close every leaf
+For M, use the actual pinned declaration as the full source contract, including
+its binders, implicit arguments and typeclass premises. Do not insert an
+extra condition into that contract or omit a native premise. Keep a specialized
+application distinct from the native statement and justify its substitutions.
+The probe supplies canonical source metadata; it does not discharge the
+application's premises or certify the local proof.
 
-For each mathematical fact, either identify an exact E/M source or supply an
-internal proof. All target-work lemmas remain internal until actually proved.
-An authoritative theorem is not permission to assume the project's specialized
-bridge. Source inventory may grow during preparation; freeze it before Audit A.
+Write the exact conclusion obtained at an application before using it at a
+different domain, measure, carrier or codomain. Any restriction, extension or
+identification requires its own available ground. If instead deriving a fact
+by a named property's definition, supply that definition and display the
+instantiated clause and ensuing reasoning. Do not register a new source just
+because a fully displayed definition-based derivation also has a standard
+name. Prove each added consequence under all its cases; omit an unnecessary
+extra claim rather than leave its proof incomplete.
 
-Check M declaration kinds, complete signatures, implicit/typeclass hypotheses,
-official module bytes, and the recorded commit. A similar theorem name is not
-enough. For E read the exact primary source version, theorem, hypotheses,
-normalizations, and errata. If verification is unavailable, keep UNVERIFIED.
-For paywalled or inaccessible papers, follow the
-[Google-then-Sci-Hub retrieval and deferred-review procedure](audit-a.md#paywalled-or-inaccessible-primary-text).
-Continue other work with the inaccessible citation explicitly pending; the
-access failure alone is not a substantive proof gap.
+Introduce an auxiliary object at its actual first use, with its kind,
+existence basis and scope. Keep object dependencies in `objects` and earlier
+proof IDs in `from_local`. Preserve the object's type and all uses when
+renaming it. Apply `definitions` and `object_closure` to the actual prose.
+Use [logical packaging](logical-rules.md) for quantified and conditional work.
 
-## 5. Write each argument
+## 4. Inspect the actual stored candidate
 
-Populate the R's input list before drafting its proof. Use only these inputs,
-explicitly referenced definitions, permitted logic/calculations, and earlier
-facts established within the same argument. Record each input's actual role
-through `uses`. If a new theorem is needed, add it and update the graph first.
-Use identifiable S paragraphs, with only their actual direct `uses`, earlier
-`uses_local`, and full `produces` F statements. Do not automatically prefix a
-copied paragraph with the full input list and treat that as dependency review.
+Use check_draft for structural feedback and read_draft for actual changed
+records. Continue from the same-stage candidate after a rejected edit. Stable
+unique @ID/@symbol selectors are available in own-stage reads/edits, not in
+Audit A evidence pointers. Format work requires a concrete edit or source
+query rather than repeated progress reports.
+For multiline text use read_draft's numbered line view and its complete-string
+hash with replace_lines; avoid retyping an escaped old paragraph merely to
+make a small edit. Re-read after a stale hash and use existing @IDs after
+array changes. No editor infers missing mathematics.
 
-For every object in the actual text, record its legitimate global, statement-
-bound, or local declaration. Local declarations give the exact introduction,
-kind, start/end S IDs, and input/previous-local basis. Input-bound variables
-need instantiation; existential witnesses need an existence basis. Merely
-listing a symbol in `objects` or `locals` does not establish these obligations.
-Do not invent properties while naming an object. Reverse-check actual text
-against the object inventory and factual grounds before handing off.
+Read each own conditional packet after structural checking. It supplies only
+that R's actual premises, definitions, fixed logic, output and own argument.
+Use the shared criteria to inspect these contents, including each output's
+consumer-facing statement, rather than remembering what the full manuscript
+or another producer established. This is the same author's inspection, not an
+extra independent reviewer and not a second Audit A.
+Apply Audit A's shared scope rule: an actual direct N is assumed in this
+conditional implication; do not re-prove its producer or read an ancestor
+body here. The global graph must still contain that producer, and a needed
+fact absent from the exported statement must be established explicitly.
+In the existing original_context_note explicitly check the actual D records'
+types and guards against their available producers, as well as H/target and
+source fidelity. In the inference notes compare each source's exact delivered
+conclusion with the next line that consumes it. These are inspections of the
+stored proof, not another copy of its argument.
 
-Package conditional reasoning as a complete proposition. Temporary assumptions
-appear only inside the argument with explicit introduction/discharge and
-correctly scoped variables. Consult `logical-rules.md`; do not create an L
-root, silently assume the desired N, or fill an existence gap with a definition.
-
-For each E/M application bind its variables and discharge every hypothesis.
-For E follow [the external-theorem standard](external-theorems.md), preserve
-separate citation verdicts and give every actual use its own A ID, including
-repeated instantiations within one R. Establish joint integrability before
-using Bochner Fubini; a nonnegative Tonelli step is a separate dependency when
-it is used, not a consequence of an inapplicable Fubini signature.
-Do not treat source fidelity and applicability as one check. Arithmetic
-calculations must exhibit the actual identities/inequalities being used.
+Record concise located context/output/inference notes using the existing
+fields. Their criterion grouping comes directly from Audit A. Report readiness
+as no_known_issue, unresolved or not_checked and preserve located open issues.
+A complete set of notes with an unresolved issue cannot release the proof.
+Resolve it in the actual stored argument, or explicitly justify withdrawing
+an erroneous self-finding; reference the resolution location. Do not erase an
+old issue by omitting it. Python validates these states and bindings, not the
+truth of the author's mathematical judgment. A claim of no_known_issue can
+still fail the subsequent independent Audit A.
 
 ### Routine completion and substantive proof gaps
+
+A needed statement in the supplied proof is initially a proof obligation:
+derive it locally, export a proved N, or supply an exactly verified source.
+The fact that the current draft has not done so yet is not a mathematical
+obstruction. Missing inventory, source registration or exposition is work to
+complete, not by itself a terminal gap report. If reporting an actual obstacle,
+identify the concrete implication and the mathematical difficulty encountered
+during normal understanding, checking and completion, rather than only noting
+that no proof/source has yet been entered. This imposes no fixed time/attempt
+count and requires neither a counterexample nor a proof of irreparability.
 
 When writing NL0, expand the argument along the proof strategy already present
 in the original work. Actively supply routine omitted derivations, correct
@@ -134,9 +186,9 @@ report an "unresolved suspected proof gap" rather than declaring the original
 theorem false. Prolonged runtime, network or tool faults, and model capability
 limitations alone are not evidence of a mathematical error.
 
-In the isolated carrier, unfinished source registration, JSON bookkeeping or
-ordinary drafting is `TASK_INCOMPLETE` progress. Recording it does not end the
-stage: retain the actual draft and continue within its remaining budget. A
+In the isolated NL0 carrier, unfinished source registration, JSON bookkeeping or
+ordinary drafting calls for the next actual query, draft or local edit, not an
+obstacle report. Keep the own draft and continue within its remaining budget. A
 terminal mathematical-gap report must identify a genuinely unsupported
 mathematical implication and its grounds, rather than merely restating that
 the requested artifact is not finished. A stage outcome is not whole-task
@@ -146,15 +198,17 @@ Incorporate completed corrections into the argument and its actual dependency
 records. Audit A reviews that revised version; existing hash binding and
 invalidation rules still apply.
 
-## 6. Freeze, check, and hand to Audit A
 
-Run the structural gate and regenerate the readable NL0 and diagram. Correct
-structural defects without treating that as a mathematics verdict. Freeze file
-hashes. A prior prose proof or historical Audit A is candidate input only.
-Supply the actual canonical graph and frozen problem to the auditor. Record
-whether that auditor shares the author's context or has read Lean references.
-Do not claim independent evaluation merely because the audit is a separate file.
-Create only an UNVERIFIED audit scaffold with `nl0.py audit-template`. Keep
-author notes and verdicts out of fresh packet-only replay inputs. A replay
-must actually occur on the recorded packet; an author cannot generate its PASS
-from their proof notes. Use the [audit template](../templates/audit-a.md).
+## 5. Freeze and hand over
+
+When there is no known unfinished obligation, submit the exact candidate bound
+to the author notes and shared acceptance version. If the budget ends first,
+preserve the draft as unfinished; do not call a known-incomplete artifact a
+complete proof. A diagnostic audit of an unfinished draft, if requested,
+remains separate from a qualifying first-acceptance audit.
+
+Freeze source/graph hashes and generate views and an UNVERIFIED scaffold.
+Audit A receives the original problem for fidelity and fresh per-R packets for
+local replay; it receives no author notes or prior review feedback. Its actual
+judgments determine acceptance under the same shared criteria. Structural
+validation, author readiness and mathematical acceptance are distinct results.

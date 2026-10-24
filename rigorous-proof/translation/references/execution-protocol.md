@@ -4,6 +4,12 @@ This reference is for the run operator and Python controller. A proof worker
 uses its frozen packet, not execution/control files or sibling proofs. Recording
 and cancellation make no model requests and add no mathematical input.
 
+Use the [canonical worker names](../../references/terminology.md#canonical-worker-names):
+preprocessing worker, formalization workers (N slots), and postprocessing worker.
+These group responsibilities across the translation stage. Each may use several
+separate threads or program actions; a queue slot is not a persistent model
+conversation. The upstream NL0 worker covers NL0 authoring and Audit A.
+
 ## Scope and queue
 
 Keep concurrent cases separate from `max_concurrency=auto|N` inside one case.

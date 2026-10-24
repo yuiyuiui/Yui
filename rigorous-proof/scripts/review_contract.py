@@ -67,7 +67,11 @@ class ReviewContract:
             raise ValueError('Unread/read items have no assessed verdict; use assessed UNVERIFIED for an evaluated uncertainty')
         self.items[pointer]={'coverage':coverage,'judgment':deepcopy(judgment)}
         self._write()
-        return {'recorded':pointer,'stage_complete':False,**self.progress()}
+        remaining=[p for p,row in self.items.items() if row['coverage']!='assessed']
+        return {'recorded':pointer,'coverage':coverage,'stage_complete':False,
+                'assessed_count':len(self.items)-len(remaining),'required_count':len(self.items),
+                'remaining':remaining,
+                'scope':'Acknowledgment only. Full actual notes remain saved; read_review_progress retrieves them.'}
 
     def __call__(self, artifact):
         if artifact.get('from_saved_review') is True:

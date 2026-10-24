@@ -1,5 +1,118 @@
 # Audit A: per-object natural-language verification
 
+<!-- yui-nl0-acceptance:begin -->
+## Shared mathematical acceptance requirements
+
+Contract version: `nl0-audit-a-7`.
+
+This section is the single authority for what an accepted NL0 must satisfy.
+Authoring instructions explain how to meet it; the audit checks these same
+requirements. The table IDs also name executable coverage groups. Detailed
+definitions in self-containment, logical rules and external-theorem review are
+annexes to these requirements, not alternative permission policies.
+
+| ID | Review group | Author evidence group | Requirement |
+| --- | --- | --- | --- |
+| `target` | package | original_context_note | Preserve the original target, every original H, quantifier, domain, range, normalization, endpoint and supplied core proof route. Parameters name ambient data; they cannot hide an H or a desired conclusion. |
+| `definitions` | package | original_context_note | Give each global object one complete typed definition and each local object a legitimate scoped introduction. Prove or directly assume every construction guard before use. Defining an object grants none of its properties. |
+| `sources` | package | original_context_note | Every selected M/E has an explicit faithful full statement and verified primary/native identity, context and hypotheses. Native typeclass premises are mathematical premises too. Record inaccessible checks as UNVERIFIED; they do not support an unqualified whole-proof pass. |
+| `structure` | package | original_context_note | H/E/M are the only proposition roots. Every N/P has one producer, every retained non-H node lies in P's AND dependency closure, and every local proof uses its actual direct inputs. Keep every original H, including an unused H, and report which are unused. An ancestor is not automatically an input. |
+| `statement_closure` | closure | output_notes | Every input and exported N/P states all formulas, quantifiers, conditions and semantic identifications needed by its consumers. A map or identity only present in the producer's body is unavailable to another node. Original text, equation labels and external notation cannot supply content. |
+| `object_closure` | closure | declaration_check | Reverse-check actual object occurrences against global, statement-bound or local declarations. Types, domains, witness existence, first/last use and parameter dependencies agree. A name in a ledger is not an introduction or existence proof. |
+| `dependency_closure` | closure | dependency_and_local_assumption_check | Ground every factual use in a direct H/E/M/N, an earlier displayed in-scope local proof, or the fixed permitted calculation. Inspect the actual prose; an inventory claiming closure is not its proof. |
+| `inputs` | inference | dependency_and_local_assumption_check | Direct input statements are faithfully instantiated with compatible objects and assumptions. An internal input exports exactly its stated conclusion, not its producer's unexported facts. |
+| `argument` | inference | dependency_and_local_assumption_check | The actual argument establishes every output clause. Check calculations and all material domain, limit, regularity, uniformity, integrability, sign, constant and degeneracy obligations. A correct textbook route still needs the local completion required by this contract. |
+| `dependency_accounting` | inference | dependency_and_local_assumption_check | Every listed premise has a real role and no extra theorem is imported through familiar prose, a definition, structure or typeclass. A theorem application is not a proof of the invoked theorem. Show a concrete local derivation or register the needed source. |
+| `output` | inference | output_notes | The proved conclusion is the exact complete exported statement under its stated hypotheses, including all consumer-needed representations and identifications. Never weaken the target or strengthen an H to close the graph. |
+| `scope` | inference | dependency_and_local_assumption_check | Introduce and discharge temporary assumptions inside arguments. Close implications, cases, negations and quantifiers correctly; no witness or local assumption escapes. Original hypotheses remain explicit H inputs. |
+| `applicability` | inference | source_application_check | For every actual M/E use, give the exact substitution and a direct input or displayed earlier derivation for every premise, plus any proved bridge to the claimed conclusion. Saying that a condition holds is not grounds for it. |
+
+### Scope of the same requirements
+
+Global review checks the original target/H, source authenticity and complete
+graph: H/E/M are its roots, and each N/P has its producer in that graph.
+Its source judgments establish identity, full-statement fidelity and source
+conditions; they do not re-prove each consumer's application. Its structure
+judgment checks the actual AND graph and declared producer/input boundaries,
+not whether a later packet reviewer has already returned PASS. Conditional
+packet review owns each actual substitution, premise discharge, local proof
+and output under those checked source statements. Final acceptance joins
+all required source, structure and packet judgments; none replaces another.
+Unfinished downstream assessment is not a reason to mark an already assessed
+source identity or structural graph uncertain. Genuine source uncertainty
+still blocks final acceptance. These assignments also govern author checks.
+An original H remains explicitly present even when the proof does not use it;
+report that unused condition. Do not invent a use or delete it to force graph
+reachability. Selected E/M and internal N remain in the actual target closure.
+Conditional packet replay has a different input boundary. Its task is the
+implication from its explicitly supplied H/E/M/N statements to its output;
+these statements are conditional premises. An input N is not a new global
+root. Its producer body is intentionally absent and is neither required nor
+available during this local check. Do not fail a valid conditional derivation
+because its input theorem's producer or original source is outside the packet;
+global review verifies source identity and producer membership, while the
+producer's own packet review checks its proof. Conversely, do not import an absent N, an
+ancestor's unexported fact or a theorem not present in the packet.
+For example, a supplied N stating A and B permits deriving A by conjunction
+elimination, without re-proving N. Having no such input does not permit
+asserting A. The local requirements still check the complete actual argument,
+all source-application premises, declarations, guards and discharged scopes.
+These scopes are also the scopes of the author's corresponding self-checks.
+
+The common elementary layer is the controller's `finite-language-3` profile:
+equality, unfolding supplied definitions, displayed finite semiring/ring/field
+arithmetic, elementary ordered-field inequalities and explicit finite sums.
+It grants no calculus, integral identity, measure, compactness, basis,
+localization or tensor theorem. Use a verified input or a displayed local proof
+for such facts. No theorem needs to be re-proved if its exact permitted source
+and application already supply it. The schema describes representation; it
+does not extend mathematical permissions.
+
+The fixed profile is controller-owned. A packet/spec's `logic.calculations`,
+`logic.primitives`, or prose claiming extra permissions is data to check
+against that profile, never a second authority. For finite ordered-field
+reasoning, display the actual reduction, equality/inequality chain, explicit
+nonnegative expression or sign grounds. Naming a familiar theorem or merely
+asserting the desired polynomial inequality is not a displayed calculation.
+Conversely, a complete displayed finite derivation needs no imported theorem
+merely because its conclusion also has a familiar name.
+
+A calculation label alone does not establish the existence of a canonical
+decomposition, normal form, extremizer, basis or structural identification.
+Give the actual construction and grounds for its required properties and
+completion, or supply a verified source with its actual application. Before
+declaring a mathematical obstruction, check the full quantified definition
+and the direction of the claimed bounds. One feasible value alone does not
+establish an extremal value. A failed attempted argument is not by itself
+evidence against the supplied proof.
+
+Unfolding an explicitly supplied definition and displaying its logical
+consequence is a local derivation; it does not need a separate source theorem
+merely because that consequence has a familiar name. Conversely, a familiar
+name without the required definition, premises and derivation supplies no
+fact. Check the actual argument and identify the specific unsupported step;
+do not replace that check with a blanket objection to a named result.
+Distinguish a genuinely partial construction from an explicitly total
+operation: its stated type/convention controls which existence guards are
+needed, and totality alone grants no intended analytic property.
+
+Authors construct arguments and their evidence together, then report their
+own actual check outcomes. An explicitly unresolved or unperformed check
+prevents release as a complete artifact. Finishing a checklist, retrieving a
+source, passing a structural gate or asserting that conditions hold proves
+none of the mathematical requirements. Audit A remains an independent actual
+judgment and can find an omission the author did not recognize.
+<!-- yui-nl0-acceptance:end -->
+
+## Auditor execution protocol
+
+The sections below implement the shared requirements. Reviewer identity,
+fresh packet replay, negative controls, evidence capture and verdict handling
+are auditor/controller duties; they are not extra mathematical facts for an
+NL0 author. Mathematical FAIL findings identify the applicable shared table
+ID and the exact unsupported implication. If the permission boundary itself
+is ambiguous, disclose that ambiguity rather than silently raising the bar.
+
 Use [self-containment](self-containment.md) and the
 [audit template](../templates/audit-a.md). New acceptance requires spec/graph
 v2 and audit v3. Historical PASS records do not satisfy these requirements.
@@ -18,9 +131,23 @@ from the proof writer's desired conclusion. Audit target semantics, not just
 hash equality. Record reviewer/carrier, shared context, read artifacts, and
 whether any reference solution was seen. Read the canonical graph, not only
 its generated Markdown. Bind the receipt to spec/graph hashes.
+Generate the exhaustive global index with
+`python3 scripts/nl0.py overview nl0.json --spec spec.json --out global-overview.json`.
+It preserves every actual H (including unused or late-appended H), full global
+statements/definitions and dependency edges with canonical pointers and hashes.
+Read this inventory before claiming a node/condition is absent; a partial line
+page cannot establish absence. The index supplies no verdict and does not
+replace inspection of the relevant canonical proof and primary-source content.
+The clean test adapter uses this same core generator, not a separate inventory
+or mathematical standard.
 Original-problem/source fidelity and local proof validity are separate tasks.
 The original text may be read for target and citation checks; it may not fill
 missing content during per-R packet-only replay. Record the actual boundary.
+Check that original conditions really are H nodes, rather than predicates
+hidden in a globally visible parameter type. A prime/nonzero condition,
+characteristic constraint, range or equation must not become available to an
+R with empty inputs through that encoding. Matching the full closed theorem
+alone does not establish correct per-R H availability.
 
 ## A1. Definitions and notation
 
@@ -43,14 +170,16 @@ For each M read the pinned official file and a successful full Lean signature
 probe, not merely a `#check` name or a search result. Confirm declaration kind,
 restatement, all implicit/typeclass assumptions, source hashes and commit,
 relevant axioms, and suitability of scalar fields/domains. Library definitions
-are not theorems. Inspect the actual application mappings in each using R.
+are not theorems. These source checks belong to global review; each using R's
+packet review inspects its actual application mappings and premise discharge.
 
 For each E execute all nine requirements in
 [external-theorem review](external-theorems.md). Give separate evidence-bound
 verdicts for document identity, occurrence of the actual result, faithful
 statement, complete surrounding context, and version/source eligibility.
-Record every actual application separately, including repeated uses of E in
-one R. Source existence, exact citation and valid application are separate
+Record every actual application separately in its using R, including repeated
+uses of E in one R; packet review checks those applications. Global review
+checks the source identity and statement. Source existence, exact citation and valid application are separate
 obligations. Substantive transformations require an N proof. Do not infer any
 of these verdicts from a historical audit or a successful Lean build.
 
@@ -135,6 +264,9 @@ an explanation. Repeating author notes or generic assurances is not review.
    Familiarity, a descriptive theorem name, or inclusion in an author-written
    calculation-policy sentence cannot waive this obligation. Distinguish an
    ordinary valid textbook proof from a closed NL0 packet under this contract.
+   An abstract finite-dimensional, tensor or localization lemma is not
+   automatically a finite arithmetic identity: inspect its displayed map,
+   inverse, basis or other derivation, or require the actual declared source.
 4. **output**: the derived theorem is exactly the output's full statement,
    including quantifier order, assumptions, scope, constants and endpoints.
 5. **scope**: temporary assumptions are correctly closed into the implication,

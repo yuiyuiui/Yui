@@ -29,6 +29,8 @@ from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'scripts'))
 import run_pilot as carrier
+from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, POLICY as OUTPUT_POLICY,
+                          ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
 from pilot_common import sha256, load_lock as runtime_lock
 
 
@@ -70,6 +72,7 @@ class Stage(carrier.Trial):
         self.timeout = timeout
         self.harness_version = HARNESS
         self.strict = True
+        self.argument_guard = ArgumentGuard()
         self.system = SYSTEM
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
@@ -271,13 +274,18 @@ class Stage(carrier.Trial):
                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
             ir.write(self.logs/'execution-manifest.json',{'model':carrier.MODEL,'effort':'high','speed':'standard',
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
+                'model_output_policy':OUTPUT_POLICY,
+                'provider_wait_policy':PROVIDER_WAIT_POLICY,
                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
         result = {'mode':self.mode,'step':self.step,'model':carrier.MODEL,'effort':'high',
+                  'output_verbosity':getattr(self,'output_verbosity','low'),
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,
                   'queue_seconds':getattr(self, 'queue_seconds', 0),
+                  'model_output_policy':OUTPUT_POLICY,
+                  'provider_wait_policy':PROVIDER_WAIT_POLICY,
                   'owner_reference_visible_to_worker':False,'started_at_utc':carrier.now()}
         result['acceptance_scope'] = (('NL0_STRUCTURE_ONLY' if self.artifact_kind=='nl0' else 'JSON_ARTIFACT_ONLY')
             if hasattr(self,'artifact_kind') else 'LEAN_LOCAL_OBLIGATION_OR_TYPED_INTERFACE')
@@ -305,6 +313,25 @@ class Stage(carrier.Trial):
             result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
             try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
             except Exception as error:result['interrupt_error']=str(error)
+        except ProviderTerminalWaitExceeded as e:
+            result.update(status='UNFINISHED',task_outcome='PROVIDER_TERMINAL_WAIT_EXCEEDED',
+                stop_reason='PROTOCOL_WAIT_GUARD',attribution='UNVERIFIED',error=str(e),
+                provider_wait_evidence=e.evidence)
+            try:
+                self.interrupt_active_turn(reason='PROVIDER_TERMINAL_WAIT_EXCEEDED')
+                result['protocol_wait_stop_confirmed']=True
+            except Exception as error:
+                result['execution_fault']='Protocol-wait stop could not be confirmed: '+str(error)
+        except (ModelOutputStalled, ModelOutputLimit) as e:
+            outcome = 'MODEL_OUTPUT_STALLED' if isinstance(e, ModelOutputStalled) else 'MODEL_OUTPUT_LIMIT'
+            result.update(status='UNFINISHED', task_outcome=outcome,
+                          stop_reason='OUTPUT_SERIALIZATION_GUARD' if isinstance(e, ModelOutputStalled) else 'OUTPUT_TOKEN_LIMIT',
+                          error=str(e), model_output_evidence=e.evidence)
+            try:
+                self.interrupt_active_turn(reason=outcome)
+                result['model_output_stop_confirmed'] = True
+            except Exception as error:
+                result['execution_fault'] = 'Model-output stop could not be confirmed: '+str(error)
         except TimeoutError as e:
             result.update({'status':'UNFINISHED','stop_reason':'DEADLINE','error':str(e)})
             try:

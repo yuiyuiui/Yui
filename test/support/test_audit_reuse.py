@@ -27,7 +27,7 @@ class AuditReuseTests(unittest.TestCase):
                 raw={'inference':job['id'],'packet_sha256':packet['packet_sha256'],'verdict':'PASS',
                      'notes':row['notes'],'checks':{key:row for key in a.nl0.CHECKS|a.nl0.closure.CLOSURE_CHECKS},'findings':[]}
                 docs={'packet.json':reuse.sha(directory/'packet.json')}
-            exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':['gpt-6-luna'],'standard_tier_verified':True}
+            exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}
             result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':True},'exposure':exposure}
             for name,value in [('accepted.json',raw),('result.json',result),('exposure-audit.json',exposure),
                                ('execution-manifest.json',{'rule_documents':reuse.rules(),'task_documents':docs})]:a.write(stage/name,value)
@@ -120,6 +120,18 @@ class AuditReuseTests(unittest.TestCase):
         self.assertIn('packet:R001',plan['inherited'])
         ids={r['id'] for r in a.nl0.load(out/'global/inputs.json')['inputs']}
         self.assertNotIn('accepted.json',ids);self.assertIn('review-selection.json',ids)
+
+    def test_source_fidelity_context_does_not_depend_on_consumer_proof_text(self):
+        data=deepcopy(self.data)
+        data[3]['M001']={'id':'M001','kind':'mathlib','statement':'Synthetic source context only.',
+            'definitions':[],'source':{'declaration':'Nat.add_comm','signature':'synthetic full type'}}
+        before=reuse.context(data,'source:M001')
+        packet_before=reuse.context(data,'packet:R001')
+        data[4]['R001']['argument'][0]['text']+=' A changed local argument.'
+        self.assertEqual(before,reuse.context(data,'source:M001'))
+        self.assertNotEqual(packet_before,reuse.context(data,'packet:R001'))
+        data[3]['M001']['source']['signature']='a changed source contract'
+        self.assertNotEqual(before,reuse.context(data,'source:M001'))
 
 
 if __name__=='__main__':unittest.main()

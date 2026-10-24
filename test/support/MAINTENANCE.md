@@ -3,6 +3,60 @@
 This is maintained engineering documentation, not a mathematical test result or
 a document supplied to measured model workers.
 
+## 2026-10-25: R20 repair and Sol profile
+
+Audit A A7 keeps one mathematical authority and assigns global source/structure
+inspection separately from conditional packet application/proof checks. The
+collector still requires both. Unchanged qualified source contexts omit
+consumer bodies; their snapshots are deep copies. Changed applications still
+invalidate packet evidence. No inherited review is used in the next cold run.
+
+The repair also adds shared native/bound-source origin validation, explicit
+read pagination, resolving quoted blocking findings, a declared warm-only
+issue ledger, separate finite-process/case-acceptance reporting, and closure
+of the parent's spawned stderr handle. Author guidance preserves exact native
+premises separately from justified specializations. The existing catalogue
+supplies discovery metadata, not implicit mathematical permissions.
+
+The active config, model lock, carrier, recorder and controllers now select
+gpt-6.1-sol / high / Standard with no fallback. Frozen first-pass manifests
+bind that profile, unchanged original inputs, runtime, author prompt and the
+no-owner-help policy. The owner only dispatches and observes execution health;
+no hints, locators, patches, prior reviews or audit-driven author repair are
+allowed. One finite new experiment is authorized, not an unlimited repair loop.
+
+Offline validation completed on 2026-10-25 (Asia/Shanghai):
+
+| Suite | Tests | Elapsed seconds |
+| --- | ---: | ---: |
+| Core runtime | 273 | 103.771 |
+| Translation | 117 | 228.285 |
+| Test support | 73 | 78.671 |
+| New clean-start control | 1 | included in focused rerun below |
+| Total distinct software controls | 464 | |
+
+The focused three acceptance-parser checks also passed after aligning the
+auditor execution wording. Skill validation, pinned-environment doctor and
+Git whitespace checks passed. These tests make no model requests and provide
+no evidence of mathematical first-pass reliability or speedup. The old R20
+findings and disclosed owner help are retained in [REFLECTIONS.md](../REFLECTIONS.md).
+
+The three original problem hashes remain unchanged:
+
+```text
+geometry 56242fc597019e658c0e8792098ddb686d913156e0d831a14366d114cbf743f0
+lie      7e8b2dbb14d29165e887ffc8e291c0c7620070a122e1179ce63944ab1b3223ca
+wave     e858e20c3c50892224d315966ffed960bc0a4713ce9d2b9a3139dc84b49600ac
+```
+
+The reset removed about 11 GB of historical generated outputs using the scoped
+cleanup tool. Its verification found no matching live test processes, owned
+temporary directories or generated roots. The temporary implementation plan
+was deleted. A final clean-start control exposed the missing results-parent
+creation; prepare now creates it. All 13 focused first-pass controls passed
+in 0.817 seconds after that one-line fix. Fresh Sol artifacts will be generated under ignored
+results after the source is pushed; old Luna receipts are not carried forward.
+
 ## Repairs carried into the reset
 
 The earlier local repair separates the serial NL0/preparation/review lane from

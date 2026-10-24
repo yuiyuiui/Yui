@@ -1,6 +1,9 @@
 # Functional development experiment
 
-Use gpt-5.6-luna, reasoning high, through the existing subscription relay.
+Use the exact model/reasoning/speed frozen in config.json through the existing
+subscription relay (currently gpt-6.1-sol / high / Standard). Historical
+gpt-5.6-luna and gpt-6-luna results retain their recorded profiles and are not
+pooled with the current configuration.
 Do not substitute a model if it is unavailable. Pin the existing CLI, Lean
 4.32.2 and mathlib revision. New instructions/tools define a new harness version;
 these results must not be pooled with earlier four/five-tool baselines.

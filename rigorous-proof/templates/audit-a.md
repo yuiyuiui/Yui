@@ -1,5 +1,12 @@
 # Audit A v3 template
 
+Use [Audit A's shared requirements](../references/audit-a.md#shared-mathematical-acceptance-requirements)
+as the same mathematical standard supplied to the author. Existing check keys
+are shared criterion IDs; `packet_replay` is the separate execution obligation.
+Locate a FAIL under its criterion and actual argument. Do not introduce a new
+mathematical permission boundary during review. Author notes/readiness are not
+evidence for an independent verdict.
+
 Generate the complete pending record beside a frozen v2 graph:
 
 ```bash

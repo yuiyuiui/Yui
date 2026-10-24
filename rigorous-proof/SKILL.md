@@ -11,9 +11,11 @@ invalidation rules; completing stage one does not require stage two.
 
 ## Select a stage
 
-1. **NL0 and Audit A.** Read [the NL0 stage](references/nl0-stage.md),
+1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](references/audit-a.md#shared-mathematical-acceptance-requirements)
+   as the single mathematical standard for both author and auditor.
+   Read [the NL0 stage](references/nl0-stage.md),
    [format](references/nl0-format.md), [self-containment](references/self-containment.md),
-   [authoring](references/nl0-authoring.md), and [Audit A](references/audit-a.md).
+   [authoring](references/nl0-authoring.md), and Audit A's role-specific execution protocol.
    Read [external-source review](references/external-theorems.md) for citations
    and [logical packaging](references/logical-rules.md) for local assumptions.
    Use `scripts/nl0.py`; its explicit accounting is not a mathematical prover.
@@ -56,6 +58,14 @@ invalidation rules; completing stage one does not require stage two.
 
 ## Clean execution and accounting
 
+Operators use [execution terminology](references/terminology.md) to distinguish
+Codex conversations, native subagents, Yui jobs, worker slots and controllers.
+Use the logical phase names **NL0 worker**, **preprocessing worker**,
+**formalization workers (N slots)** and **postprocessing worker**. A logical
+worker may contain several separate author/reviewer threads and program steps;
+N limits only concurrent local Lean proof jobs.
+Report executor termination separately from mathematical acceptance.
+
 Read [isolation](references/isolation.md) and [measurement](references/measurement.md)
 before any model test or benchmark. Run model authoring, planning, proof and
 review stages through the isolated carrier. The interactive developer's memory,
@@ -68,7 +78,8 @@ without Yui planning, strategy or shared-proof guidance. Log actual transmitted
 instructions, complete allowed inputs, tool schemas/results, model identity,
 phase, usage and health. Never execute model-generated Python or shell text.
 
-Use the selected `gpt-6-luna/high/Standard` profile. Resolve default concurrency
+Use the selected profile in `config.json` (currently `gpt-6.1-sol/high/Standard`).
+Resolve default concurrency
 before dispatch and record its basis; do not claim an unknown backend maximum.
 The concurrency parameter limits Lean proof jobs only. NL0 authoring,
 preparation, Audit A, interface work and Audit B use one serial lane per case.

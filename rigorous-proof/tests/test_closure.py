@@ -89,6 +89,53 @@ class ClosureChecks(unittest.TestCase):
         with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-REFERENCE"):
             self.data()
 
+    def test_target_or_problem_shortcut_is_not_a_standalone_statement(self):
+        original=copy.deepcopy(self.graph)
+        for index in range(len(self.graph['propositions'])):
+            self.graph=copy.deepcopy(original)
+            p=self.graph['propositions'][index]
+            p['statement']='The objects are as specified in the target statement.'
+            if p['kind']=='hypothesis':self.spec['hypotheses'][0]['statement']=p['statement']
+            if p['kind']=='target':self.spec['conclusion']=p['statement']
+            with self.assertRaisesRegex(nl0.Invalid,'OPAQUE-REFERENCE'):self.data()
+            self.spec=nl0.load(ROOT/'tests/fixtures/closed-addition/spec.json')
+
+    def test_proof_metacommentary_does_not_supply_or_replace_a_statement(self):
+        self.graph['inferences'][1]['argument'][1]['text']+=' This proves the target.'
+        self.assertEqual(self.data()[0]['status'],'STRUCTURE-PASSED')
+
+    def test_definition_cannot_use_the_problem_as_its_content(self):
+        self.spec['definitions']=[dict(id='D001',symbol='d',type='natural number',
+            definition='d is as defined in the problem.',depends_on=[],requires=[],binders=[],objects=['a'])]
+        with self.assertRaisesRegex(nl0.Invalid,'OPAQUE-REFERENCE'):self.data()
+
+    def test_scope_owner_label_must_name_actual_inference(self):
+        local=self.graph['inferences'][1]['locals'][0]
+        local['scope']='R001/argument'
+        with self.assertRaisesRegex(nl0.Invalid,'LOCAL-SCOPE-OWNER'):self.data()
+        local['scope']='Within this inference'
+        self.assertEqual(self.data()[0]['status'],'STRUCTURE-PASSED')
+
+    def test_global_overview_reports_unused_original_h_without_inventing_a_use(self):
+        self.spec['hypotheses'].append(dict(id='H002',statement='a≠0.',origin='Synthetic original given.'))
+        self.graph['propositions'].append(dict(id='H002',kind='hypothesis',statement='a≠0.',
+            definitions=[],binders=[],objects=['a','0']))
+        data=self.data();view=nl0.global_overview(data)
+        self.assertEqual(view['schema'],'yui-global-overview-2')
+        self.assertEqual(view['inventory']['unused_original_hypotheses'],['H002'])
+        self.assertEqual(view['inventory']['unused_original_hypotheses'],data[0]['unused_original_hypotheses'])
+        self.assertNotIn('H002',self.graph['inferences'][1]['inputs'])
+
+    def test_declaration_failure_identifies_actual_record_among_same_start_locals(self):
+        r=self.graph['inferences'][1]
+        r['locals'].append(dict(symbol='d',type='natural number',scope='R002/argument',
+            start='S001',end='S002',kind='definition',declaration='Define d=a.',
+            from_inputs=[],from_local=[],objects=['a']))
+        r['locals'][0]['objects'].append('d')
+        with self.assertRaisesRegex(nl0.Invalid,r'/graph/inferences/1/locals/0') as failure:self.data()
+        self.assertIn('declaration[c]',str(failure.exception))
+        self.assertIn("missing=['d']",str(failure.exception))
+
     def test_proposition_id_cannot_replace_statement(self):
         self.graph["propositions"][1]["statement"] = "The conclusion of H001 holds."
         with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-STATEMENT"):
@@ -134,8 +181,11 @@ class ClosureChecks(unittest.TestCase):
         r = self.graph["inferences"][1]
         r["locals"][0]["end"] = "S001"
         r["argument"][1]["objects"].remove("c")
-        with self.assertRaisesRegex(nl0.Invalid, "LOCAL-FACT-SCOPE"):
+        with self.assertRaisesRegex(nl0.Invalid, "LOCAL-FACT-SCOPE") as rejected:
             self.data()
+        self.assertIn('"fact": "F001"',str(rejected.exception))
+        self.assertIn('"missing_objects": ["c"]',str(rejected.exception))
+        self.assertIn('"produced_at": "S001"',str(rejected.exception))
 
     def test_local_fact_cannot_escape_its_assumption(self):
         r = self.graph["inferences"][1]

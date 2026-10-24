@@ -3,11 +3,21 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib.util
 import json
+from pathlib import Path
 import re
 
 
-CLOSURE_CHECKS = {"statement_closure", "object_closure", "dependency_closure", "packet_replay"}
+_FOUNDATIONS_SPEC=importlib.util.spec_from_file_location('nl0_foundations',Path(__file__).with_name('foundations.py'))
+foundations=importlib.util.module_from_spec(_FOUNDATIONS_SPEC)
+_FOUNDATIONS_SPEC.loader.exec_module(foundations)
+
+_ACCEPTANCE_SPEC=importlib.util.spec_from_file_location('nl0_acceptance',Path(__file__).with_name('acceptance.py'))
+acceptance=importlib.util.module_from_spec(_ACCEPTANCE_SPEC)
+_ACCEPTANCE_SPEC.loader.exec_module(acceptance)
+
+CLOSURE_CHECKS = acceptance.current().check_ids('closure') | {'packet_replay'}
 _IDS = re.compile(r"\b(?:[HEMN]\d{3,}|F\d{3,})\b")
 _NUMBERED = re.compile(
     r"\b(?:formula|equation|identity|estimate|bound|theorem|lemma|proposition|corollary|section)"
@@ -17,6 +27,9 @@ _NUMBERED = re.compile(
 _OUTSIDE = re.compile(
     r"\b(?:as in|as defined in|as proved in|as shown in|notation from|defined in)"
     r"\s+(?:the\s+)?(?:original|paper|manuscript|source|previous section)\b", re.I)
+_INPUT_SHORTCUT = re.compile(
+    r"\b(?:as\s+)?(?:specified|stated|given|defined|described|set out)\s+in\s+"
+    r"(?:the\s+)?(?:target(?:\s+(?:theorem|proposition|statement))?|problem(?:\s+statement)?)\b", re.I)
 
 
 def need(condition, code, message):
@@ -45,7 +58,7 @@ def binders(items, reserved, where):
     for b in items:
         fields(b, {"symbol", "type"}, where)
         need(all(isinstance(x, str) and x.strip() for x in b.values()), "BINDER", where)
-        need(b["symbol"] not in reserved | result, "SHADOW", where)
+        need(b["symbol"] not in reserved | result, "SHADOW", f"{where}: binder {b['symbol']!r} conflicts with a reserved/global or repeated name; alpha-rename this statement-local binder and its actual uses consistently")
         result.add(b["symbol"])
     return result
 
@@ -53,7 +66,23 @@ def binders(items, reserved, where):
 def objects(item, available, where):
     names(item["objects"], where + ".objects")
     need(set(item["objects"]) <= available, "UNDECLARED-OBJECT",
-         f"{where}: {set(item['objects']) - available}")
+         f"{where}: missing={sorted(set(item['objects']) - available)}; visible={sorted(available)}")
+
+
+def scope_details(ids, facts, active, available, declarations):
+    """Located reasons for an existing scope rejection; never alter a scope."""
+    rows=[]
+    for fid in ids:
+        fact=facts.get(fid,{})
+        assumptions=set(fact.get('assumptions',set()))-active
+        objects_=set(fact.get('objects',set()))-available
+        if not assumptions and not objects_:continue
+        rows.append({'fact':fid,'produced_at':fact.get('produced_at'),
+            'missing_assumptions':sorted(assumptions),'missing_objects':sorted(objects_),
+            'object_declarations':[{'symbol':d['symbol'],'start':d['start'],'end':d['end']}
+                for d,_,_ in declarations if d['symbol'] in objects_]})
+    text=json.dumps(rows[:8],ensure_ascii=False)
+    return text[:6000]+(' [inspect the own packet for remaining details]' if len(text)>6000 or len(rows)>8 else '')
 
 
 def validate(graph, spec, props, steps, defs, definition_closure):
@@ -71,6 +100,8 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         local = binders(item["binders"], global_names, where + ".binders")
         objects(item, (global_names if allowed is None else allowed) | local, where)
         opaque(item[body], where)
+        need(not _INPUT_SHORTCUT.search(item[body]), "OPAQUE-REFERENCE",
+             f"{where}: a standalone statement/definition must contain its complete mathematical content, not refer to the target/problem for it")
         need(not _IDS.search(item[body]), "OPAQUE-STATEMENT", f"{where}: a proposition ID cannot replace content")
 
     for key, d in defs.items():
@@ -82,7 +113,7 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         allowed |= {defs[x]["symbol"] for x in definition_closure(p["definitions"])}
         statement(p, key, allowed=allowed)
 
-    for rid, r in steps.items():
+    for inference_index, (rid, r) in enumerate(steps.items()):
         ids = [s["id"] for s in r["argument"]]
         need(len(ids) == len(set(ids)) and all(re.fullmatch(r"S\d{3,}", x) for x in ids), "STEP-ID", rid)
         position = {key: i for i, key in enumerate(ids)}
@@ -92,14 +123,17 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         dclosure = definition_closure(referenced)
         for did in dclosure:
             need(set(defs[did]["requires"]) <= set(r["inputs"]), "DIRECT-GUARD",
-                 f"{rid}/{did}: existence/property guards must be direct inputs")
+                 f"{rid}/{did}: missing direct existence/property guards={sorted(set(defs[did]['requires'])-set(r['inputs']))}; required={defs[did]['requires']}; current inputs={r['inputs']}. Preserve real guards and actually use their premises; do not delete a needed condition to silence this error.")
         base = {p["symbol"] for p in spec["parameters"]} | {p["symbol"] for p in primitives}
         base |= {defs[x]["symbol"] for x in dclosure}
         locals_ = []
         for local in r["locals"]:
-            need(local["start"] in position and local["end"] in position, "LOCAL-SCOPE", rid)
+            owners=set(re.findall(r'\bR\d{3,}\b',local['scope']))
+            need(not (owners-{rid}), 'LOCAL-SCOPE-OWNER',
+                 f"{rid}/{local['symbol']}: scope={local['scope']!r}; actual inference={rid}; other named owners={sorted(owners-{rid})}")
+            need(local["start"] in position and local["end"] in position, "LOCAL-SCOPE", f"{rid}/{local['symbol']}: start={local['start']}, end={local['end']}; argument IDs={ids}")
             lo, hi = position[local["start"]], position[local["end"]]
-            need(lo <= hi, "LOCAL-SCOPE", rid)
+            need(lo <= hi, "LOCAL-SCOPE", f"{rid}/{local['symbol']}: end precedes start")
             need(local["kind"] in {"arbitrary", "definition", "witness"}, "LOCAL-INTRODUCTION", rid)
             need(local["symbol"] not in global_names, "SHADOW", rid)
             for other, a, b in locals_:
@@ -108,7 +142,7 @@ def validate(graph, spec, props, steps, defs, definition_closure):
                 names(local[key], rid + ".local." + key)
             need(set(local["from_inputs"]) <= set(r["inputs"]), "LOCAL-INTRODUCTION", rid)
             need(local["kind"] != "witness" or local["from_inputs"] or local["from_local"],
-                 "WITNESS-EXISTENCE", rid)
+                 "WITNESS-EXISTENCE", f"{rid}/{local['symbol']}: a chosen witness needs an actual direct input or earlier local existence fact; do not remove the basis merely to pass the format check")
             opaque(local["declaration"], rid + ".local.declaration")
             locals_.append((local, lo, hi))
 
@@ -119,21 +153,25 @@ def validate(graph, spec, props, steps, defs, definition_closure):
             active.update(s["introduces"])
             for declaration_index, (local, lo, hi) in enumerate(locals_):
                 if lo == i:
+                    declaration_where=(f"{where}.declaration[{local['symbol']}] "
+                        f"/graph/inferences/{inference_index}/locals/{declaration_index}")
                     # Only earlier declarations, not a later simultaneous definition, justify this one.
                     earlier = base | {other["symbol"] for j, (other, a, b) in enumerate(locals_)
                                       if a <= i <= b and (a < i or j < declaration_index)}
-                    objects(local, earlier, where + ".declaration")
-                    need(set(local["from_local"]) <= facts.keys(), "LOCAL-INTRODUCTION", where)
+                    objects(local, earlier, declaration_where)
+                    need(set(local["from_local"]) <= facts.keys(), "LOCAL-INTRODUCTION",
+                         f"{declaration_where}: missing prior facts={sorted(set(local['from_local'])-facts.keys())}; known earlier facts={sorted(facts)}. from_local lists earlier F proof IDs, not object names: put ordinary object dependencies in objects. A witness still needs a real existence premise. A fact produced in this same paragraph is not yet available; establish it in a preceding S.")
                     need(all(facts[x]["assumptions"] <= active and facts[x]["objects"] <= earlier
-                             for x in local["from_local"]), "LOCAL-FACT-SCOPE", where)
+                             for x in local["from_local"]), "LOCAL-FACT-SCOPE", declaration_where+": "+scope_details(local['from_local'],facts,active,earlier,locals_))
                     need(set(_IDS.findall(local["declaration"])) <= set(local["from_inputs"]) | set(local["from_local"]),
-                         "UNDECLARED-FACT", where + ".declaration")
+                         "UNDECLARED-FACT", declaration_where+f": undeclared factual IDs={sorted(set(_IDS.findall(local['declaration']))-set(local['from_inputs'])-set(local['from_local']))}; from_inputs={local['from_inputs']}; from_local={local['from_local']}")
             objects(s, available, where)
             opaque(s["text"], where)
             names(s["uses_local"], where + ".uses_local")
-            need(set(s["uses_local"]) <= facts.keys(), "LOCAL-FACT-ORDER", where)
+            need(set(s["uses_local"]) <= facts.keys(), "LOCAL-FACT-ORDER",
+                 f"{where}: missing earlier facts={sorted(set(s['uses_local'])-facts.keys())}; known={sorted(facts)}")
             need(all(facts[x]["assumptions"] <= active and facts[x]["objects"] <= available
-                     for x in s["uses_local"]), "LOCAL-FACT-SCOPE", where)
+                     for x in s["uses_local"]), "LOCAL-FACT-SCOPE", f"{where}: "+scope_details(s['uses_local'],facts,active,available,locals_))
             visible_facts[s["id"]] = {fid for fid, fact in facts.items()
                                       if fact["assumptions"] <= active and fact["objects"] <= available}
             need(isinstance(s["produces"], list), "LOCAL-FACT", where)
@@ -150,7 +188,8 @@ def validate(graph, spec, props, steps, defs, definition_closure):
                 objects(f, available | bound, where + "/" + f["id"])
                 names(f["assumptions"], where + ".assumptions")
                 need(set(f["assumptions"]) <= remaining, "LOCAL-FACT-SCOPE", where)
-                facts[f["id"]] = {"assumptions": set(f["assumptions"]), "objects": set(f["objects"]) - bound}
+                facts[f["id"]] = {"assumptions": set(f["assumptions"]), "objects": set(f["objects"]) - bound,
+                                  "produced_at":s['id']}
                 produced.add(f["id"])
             mentioned = set(_IDS.findall(s["text"]))
             need(mentioned <= set(s["uses"]) | set(s["uses_local"]) | produced,
@@ -191,7 +230,9 @@ def packet(data, inference):
 
     payload = {"contract_version": 2, "case_id": spec["case_id"],
                "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
-               "parameters": spec["parameters"], "logic": spec["logic"], "pins": spec["pins"],
+               "parameters": spec["parameters"], "logic": foundations.packet_logic(spec["logic"]), "pins": spec["pins"],
+               "foundation_profile": foundations.PROFILE,
+               "standard_language": foundations.STANDARD_LANGUAGE,
                "definitions": [defs[x] for x in sorted(closure(refs))],
                "inputs": [port(x) for x in step["inputs"]], "output": port(step["output"]),
                "inference": step,

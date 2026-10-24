@@ -28,8 +28,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
+from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
 
-MODEL = 'gpt-6-luna'
+MODEL = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())['model']['id']
 PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
 CURRENT_VERSION = '0.4.1'
 SYSTEM = ('你是 Lean 4 证明形式化模型。只依据本次任务提供的定义、允许前提、自然语言证明和固定版本的 mathlib，'
@@ -362,7 +363,7 @@ class Trial:
                       'tools': result['tools'], 'tool_choice': 'auto', 'parallel_tool_calls': False,
                       'reasoning': {'effort': 'high', 'context': 'all_turns'},
                       'include': ['reasoning.encrypted_content'], 'store': False,
-                      'text': {'verbosity': 'low'}, 'prompt_cache_key': self.prompt_cache_key,
+                      'text': {'verbosity': getattr(self,'output_verbosity','low')}, 'prompt_cache_key': self.prompt_cache_key,
                       'service_tier': 'default'}
         # Native compaction summaries remain untrusted and removed. Restore only
         # machine facts about this stage's own immutable checked drafts, rather
@@ -388,10 +389,25 @@ class Trial:
         if request_number == 1 and not any(i.get('role') == 'user' for i in kept):
             raise ValueError('首个请求缺少冻结题目，拒绝发送。')
         append(self.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'NORMALIZED','at_utc':now()})
+        wait_guard=getattr(self,'provider_wait_guard',None)
+        if wait_guard is not None:wait_guard.normalized(request_number)
         return result
 
     def observe_model_event(self, event: dict, request_number=None) -> None:
         validate_model_event(event, self.tool_names, strict=self.strict)
+        wait_guard=getattr(self,'provider_wait_guard',None)
+        if wait_guard is not None:wait_guard.observe(event,request_number)
+        guard = getattr(self, 'argument_guard', None)
+        if guard is not None:
+            notice = guard.observe(event, request_number)
+            if notice and getattr(self, 'output_guard_notice', None) is None:
+                self.output_guard_notice = notice
+                append(self.logs/'model-output-events.jsonl', {'event': 'MODEL_OUTPUT_STALLED', **notice})
+            if (event.get('type') == 'response.incomplete' and
+                    (event.get('response', {}).get('incomplete_details') or {}).get('reason') == 'max_output_tokens'):
+                self.provider_output_limit = {'request_number': request_number,
+                    'response_id': event.get('response', {}).get('id'), 'reason': 'max_output_tokens'}
+                append(self.logs/'model-output-events.jsonl', {'event': 'MODEL_OUTPUT_LIMIT', **self.provider_output_limit})
         execution=getattr(self,'execution',None)
         if execution:
             execution.model_event(self.execution_task,str(self.logs),request_number,event)
@@ -577,12 +593,14 @@ class Trial:
 
     def receive_until(self, predicate, deadline: float):
         while time.monotonic() < deadline:
+            self.check_argument_guard()
             execution=getattr(self,'execution',None)
             if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
             try: msg = self.inbox.get(timeout=min(1, deadline - time.monotonic()))
             except queue.Empty:
                 if self.proc.poll() is not None: raise RuntimeError('Codex 传输进程提前结束。')
                 continue
+            self.check_argument_guard()
             if msg.get('method') == 'turn/started':
                 self.active_turn_id = msg.get('params', {}).get('turn', {}).get('id')
             if self.pending_turn_start_id is not None and msg.get('id') == self.pending_turn_start_id:
@@ -591,6 +609,15 @@ class Trial:
             if msg.get('method') == 'turn/completed':
                 self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
+                if getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None) or getattr(self,'provider_wait_notice',None)):
+                    # A completed call can race with the protective interrupt.
+                    # Do not execute it after deciding to preserve an unfinished attempt.
+                    self.proc.stdin.write(json.dumps({'id': msg['id'], 'error': {
+                        'code': -32800, 'message': 'Cancelled after a recorded protective output/protocol stop'}})+'\n')
+                    self.proc.stdin.flush()
+                    append(self.logs/'model-output-events.jsonl', {'event': 'LATE_TOOL_NOT_EXECUTED',
+                        'tool': msg.get('params', {}).get('tool')})
+                    continue
                 params = msg['params']
                 self.validate_tool_rpc(params)
                 result = self.dispatch(params['tool'], params['arguments'])
@@ -605,11 +632,38 @@ class Trial:
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
                     'contentItems': [{'type': 'inputText', 'text': json.dumps(result, ensure_ascii=False)}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
+                delivered_at=now()
+                wait_guard=getattr(self,'provider_wait_guard',None)
+                waiting=wait_guard.delivered(params['callId'],delivered_at) if wait_guard else None
+                origin=wait_guard.origin(params['callId']) if wait_guard else None
+                append(self.logs/'request-lifecycle.jsonl',{'event':'TOOL_RESULT_DELIVERED',
+                    'call_id':params['callId'],'tool':params['tool'],'at_utc':delivered_at,
+                    'request_number':origin['request_number'] if origin else None,
+                    'delivery_boundary':'actual tool response flushed to native carrier stdin',
+                    'awaiting_provider_terminal':waiting is not None})
+                if execution:
+                    execution.task(self.execution_task,last_tool_result_at_utc=delivered_at,
+                        activity='AWAITING_PROVIDER_TERMINAL' if waiting else 'TOOL_RESULT_DELIVERED',
+                        last_activity_at_utc=delivered_at)
             elif 'method' in msg and 'id' in msg:
                 response = {'id': msg['id'], 'error': {'code': -32601, 'message': 'Not allowed by pilot harness'}}
                 self.proc.stdin.write(json.dumps(response) + '\n'); self.proc.stdin.flush()
             if predicate(msg): return msg
         raise TimeoutError('本轮达到预先设置的时间限制。')
+
+    def check_argument_guard(self):
+        if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
+        notice = getattr(self, 'output_guard_notice', None)
+        if notice:
+            from output_guard import ModelOutputStalled
+            raise ModelOutputStalled(notice)
+        wait_guard=getattr(self,'provider_wait_guard',None)
+        wait_notice=wait_guard.check() if wait_guard else None
+        if wait_notice:
+            if not getattr(self,'provider_wait_notice',None):
+                self.provider_wait_notice=wait_notice
+                append(self.logs/'model-output-events.jsonl',{'event':'PROVIDER_TERMINAL_WAIT_EXCEEDED',**wait_notice})
+            raise ProviderTerminalWaitExceeded(self.provider_wait_notice)
 
     def rpc(self, method: str, params: dict, seconds: float = 30) -> dict:
         rid = self.send(method, params)
@@ -618,6 +672,7 @@ class Trial:
         return msg.get('result', {})
 
     def start_process(self) -> None:
+        self.provider_wait_guard=ProviderWaitGuard()
         lock = load_lock()
         self.network_proxy = system_https_proxy()
         port = self.start_relay()
@@ -639,6 +694,7 @@ model_provider = "pilot-relay"
 model_reasoning_effort = "high"
 web_search = "disabled"
 project_doc_max_bytes = 0
+tool_output_token_limit = 262144
 [model_providers.pilot-relay]
 name = "Yui isolated subscription carrier"
 base_url = "http://127.0.0.1:{port}"
@@ -685,9 +741,12 @@ tool_suggest = false
             profile.write_text(transport_sandbox_profile(self.work, port))
             shutil.copyfile(profile, self.logs / 'transport-sandbox.sb')
             command = ['/usr/bin/sandbox-exec', '-f', str(profile)] + command
-        self.proc = subprocess.Popen(command,
-            cwd=self.work / 'input', env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=err, text=True, bufsize=1, start_new_session=True)
+        try:
+            self.proc = subprocess.Popen(command,
+                cwd=self.work / 'input', env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=err, text=True, bufsize=1, start_new_session=True)
+        finally:
+            err.close()
         from run_resources import register_child
         register_child(self.work, self.proc, 'model-carrier')
         if getattr(self,'execution',None):
@@ -733,6 +792,10 @@ tool_suggest = false
             self.turn_results.append(done)
             turn = done.get('params', {}).get('turn', {})
             if turn.get('status') != 'completed':
+                limit = getattr(self, 'provider_output_limit', None)
+                if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
+                    from output_guard import ModelOutputLimit
+                    raise ModelOutputLimit(limit)
                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
             if smoke or self.accepted or not self.strict:
                 return done
@@ -843,6 +906,11 @@ tool_suggest = false
                     'input': [{'type': 'text', 'text': AUDIT_QUESTION}], 'environments': []})
                 self.receive_until(lambda m: m.get('method') == 'turn/completed', time.monotonic() + 180)
                 result['environment_audit_status'] = 'COMPLETED'
+        except ProviderTerminalWaitExceeded as e:
+            result.update(status='UNFINISHED',task_outcome='PROVIDER_TERMINAL_WAIT_EXCEEDED',
+                stop_reason='PROTOCOL_WAIT_GUARD',attribution='UNVERIFIED',provider_wait_evidence=e.evidence,error=str(e))
+            try:self.interrupt_active_turn(reason='PROVIDER_TERMINAL_WAIT_EXCEEDED')
+            except Exception as stop_error:result['interrupt_error']=str(stop_error)
         except Exception as e:
             result['status'] = 'TIMEOUT' if isinstance(e, TimeoutError) else 'ERROR'
             result['error'] = str(e)

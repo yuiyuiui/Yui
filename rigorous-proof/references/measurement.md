@@ -5,6 +5,20 @@ stage and response ID. Arms are direct, Yui sequential and Yui parallel. The
 main comparison holds mathematical inputs, allowed theorems, checker, model,
 reasoning and service-speed policy fixed. Sequential means a model-stage cap
 of one; parallel records the requested/default resolved cap and observed peak.
+Record output verbosity as well. The current NL0 author uses high output
+detail to retain the complete supplied proof; other stages use low detail.
+This does not change the model, high reasoning effort or Standard service tier.
+Actual transmitted settings are checked against the frozen stage manifest.
+Keep runs with different output policies distinct; no benefit is assumed.
+The clean NL0 author now performs an explicit same-author closing inspection
+before definitive release. Count its reads/notes and any resulting own-stage
+edits in author time/tokens. No independent Audit A feedback is returned at
+this point. Report first independent audit acceptance separately from first
+raw-draft structural acceptance; these are different observations.
+Record the shared Audit A requirement version/hash, author readiness, unresolved
+issues and their actual resolutions. The author and auditor use the same
+requirements; no known-incomplete draft is called complete merely because its
+notes are populated. A deadline preserves an unfinished result and its costs.
 
 Record root/controller, author, plan, worker, review, diagnostic, repair and
 retry calls. Sum actual provider usage over distinct responses, not repeated
@@ -26,6 +40,38 @@ speedup is inferred when the baseline did not finish. Healthy budget exhaustion
 is MODEL_BUDGET_EXHAUSTED under the recorded configuration. Transport, sandbox,
 tool-service and controller faults are reported separately. Missing health or
 usage evidence remains UNVERIFIED. Never drop failed attempts from the report.
+
+A complete identity/input-bound, source-matching, release-ready NL0 may receive
+its first independent Audit A after a disclosed recovered transport interruption.
+That eligibility grants no mathematical PASS and never upgrades execution or
+timing qualification. Record the original health, missing usage and transport
+evidence alongside actual first-A outcomes. Incomplete/cancelled sources,
+isolation violations and controller/tool-service faults remain ineligible for
+automatic advancement. A correctness-goal result and a healthy benchmark result
+are separate fields; unqualified elapsed time cannot support a speed claim.
+The immutable same-author restoration checkpoint consumes measured input tokens
+but no extra model invocation. Ordinary log/status writers remain model-free.
+
+The same evidence distinction applies to submitted review/calibration records.
+After a known recovered transport interruption, an actual complete, validated,
+identity/input-bound record may support its mathematical observation while
+`execution_qualified` and `measurement_valid` remain false. A typed blocking
+record supports only its actual negative finding and retains incomplete coverage;
+it cannot grant a whole-review PASS. Unknown protocol waits, missing/partial
+submissions, wrong identities and isolation/controller/tool faults do not gain
+record eligibility. Finite calibration additionally requires every actual
+mathematical classification to match. Retain every fault and missing usage;
+no retry or mathematical judgment is created by changing qualification fields.
+
+Distinguish a stage deadline from a single-response output limit. An actual
+provider max_output_tokens terminal event is MODEL_OUTPUT_LIMIT, with stop
+reason OUTPUT_TOKEN_LIMIT. Reaching the frozen outside-string JSON whitespace
+guard is MODEL_OUTPUT_STALLED, with a protective stop recorded explicitly.
+Neither event alone is a transport/controller fault or evidence of a false
+theorem. Record actual usage coverage after interruption; do not estimate
+missing tokens or treat an early protective stop as full time-budget exhaustion.
+If a real execution fault also occurs, preserve it and qualify attribution
+accordingly. These policies introduce no extra model calls or invisible retries.
 
 Live execution records contain confirmed response usage and unreported-request
 coverage, not per-token estimates. Five-second liveness heartbeats do not update

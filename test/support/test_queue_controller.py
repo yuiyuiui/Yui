@@ -35,6 +35,15 @@ class QueueControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'schema'):
             q.validate_job({k:v for k,v in job.items() if k!='audit'})
 
+    def test_audit_a_only_job_has_no_lean_phase_names(self):
+        job={'id':'neutral-control','kind':'nl0','case':'wave-map-energy','run':'neutral-nl0',
+             'audit':'neutral-audit','stop_after':'audit_a','audit_controls':'fresh-controls'}
+        q.validate_job(job)
+        with self.assertRaisesRegex(ValueError,'requires an NL0/Audit A job'):
+            q.validate_job({**job,'kind':'translate'})
+        with self.assertRaisesRegex(ValueError,'plain unique'):
+            q.validate_job({**job,'audit_controls':'../foreign-control'})
+
     def test_submitted_interface_gets_a_new_review_without_reauthoring(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);case=root/'test/results/neutral/case';case.mkdir(parents=True)
@@ -119,6 +128,10 @@ finally:
                     self.assertEqual([r['roles']['preparation_review']['observed_peak_model_stages'] for r in reports],[1,1,1])
                     self.assertEqual({r['result']['status'] for r in reports},{'CANCELLED' if stop else 'PROOF_UNFINISHED'})
                     self.assertTrue((queue/'final-concurrency.json').exists())
+                    final=json.loads((queue/'final-concurrency.json').read_text())
+                    self.assertFalse(final['all_cases_accepted'])
+                    self.assertEqual(final['status'],'CANCELLED' if stop else 'FINITE_BATCH_FINISHED')
+                    self.assertEqual(len(final['case_outcomes']),3)
                     self.assertEqual(len({p.pid for p in handles}),3)
                     self.assertTrue(all(p.poll() is not None for p in handles))
                 finally:

@@ -35,7 +35,7 @@ installation, previous chats or a historical proof store.
 
 ## Execution profile
 
-The selected profile is `gpt-6-luna`, reasoning `high`, Standard speed, through
+The selected profile is `gpt-6.1-sol`, reasoning `high`, Standard speed, through
 an existing authenticated Codex subscription. There is no automatic model
 fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
 the runtime discloses its conservative fallback and records observed concurrency.

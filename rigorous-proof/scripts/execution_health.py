@@ -23,8 +23,10 @@ def review_outcome(verdicts):
 def qualification(result):
     """Identity/input/health qualification is separate from usage completeness."""
     exposure=result.get('exposure', {})
+    configured=json.loads((Path(__file__).resolve().parents[1]/'config.json').read_text())['model']['id']
+    expected_model=result.get('model',configured)
     identity=(exposure.get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
-              and exposure.get('actual_model_ids')==['gpt-6-luna']
+              and exposure.get('actual_model_ids')==[expected_model]
               and exposure.get('standard_tier_verified') is True)
     health=result.get('execution_health','UNVERIFIED')
     return {'execution_qualified':bool(identity and health=='NO_RECORDED_FAULT'),
@@ -34,13 +36,40 @@ def qualification(result):
                                      and result.get('usage',{}).get('complete'))}
 
 
+def known_transport_recovery(result):
+    """A real submitted record survived a disclosed transport-only interruption."""
+    if (result.get('status') not in {'ACCEPTED','BLOCKED'} or result.get('execution_health')!='FAULT'
+            or result.get('isolation_violation') or result.get('execution_fault')
+            or result.get('temporary_workspace_removed') is not True):return False
+    transport=result.get('transport_health',{});faults=transport.get('faults',[])
+    if transport.get('status')!='FAULT' or not faults:return False
+    if any(f.get('kind') not in {'RELAY_ERROR','HTTP_ERROR','PROVIDER_ERROR'} for f in faults):return False
+    numbers={f.get('request_number') for f in faults if type(f.get('request_number')) is int}
+    return all(u.get('kind')=='HTTP_EVIDENCE_INCOMPLETE'
+               and set(u.get('missing_requests',[]))<=numbers
+               for u in transport.get('uncertainty',[]))
+
+
+def record_qualification(result,*,allow_blocked=False):
+    """Submitted evidence eligibility, never a mathematical or healthy-time PASS."""
+    checked=qualification(result);recovered=known_transport_recovery(result)
+    context=bool(checked['identity_and_input_boundary_verified']
+        and not result.get('isolation_violation') and not result.get('execution_fault')
+        and result.get('temporary_workspace_removed') is not False
+        and (checked['execution_health']=='NO_RECORDED_FAULT' or recovered))
+    submitted=result.get('status') in ({'ACCEPTED','BLOCKED'} if allow_blocked else {'ACCEPTED'})
+    return {**checked,'record_context_qualified':context,
+        'submitted_record_qualified':bool(context and submitted),'recovered_transport':recovered,
+        'record_scope':'Execution evidence only. Callers still validate exact artifact/coverage and actual judgments; a blocker cannot grant full acceptance.'}
+
+
 def require_review_execution(result, path, *, phase=None):
     """Missing accounting preserves a qualified judgment, not a benchmark pass."""
     if result.get('status')=='CANCELLED':
         from execution_state import Cancelled
         raise Cancelled('Review cancelled: '+str(path))
-    checked=qualification(result)
-    if not checked['execution_qualified']:
+    checked=record_qualification(result,allow_blocked=True)
+    if not checked['record_context_qualified']:
         raise StageFailure('EXECUTION_UNQUALIFIED','Reviewer identity, input boundary or health is unqualified',
                            phase=phase,evidence=path,details=checked)
     if result.get('status')!='ACCEPTED':
@@ -70,6 +99,12 @@ def inspect(directory):
         if isinstance(row.get('status'),int) and not 200<=row['status']<300:
             faults.append({'kind':'HTTP_ERROR','request_number':row.get('request_number'),'status':row['status']})
     uncertain=[]
+    for row in read_rows(root/'model-output-events.jsonl'):
+        if row.get('event')=='PROVIDER_TERMINAL_WAIT_EXCEEDED':
+            uncertain.append({'kind':'PROVIDER_TERMINAL_WAIT_EXCEEDED',
+                'request_number':row.get('request_number'),'call_ids':row.get('call_ids'),
+                'details':'Recorded post-tool nonterminal wait; cause UNVERIFIED, not a mathematical failure.',
+                'idle_seconds':row.get('idle_seconds')})
     for path in root.glob('response-*.sse'):
         for event in events(path):
             response=event.get('response') or {}
@@ -89,4 +124,4 @@ def inspect(directory):
         uncertain.append({'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':missing})
     status='FAULT' if faults else 'UNVERIFIED' if uncertain else 'NO_RECORDED_FAULT'
     return {'status':status,'faults':faults,'uncertainty':uncertain,
-            'scope':'Recorded HTTP/provider health only; rejected mathematical/tool candidates are ordinary feedback.'}
+            'scope':'Recorded HTTP/provider health and delivered-tool protocol waits; rejected mathematical/tool candidates are ordinary feedback.'}

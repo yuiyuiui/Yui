@@ -14,61 +14,29 @@ Read [the Lean handoff boundary](lean-handoff.md) only when preparing
 a formalization handoff. None of these documents automatically dispatches
 another agent or authorizes an external service.
 
-## Non-negotiable interface
+## Shared standard and execution responsibilities
 
-1. Freeze the original target, parameters, definitions, and **all original
-   hypotheses H** before proof construction. H nodes are initial inputs, not
-   assumptions awaiting later classification. Adding an H requires a new
-   specification and invalidates the affected audit.
-2. Keep two graph vertex classes: proposition and inference. Initial
-   proposition kinds are exactly `external` (E), `mathlib` (M), and
-   `hypothesis` (H). Other propositions are proved `internal` nodes or the
-   unique `target` P. Every internal/target node has exactly one producer.
-3. Each inference has an explicit set of **direct** inputs, one output, and a
-   complete ordinary-language argument with structured citations. Inputs
-   jointly support the output (AND), not alternative paths (OR).
-4. Store one globally unique notation/definition pair per global object.
-   Bind dummy variables locally; do not shadow global symbols. Record types,
-   definition dependencies, and any existence prerequisite. A visible
-   definition is not a proved property or an existence certificate.
-5. Put temporary assumptions **inside the argument**, never among graph
-   roots. Export a complete implication, quantified statement, negation, or
-   other correctly closed proposition. No top-level local-assumption nodes or
-   assumption-promotion mechanism exists in this version.
-6. The proof uses only its declared inputs, the referenced definitions, fixed
-   logical rules, explicit local calculations, and facts already proved
-   earlier in the same argument. Analysis theorems are not “foundations.”
-7. Verify M against the exact official mathlib checkout and complete printed
-   signatures. For E follow [external-theorem review](external-theorems.md):
-   separately verify document identity, occurrence of the result, faithful
-   statement, complete context, and version/source eligibility. Review every
-   actual application separately, including bindings, every hypothesis and
-   proved transformations. A source's existence is not applicability.
-   For inaccessible primary text, follow Audit A's
-   [ordered retrieval and deferred-review procedure](audit-a.md#paywalled-or-inaccessible-primary-text);
-   continue remaining work with blocked citation checks UNVERIFIED and
-   explicitly notify the user in the final report.
-8. Audit the exact output, argument validity, dependency accounting, source
-   applicability, quantifiers, scopes, and all material endpoint/domain/limit
-   issues **for every inference**. Acyclicity is not mathematical correctness.
-9. During NL0 construction, apply
-   [routine completion and substantive proof gaps](nl0-authoring.md#routine-completion-and-substantive-proof-gaps).
-   Supply ordinary missing details and verifiable local corrections; stop and
-   report a judged substantive gap without automatically researching a new
-   proof. Elapsed time or execution difficulty alone is not a mathematical
-   error criterion.
-10. Enforce both package and per-inference self-containment. An exported
-    statement must be usable without its producer's proof. Every mathematical
-    object has a global, statement-bound, or legitimate local declaration;
-    every invoked fact is a direct input or a previously proved in-scope local
-    fact. Source documents, earlier proof bodies, and model memory cannot fill
-    missing mathematical content. See the exact rejection rules in
-    [self-containment](self-containment.md).
-11. Use the [authoring template](../templates/authoring.md) and
-    [audit template](../templates/audit-a.md). Audit scaffolds start UNVERIFIED.
-    Never derive PASS from author notes or populated metadata. Every R needs
-    separate closure reviews and an actual fresh packet-only replay before
-    full acceptance; disclose an unperformed replay rather than inventing it.
+[Audit A's shared mathematical requirements](audit-a.md#shared-mathematical-acceptance-requirements)
+are the single acceptance authority. Their stable IDs bind the author guide,
+author inspection groups and mathematical audit checks. The clean author and
+Audit A receive the same frozen section/version/hash directly. The format and
+self-containment documents supply schemas and detailed meanings; they do not
+expand the trusted elementary layer.
+
+Author the frozen original problem using the [construction guide](nl0-authoring.md)
+and [tool template](../templates/authoring.md). Build the actual proof,
+declarations, source contracts and input/output interfaces together. Preserve
+routine completion and substantive-gap handling in that guide.
+
+At release, inspect the stored own packets and report actual readiness. Keep
+known unresolved findings open until their located correction or justified
+withdrawal. Complete notes alone do not finish authoring. An unfinished draft
+is preserved as unfinished, without an ordinary first-acceptance audit.
+
+The auditor separately performs the execution protocol in Audit A: source
+verification, global review, fresh packet-only replay, actual judgments and
+recorded evidence. Authors do not generate those verdicts. Per-case NL0 and
+Audit A remain serial; three independent cases can run concurrently.
 
 ## Execute
 

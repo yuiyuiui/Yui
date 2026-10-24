@@ -1,5 +1,11 @@
 # NL0 data contract, version 2
 
+This document specifies representation. Mathematical acceptance comes from
+[Audit A's shared requirements](audit-a.md#shared-mathematical-acceptance-requirements).
+The clean carrier binds the shared section/version/hash in execution and
+author-readiness records; these are controller records, not extra proof axioms
+or new fields to invent inside spec/graph.
+
 New graphs/specifications use v2 and audit records use v3. The existing v1
 Koch/BO cases are historical snapshots and have not been reaccepted. Reading
 them requires `--legacy`; current default checks reject them. Historical
@@ -48,15 +54,24 @@ example explains metadata placeholders and local-witness accounting; it is not
 a benchmark or proof certification. Required top-level spec fields are:
 
 - `format_version: 2`, `case_id`, `full_target`, `conclusion` (nonempty strings);
-- `parameters`: records `{symbol, type}`; parameter symbols reserve global names;
+- `parameters`: records `{symbol, type}`; parameter symbols reserve global names.
+  Give ambient data types/structures only. Original conditions, ranges and
+  equations belong in H, not in parameter refinements that would be visible
+  to every R;
 - `hypotheses`: records `{id: Hddd, statement, origin}` extracted before authoring;
 - `definitions`: records `{id: Dddd, symbol, definition, type, depends_on,
   requires, binders, objects}`. Each symbol has exactly one global meaning. `depends_on` lists
   earlier/resolvable D IDs and is acyclic. `requires` lists proved H/N IDs that
   must already be available whenever the definition is used;
-- `logic`: `{classical: boolean, rules: [names], calculations: [nonempty descriptions],
-  primitives: [{symbol, type, meaning}]}`. Primitives declare fixed logical
-  language/objects, not free analysis theorems;
+- `logic`: `{classical: boolean, rules: [names], calculations: [fixed IDs],
+  primitives: [{symbol, type, meaning}]}`. In the clean author tool, omit
+  `calculations` and `primitives` to bind the controller's fixed language profile.
+  Optional calculation IDs are `equality`, `definitions`, `finite_algebra`,
+  `finite_order`, `finite_sums`. Optional primitive selections may be
+  `{symbol: ...}`; the controller validates selections and binds the complete
+  fixed vocabulary with exact type/meaning. A new
+  Audit A requires the bound metadata. Author-defined permission descriptions
+  and conflicting primitive meanings are rejected, not silently accepted;
 - `pins`: `{lean_version, mathlib_commit, mathlib_root}`; the root is a local
   locator, the version/commit are scientific identifiers;
 - `inputs`: evidence records `{path, sha256}` for the original problem/proof.
@@ -67,6 +82,13 @@ are `direct`, `modus_ponens`, `implication_introduction`, `negation_introduction
 `exists_elimination`, and `natural_induction`. Describe algebra/analysis in the
 actual proof text; it is not a new trusted logical rule. These identifiers
 describe proof packaging, not a substitute for establishing the implication.
+
+The fixed profile in `scripts/foundations.py` permits displayed finite
+algebra/order calculations and ordinary logic, not analysis theorems. Standard
+notation such as integral and derivative grants no identity or regularity.
+Task-specific functions, spaces, derivatives and indicator abbreviations are
+parameters, D definitions or scoped locals; they cannot be hidden in primitives.
+For every substantive fact still register an E/M input or give its local proof.
 
 Definitions may be globally visible but guarded. Example: “K is the unique
 fixed curve from N008” requires N008 before K is used. N008 itself must state
@@ -111,11 +133,13 @@ M evidence includes the successful version-1 report from `probe_mathlib.py`,
 with the same ID, declaration, full signature, source bytes and toolchain pins.
 In the clean Yui NL0 carrier, `probe_library` produces this evidence and the
 submission adapter binds exact signature/source metadata from the successful
-probe matching the selected M ID, declaration and dotted module. Those metadata
+probe matching the selected M ID and actual declaration selector. Those metadata
 fields may be omitted from that tool's submitted JSON; canonical graph files
 still contain them in full. No unprobed source is filled from model memory.
-The probe checks the declaration's actual defining module, not just a module
-that imports it. `#check @declaration` prints the complete outer telescope,
+The clean probe resolves genuine aliases to their canonical kernel name and
+discovers the actual defining module. A requested module is only a locator
+hint; its correction is recorded, never silently treated as source evidence.
+Native type printing (and the legacy `#check @declaration` probe) preserves the complete outer telescope,
 including implicit/typeclass conditions, using ordinary notation for nested
 structure applications. Recursive expansion of inherited structure arguments
 is unnecessary; omitted hypotheses or ellipsis are not permitted. The actual
@@ -125,7 +149,12 @@ For a local development revision the same tool also accepts
 task document contains `{spec, graph}`. Patches are JSON data operations
 `add`, `remove`, `replace`, or `test`, each with an absolute JSON pointer inside
 `/spec/...` or `/graph/...` and a `value` except for `remove`. Array append uses
-`/-`. Every submission starts from the immutable named input, not the previous
+`/-`. An additional `replace_text` operation has `path`, `old` and `new`
+instead of `value`: it replaces exactly one nonempty literal occurrence inside
+an existing string. Missing or ambiguous matches are rejected; this is not a
+regular expression or executable code. It preserves the rest of a long proof
+paragraph without asking the model to retype it.
+Every submission starts from the immutable named input, not the previous
 failed candidate. The controller records the base hash and actual edits, then
 performs the identical full source/structure checks. Successful output is still
 the complete canonical `{spec,graph}`. This is an authoring convenience for
@@ -145,6 +174,32 @@ Without that explicit reset, use `base_candidate` so a later bookkeeping fix
 cannot silently discard earlier mathematical corrections.
 The adapter does not rewrite mathematical statements, hypotheses, definitions,
 binders or arguments. Their fidelity remains the author's and auditor's work.
+The following two explicit serialization forms copy the author's declared
+data; they do not infer mathematics or grant Audit A acceptance:
+
+- An S `text`, D `definition`, or `spec.hypotheses[i].statement` may be `{from_task: "declared-input-ID", start_line: 10,
+  end_line: 20}`. The controller copies exactly those inclusive lines of the
+  already frozen same-stage input into an ordinary canonical string. It stores
+  input/text hashes, the exact range and the canonical destination pointer.
+  Only these proof/definition/hypothesis text fields have this form;
+  undeclared files, other tasks and old candidates are not source IDs. Read the
+  materialized draft, normalize source labels to legitimate input/F references,
+  supply declarations/conditions and retain the complete argument. Copying the
+  original proof does not establish closed-premise sufficiency. A copied
+  definition still needs its complete declarations, dependencies and guards;
+  it grants no mathematical property. A copied H must be a complete original
+  GIVEN, with its origin retained; copying a desired conclusion or a claim
+  from the proof does not make it a permissible hypothesis.
+- `{base_candidate: N, source_uses: [{inference: "R001", at: "S001",
+  input: "M001", bindings: "actual substitution", hypothesis_checks: [...]}]}`
+  records existing M/E calls selected explicitly by the author. Each call adds
+  its ID to that R's `inputs` and S's `uses`, and writes the supplied application
+  record. Optional `id: Addd` distinguishes actual uses and is required for E.
+  Exact replay is idempotent; a conflicting existing application must be
+  explicitly patched. No new proposition/source or proof text is generated.
+  Every normal check and actual Audit A still runs, including whether the
+  theorem is actually used and each condition really follows from the packet.
+
 To avoid retranscribing mandatory duplicate strings, its tool input may omit
 an H node's `statement` (copied from the same artifact's `spec.hypotheses`),
 P's `statement` (copied from `spec.conclusion`), or an E/M `source.statement`
@@ -195,6 +250,10 @@ names), `locals`, `argument`, and `applications`.
   introduce this one). A witness must have an input/local existence basis.
   The checker verifies declared availability/order, not the existence claim's
   semantics. Source-bound variables need a legitimate local instantiation.
+  The `scope` label and inclusive start/end must agree with the prose. Keep an
+  object live through its last actual use. Establish an existence F in an
+  earlier S, then choose its witness in a subsequent S; using a newly produced
+  F as the witness basis in the same paragraph is a forward reference.
 - `argument`: ordered records `{id: Sddd, text, uses, uses_local, objects,
   produces, introduces, discharges}`. S IDs are inference-local and unique. `uses`
   lists direct graph inputs used at this point. Local facts established earlier

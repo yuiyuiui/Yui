@@ -19,13 +19,23 @@ harness are model-visible. Developer history and other cases are withheld.
 The original screenshots and separate context/target metadata have been
 removed after consolidation into the problem files. Previous generated runs,
 NL0s, audit receipts, drafts and logs have been intentionally cleared. There is
-currently no test result or accepted NL0 in this reset dataset. A supplied
+no acceptance carried forward from the reset. Generated runs, when present,
+carry their own versioned receipts and status; the input dataset itself claims
+no result. A supplied
 natural-language proof is not an Audit A pass or a Lean verification result.
 No new model run was performed during the reset.
 
 ## Future runs
 
-Selected model: `gpt-6-luna`, reasoning `high`, Standard speed; no fallback.
+The controller should read [REFLECTIONS.md](REFLECTIONS.md) before a campaign
+and compare its lessons with the actual run evidence afterwards. This brief
+record is maintained source documentation and survives cleanup. It must not
+enter any measured model's task inputs, including reviewer and direct-model
+inputs; do not add an extra model review just to maintain it.
+
+Selected model: `gpt-6.1-sol`, reasoning `high`, Standard speed; no fallback.
+This supersedes the earlier Luna development profile. Keep the model identities
+and measured results separate; a profile change is not a same-model speedup.
 A batch consists of independent case processes. Each case has a separate
 serial author/preparation/review lane and its own `auto|N` Lean proof-worker
 budget. The Python controller does not consume a proof-worker slot. Report
@@ -40,13 +50,62 @@ ignored by Git. Core software-control outputs belong under
 which are also disposable and ignored. Runtime code, regression tests/fixtures,
 `test/support/`, and the fixed `problem.md` inputs are maintained source files.
 
-The support adapters operate on explicitly prepared inputs/jobs; they do not
-constitute an automatic original-proof campaign launcher. Actual reviewer
+The support adapters operate on explicitly prepared inputs/jobs. Actual reviewer
 behavioral controls must be freshly prepared and run before their acceptance
 is used. The old controls were removed with the old results; do not fabricate
-a passing summary or rely on a deleted historical receipt. Mathematical
-acceptance still requires complete NL0, actual Audit A, assembled kernel-checked
-Lean, and actual Audit B under the same exact target.
+a passing summary or rely on a deleted historical receipt. An NL0-only run may
+finish `DRAFT-AUDIT-PASSED`; full formalization acceptance additionally requires
+assembled kernel-checked Lean and actual Audit B under the same exact target.
+
+## Cold first-pass NL0 rounds
+
+Prepare one fresh round, then execute its real model calls:
+
+```sh
+python3 -B test/support/first_pass_campaign.py prepare --out test/results/cold-first-pass-r1 --index 1
+python3 -B test/support/first_pass_campaign.py run --out test/results/cold-first-pass-r1
+```
+
+Use a new output directory/index for each round. Preparation makes no model
+call. Execution first runs neutral reviewer controls, then launches the three
+cases concurrently with one serial author/Audit A lane per case. Each cold
+author receives only its own identical `problem.md` plus frozen Yui rules and
+allowed tools. There is no old NL0, inherited audit or case-specific repair
+prompt, and no author repair after Audit A in that round.
+
+`round-manifest.json` freezes runtime, rules, inputs and configuration;
+`round-result.json` records actual outcomes and usage coverage. The criterion
+is all three first complete Audit A results passing in the same round. Own
+drafting/structural checks remain inside the one author attempt and their
+rejections are retained. A failed calibration prevents the expensive case
+launch. Do not edit frozen runtime files while a round is active. Repeated use
+of these cases makes them development/regression data, not held-out evidence
+of general reliability, Lean correctness or acceleration.
+
+## Owner non-interference during measured runs
+
+The interactive owner dispatches the frozen campaign and observes execution
+health, process state, timing and usage only. It does not send messages,
+mathematical reasoning, theorem/source locators, suggested lemmas, proof
+patches, prior verdicts or another case's material to measured sessions.
+Do not inspect unfinished mathematical arguments to steer their construction.
+Author and reviewer threads receive only their declared staged inputs and
+Yui rules. Let each complete author/first-A pipeline reach its own recorded
+outcome; inspect the mathematical failures after the campaign finishes.
+
+Do not change rules, prompts, source inputs or code while that frozen run is
+active. The round manifest binds the no-help policy, original problem hashes,
+author prompt and runtime snapshot. The frozen verifier checks them again at
+collection. Neutral calibration is separate from the three exercise results.
+No audit-driven author repair or repeated unchanged review occurs inside a
+cold round. Report a nonpass honestly. A later explicitly authorized warm
+repair is a separate run, with its own costs and disclosed input history.
+
+Read-only monitoring cannot redefine the run's acceptance or stop policy.
+For a requested single experiment, finish the finite pipelines and report all
+three outcomes. For a separately requested continue-until-acceptance workflow,
+batch termination leaves an unmet target for its outer coordinator. Network
+and environment failures remain execution faults, not proof defects.
 
 ## Stop and clear a test
 
