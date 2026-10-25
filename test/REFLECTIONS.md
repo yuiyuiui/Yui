@@ -332,3 +332,14 @@ execution observations. The old first-pass goal remains unachieved and paused.
   mathematical checks; missing hypotheses, source guesses and substantive
   gaps still block. Disclose PASS with notes separately from zero-note passes
   and historical stricter outcomes. No acceleration is established by this change.
+
+2026-10-25 / R23 at `db385f2` / R03/R08 — all 18 calibration sessions finished,
+but the matcher rejected one correct FAIL because it located missing continuous
+addition at the inference rather than the Y parameter. The three exercises
+never started. The owner repeated an unchanged run despite knowing this blocker,
+adding avoidable calibration cost. Explicit owner-only defect use sites now
+cover that exact inference without weakening verdict/location guards. The
+27-test controller suite and an offline 18-record replay passed; these are
+software checks, not fresh mathematical results. Resolve known deterministic
+gate failures before spending on another model round. Report NOT_STARTED cases
+and incomplete requested scope prominently when a prelaunch gate ends a run.

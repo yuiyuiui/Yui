@@ -250,3 +250,25 @@ local packet and zero-extraction inheritance. Synthetic review judgments in
 these controls are explicitly labeled and are not mathematical audit results.
 Skill validation and git diff --check passed. No mathematical model run is
 implied by these software controls.
+
+## 2026-10-25: calibration finding-location false rejection
+
+The arbitrary-addition negative control accepted only the Y parameter origin.
+Its actual R23 reviewer correctly returned FAIL at the unsupported continuity
+inference. The automatic use-site expansion missed this location because the
+paragraph lists f and g, whose types depend on Y, rather than Y itself.
+
+The neutral dataset now has explicit owner-only defect use sites. This control
+accepts the exact inference record as well as the original parameter locations;
+every location must resolve. Reviewer packets and prompts, expected verdicts,
+mathematical Audit A rules, execution qualification and all other controls are
+unchanged. Wrong verdicts, missing/error records, unrelated locations and broad
+whole-inference locations still fail the matcher. No answer key enters a model
+input, and no new semantic classifier or model call is introduced.
+
+Validation: all 27 review-controller unit tests passed, including four new
+location/guard/isolation regressions. A hash-verified offline replay of the 18
+unchanged R23 saved judgments changed matching from 17 to 18, with only this
+negative control affected. This is software regression evidence, not a new
+calibration run, mathematical PASS, or a reclassification of the old experiment.
+The user authorized deleting the old generated outputs before a fresh run.

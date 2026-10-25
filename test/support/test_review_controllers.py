@@ -248,6 +248,63 @@ class ReviewControllerTests(unittest.TestCase):
         self.assertIn('/inference/argument/0',locations)
         self.assertNotIn('/inference/argument/1',locations)
 
+    def test_arbitrary_addition_control_accepts_recorded_r23_location_and_origin(self):
+        module=self.locator_controls()
+        packet,verdict,_,primary=next(r for r in module.controls()
+            if r[0].get('case_id')=='neutral-pointwise-structure')
+        before=copy.deepcopy(packet)
+        locations=module.accepted_failure_locations(packet,primary)
+        self.assertEqual(set(locations),{
+            '/parameters/0/type','/parameters/0','/inference/argument/0'})
+        self.assertEqual(packet,before)
+        expected={'expected_verdict':verdict,'location':primary,'accepted_locations':locations}
+        for location in [primary,'/parameters/0','/inference/argument/0/text']:
+            # Replays the observed R23 finding location; no new review occurs.
+            actual={'verdict':'FAIL','findings':[{'location':location,'check':'argument',
+                'explanation':'Arbitrary addition need not be continuous, so continuity of f and g does not imply continuity of their pointwise sum.'}],
+                'background_notes':[]}
+            b.validate_review(packet,actual)
+            self.assertTrue(b.matches_expected(expected,actual))
+
+    def test_arbitrary_addition_control_still_rejects_wrong_verdicts_and_locations(self):
+        module=self.locator_controls()
+        packet,_,_,primary=next(r for r in module.controls()
+            if r[0].get('case_id')=='neutral-pointwise-structure')
+        expected={'expected_verdict':'FAIL','location':primary,
+                  'accepted_locations':module.accepted_failure_locations(packet,primary)}
+        finding={'location':'/inference/argument/0/text','check':'argument',
+                 'explanation':'Synthetic matching-location guard; not a mathematical judgment.'}
+        for verdict in ['PASS','UNVERIFIED']:
+            self.assertFalse(b.matches_expected(expected,{'verdict':verdict,'findings':[finding]}))
+        for actual in [None,{}, {'status':'ERROR'}]:
+            self.assertFalse(b.matches_expected(expected,actual))
+        for location in ['/inputs/0/statement','/parameters/1/type',
+                         '/inference','/inference/argument']:
+            actual={'verdict':'FAIL','findings':[{**finding,'location':location}]}
+            b.validate_review(packet,actual)
+            self.assertFalse(b.matches_expected(expected,actual))
+
+    def test_explicit_failure_use_sites_do_not_broaden_unrelated_controls(self):
+        module=self.locator_controls()
+        packet,_,_,primary=next(r for r in module.controls()
+            if r[0].get('case_id')=='neutral-pointwise-structure')
+        packet=copy.deepcopy(packet);packet['case_id']='unrelated-neutral-control'
+        self.assertNotIn('/inference/argument/0',module.accepted_failure_locations(packet,primary))
+
+    def test_explicit_failure_use_sites_stay_in_owner_key_only(self):
+        module=self.locator_controls();directory=self.root/'prepared-neutral-controls'
+        module.prepare(directory)
+        expected=json.loads((directory/'owner/expected.json').read_text())['expected']
+        selected=[]
+        for path in (directory/'reviewer').glob('*.json'):
+            packet=json.loads(path.read_text())
+            self.assertNotIn('accepted_locations',packet)
+            self.assertNotIn('expected_verdict',packet)
+            if packet.get('case_id')=='neutral-pointwise-structure':
+                selected.append(path)
+                self.assertIn('/inference/argument/0',expected[path.name]['accepted_locations'])
+        self.assertEqual(len(selected),1)
+
     def test_interface_adapter_copies_source_bytes_and_returns_real_type_feedback(self):
         out=self.root/'interface'
         # The neutral fixture has no actual audit. Verify the acceptance guard,

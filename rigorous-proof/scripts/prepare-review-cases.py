@@ -19,6 +19,14 @@ nl0 = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(nl0)
 
 
+# Owner-only answer-key locations, never reviewer inputs. A defect can occur
+# at a use whose dependency is carried by a parameter's type rather than its
+# explicit object list (here f,g : Y -> Y).
+EXPLICIT_FAILURE_USE_SITES = {
+    'neutral-pointwise-structure': ('/inference/argument/0',),
+}
+
+
 def controls():
     case = ROOT / "tests/fixtures/closed-addition"
     data = nl0.validate(case / "nl0.json", case / "spec.json")
@@ -270,6 +278,7 @@ def accepted_failure_locations(packet, primary):
             start,end=positions[declaration['start']],positions[declaration['end']]
             locations.extend(f'/inference/argument/{i}' for i,step in enumerate(steps)
                 if i==start or (start<=i<=end and declaration['symbol'] in step['objects']))
+    locations.extend(EXPLICIT_FAILURE_USE_SITES.get(packet.get('case_id'), ()))
     for pointer in locations:nl0.closure.resolve(packet,pointer)
     return list(dict.fromkeys(locations))
 
