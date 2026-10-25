@@ -15,9 +15,12 @@ are separate tasks. Neither a schema check nor an LLM review is an automatic
 proof of natural-language mathematics. No speed advantage is claimed yet.
 
 Current status: development candidate. The runtime and its regression controls
-are executable; the three new exercise tests have **not** passed the complete
-NL0/Audit A/Lean/Audit B workflow. The test inputs have been reset to three
-fixed problem-and-proof files; previous generated runs have been cleared. See
+are executable. The NL0 authoring and Audit A rules are frozen at
+[`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json), retaining
+the existing `nl0-audit-a-8` / `verified-background-1` acceptance policy.
+R24's three fixed development exercises passed their first complete independent
+Audit A with verified background notes. They have **not** passed the complete
+NL0/Audit A/Lean/Audit B workflow. Translation development remains open. See
 the [test protocol](test/README.md) and
 [software maintenance record](test/support/MAINTENANCE.md).
 
@@ -96,10 +99,16 @@ universal automatic paper-to-Lean compiler behind this command.
 The three supplied exercises are fixed under `test/`, each in a single
 `problem.md` containing the original statement, approved target interpretation
 and detailed natural-language proof. They cover Hausdorff dimension, arbitrary
-admissible sl2 lattices, and sphere-valued wave-map energy. Old NL0s, audit
-receipts and test logs have been cleared to prepare a fresh run; the current
-checkout contains no accepted mathematical test result. Supplied proofs do not
-confer acceptance.
+admissible sl2 lattices, and sphere-valued wave-map energy. R24 used
+`gpt-6.1-sol / high / Standard`, with no owner mathematical assistance or
+audit-driven author repair. It produced 85, 13 and 83 verified background notes
+respectively. Recorded author-plus-audit times were approximately 72m42s,
+60m30s and 74m31s. Geometry and Lie review transport faults leave their usage
+and fault-free timing qualification incomplete; PDE's recorded usage is complete.
+These development results establish neither general one-pass reliability nor
+formalization acceleration. The [result summary](test/REFLECTIONS.md#2026-10-25-r24-first-independent-audit-a-passes-and-rule-freeze)
+is tracked; the original proofs, receipts and traces remain local under the
+ignored `test/results/` directory. Supplied proofs alone do not confer acceptance.
 
 Preview or perform a scoped test cleanup without calling a model:
 

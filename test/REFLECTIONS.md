@@ -343,3 +343,43 @@ cover that exact inference without weakening verdict/location guards. The
 software checks, not fresh mathematical results. Resolve known deterministic
 gate failures before spending on another model round. Report NOT_STARTED cases
 and incomplete requested scope prominently when a prelaunch gate ends a run.
+
+## 2026-10-25: R24 first independent Audit A passes and rule freeze
+
+The single frozen R24 experiment used source commit
+`fc71a02774ae8780980b5e2eb1f484e4466b9eca` and exactly
+`gpt-6.1-sol / high / Standard`, with no fallback. Eighteen neutral controls
+matched their expected classifications before three independent case processes
+started. Each case used serial author, global-review and per-node review
+contexts. The owner supplied no mathematical assistance, source locators,
+patches or audit feedback; no post-audit author repair or resampling ran.
+
+| Case | First complete independent Audit A | Background notes, by R001 onward | Author plus Audit A | Observed tokens | Usage coverage |
+| --- | --- | --- | --- | --- | --- |
+| Geometry | PASS with notes | 85: 10, 17, 16, 21, 17, 4 | 4361.881136 s | 21,749,431 | Partial: two review transport faults |
+| Lie | PASS with notes | 13: 3, 4, 1, 3, 2 | 3629.495391 s | 16,909,896 | Partial: two review transport faults |
+| PDE | PASS with notes | 83: 10, 27, 18, 24, 4 | 4471.458818 s | 31,751,811 | Complete; no recorded author/review execution fault |
+
+The owner read the actual saved judgments and revalidated all three final
+receipts with the existing `nl0.validate(graph, spec, audit)` function. Every
+recorded owned process identity and process group had exited; the completed
+monitor automation was deleted. Scientific artifacts were preserved locally
+under ignored `test/results/`. This source repository carries a summary, not
+the original proof/audit evidence bundle.
+
+This is acceptance under `verified-background-1`, including 181 positively
+checked routine background notes. It is not zero-note or old strict-policy
+success, held-out reliability evidence, Lean/Audit B acceptance or measured
+speedup. Author self-checks included local revisions before the definitive
+submission; a first independent Audit A PASS does not mean no internal edits.
+Whole-experiment usage, including calibration, is partial: 74,003,059 observed
+tokens across 1,475 requests, with 1,451 usage reports. Calibration also had
+transport faults. Cached inputs and reasoning outputs are subsets, repeated
+contexts count again, and owner monitoring is outside these totals.
+
+The user then froze NL0 authoring and Audit A without changing their normative
+contents. See [`NL0_AUDIT_A_FREEZE.json`](../rigorous-proof/NL0_AUDIT_A_FREEZE.json)
+and Git tag `nl0-audit-a-2026-10-25`. Continue translation work against this
+baseline. No further model experiment or Lean translation is authorized by
+this freeze alone. Background notes provide source/application guidance, not
+ready-made Lean proofs; their time benefit remains unmeasured.
