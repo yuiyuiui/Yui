@@ -46,6 +46,9 @@ an API/type conversion difficulty alone is FORMALIZATION-ENGINEERING.
 Only stable interfaces permit proof-body parallelism. Prove each local theorem
 against explicit direct inputs, then discharge every internal input during
 assembly. Do not report conditional local checks as final proof closure.
+After the queue completes, the serial postprocessing author follows
+[assembly and export](assembly.md), compiles the complete source-facing proof,
+and hands real checked evidence to a separate independent Audit B reviewer.
 
 Keep mathematical object identity global and Lean implementation views local.
 Freeze cross-node ports and planned typed conversion obligations. Their proof

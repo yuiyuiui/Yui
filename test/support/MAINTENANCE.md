@@ -3,6 +3,59 @@
 This is maintained engineering documentation, not a mathematical test result or
 a document supplied to measured model workers.
 
+## 2026-10-26: source-facing assembly and Audit B execution repair
+
+The serial postprocessing author now has an explicit
+[assembly protocol](../../rigorous-proof/translation/references/assembly.md).
+It connects frozen checked proofs, discharges original M ports, compiles a
+standalone `Proof.lean`, and prepares actual inspection evidence. The existing
+mapping author implements this role; the fresh independent Audit B reviewer
+remains a separate thread. No redundant mapping author or routine incomplete
+report loop was added.
+
+Declaration names preserve Unicode and quoted components. Actual pinned lookup,
+general signatures and dependency checks remain mandatory; a malformed name
+reports its source ID/field. Source export reads actual elaborated universe
+use, retains generic interface levels and closes implementation-only levels
+at the final application. The new assembly and name helpers are hash-bound
+audit tools. Standalone build, inspector execution and semantic judgment have
+separate outcomes. Inspector weak-head normalization is avoided when a forall
+binder is already exposed; the trusted inspection command has a bounded
+2,000,000-heartbeat allowance and a separate exhaustion status.
+
+Postprocessing saves each submitted draft before validation, returns error-first
+diagnostics, and offers paginated access to only its own generated source and
+full native feedback. The tool is registered both in the schema and dispatcher.
+An identical checked submission reuses only unchanged bound native evidence;
+changed artifacts force a real new check. Reuse never issues semantic PASS.
+
+The following 53 distinct no-model controls passed:
+
+| Suite | Controls |
+| --- | ---: |
+| Assembly sources, universe closure and Unicode/quoted library names | 9 |
+| Existing Audit B positive/negative acceptance controls | 19 |
+| Implicit/instance parameters and native node assembly | 5 |
+| Postprocessing feedback, isolation and exact native reuse | 4 |
+| Minimal translation and source-boundary controls | 7 |
+| Exact-ownership selective cleanup controls | 9 |
+
+Positive assembly/name controls compile against pinned Lean/mathlib. The
+inspection-exhaustion classification control injects a marked synthetic
+inspector failure after real standalone compilation; it is not a PDE timing
+or proof result. Skill validation and Git whitespace checks passed. The 15
+frozen NL0/Audit A normative files are unchanged; all three retained R24 A
+receipts remain valid with their original background-note qualifications.
+
+Before selective cleanup, historical proof bundles, Lean files, partial drafts,
+compiler records and actual audit errors were saved and hash-verified in two
+small offline archives outside the checkout. Six active stage-two output roots
+and the obsolete current-translation pointer were removed, freeing 438,513,759
+bytes of active generated files. No matching owned test process remained.
+The 596 protected stage-one/input files remained byte-identical. No exercise,
+model session, new Audit A or independent Audit B was started by this repair.
+There is no new whole-workflow acceptance or measured acceleration claim.
+
 ## 2026-10-25: R20 repair and Sol profile
 
 Audit A A7 keeps one mathematical authority and assigns global source/structure

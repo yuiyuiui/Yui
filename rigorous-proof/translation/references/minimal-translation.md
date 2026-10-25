@@ -22,9 +22,10 @@ there is no requirement to preload the entire skill or all note bodies.
    input statements, matched source paragraphs and own compact note index.
    Read a full note only if useful. No sibling proof bodies, other cases,
    developer history or additional personal skills are supplied.
-5. Assemble the actual proofs, resolve original M ports against the pinned
-   library, and perform fresh Lean signature/dependency checks plus the actual
-   independent semantic Audit B. A type check or conditional lemma is not full
+5. Start the serial [postprocessing author](assembly.md) to connect actual
+   proofs, discharge original M ports and compile standalone `Proof.lean`.
+   Inspect signatures/dependencies separately, then start the fresh independent
+   semantic Audit B reviewer. A type check or conditional lemma is not full
    acceptance. A failed final fidelity review remains a failed attempt; do not
    relabel it as a success because its interface was frozen.
 

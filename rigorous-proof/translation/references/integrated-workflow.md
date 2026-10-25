@@ -189,6 +189,15 @@ compatibility aliases, with conflicts rejected.
 
 ## 6. Execute Audit B and finish
 
+After all local jobs pass, use one serial postprocessing author under
+[the assembly protocol](assembly.md). The existing mapping author performs
+this work: complete actual library discharges, close the source-facing root,
+build standalone `Proof.lean`, then prepare kernel inspection and the review
+packet. Keep this thread separate from the subsequent independent reviewer.
+Standalone assembly, inspector execution and semantic review have separate
+recorded outcomes. An unchanged checked mapping is reused for its submission;
+it does not require another identical native build or another model author.
+
 ```sh
 python3 scripts/workflow.py audit-prepare /absolute/new-workflow
 ```

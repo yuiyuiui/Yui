@@ -29,6 +29,9 @@ invalidation rules; completing stage one does not require stage two.
    [Audit B](translation/references/audit-b.md). Operators use
    [execution and file-based control](translation/references/execution-protocol.md)
    for parallel queues, status and stops; workers need only their frozen packet.
+   After local proofs complete, the serial postprocessing author follows
+   [assembly and source-facing export](translation/references/assembly.md),
+   then hands actual checked evidence to a separate independent Audit B reviewer.
    Use
    `translation/scripts/source_preparation.py` for bounded shared extraction,
    then `workflow.py` for source/IR freeze, proof work and final gates.

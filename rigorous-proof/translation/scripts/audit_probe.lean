@@ -3,8 +3,8 @@
 namespace NL2LeanAuditProbe
 open Lean Meta Elab Command Term
 
-private def nameOf (text : String) : Name :=
-  (text.splitOn ".").foldl Name.str .anonymous
+private def nameOf (parts : Array String) : Name :=
+  parts.foldl Name.str .anonymous
 
 private def kindOf : ConstantInfo → String
   | .axiomInfo _ => "axiom"
@@ -56,7 +56,7 @@ private partial def proofUses (e : Expr) (insideInstance := false) : MetaM (Name
     let mut result ← proofUses fn insideInstance
     let mut type ← inferType fn
     for arg in e.getAppArgs do
-      type ← whnf type
+      if !type.isForall then type ← whnf type
       match type with
       | .forallE _ _ body bi =>
         result := mergeUses result (← proofUses arg (insideInstance || bi == .instImplicit))
@@ -116,9 +116,9 @@ private def inspect (roots : Array Name) : MetaM Json := do
         pending := pending ++ value.ctors.toArray
   return Json.mkObj [("declarations", toJson rows), ("truncated", toJson (!pending.isEmpty))]
 
-private def actualType (selector : String) : TermElabM Expr := do
+private def actualType (selector : String) (parts : Array String) : TermElabM Expr := do
   if selector.startsWith "decl:" then
-    return (← getConstInfo (nameOf (selector.drop 5).toString)).type
+    return (← getConstInfo (nameOf parts)).type
   if selector.startsWith "premise:" then
     let wanted := "h_" ++ (selector.drop 8).toString
     let root ← getConstInfo `Translation.P
@@ -135,25 +135,26 @@ private def actualType (selector : String) : TermElabM Expr := do
 elab "#nl2lean_audit_probe" : command => do
   let result ← liftTermElabM <| withOptions
       (fun o => (o.setBool `pp.all true).setBool `pp.universes true) do
-    let checks : Array (String × String × String) := __AUDIT_CHECKS__
+    let checks : Array (String × String × String × Array String) := __AUDIT_CHECKS__
     let mut comparisons : Array Json := #[]
     let mut roots : Array Name := #[`Translation.P]
-    for (id, selector, expectedText) in checks do
+    for (id, selector, expectedText, parts) in checks do
       let stx ← ofExcept <| Parser.runParserCategory (← getEnv) `term expectedText
       let expected ← Term.elabTerm stx none
       Term.synthesizeSyntheticMVarsNoPostponing
       let expected ← instantiateMVars expected
-      let actual ← actualType selector
+      let actual ← actualType selector parts
       let equal ← isDefEq actual expected
       comparisons := comparisons.push <| Json.mkObj [
         ("id", toJson id), ("selector", toJson selector),
         ("expected_type", toJson (← showType expected)),
         ("actual_type", toJson (← showType actual)), ("definitionally_equal", toJson equal)]
       if selector.startsWith "decl:" then
-        roots := roots.push (nameOf (selector.drop 5).toString)
+        roots := roots.push (nameOf parts)
     let dependencies ← inspect roots
     return Json.mkObj [("comparisons", toJson comparisons), ("dependencies", dependencies)]
   logInfo m!"NL2LEAN_AUDIT_JSON:{result.compress}"
 
+set_option maxHeartbeats 2000000 in
 #nl2lean_audit_probe
 end NL2LeanAuditProbe

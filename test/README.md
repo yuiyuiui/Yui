@@ -16,14 +16,13 @@ cases. Freeze the input bytes in each future run's input manifest and record
 its Git commit/hash. Only explicitly staged inputs and, in the Yui arm, the
 harness are model-visible. Developer history and other cases are withheld.
 
-The original screenshots and separate context/target metadata have been
-removed after consolidation into the problem files. Previous generated runs,
-NL0s, audit receipts, drafts and logs have been intentionally cleared. There is
-no acceptance carried forward from the reset. Generated runs, when present,
-carry their own versioned receipts and status; the input dataset itself claims
-no result. A supplied
-natural-language proof is not an Audit A pass or a Lean verification result.
-No new model run was performed during the reset.
+The original screenshots and separate context/target metadata were consolidated
+into the problem files. Generated runs carry their own versioned receipts and
+status; the input dataset itself claims no result. The accepted R24 NL0/Audit A
+artifacts remain local under `test/results/` and may be reused only after their
+actual bindings are checked. Stage-two cleanup is selective and must preserve
+those stage-one files and source evidence. A supplied natural-language proof
+is not an Audit A pass or a Lean verification result.
 
 ## Future runs
 
@@ -88,6 +87,13 @@ assembled kernel-checked Lean and actual Audit B under the same exact target.
 - Save partial artifacts; routine `TASK_INCOMPLETE` reports are not a tool.
   Short continuation prompts follow only an unfinished model turn. State and
   usage recording do not call a model.
+- After all local jobs pass, one fresh serial postprocessing author follows
+  [assembly and export](../rigorous-proof/translation/references/assembly.md).
+  It connects actual proofs, discharges original M inputs, compiles standalone
+  `Proof.lean` and prepares actual inspection evidence. A subsequent fresh
+  independent Audit B reviewer judges source fidelity. Record assembly,
+  inspection and semantic review separately; a conditional fragment is not a
+  complete proof and an inspector execution error is not a mathematical FAIL.
 
 ## Cold first-pass NL0 rounds
 

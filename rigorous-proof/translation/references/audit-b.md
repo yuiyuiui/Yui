@@ -5,6 +5,14 @@ Audit the frozen source and actual exported proof. This stage has two gates:
 must pass. The checker is an evidence organizer and kernel-inspection adapter;
 it cannot decide arbitrary natural-language meaning automatically.
 
+Enter from the [postprocessing assembly protocol](assembly.md): the standalone
+source-facing proof must compile before independent semantic review. Record
+`assembly.json` and `inspection.json` separately. A name-format/tool rejection,
+export-generator defect or inspector computation limit is not a mathematical
+FAIL; preserve its actual diagnostics and do not issue PASS. Unicode spelling
+does not weaken the requirement for a real pinned proved declaration. Inspect
+the actual names/types rather than imposing an ASCII-only approximation.
+
 ## 1. Freeze authority and coverage
 
 For a whole proof use the current structured NL0 graph, specification, Audit A

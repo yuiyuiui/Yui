@@ -412,3 +412,45 @@ The next run uses Sol / high / Standard, five proof slots per independent case,
 and one three-hour second-stage wall budget per case. Preserve original source
 acceptance and separate pre-processing, proof and Audit B results. These changes
 and software controls do not by themselves demonstrate success or acceleration.
+
+## 2026-10-26: separate postprocessing assembly from Audit B judgment
+
+The Sol R2 stage-two run checked 23/23 geometry, 19/24 Lie and 16/16 PDE local
+conditional proofs. No independent semantic Audit B review started. All five
+unfinished Lie jobs ended with recorded TLS EOF/HTTP 502 faults. Geometry and
+PDE original attempts also had transport faults; their separately authorized
+warm continuations exposed additional engineering blockers. These results do
+not establish model incapability, a mathematical error, whole-proof closure
+or a speed advantage.
+
+- Geometry's exact pinned `MeasureTheory.lintegral_indicator_const₀` existed,
+  but an ASCII-only name filter rejected its subscript. The error did not name
+  the source entry. Declaration components now preserve Unicode/quoted names,
+  and malformed-name diagnostics identify the source ID and field. Pinned
+  resolution, general-type and dependency checks remain required.
+- PDE's generated source-facing export left library-only universe levels
+  unresolved. The assembly generator now reads actual elaborated level use,
+  infers levels retained in the exported interface, and instantiates only
+  implementation-only levels at the final application. General M signatures
+  and original H/E remain unchanged. A native generic-interface control guards
+  against specializing user-visible type parameters to level zero.
+- Short compiler excerpts hid the actual error behind large signatures. The
+  postprocessing author now gets error-first feedback and a registered,
+  paginated own-candidate reader. Both tool schema and dispatch registration
+  are checked. Identical checked submissions reuse exact unchanged native
+  evidence; no semantic review is manufactured by that reuse.
+- Fragment assembly, standalone `Proof.lean`, kernel inspection and actual
+  independent Audit B now have separate completion states. The inspector
+  avoids unnecessary weak-head normalization and has a bounded disclosed
+  heartbeat allowance; exhaustion blocks inspection without falsely calling
+  the mathematical proof wrong.
+
+One serial postprocessing author connects completed nodes and prepares the
+actual audit handoff; a fresh independent reviewer remains separate. Read the
+[assembly protocol](../rigorous-proof/translation/references/assembly.md).
+The accepted R24 NL0/Audit A authority is preserved. Before selective removal
+of active stage-two outputs, proof bundles, Lean sources, partial drafts and
+actual audit/assembly errors were saved in a hash-verified small offline
+archive outside this checkout. Raw carrier histories/caches are not required
+to retain that curated evidence. This reset launches no new model experiment;
+synthetic native/software controls are not the three exercises passing B.

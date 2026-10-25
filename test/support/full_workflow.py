@@ -147,7 +147,7 @@ def from_interface(case,source,interface_name,workflow_name,budget,progress,cand
     if budget.execution:budget.execution.check()
     if proof['status']!='FRAGMENT_ASSEMBLED':raise StageFailure('PROOF_UNFINISHED','Actual Lean assembly unfinished',phase='proof',evidence=destination/'proof-run/report.json')
     mapping=results/(workflow_name+'-mapping');audit_b_mapping.prepare(destination,mapping)
-    progress(case,'AUDIT_B_MAPPING_AND_REAL_BUILD',directory=str(mapping))
+    progress(case,'POSTPROCESSING_ASSEMBLY_AND_SOURCE_EXPORT',directory=str(mapping))
     audit_b_mapping.run(mapping,stage_seconds(budget),budget=budget);accepted(mapping);audit_b_mapping.adopt(mapping)
     audit_review=results/(workflow_name+'-audit-b-review');audit_b_review.prepare(destination/'audit-b',audit_review)
     progress(case,'AUDIT_B_FRESH_SEMANTIC_REVIEW',directory=str(audit_review))

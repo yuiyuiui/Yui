@@ -22,11 +22,12 @@ import ir
 import source_preparation
 import background
 import background_inputs
+import assembly
+import lean_names
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
 VERSION = 1
-NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$')
 KINDS = {'hypothesis','external','mathlib','internal','target'}
 FOUNDATION = {
     'Eq.refl','Eq.rec','Eq.recOn','Eq.ndrec','Eq.ndrecOn','Eq.casesOn',
@@ -152,6 +153,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     source_file = (cpath.parent/c['source']['path']).resolve()
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
+             Path(assembly.__file__),Path(lean_names.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'scripts/nl0.py',HERE.parent/'scripts/closure.py',
              ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
@@ -210,8 +212,8 @@ def dependency_correspondence(inventory,mapping,plan,declarations):
     byname={d['name']:d for d in declarations}
     library={}
     for sid,row in mapping['entries'].items():
-        if row.get('library_declaration'):library.setdefault(row['library_declaration'],set()).add(sid)
-    common = set(FOUNDATION) | set(mapping.get('calculation_links', {}))
+        if row.get('library_declaration'):library.setdefault(lean_names.canonical(row['library_declaration']),set()).add(sid)
+    common = set(FOUNDATION) | {lean_names.canonical(name) for name in mapping.get('calculation_links', {})}
     common |= instance_support(declarations)
     if inventory.get('logic', {}).get('classical'):
         common |= CLASSICAL
@@ -269,7 +271,7 @@ def validate_mapping(c,inventory,mapping):
     for sid,row in mapping['entries'].items():
         ir.need(isinstance(row['selector'],str),'unmapped source node: '+sid)
         if row['selector'].startswith('decl:'):
-            ir.need(NAME.fullmatch(row['selector'][5:]) is not None,'unsupported declaration name')
+            ir.need(lean_names.valid(row['selector'][5:]),f'{sid}.selector: malformed Lean declaration name: {row["selector"]!r}')
         else:
             ir.need(row['selector']=='premise:'+sid and sid in roots,'invalid premise selector')
         ir.type_text(row['expected_type'])
@@ -279,33 +281,21 @@ def validate_mapping(c,inventory,mapping):
         if item.get('kind')=='internal' and inventory['scope']=='whole_structured_nl0':
             ir.need(row['selector'].startswith('decl:Translation.T'),'internal source node lacks an actual local proof')
         if item.get('kind')=='mathlib':
-            name = row['library_declaration']
-            ir.need(isinstance(name,str) and NAME.fullmatch(name) is not None,'missing mathlib declaration')
+            name = row.get('library_declaration')
+            ir.need(lean_names.valid(name),f'{sid}.library_declaration: missing or malformed Lean name: {name!r}')
             declared = item.get('source',{}).get('declaration')
-            ir.need(not declared or declared==name,'changed named source mathlib theorem')
+            ir.need(not declared or lean_names.canonical(declared)==lean_names.canonical(name),
+                    f'{sid}.library_declaration: changed named source mathlib theorem')
             ir.type_text(row['library_type'])
             if sid in roots: ir.proof_text(row['library_term'])
     calculations = inventory.get('logic',{}).get('calculations',[])
     for name,index in mapping['calculation_links'].items():
-        ir.need(NAME.fullmatch(name) is not None and type(index) is int and 0 <= index < len(calculations),
+        ir.need(lean_names.valid(name) and type(index) is int and 0 <= index < len(calculations),
                 'unregistered foundational calculation')
 
 
-def export_source(c,mapping):
-    retained = [p for p in c['premises'] if p['kind']!='mathlib']
-    context = ir.binder_text(c)
-    ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in retained)
-    arguments = ' '.join([p['name'] for p in c['parameters']] + ['h_'+p['id'] for p in retained])
-    text = '\nnamespace AuditBExport\nset_option autoImplicit false\n'
-    for p in c['premises']:
-        if p['kind']=='mathlib':
-            text += f"theorem resolved_{p['id']} {context} {ins} : {p['type']} := by\n{ir.proof_text(mapping['entries'][p['id']]['library_term'])}\n\n"
-    actual = []
-    for p in c['premises']:
-        actual.append(f"(@resolved_{p['id']} {arguments})" if p['kind']=='mathlib' else 'h_'+p['id'])
-    args = ' '.join([p['name'] for p in c['parameters']] + actual)
-    text += f"theorem P {context} {ins} : {c['conclusion']['type']} := by\n  exact @Translation.P {args}\n\n#check @P\n#print axioms P\nend AuditBExport\n"
-    return text
+def export_source(c,mapping,level_metadata=None):
+    return assembly.export_source(c,mapping,level_metadata)
 
 
 def build(out):
@@ -327,7 +317,9 @@ def build(out):
         types={**ir.premises(c),**{s['id']:s['statement'] for s in plan['steps']}}
         params=[{'id':k,'type':types[k]} for k in node['inputs']]
         checks.append(('implementation/'+sid,'decl:Translation.'+sid,full_type(c,node['statement'],params)))
-    array = '#['+', '.join('('+', '.join(json.dumps(x,ensure_ascii=False) for x in row)+')' for row in checks)+']'
+    rows = [(*row, lean_names.parts(row[1][5:]) if row[1].startswith('decl:') else []) for row in checks]
+    array = '#['+', '.join('('+', '.join(('#['+', '.join(json.dumps(p,ensure_ascii=False) for p in x)+']')
+                          if isinstance(x,list) else json.dumps(x,ensure_ascii=False) for x in row)+')' for row in rows)+']'
     probe = (HERE/'scripts/audit_probe.lean').read_text().replace('__AUDIT_CHECKS__',array)
     formal = ir.render(cpath,plan,proofs)
     # Header commands are reviewed input, but missing proofs or executable
@@ -337,9 +329,20 @@ def build(out):
     work = Path(tempfile.mkdtemp(prefix='audit-b-build-'))
     try:
         (work/'input').mkdir();(work/'output').mkdir()
-        source = formal+export_source(c,mapping)+'\n'+probe
-        file = work/'output/Audit.lean';file.write_text(source)
-        result = ir.run_lean(file,work)
+        assembled = assembly.build(c,mapping,formal,out,work)
+        inspected = {'status':'NOT_STARTED','compiler_exit_code':None}
+        if assembled['status']=='ASSEMBLY-PASSED':
+            source = (out/'Proof.lean').read_text()+'\n'+probe
+            file = work/'output/Audit.lean';file.write_text(source)
+            result = ir.run_lean(file,work)
+            inspected = {'status':'KERNEL_INSPECTION_PASSED' if result['exit_code']==0 else 'KERNEL_INSPECTION_FAILED',
+                         'compiler_exit_code':result['exit_code'],'wall_seconds':result['wall_seconds']}
+            if result['exit_code'] and 'maximum number of heartbeats' in result['stdout']:
+                inspected['status']='INSPECTION_HEARTBEAT_EXHAUSTED'
+        else:
+            result=ir.load(out/'assembly-compiler.json')
+            source=(out/('Proof.lean' if (out/'Proof.lean').exists() else 'AssemblyInputs.lean')).read_text()
+        ir.write(out/'inspection.json',inspected)
         (out/'Audit.lean').write_text(source)
         ir.write(out/'compiler.json',result)
         found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',result['stdout'])
@@ -348,6 +351,8 @@ def build(out):
         errors=[]
         dependency_rows=[]
         if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
+        if assembled['status']!='ASSEMBLY-PASSED': errors.append('SOURCE_FACING_ASSEMBLY_FAILED')
+        if inspected['status']=='INSPECTION_HEARTBEAT_EXHAUSTED': errors.append('INSPECTION_HEARTBEAT_EXHAUSTED')
         if result['exit_code'] != 0 or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
         if any(r['exit_code'] for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
         imported=[]
@@ -357,10 +362,10 @@ def build(out):
             if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
             allowed=set(FOUNDATION)
             if inventory.get('logic',{}).get('classical'): allowed |= CLASSICAL
-            allowed.update(mapping['calculation_links'])
+            allowed.update(lean_names.canonical(name) for name in mapping['calculation_links'])
             support=instance_support(deps['declarations'])
             allowed.update(support)
-            allowed.update(row['library_declaration'] for row in mapping['entries'].values() if row.get('library_declaration'))
+            allowed.update(lean_names.canonical(row['library_declaration']) for row in mapping['entries'].values() if row.get('library_declaration'))
             dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
             allowed.update(name for row in dependency_rows for name in row['background_library_uses'])
             for d in deps['declarations']:
@@ -381,7 +386,7 @@ def build(out):
                             errors.append('BACKGROUND_MODULE_MISMATCH:'+note['id'])
             for p in inventory['propositions']:
                 if p['kind']=='mathlib':
-                    name=mapping['entries'][p['id']]['library_declaration'];d=byname.get(name)
+                    name=lean_names.canonical(mapping['entries'][p['id']]['library_declaration']);d=byname.get(name)
                     if not d or not d['imported'] or not d['proof_valued']: errors.append('SOURCE_M_NOT_A_PROVED_LIBRARY_RESULT:'+p['id'])
                     module=p.get('source',{}).get('module')
                     if d and module and module!=d['module']: errors.append('SOURCE_M_MODULE_MISMATCH:'+p['id'])
@@ -389,6 +394,7 @@ def build(out):
             'actual_elaborated_evidence':evidence,'dependency_correspondence':dependency_rows,
             'original_source_text':(cpath.parent/c['source']['path']).read_text(),'lean_source':source,
             'source_and_proof_bytes':manifest['inputs'],
+            'assembly':assembled,'inspection':inspected,
             'warning':'Read actual sources and signatures. A template or compiler pass is not semantic review.'}
         ir.write(out/'review-packet.json',packet)
         required_locations={}
@@ -409,8 +415,9 @@ def build(out):
                     '/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
         for name,index in mapping['calculation_links'].items():
             locations=['/inventory/logic/calculations/'+str(index)]
-            locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==name]
-            ir.need(len(locations)==2,'unused/uninspected calculation link')
+            locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==lean_names.canonical(name)]
+            if evidence and len(locations)!=2:
+                errors.append('UNUSED_OR_UNINSPECTED_CALCULATION:'+name)
             required_locations['calculation/'+name]=locations
         for i,row in enumerate(dependency_rows):
             for name,notes in row['background_library_uses'].items():
@@ -431,15 +438,19 @@ def build(out):
             'required_review_locations':required_locations,'dependency_correspondence':dependency_rows,
             'unmapped_imported_proofs':sorted(set(imported)),'wall_seconds':time.monotonic()-start,
             'local_checks':local,'compiler_exit_code':result['exit_code'],
+            'assembly':assembled,'inspection':inspected,
             'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
             'mapping_sha256':ir.digest(out/'mapping.json'),'manifest_sha256':ir.digest(out/'manifest.json'),
-            'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json')},
+            'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json',
+                'AssemblyInputs.lean','assembly-inputs-compiler.json','assembly-compiler.json','assembly.json','inspection.json',
+                *(['Proof.lean'] if (out/'Proof.lean').exists() else []))},
             'semantic_review_performed':False}
         ir.write(out/'mechanical.json',mechanical)
         review['mechanical_sha256']=ir.digest(out/'mechanical.json')
         ir.write(out/'review-template.json',review)
         return {'status':'AUDIT-B-MECHANICAL-PASSED' if not errors else 'AUDIT-B-MECHANICAL-FAILED',
                 'errors':mechanical['errors'],'unmapped_imported_proofs':mechanical['unmapped_imported_proofs'],
+                'assembly':assembled['status'],'inspection':inspected['status'],
                 'semantic_review':'UNVERIFIED'}
     finally:
         shutil.rmtree(work)
