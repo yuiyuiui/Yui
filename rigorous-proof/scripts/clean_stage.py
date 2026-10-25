@@ -61,6 +61,8 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('Task input hash differs from the frozen manifest')
                 self.task_inputs[row['id']] = data.decode('utf-8')
         self.artifact_kind = kind
+        self.background_review = bool(self.acceptance_authority and kind == 'json' and 'packet.json' in self.task_inputs)
+        self.background_notes = []
         self.output_verbosity='high' if kind=='nl0' else 'low'
         self.library_probes=0
         self.continuation_prompt = ('The requested stage artifact has not been accepted. Continue from your own '
@@ -97,6 +99,8 @@ class ArtifactStage(pilot.Stage):
         if self.acceptance_authority:
             self.system += '\n\n'+self.acceptance_authority.instructions()
         self.tools = [dict(t) for t in pilot.carrier.TOOLS[:2]] if library else []
+        if self.background_review and not library:
+            self.tools += [dict(t) for t in pilot.carrier.TOOLS[:2]]
         if self.task_inputs:
             self.tools.append(pilot.carrier.tool('read_task_input', 'Read an explicitly frozen task document by ID; no other local files are accessible.',
                 {'id': {'type':'string'}, 'start':{'type':'integer'}, 'end':{'type':'integer'}}, ['id','start','end']))
@@ -135,6 +139,26 @@ class ArtifactStage(pilot.Stage):
                 pilot.carrier.tool('read_review_progress','Read actual own-stage saved judgments and remaining work.',{},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
                     {'finding':{'type':'object','additionalProperties':True}},['finding'])]
+        if self.background_review:
+            self.tools += [pilot.carrier.tool('probe_background',
+                'Read-only native verification of a basic theorem in pinned Mathlib. No new mathematical hypothesis or target proof is supplied. Use an Mnnn ID and a declaration name, not Lean code.',
+                {'id':{'type':'string'},'declaration':{'type':'string'},'module':{'type':'string'}},['id','declaration']),
+                pilot.carrier.tool('record_background_note',
+                    'Record YOUR positively checked routine elementary inference or omitted basic Mathlib use. Check actual local conditions, mathematical correctness and routine scope. Does not establish PASS automatically. For mathlib first probe_background, then give its source_id. No guessed theorem, extra hypothesis, substantial gap or external citation qualifies.',
+                    {'id':{'type':'string'},'kind':{'type':'string','enum':['elementary','mathlib']},
+                     'at':{'type':'string'},'fact':{'type':'string'},'justification':{'type':'string'},
+                     'grounds':{'type':'array','items':{'type':'object','properties':{
+                         'location':{'type':'string'},'reason':{'type':'string'}},'required':['location','reason'],'additionalProperties':False}},
+                     'source_id':{'type':'string'},'hint':{'type':'string'}},
+                    ['id','kind','at','fact','grounds','justification'])]
+            if isinstance(self.validator, ReviewContract):
+                self.validator.base['background_notes'] = []
+            self.input_prompt += ('\nThis version permits logged pinned-Mathlib lookup for routine background only. '
+                'Retain every review check. Use probe_background and record_background_note for a positively '
+                'checked omitted basic library fact. Ordinary correct elementary inferences need no exhaustive '
+                'displayed calculation. A saved note is not an unresolved math TODO. If completing from saved '
+                'review rows, omit background_notes from summary: your recorded notes are retained automatically. '
+                'Do not read other project proofs, add assumptions, repair substantial gaps or supply new routes.')
         if kind == 'nl0' and library:
             self.tools.append(pilot.carrier.tool('probe_library',
                 'Query a proved Mathlib theorem and its exact signature/axioms in the offline sandbox. '
@@ -285,8 +309,9 @@ class ArtifactStage(pilot.Stage):
                 'finite_order, finite_sums; it cannot add permissions. Optional primitives selects only standard '
                 'language symbols with {symbol:...}; do not put task functions, derivative abbreviations, '
                 'parameter-dependent spaces or local indicators there. Declare these as parameters, D or locals. '
-                'No analysis theorem is granted by the fixed language: register an E/M input or display its '
-                'local derivation before using it. Inferences use R001-style IDs; argument paragraphs '
+                'Register principal analysis tools as E/M or prove their local derivation. Routine background '
+                'can be checked and recorded by Audit A under verified-background-1; correct elementary '
+                'compression needs no exhaustive displayed chain. Inferences use R001-style IDs; argument paragraphs '
                 'use S001-style IDs; propositions use H001/E001/M001/N001 or P. An unknown field/rule is '
                 'a format repair, not a mathematical gap. Read references/nl0-format.md for every remaining field.')
             self.input_prompt += ('\nOwn-stage machine checkpoints preserve only actual draft/check progress '
@@ -388,6 +413,7 @@ class ArtifactStage(pilot.Stage):
                 result=self.validator.record(args['pointer'],args['coverage'],args.get('judgment'))
             elif name == 'read_review_progress':
                 result=self.validator.progress()
+                if self.background_review:result['background_notes']=deepcopy(self.background_notes)
             elif name == 'submit_review_blocker':
                 self.accepted=self.validator.blocker(args['finding'])
                 result={'accepted':True,'stage_complete':True,'review_coverage':'INCOMPLETE','mathematical_acceptance':False}
@@ -400,6 +426,24 @@ class ArtifactStage(pilot.Stage):
                 result = signature_probe(self.validator.directory, args['id'], args['declaration'], args.get('module'),
                                          self.library_probes, timeout=self.lean_timeout(),
                                          on_native=lambda:setattr(self,'lean_calls',self.lean_calls+1))
+            elif name == 'probe_background':
+                from artifact_validation import signature_probe
+                self.library_probes += 1
+                result = signature_probe(self.logs, args['id'], args['declaration'], args.get('module'),
+                    self.library_probes, timeout=self.lean_timeout(),
+                    on_native=lambda:setattr(self,'lean_calls',self.lean_calls+1))
+            elif name == 'record_background_note':
+                import background
+                value = {k:deepcopy(v) for k,v in args.items() if k != 'source_id'}
+                if value.get('kind') == 'mathlib':
+                    value['source'] = background.source_from_probe(self.logs, args.get('source_id',''))
+                elif 'source_id' in args:raise ValueError('Elementary notes do not use a source_id')
+                background.validate([value], json.loads(self.task_inputs['packet.json']), self.logs)
+                self.background_notes = [n for n in self.background_notes if n['id'] != value['id']] + [value]
+                if hasattr(self.validator,'base'):self.validator.base['background_notes']=deepcopy(self.background_notes)
+                pilot.ir.write(self.logs/'background-notes.json', self.background_notes)
+                result = {'recorded':value['id'],'note_count':len(self.background_notes),
+                          'fact':value['fact'],'scope':'Actual reviewer-supplied note; no automatic mathematical PASS.'}
             elif name == 'read_draft':
                 from artifact_validation import resolve_own, own_text_lines
                 number=args['candidate']
@@ -437,6 +481,13 @@ class ArtifactStage(pilot.Stage):
                          json.loads(args['artifact_json'], object_pairs_hook=pilot.ir.unique))
                 if not isinstance(value, dict):
                     raise ValueError('Artifact must be a JSON object')
+                if self.background_review and not value.get('from_saved_review'):
+                    value.setdefault('background_notes', deepcopy(self.background_notes))
+                if self.background_review and self.background_notes:
+                    supplied=(value.get('summary',{}).get('background_notes',self.background_notes)
+                              if value.get('from_saved_review') else value.get('background_notes'))
+                    if supplied != self.background_notes:
+                        raise ValueError('Preserve your recorded background notes; do not drop or replace them at submission')
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}
                 result = {'accepted': True, 'validation': checked, 'stage_complete': name in {'submit_artifact','submit_draft'}}
                 if self.artifact_kind=='nl0':

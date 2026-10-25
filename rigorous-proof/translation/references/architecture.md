@@ -148,3 +148,17 @@ elaborated types, project structure fields, instances/dependencies and source
 mapping, then requires actual semantic reviews. Earlier fragment checks have
 not retrospectively passed it. A complete generic Lean-repository adapter and
 Audit C/NL1 reconstruction remain outside Yui.
+
+## Accepted background supplement
+
+The source authority includes verified node-local Audit A background notes.
+Use the effective dependency view and bind its supplement hash in
+`contract.source.background_supplement_sha256` before interface freeze. Basic M
+notes become permitted library ports; elementary notes inform local Lean work.
+Do not create new assumptions or forget notes when constructing task packets.
+Audit B reads the same enriched inventory and requires actual Lean closure.
+
+The interface source also retains the complete `background_supplement`, not
+just its hash. Plan steps list the relevant qualified note IDs, for example
+`background_notes:["R004.BG001"]`. Workflow freeze checks the paragraph mapping;
+local Lean packets receive only their selected notes.

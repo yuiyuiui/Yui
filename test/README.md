@@ -143,3 +143,12 @@ material agrees; arbitrary same-prefix temporary directories are not deleted.
 
 See [support/MAINTENANCE.md](support/MAINTENANCE.md) for the software changes
 and their validation scope. Those controls are not mathematical test scores.
+
+## Background-enabled Audit A policy
+
+New-policy rounds may report PASS with verified background notes. Keep the
+per-node notes, actual source evidence, note count and policy version beside
+the outcome. This is disclosed routine completion during review, not an old
+strict-policy or zero-note success. Important dependencies and substantive
+mathematical obligations remain fully checked. Accepted notes accompany later
+formalization; they are never additional original hypotheses.

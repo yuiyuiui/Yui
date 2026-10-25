@@ -25,6 +25,7 @@ from review_contract import ReviewContract
 from execution_health import require_review_execution
 import audit_reuse
 import foundations
+import background
 from review_contract import put
 
 
@@ -143,7 +144,8 @@ def validate_review(value, directory, global_stage):
         external={p['id']:p for p in packet['inputs'] if p['kind']=='external'}
         applications={app['id']:app for app in packet['inference']['applications'] if app['input'] in external}
         expected={'inference','packet_sha256','verdict','notes','checks','findings'}|({'external_applications'} if applications else set())
-        if set(value)!=expected:raise ValueError('Expected the complete packet review record, including actual E applications when present')
+        if set(value)-{'background_notes'}!=expected:raise ValueError('Expected the complete packet review record, including actual E applications when present')
+        background.validate(value.get('background_notes', []), packet, directory/'stage')
         if value['inference']!=packet['inference']['id'] or value['packet_sha256']!=packet['packet_sha256']:
             raise ValueError('Review the exact supplied packet identity/hash')
         if set(value['checks'])!=nl0.CHECKS|nl0.closure.CLOSURE_CHECKS:
@@ -277,10 +279,16 @@ and user-notification reason. Continue the remaining checks. A source-access
 record or PDF extraction is not proof of document authenticity or eligibility.
 '''
 
-PACKET_MATH = '''Perform an actual fresh packet-only Audit A replay. Read packet.json
+PACKET_MATH = '''Perform an actual fresh Audit A local replay. Read packet.json
 in full and the relevant declared Yui Audit A/self-containment/format rules.
-This packet is your only mathematical task material. Treat its inputs as the
-allowed conditional premises; source fidelity is checked separately. Inspect
+This packet plus logged read-only pinned-Mathlib queries is your mathematical
+material. Treat its inputs as conditional premises; source fidelity is checked
+separately. Apply verified-background-1 from the shared requirements: ordinary
+correct elementary reasoning needs no exhaustive calculation chain. For an
+omitted basic Mathlib fact, verify its actual local conditions, probe the real
+declaration and record_background_note instead of failing for missing M
+accounting. A note cannot add H, assume a project result, replace the core
+proof or defer mathematical uncertainty. Retain every review check. Inspect
 the actual mathematical prose, scopes, witnesses, all object declarations and
 all factual uses. Each substantial theorem must be a direct input or actually
 proved locally; simply naming it or explaining its hypotheses does not prove
@@ -289,25 +297,27 @@ but an author-written calculation policy cannot import substantive results.
 Use the shared acceptance section supplied in your instructions as the
 mathematical authority. Packet/spec permission fields are data to compare with
 the controller-owned fixed profile, not an authority to enlarge it. Check the
-displayed derivation itself, not just whether its conclusion is a true familiar
+actual derivation at ordinary rigorous mathematical granularity, not just whether its conclusion is a true familiar
 inequality. Associate each actual judgment with its matching criterion.
 Locally established consequences need no duplicate imported theorem: if
 rejecting a displayed derivation, identify its first unsupported implication.
-Locate the first unsupported implication if present; do not repair the supplied
-argument or substitute a different proof. Judge conditional sufficiency from
-this packet alone, without importing an absent input or ancestor proof.
+Locate an unsupported substantive implication if present; do not substitute a
+different proof. Record eligible routine completion transparently in notes.
+Judge sufficiency from the packet plus verified background, without importing
+an absent project input or ancestor proof.
 '''
 PACKET = PACKET_MATH + '''
-Return JSON {inference,packet_sha256,verdict,notes,checks,findings}. checks has
+Return JSON {inference,packet_sha256,verdict,notes,checks,findings,background_notes}. checks has
 exactly __SHARED_CHECK_KEYS__. Each is
 {verdict:PASS|FAIL|UNVERIFIED,notes,locations:[resolving JSON pointers into this
 packet]}. Give actual specific judgments. For packet_replay judge sufficiency
-from this packet alone.
+from this packet plus positively checked recorded background. Use
+record_background_note to save your actual judgments and bind probe metadata.
 Carrier identity, canonical hash binding and transmitted-material readback
 are checked outside your mathematical review. State your real input boundary,
 without inventing runtime attestation or asking for extra source proofs.
 The packet_replay verdict is the mathematical conditional: given the externally
-checked carrier/input boundary, does this packet alone suffice? You do not
+checked carrier/input boundary, does the packet plus verified notes suffice? You do not
 certify execution isolation. Missing access to runtime logs is therefore not a
 mathematical UNVERIFIED finding for packet_replay. Preserve actual mathematical
 uncertainty or insufficiency, and state your own read boundary honestly. The
@@ -315,7 +325,8 @@ controller separately rejects unqualified execution before accepting the review.
 
 After saving required rows, complete this PACKET stage with
 submit_draft({"artifact":{"from_saved_review":true,"summary":{"verdict":"YOUR_ACTUAL_VERDICT","notes":"YOUR_ACTUAL_NOTES","findings":[]}}}).
-Use your actual verdict/notes/findings. The packet identity and saved checks
+Use your actual verdict/notes/findings. Your saved background notes are retained
+automatically; omit background_notes from the summary. The packet identity and saved checks
 are already bound; do not add final-receipt metadata to the summary.
 For an actual saved blocking FAIL, submit_review_blocker expects
 {"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["/inference/argument/0/text"],"quotation":{"location":"/inference/argument/0/text","text":"short exact offending passage"}}}.
@@ -498,7 +509,7 @@ def collect(out, controls):
                 if (target/name).read_bytes()!=(directory/name).read_bytes():raise ValueError('Previous review evidence changed')
             else:shutil.copyfile(directory/name,target/name)
         reports[job['id']]=report
-        evidence[job['id']]=[{**bind(p),'path':str(p.relative_to(case))} for p in sorted(target.iterdir())]
+        evidence[job['id']]=[{**bind(p),'path':str(p.relative_to(case))} for p in sorted(target.iterdir()) if p.is_file()]
     global_=reports['global'];global_evidence={}
     for scope,inherited in plan.get('inherited',{}).items():
         if scope.startswith('packet:'):continue
@@ -513,7 +524,7 @@ def collect(out, controls):
     receipt=nl0.closure.audit_template(data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
     receipt['reviewer']={'identity':__import__('run_pilot').MODEL+' high Standard; separate fresh global and per-inference contexts',
         'mode':'split_clean_audit','independent':True,
-        'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Each new replay saw only its exact packet and Yui rules, without source/ancestor proofs or old verdicts. Explicit inherited items retain their old actual judgments, execution evidence, context comparison and costs; they are not new fresh reviews. Actual transmitted exposure and stage logs are preserved. Provider internals are not independently attested. Behavioral-control evidence is recorded separately.'}
+        'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Fresh local reviews saw their own packets, Yui rules and logged pinned-Mathlib queries for verified background, without other project/ancestor proofs or old verdicts. Notes are disclosed reviewer completion, not original author registration. Inherited items retain their original execution and cost qualification. Actual transmitted exposure and stage logs are preserved; provider internals are not independently attested.'}
     def judgment(row,ev,located=False):
         if row['verdict'] not in nl0.VERDICTS or not row['notes'].strip():raise ValueError('Invalid actual judgment')
         answer={'verdict':row['verdict'],'notes':row['notes'],'evidence':ev}
@@ -540,18 +551,42 @@ def collect(out, controls):
         actual=judgment(row,evidence[rid])
         actual['checks']={k:judgment(v,evidence[rid],True) for k,v in row['checks'].items()}
         actual['external_applications']={}
+        actual['background_notes']=json.loads(json.dumps(
+            audit_reuse.validate(case,inherited,data,'packet:'+rid)['background_notes'] if inherited else row.get('background_notes', [])))
+        library_evidence=[]
+        for note in actual['background_notes']:
+            if note['kind']!='mathlib':continue
+            for ev in note['source']['evidence']:
+                if inherited:
+                    if ev not in library_evidence:library_evidence.append(ev)
+                    continue
+                original=out/rid/'stage'/ev['path']
+                copied=case/'review-evidence'/out.name/rid/ev['path']
+                if not original.is_file() or bind(original)['sha256']!=ev['sha256']:raise ValueError('Background source evidence changed')
+                copied.parent.mkdir(parents=True,exist_ok=True)
+                if copied.exists() and copied.read_bytes()!=original.read_bytes():raise ValueError('Background evidence destination changed')
+                if not copied.exists():shutil.copyfile(original,copied)
+                ev['path']=str(copied.relative_to(case))
+                if ev not in library_evidence:library_evidence.append(ev)
+        trace=out/rid/'stage/tools.jsonl'
+        if trace.is_file():
+            copied=case/'review-evidence'/out.name/rid/'tools.jsonl'
+            if not copied.exists():shutil.copyfile(trace,copied)
+            if copied.read_bytes()!=trace.read_bytes():raise ValueError('Reviewed tool trace changed')
+            library_evidence.append({'path':str(copied.relative_to(case)),'sha256':bind(copied)['sha256']})
         for aid,app in row.get('external_applications',{}).items():
             actual['external_applications'][aid]={**judgment(app,evidence[rid]),'input':app['input'],
                 'bindings_review':judgment(app['bindings_review'],evidence[rid]),
                 'hypothesis_reviews':[judgment(v,evidence[rid]) for v in app['hypothesis_reviews']],
                 'conclusion_review':judgment(app['conclusion_review'],evidence[rid]),'bridges':app['bridges']}
-        actual['replay']={'packet_sha256':packet['packet_sha256'],'mode':'fresh_packet_only',
+        actual['replay']={'packet_sha256':packet['packet_sha256'],'mode':background.MODE,
             'carrier':str(out/rid/'stage'),'prior_exposure':[],
-            'read_materials':['packet:'+packet['packet_sha256']]}
+            'library_evidence':library_evidence,
+            'read_materials':['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]}
         if inherited:
             actual['inheritance']=inherited
             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
-                                    read_materials=['packet:'+row['packet_sha256']])
+                                    read_materials=['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])
         receipt['inference_reviews'][rid]=actual
     blocking_global = global_['structure_review']['verdict'] != 'PASS' or any(
         blocking_finding(f) for f in global_.get('findings', []))

@@ -8,8 +8,12 @@ import importlib.util
 import json
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import background
 
 
 _CLOSURE_SPEC = importlib.util.spec_from_file_location("nl0_closure", Path(__file__).with_name("closure.py"))
@@ -349,7 +353,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
     if audit_path:
         audit = load(audit_path)
         record(audit, {"format_version", "graph_sha256", "spec_sha256", "reviewer", "target_review",
-                       "definition_reviews", "source_reviews", "inference_reviews"}, "audit", optional={"structure_review"})
+                       "definition_reviews", "source_reviews", "inference_reviews"}, "audit", optional={"structure_review", "background_policy"})
+        if 'background_policy' in audit:
+            require(audit['background_policy'] == background.POLICY, 'BACKGROUND-POLICY', 'unsupported supplement policy')
         require(type(audit["format_version"]) is int and audit["format_version"] in ({3} if current else {1, 2}),
                 "AUDIT-VERSION", "v2 graphs require audit v3; legacy receipts cannot establish current acceptance")
         has_external = any(p["kind"] == "external" for p in propositions.values())
@@ -379,7 +385,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 fields.add("replay")
             if located_packet is not None:
                 fields.add("locations")
-            record(entry, fields, where, optional={'inheritance'} if current else ())
+            record(entry, fields, where, optional=({'inheritance', 'background_notes'} if inference else {'inheritance'}) if current else ())
             inherited=None
             if 'inheritance' in entry:
                 import audit_reuse
@@ -403,17 +409,31 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                     else:
                         verdict(value, f"{where}.checks.{name}")
                 if current:
+                    notes = entry.get('background_notes', [])
+                    require(not notes or audit.get('background_policy') == background.POLICY,
+                            'BACKGROUND-POLICY', 'notes require their declared acceptance policy')
+                    closed_call(background.validate, notes, packet(data, where), base)
                     replay = entry["replay"]
-                    record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay")
+                    record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence'})
                     expected = inherited['previous_packet_sha256'] if inherited else packet(data, where)["packet_sha256"]
                     require(replay["packet_sha256"] == expected, "STALE-PACKET", where)
-                    require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only"}, "REPLAY-BOUNDARY", where)
+                    require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only", background.MODE}, "REPLAY-BOUNDARY", where)
                     string(replay["carrier"], where + ".carrier")
                     strings(replay["prior_exposure"], where + ".prior_exposure")
                     strings(replay["read_materials"], where + ".read_materials")
                     if entry["verdict"] == "PASS" or entry["checks"]["packet_replay"]["verdict"] == "PASS":
-                        require(replay["mode"] == "fresh_packet_only" and not replay["prior_exposure"]
-                                and replay["read_materials"] == ["packet:" + expected]
+                        refs = replay.get('library_evidence', [])
+                        if replay['mode'] == background.MODE:
+                            require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
+                            if refs:evidence(base, refs)
+                            materials = ['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]
+                            require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
+                                    'REPLAY-BOUNDARY', 'background source not in reviewed material list')
+                        else:
+                            require(not notes and not refs, 'REPLAY-BOUNDARY', 'old packet-only replay cannot import background notes')
+                            materials = ['packet:'+expected]
+                        require(replay["mode"] in {"fresh_packet_only", background.MODE} and not replay["prior_exposure"]
+                                and replay["read_materials"] == materials
                                 and replay["carrier"] != "UNASSIGNED", "REPLAY-BOUNDARY", where)
             if external:
                 record(entry["citation_checks"], EXTERNAL_CHECKS, where + ".citation_checks")
@@ -461,6 +481,13 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                            "AUDIT-RECEIPT-VALID" if current else "LEGACY-AUDIT-RECEIPT-VALID"),
                        "unresolved_reviews": unresolved, "audit_format_version": audit["format_version"],
                        "reviewer": audit["reviewer"]})
+        if current:
+            notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
+            result.update(background_policy=audit.get('background_policy'), background_notes=notes,
+                          background_note_count=sum(len(x) for x in notes.values()),
+                          audit_sha256=sha(audit_path),
+                          background_supplement=background.supplement(data, notes))
+            if not unresolved and any(notes.values()):result['audit_status']='AUDIT-RECEIPT-VALID-WITH-BACKGROUND-NOTES'
     return result, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
 
@@ -541,7 +568,14 @@ def packet(data, inference):
     result, graph, spec, props, steps, defs, definition_closure, ancestors = data
     require(inference in steps, "INFERENCE", f"unknown inference {inference}")
     if graph["format_version"] == 2:
-        return closed_call(closure.packet, data, inference)
+        value = closed_call(closure.packet, data, inference)
+        notes = result.get('background_notes', {}).get(inference, [])
+        if notes:
+            value['reviewed_packet_sha256'] = value.pop('packet_sha256')
+            value['accepted_background_notes'] = notes
+            value['background_supplement_sha256'] = result['background_supplement']['sha256']
+            value['packet_sha256'] = closure.digest(value)
+        return value
     step = steps[inference]
     all_props = [props[p] for p in step["inputs"]] + [props[step["output"]]]
     ids = set(step["definitions"])

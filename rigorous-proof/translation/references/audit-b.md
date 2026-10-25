@@ -177,3 +177,11 @@ Record preparation, kernel inspection and semantic-review cost separately and
 include them when claiming end-to-end formalization acceleration. Exact frozen
 audit results may be reused only within their recorded scope and dependency
 versions. Audit C/NL1 round-trip reconstruction is a different future stage.
+
+## Audit A background notes
+
+Source concordance includes the accepted background supplement. Omitted basic
+M registration supplied during Audit A is disclosed as such. Validate its
+policy, evidence and hash, and map its effective M ports just like other library
+inputs. Notes are no additional original H or external axioms. Mathematical
+acceptance of a note cannot stand in for a compiled Lean implementation.

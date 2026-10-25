@@ -20,6 +20,7 @@ import time
 
 import ir
 import source_preparation
+import background
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
@@ -63,7 +64,13 @@ def source_data(cpath, *, graph=None, spec=None, audit_a=None, incremental=None,
         ir.need(spec is not None and fragment is None, 'provide graph/spec or a fragment inventory')
         data, authority_paths = source_preparation.read_source(graph, spec, audit_a, incremental)
         result,g,s,props,inferences,defs,*_ = data
+        props,inferences=background.effective(data)
+        if result.get('background_note_count',0):
+            ir.need(c['source'].get('background_supplement_sha256') == result['background_supplement']['sha256']
+                    and c['source'].get('background_supplement')==result['background_supplement'],
+                    'Audit B interface omitted/changed accepted background notes')
         inventory = {'scope':'whole_structured_nl0','propositions':list(props.values()),
+            'background_supplement':result.get('background_supplement'),
             'parameters':s['parameters'],'definitions':list(defs.values()),'logic':s['logic'],
             'inferences':list(inferences.values()),'full_target':s['full_target'],
             'audit_a_current_passed':result['current_standard_receipt_valid'],
@@ -143,7 +150,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'scripts/nl0.py',HERE.parent/'scripts/closure.py',
-             ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'toolchain/lock.json']
+             ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',ir.ROOT/'toolchain/lock.json']
     inputs = out/'input-bytes';inputs.mkdir()
     bound = []
     for i,p in enumerate(dict.fromkeys(originals)):
@@ -182,27 +189,29 @@ def dependency_correspondence(inventory,mapping,plan,declarations):
     boundary={row['selector'][len('decl:Translation.'):]:sid for sid,row in mapping['entries'].items()
               if row['selector'].startswith('decl:Translation.T')}
     byname={d['name']:d for d in declarations}
-    library={row['library_declaration']:sid for sid,row in mapping['entries'].items() if row.get('library_declaration')}
-    def constants(name,seen):
+    library={}
+    for sid,row in mapping['entries'].items():
+        if row.get('library_declaration'):library.setdefault(row['library_declaration'],set()).add(sid)
+    def constants(name,seen,allowed):
         if name in seen: return set()
         seen.add(name)
-        if name in library: return {library[name]}
+        if name in library: return library[name]&allowed or library[name]
         d=byname.get(name)
         if not d or d['imported']: return set()
-        return set().union(*(constants(x,seen) for x in d['direct_constants'])) if d['direct_constants'] else set()
-    def inputs(tid,start,seen):
+        return set().union(*(constants(x,seen,allowed) for x in d['direct_constants'])) if d['direct_constants'] else set()
+    def inputs(tid,start,seen,allowed):
         if tid not in nodes: return {tid}
         if tid!=start and tid in boundary: return {boundary[tid]}
         if tid in seen: return set()
         seen.add(tid)
-        result=set().union(*(inputs(dep,start,seen) for dep in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
-        result |= constants('Translation.'+tid,set())
+        result=set().union(*(inputs(dep,start,seen,allowed) for dep in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
+        result |= constants('Translation.'+tid,set(),allowed)
         return result
     rows=[]
     for inference in inventory.get('inferences',[]):
         source_id=inference['output'];selector=mapping['entries'][source_id]['selector']
         tid=plan['terminal'] if source_id=='P' else selector.removeprefix('decl:Translation.')
-        actual=inputs(tid,tid,set());expected=set(inference['inputs'])
+        expected=set(inference['inputs']);actual=inputs(tid,tid,set(),expected)
         rows.append({'inference':inference['id'],'source_output':source_id,'source_inputs':sorted(expected),
                      'actual_boundary_inputs':sorted(actual),'matched':actual==expected})
     return rows

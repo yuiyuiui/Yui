@@ -168,3 +168,12 @@ and compare its whole native signature with its NL restatement and actual
 application. Predicates/data definitions are not source theorems. Same-stage
 M-label renumbering can reuse exact metadata through a disclosed mapping;
 it does not rewrite any mathematical statement or applicability argument.
+
+## Background granularity
+
+Follow Audit A's shared verified-background admission rule. Register the main
+tools; write ordinary rigorous mathematics rather than anticipating every
+small Lean lemma. Correct elementary compression is allowed. Audit A can
+verify an omitted routine library fact and attach a note without an author
+rewrite. Missing original H, source uncertainty and substantive proof gaps
+remain blocking. These audit notes later accompany each Lean task.

@@ -326,3 +326,9 @@ reliability, reviewer correctness, formalization speed or a successful cold
 experiment. A disputed review still needs a separately disclosed adjudication;
 this campaign does not run one. Network/credential faults remain distinct
 execution observations. The old first-pass goal remains unachieved and paused.
+
+- New admission policy: an already correct routine background step may receive
+  a verified per-node Audit A note instead of an author rewrite. Retain all
+  mathematical checks; missing hypotheses, source guesses and substantive
+  gaps still block. Disclose PASS with notes separately from zero-note passes
+  and historical stricter outcomes. No acceleration is established by this change.

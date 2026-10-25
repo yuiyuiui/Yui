@@ -135,7 +135,7 @@ class AuthorCheck:
             'acceptance_contract':self.acceptance.metadata(),
             'definitions':[deepcopy(defs[x]) for x in sorted(selected)],
             'inputs':[port(p) for p in ports[:-1]],'output':port(ports[-1]),'inference':deepcopy(step),
-            'warning':'Read this as the same author: only listed inputs, definitions and fixed logic are available. No ancestor/other producer bodies or extra H are supplied. Inspect source types separately in your actual probe. This read produces no judgment.'}
+            'warning':'Same-author inspection under the shared verified-background policy: direct inputs, definitions and fixed logic are supplied; eligible routine background may receive audit notes. No ancestor/other producer body or extra H is available. Inspect important source types separately. This read produces no judgment.'}
         return packet
 
     def packet(self, number, inference):

@@ -37,6 +37,9 @@ outside that dependency may be omitted; note a material omission in the
 existing context note. Never omit a needed proof step as optional. You
 may copy its exact proof passages through the declared task-line text binding,
 then normalize references and close every declaration and factual dependency.
+Register important tools; routine basic library uses may receive verified
+Audit A background notes. Use ordinary rigorous elementary compression rather
+than rebuilding standard theory or expanding every arithmetic chain.
 Read the declared Yui authoring, schema, self-containment and source rules.
 Inspect actual library evidence for every source you select. Build the proof
 and its exact input/object/application accounting together; perform the author
@@ -170,6 +173,7 @@ def collect(out, status):
         for file in Path(row['audit']).glob('*/stage/accepted.json'):
             review = read(file)
             actual[file.parent.parent.name] = {'artifact': str(file),
+                                                'background_notes':review.get('background_notes', []),
                                                 'findings': review.get('findings', [])}
         accepted = outcome.get('status') == 'DRAFT-AUDIT-PASSED'
         gate_error = None
@@ -195,6 +199,7 @@ def collect(out, status):
                 view.update(status='RENDER_EXECUTION_ERROR',error=type(error).__name__+': '+str(error))
             a.write(Path(row['author'])/'readable-render.json',view)
         cases[row['id']] = {'status': outcome, 'first_audit_passed': accepted,
+                            'recorded_background_note_count':sum(len(x['background_notes']) for x in actual.values()),
                             'author_artifact':outcome.get('author_artifact'),
                             'gate_error': gate_error,
                             'readable_view':view,

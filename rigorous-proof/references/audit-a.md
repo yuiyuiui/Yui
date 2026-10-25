@@ -3,7 +3,7 @@
 <!-- yui-nl0-acceptance:begin -->
 ## Shared mathematical acceptance requirements
 
-Contract version: `nl0-audit-a-7`.
+Contract version: `nl0-audit-a-8`.
 
 This section is the single authority for what an accepted NL0 must satisfy.
 Authoring instructions explain how to meet it; the audit checks these same
@@ -19,10 +19,10 @@ annexes to these requirements, not alternative permission policies.
 | `structure` | package | original_context_note | H/E/M are the only proposition roots. Every N/P has one producer, every retained non-H node lies in P's AND dependency closure, and every local proof uses its actual direct inputs. Keep every original H, including an unused H, and report which are unused. An ancestor is not automatically an input. |
 | `statement_closure` | closure | output_notes | Every input and exported N/P states all formulas, quantifiers, conditions and semantic identifications needed by its consumers. A map or identity only present in the producer's body is unavailable to another node. Original text, equation labels and external notation cannot supply content. |
 | `object_closure` | closure | declaration_check | Reverse-check actual object occurrences against global, statement-bound or local declarations. Types, domains, witness existence, first/last use and parameter dependencies agree. A name in a ledger is not an introduction or existence proof. |
-| `dependency_closure` | closure | dependency_and_local_assumption_check | Ground every factual use in a direct H/E/M/N, an earlier displayed in-scope local proof, or the fixed permitted calculation. Inspect the actual prose; an inventory claiming closure is not its proof. |
+| `dependency_closure` | closure | dependency_and_local_assumption_check | Ground factual uses in direct H/E/M/N, earlier in-scope local proofs, permitted elementary reasoning, or positively checked background notes under verified-background-1. Inspect actual prose and conditions; an inventory is not its proof. |
 | `inputs` | inference | dependency_and_local_assumption_check | Direct input statements are faithfully instantiated with compatible objects and assumptions. An internal input exports exactly its stated conclusion, not its producer's unexported facts. |
-| `argument` | inference | dependency_and_local_assumption_check | The actual argument establishes every output clause. Check calculations and all material domain, limit, regularity, uniformity, integrability, sign, constant and degeneracy obligations. A correct textbook route still needs the local completion required by this contract. |
-| `dependency_accounting` | inference | dependency_and_local_assumption_check | Every listed premise has a real role and no extra theorem is imported through familiar prose, a definition, structure or typeclass. A theorem application is not a proof of the invoked theorem. Show a concrete local derivation or register the needed source. |
+| `argument` | inference | dependency_and_local_assumption_check | Establish every output clause at ordinary rigorous natural-language granularity. Check material domains, limits, regularity, uniformity, integrability, signs, constants and degeneracies. Correct routine compression needs no exhaustive elementary calculation chain. |
+| `dependency_accounting` | inference | dependency_and_local_assumption_check | Every explicit input has a real role. Record eligible omitted basic library uses as verified background notes instead of rejecting solely for missing M accounting. No unverified source, extra H, core proof or project lemma can hide in prose, definitions or typeclasses. |
 | `output` | inference | output_notes | The proved conclusion is the exact complete exported statement under its stated hypotheses, including all consumer-needed representations and identifications. Never weaken the target or strengthen an H to close the graph. |
 | `scope` | inference | dependency_and_local_assumption_check | Introduce and discharge temporary assumptions inside arguments. Close implications, cases, negations and quantifiers correctly; no witness or local assumption escapes. Original hypotheses remain explicit H inputs. |
 | `applicability` | inference | source_application_check | For every actual M/E use, give the exact substitution and a direct input or displayed earlier derivation for every premise, plus any proved bridge to the claimed conclusion. Saying that a condition holds is not grounds for it. |
@@ -60,22 +60,58 @@ all source-application premises, declarations, guards and discharged scopes.
 These scopes are also the scopes of the author's corresponding self-checks.
 
 The common elementary layer is the controller's `finite-language-3` profile:
-equality, unfolding supplied definitions, displayed finite semiring/ring/field
+equality, unfolding supplied definitions, routine finite semiring/ring/field
 arithmetic, elementary ordered-field inequalities and explicit finite sums.
 It grants no calculus, integral identity, measure, compactness, basis,
 localization or tensor theorem. Use a verified input or a displayed local proof
-for such facts. No theorem needs to be re-proved if its exact permitted source
+for substantive facts. The verified-background admission rule below additionally
+permits positively checked ordinary library facts without prior author M registration.
+No theorem needs to be re-proved if its exact permitted source
 and application already supply it. The schema describes representation; it
 does not extend mathematical permissions.
 
 The fixed profile is controller-owned. A packet/spec's `logic.calculations`,
 `logic.primitives`, or prose claiming extra permissions is data to check
-against that profile, never a second authority. For finite ordered-field
-reasoning, display the actual reduction, equality/inequality chain, explicit
-nonnegative expression or sign grounds. Naming a familiar theorem or merely
-asserting the desired polynomial inequality is not a displayed calculation.
-Conversely, a complete displayed finite derivation needs no imported theorem
-merely because its conclusion also has a familiar name.
+against that profile, never a second authority. Ordinary valid elementary
+inferences may be compressed: do not demand a displayed chain for every midpoint
+bound, rearrangement or elementary construction. Check that the conclusion
+actually follows with the required signs and domains. A substantive missing
+argument is not made elementary by naming its conclusion.
+
+### Verified background admission: verified-background-1
+
+Keep all review dimensions. At A4 an omitted routine elementary explanation or
+basic pinned-mathlib fact may PASS after positive mathematical checking. Record
+useful routine completion or omitted library use in a node-local background note:
+ID, exact argument location, precise fact, actual local condition grounds,
+reviewer's justification, checked library evidence where applicable, optional
+Lean hint. Use `record_background_note`; for library notes first obtain actual
+`probe_background` evidence. The source and application are checked now; Lean
+syntax, representations, coercions and proof terms remain translation work.
+
+Eligibility requires a correct local standard step, all conditions already
+available, no new hypothesis and no substantial new proof or changed route.
+Do not replace core tools, missing project results, source uncertainty, witness
+existence or unjustified limit exchanges by notes. A familiar name or guessed
+library availability is insufficient. A recorded note contains no unresolved
+mathematical TODO. Do not log every associativity step or duplicate explicit M.
+
+Authors explicitly register important tools, write ordinary rigorous arguments
+and self-check under this same policy; they need not anticipate every tiny M
+use. An auditor can transparently complete routine accounting without returning
+the whole NL0 for a rewrite. The accepted authority is immutable author NL0 plus
+the hash-bound audit/notes supplement. It is not an old-policy claim that every
+dependency was explicitly registered by the author.
+
+Fresh local reviewers may consult only logged read-only pinned-mathlib sources
+in addition to their own packet and Yui rules. Preserve successful source probes
+and actual tool readback evidence. This is
+`fresh_packet_with_verified_background`, not old `fresh_packet_only` replay.
+No other task, project proof, original/ancestor proof, repair history or owner
+hint is permitted. Unverified facts remain FAIL/UNVERIFIED as appropriate.
+Display PASS with background notes when present, retaining their count. The
+supplement is mandatory translation input; none of its facts may become an
+unproved Lean assumption. See [background notes](background-notes.md).
 
 A calculation label alone does not establish the existence of a canonical
 decomposition, normal form, extremizer, basis or structural identification.
@@ -228,6 +264,13 @@ inputs must still contain an actual permitted calculation/logical argument.
 
 ## A4. Review every inference
 
+Apply verified-background-1 while retaining every check below. An eligible
+omitted basic fact receives a positively checked background note and does not
+fail solely for missing input accounting. Ordinary correct elementary
+compression needs no exhaustive displayed chain. Substantive missing grounds,
+conditions, sources or proof still block. The accepted local material includes
+the version-bound supplement; it cannot be reconstructed silently from memory.
+
 First check three closures from the actual text:
 
 - **statement_closure**: input/output statements include every claimed formula,
@@ -262,8 +305,8 @@ an explanation. Repeating author notes or generic assurances is not review.
    uniform continuity,” and “a dominated limit may be integrated” require
    declared E/M inputs or complete earlier local proofs of the needed results.
    Familiarity, a descriptive theorem name, or inclusion in an author-written
-   calculation-policy sentence cannot waive this obligation. Distinguish an
-   ordinary valid textbook proof from a closed NL0 packet under this contract.
+   calculation-policy sentence cannot waive this obligation. Ordinary valid textbook compression is allowed for eligible background;
+   substantive tools and missing arguments still need their actual grounds.
    An abstract finite-dimensional, tensor or localization lemma is not
    automatically a finite arithmetic identity: inspect its displayed map,
    inverse, basis or other derivation, or require the actual declared source.
@@ -279,7 +322,8 @@ an explanation. Repeating author notes or generic assurances is not review.
    bridge IDs. “The theorem applies” is not a hypothesis mapping.
 
 Finally complete **packet_replay**, the tenth check. A fresh context reviews
-only the exact packet and skill instructions, without source proofs, other R
+the exact packet, Yui rules and logged pinned-mathlib queries for verified
+background, without original-source proofs, other R
 bodies, old NL0, author audit notes or prefilled verdicts. Record actual carrier,
 packet hash, prior exposure, mathematical materials read and execution evidence.
 Source fidelity is a separate check. Same-context rereading is a diagnostic,
@@ -288,15 +332,15 @@ keep an unperformed replay UNVERIFIED. Metadata cannot authenticate a claimed
 identity or isolation; preserve actual execution evidence and disclose limits.
 
 For an authorized clean packet replay, expose only that frozen packet as a
-task document, plus the Yui procedure. Use `yui.py stage --no-library` so the
-reviewer cannot read other mathematical material through library tools.
+task document, plus the Yui procedure. The clean packet carrier exposes controlled read-only pinned-mathlib
+queries and source probes for background notes, never arbitrary local files.
 Source/signature verification is a separate stage with its own disclosed inputs.
 
 Use `audit-template` for scaffolds. Every generated verdict starts UNVERIFIED.
 Serialization may preserve actually made judgments, but cannot infer PASS from
 author notes, populated fields, successful hashes or absence of exceptions.
-Missing content blocks acceptance even if the auditor could reconstruct it
-from memory. Return the defect to authoring and review the newly frozen version.
+Ineligible missing content blocks acceptance. Eligible routine background
+may be positively checked and recorded, never silently assumed from memory. Return the defect to authoring and review the newly frozen version.
 
 Stop granting acceptance at the first unsupported implication. Other diagnostic
 checks may continue, but a blocked descendant cannot receive a whole-proof

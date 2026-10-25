@@ -7,6 +7,10 @@ what the auditor might want. The clean carrier supplies that exact frozen
 section to both roles. [The schema](nl0-format.md) describes serialization;
 [the author template](../templates/authoring.md) gives tool shapes and examples.
 The elementary permissions come from the same controller-owned foundation.
+Use ordinary rigorous mathematical granularity. Explicitly register important
+tools; eligible tiny background uses can be checked and recorded by Audit A
+under [verified-background admission](background-notes.md). Do not pre-emptively
+rebuild elementary theories or treat an omitted basic M ID as a substantive gap.
 
 ## 1. Understand and freeze the supplied work
 
@@ -73,8 +77,9 @@ differentiation rules need their actual grounds; a familiar operation name
 does not extend the fixed calculation profile. Prefer an adequate verified
 background input to unnecessarily rebuilding its whole theory.
 
-For each S, identify each factual use's direct input, earlier F derivation or
-permitted explicit calculation while writing the actual argument. Check the
+For each S, identify its substantive direct inputs and local grounds while
+writing. Ordinary correct elementary reasoning may be compressed; tiny basic
+library uses may receive verified audit notes. Check the
 unit at that point; do not postpone its source inventory until after the whole
 proof. Read `dependency_closure`, `argument`, `dependency_accounting` and
 `scope` as construction obligations, not final assurances to fill in later.

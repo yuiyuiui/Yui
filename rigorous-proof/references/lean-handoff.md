@@ -7,6 +7,7 @@ source acceptance. NL1, Audit C and arbitrary Lean-repository reconstruction
 are outside this implementation. A passing source audit is not a Lean proof.
 
 The Lean consumer receives the fixed target/H/definitions, permitted E/M,
+and every accepted node-local background note with its bound source evidence,
 the entire graph, Audit A, source evidence, and one expanded task packet per R.
 Packets include exact direct input statements, definition closure and its
 prerequisites, the complete output, source signatures/applications, and proof
@@ -16,7 +17,9 @@ the consumer must not mine a producer proof for a stronger or missing result.
 The per-R packet omits non-input H/ancestor claims and source-proof locators.
 Global target context may orient the whole translation but does not enlarge a
 node's permitted premises. Definition guards needed by R are direct inputs.
-An incomplete output or undeclared object is returned to NL0/Audit A before
+Eligible background notes join the effective local inputs without rewriting
+the author graph. Bind their supplement hash in the typed interface.
+An ineligible incomplete output or undeclared object is returned to NL0/Audit A before
 formalization, rather than silently repaired by the formalization worker.
 Historical v1 receipts cannot establish this interface's current acceptance.
 

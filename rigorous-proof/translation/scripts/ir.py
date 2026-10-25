@@ -71,6 +71,12 @@ def contract(path):
     need(IDENTIFIER.fullmatch(c['id']) is not None, 'invalid contract id')
     source = (path.parent / c['source']['path']).resolve()
     need(source.is_file() and digest(source) == c['source']['sha256'], 'stale source bytes')
+    supplement=c['source'].get('background_supplement')
+    if supplement is not None or c['source'].get('background_supplement_sha256'):
+        import background
+        need(isinstance(supplement,dict) and supplement.get('policy')==background.POLICY,'missing/unsupported background supplement')
+        need(background.digest({k:v for k,v in supplement.items() if k!='sha256'})==supplement.get('sha256')
+             ==c['source'].get('background_supplement_sha256'),'changed background supplement')
     lock = load_lock()
     need(c['pins']['lean_version'] == '4.32.2' and
          c['pins']['mathlib_commit'] == lock['mathlib']['rev'], 'toolchain mismatch')
@@ -147,6 +153,10 @@ def validate(cpath, plan):
         need(s['id'] not in s['inputs'], 'self-dependency')
         need(s['source_steps'] and set(s['source_steps']) <= source_ids, 'invalid NL correspondence')
         need(s['explanation'].strip(), 'missing transition mechanism')
+        if 'background_notes' in s:
+            notes={rid+'.'+n['id'] for rid,rows in c['source'].get('background_supplement',{}).get('notes',{}).items() for n in rows}
+            need(isinstance(s['background_notes'],list) and len(s['background_notes'])==len(set(s['background_notes']))
+                 and set(s['background_notes'])<=notes,'unknown or duplicate background note in plan')
         if 'shared_lemma' in s:
             need(c['version'] == 2 and s['shared_lemma'] in shared, 'unregistered shared lemma')
             exported = shared[s['shared_lemma']]
@@ -227,6 +237,14 @@ def local_packet(cpath, plan, sid):
             'target': step['statement'], 'explanation': step['explanation'],
             'source_steps': [s for s in c['source_steps'] if s['id'] in step['source_steps']],
             'boundary': 'Only listed inputs are mathematical premises. No sibling proof is supplied.'}
+    supplement=c['source'].get('background_supplement')
+    selected=step.get('background_notes',[])
+    notes={rid+'.'+note['id']:note for rid,rows in (supplement or {}).get('notes',{}).items() for note in rows}
+    need(isinstance(selected,list) and len(selected)==len(set(selected)) and set(selected)<=notes.keys(),
+         'unknown or duplicate local background note')
+    if selected:
+        packet['accepted_background_notes']={key:notes[key] for key in selected}
+        packet['background_supplement_sha256']=supplement['sha256']
     if c['version'] == 2:
         selected = {b['object'] for b in step.get('representations', [])} | {b['object'] for b in step.get('bridges', [])}
         packet['objects'] = [o for o in c.get('objects', []) if o['id'] in selected]

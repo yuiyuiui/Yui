@@ -144,3 +144,12 @@ RUN` for recorded phase/tool/request costs. Stage completion is not Audit A/B.
 Nested tool durations are already inside stage wall time; request latency also
 contains transport/service queues, not observable pure model reasoning. Warm
 reuse keeps original acquisition cost and does not create a cold benchmark.
+
+## Verified background during local review
+
+Under verified-background-1 the fresh local lane may query pinned Mathlib and
+record actual routine background judgments. It retains all ten checks, logs
+source readback and binds the notes in the receipt. This is not the old
+packet-only boundary. No extra model is required per note and no owner hints
+are allowed. Reuse preserves notes, sources, actual context and original costs;
+translation consumes the enriched authority.

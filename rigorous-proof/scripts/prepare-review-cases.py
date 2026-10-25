@@ -34,8 +34,8 @@ def controls():
     p["inference"]["argument"][1]["text"] = "N001 gives b=a. The global transfer lemma yields a+0=b."
     result.append((p, "FAIL", "the global transfer lemma is neither an input nor locally proved", "/inference/argument/1/text"))
     p = copy.deepcopy(baseline)
-    p["inference"]["locals"][0].update(kind="witness", declaration="Choose c with c=a+0 and c=b.")
-    p["inference"]["argument"][0]["text"] = "Choose c with c=a+0 and c=b. In particular c=a by the additive identity."
+    p["inference"]["locals"][0].update(kind="witness", declaration="Choose a natural c with c=a+1 and c=a.")
+    p["inference"]["argument"][0]["text"] = "Choose a natural c with c=a+1 and c=a, without any existence premise. In particular c=a."
     result.append((p, "FAIL", "witness is chosen with the desired conclusion without an existence basis", "/inference/locals/0"))
     result.extend(local_algebra_controls(baseline))
     result.extend(analysis_permission_controls(baseline))
@@ -44,7 +44,35 @@ def controls():
     result.extend(bound_index_controls(baseline))
     result.extend(definition_unfolding_controls(baseline))
     result.extend(global_hypothesis_controls())
+    result.extend(background_controls(baseline))
     return result
+
+
+def background_controls(baseline):
+    """Routine library admission versus an actually missing structural premise."""
+    p=copy.deepcopy(baseline)
+    p.update(case_id='neutral-pointwise-operation',parameters=[
+        {'symbol':'f','type':'function from real numbers to real numbers'},
+        {'symbol':'g','type':'function from real numbers to real numbers'}],definitions=[])
+    p['logic']={'classical':False,'rules':['direct']};foundations.bind_author(p['logic'])
+    p['logic']=foundations.packet_logic(p['logic'])
+    p['inputs']=[{'id':'N001','kind':'internal','statement':'f and g are continuous for the usual real topology.',
+                  'definitions':[],'binders':[],'objects':['f','g']}]
+    p['output']={'id':'P','kind':'target','statement':'The function x ↦ f(x)+g(x) is continuous.',
+                 'definitions':[],'binders':[{'symbol':'x','type':'real number'}],'objects':['f','g','x']}
+    p['inference']={'id':'R001','inputs':['N001'],'output':'P','definitions':[],
+        'rules':['direct'],'locals':[],'applications':[], 'argument':[
+            {'id':'S001','text':'N001 gives continuity of f and g. Their pointwise sum is continuous by the usual closure of real-valued continuous functions under addition.',
+             'uses':['N001'],'uses_local':[],'objects':['f','g'], 'produces':[], 'introduces':[],'discharges':[]}]}
+    positive=(copy.deepcopy(p),'PASS','Correct routine library background can be positively checked and recorded without prior M accounting.',None)
+    p['case_id']='neutral-pointwise-structure'
+    p['parameters']=[{'symbol':'Y','type':'topological space equipped with an arbitrary binary addition operation; no compatibility of addition and topology is assumed'},
+                     {'symbol':'f','type':'function from Y to Y'}, {'symbol':'g','type':'function from Y to Y'}]
+    p['inputs'][0].update(statement='f and g are continuous.',objects=['f','g'])
+    p['output']['binders']=[{'symbol':'x','type':'element of Y'}]
+    p['inference']['argument'][0]['text']='N001 gives continuity of f and g. Their pointwise sum is continuous, regardless of whether addition on Y is continuous.'
+    negative=(p,'FAIL','The actual codomain lacks continuous addition; a background note cannot create that hypothesis.', '/parameters/0/type')
+    return [positive,negative]
 
 
 def global_hypothesis_controls():
@@ -260,6 +288,7 @@ def prepare(destination):
         packet["packet_sha256"] = nl0.closure.digest(packet)
         (reviewer / name).write_text(json.dumps(packet, indent=2) + "\n")
         expected[name] = {"expected_verdict": verdict, "reason": reason, "location": location,
+                          "requires_library_note":packet.get('case_id')=='neutral-pointwise-operation',
                           "kind":"global" if {'problem','spec','graph'}<=packet.keys() else "packet",
                           **({'expected_target_verdict':verdict} if {'problem','spec','graph'}<=packet.keys() else {}),
                           "accepted_locations":accepted_failure_locations(packet,location),

@@ -36,10 +36,13 @@ invalidation rules; completing stage one does not require stage two.
 
 ## Mathematical invariants
 
-- NL0 is an independent complete proof relative to its declared H/E/M inputs
-  and fixed logic. Every exported statement has its own complete content.
+- Accepted NL0 is a complete natural-language proof relative to explicit H/E/M,
+  fixed logic and its hash-bound verified background supplement. Important
+  tools remain explicit; ordinary correct elementary reasoning needs no
+  exhaustive calculation chain. See [background notes](references/background-notes.md).
 - Each inference uses only its direct inputs, global definitions and explicitly
-  established in-scope local facts. Source papers and producer proof bodies do
+  established in-scope local facts or positively checked node-local background
+  notes. Notes never add H or repair a substantive gap. Source papers and producer proof bodies do
   not fill gaps in a task packet.
 - Preserve one global mathematical identity while allowing local Lean views.
   Cross-view conversions need proved, explicitly permitted inputs.

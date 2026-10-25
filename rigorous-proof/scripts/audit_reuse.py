@@ -6,13 +6,15 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import background
 
 from execution_health import qualification
 from execution_state import atomic
 
 VERSION='yui-review-reuse-1'
 SEMANTIC_RULES=('references/nl0-format.md','references/self-containment.md',
-                'references/audit-a.md','references/external-theorems.md','references/logical-rules.md')
+                'references/audit-a.md','references/external-theorems.md','references/logical-rules.md',
+                'references/background-notes.md')
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -117,6 +119,7 @@ def select(data,campaigns):
                 if raw.get('packet_sha256')!=packet['packet_sha256'] or raw.get('inference')!=job['id']:continue
                 if any(f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'} for f in raw.get('findings',[])):continue
                 if set(raw.get('checks',{}))!=nl0.CHECKS|nl0.closure.CLOSURE_CHECKS:continue
+                background.validate(raw.get('background_notes', []), packet, stage)
                 items=[('packet:'+job['id'],'',raw)]
             for scope,selector,row in items:
                 if scope in hits or row.get('verdict')!='PASS' or not row.get('notes') or not all_pass(row):continue
@@ -137,6 +140,13 @@ def materialize(hit,case):
            **{name:directory/'stage'/filename for name,filename in [('raw','accepted.json'),('result','result.json'),
                ('manifest','execution-manifest.json'),('exposure','exposure-audit.json')]}}
     if hit['scope'].startswith('packet:'):files['packet']=directory/'packet.json'
+    background_sources={}
+    for note in hit['row'].get('background_notes', []):
+        for ev in note.get('source',{}).get('evidence',[]):
+            key='background_'+str(len(background_sources))
+            files[key]=directory/'stage'/ev['path'];background_sources[ev['path']]=key
+    if hit['scope'].startswith('packet:') and (directory/'stage/tools.jsonl').is_file():
+        files['tools']=directory/'stage/tools.jsonl'
     for name,path in files.items():
         digest=sha(path);target=folder/(digest+'-'+path.name)
         if target.exists() and sha(target)!=digest:raise ValueError('Cached evidence was changed')
@@ -145,6 +155,7 @@ def materialize(hit,case):
     record={'version':VERSION,'scope':hit['scope'],'selector':hit['selector'],
             'previous':previous,'context_sha256':hit['context_sha256'],'previous_campaign':hit['campaign'],
             'qualification':hit['measurement'],
+            'background_sources':background_sources,
             'cost_policy':'Warm inherited judgment; original result retains actual usage. No cold benchmark or parent campaign acceptance is inferred.'}
     path=folder/(hashed(record)+'.json');atomic(path,record)
     return {'path':str(path.relative_to(case)),'sha256':sha(path)}
@@ -200,7 +211,14 @@ def validate(case,binding,data,scope,entry=None):
     raw=raw_from_binding(case,binding)
     if not all_pass(raw) or raw.get('verdict')!='PASS':raise ValueError('Only qualified actual passing items can be inherited')
     if entry is not None:match_judgment(entry,raw)
-    return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw}
+    notes=deepcopy(raw.get('background_notes', []))
+    for note in notes:
+        for ev in note.get('source',{}).get('evidence',[]):
+            key=record.get('background_sources',{}).get(ev['path'])
+            if key not in record['previous']:raise ValueError('Inherited background evidence was not preserved')
+            ev.update(record['previous'][key])
+    if scope.startswith('packet:'):background.validate(notes, nl0.packet(data,scope.split(':')[1]), case)
+    return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw,'background_notes':notes}
 
 
 def match_judgment(entry,raw):
@@ -210,6 +228,13 @@ def match_judgment(entry,raw):
     if entry['notes'] not in permitted:raise ValueError('Inherited judgment notes changed')
     if 'locations' in entry and entry['locations']!=list(dict.fromkeys(raw.get('locations',[]))):
         raise ValueError('Inherited judgment locations changed')
+    def note_content(notes):
+        out=deepcopy(notes)
+        for note in out:
+            for ev in note.get('source',{}).get('evidence',[]):ev.pop('path',None)
+        return out
+    if note_content(entry.get('background_notes',[]))!=note_content(raw.get('background_notes',[])):
+        raise ValueError('Inherited background judgment changed')
     for group in ['checks','citation_checks','external_applications']:
         if group in raw:
             if set(entry[group])!=set(raw[group]):raise ValueError('Inherited child review coverage changed')

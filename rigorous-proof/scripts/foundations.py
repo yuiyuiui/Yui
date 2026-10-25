@@ -15,8 +15,8 @@ STANDARD_LANGUAGE = (
 CALCULATIONS = {
     'equality': 'Equality reflexivity, symmetry, transitivity and substitution.',
     'definitions': 'Unfold an explicitly supplied definition; this proves no extra property.',
-    'finite_algebra': 'Displayed finite semiring/ring/field arithmetic, including the usual zero/one laws (a+0=a, a*1=a), distributivity, associativity and finite polynomial identities.',
-    'finite_order': 'Displayed ordered-field reasoning: reflexivity, transitivity and antisymmetry; adding inequalities or multiplying/dividing them with their sign conditions; square nonnegativity for an explicitly given real expression. Display the actual reduction, inequality chain or nonnegative expression. Merely naming a theorem or asserting its output inequality is not a displayed calculation.',
+    'finite_algebra': 'Routine finite semiring/ring/field arithmetic, including zero/one laws, distributivity, associativity and finite polynomial identities. Correct elementary compression is permitted; a substantive missing argument is not.',
+    'finite_order': 'Routine ordered-field reasoning with actual signs/domains: order laws, adding inequalities, multiplication/division with sign conditions, and real square nonnegativity. Ordinary valid elementary inferences need no exhaustive displayed chain. Check that the conclusion follows; substantial named theorems still require inputs or verified-background admission.',
     'finite_sums': 'Unfold and rearrange finite sums/products with explicitly given finite indices.',
 }
 _LANGUAGE = {

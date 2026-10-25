@@ -234,3 +234,19 @@ The route receipt below is authoring provenance only:
   "confidence_kind": "caller_assertion_not_calibrated"
 }
 ```
+
+## Verified-background acceptance
+
+The shared NL0/Audit A policy now permits positively checked routine background
+notes. The actual local reviewer can query/probe pinned Mathlib; note provenance,
+review material hashes, effective translation inputs and Audit B source binding
+are checked. Author bytes stay fixed. All ten review dimensions remain. This
+is a new acceptance policy, not a relabeling of old failed trials.
+
+Validation before the new model round: full core, support and translation
+unit suites passed; the expanded background module passed 12 controls, including
+a real pinned-library probe, typed Lean interface freeze, note delivery to a
+local packet and zero-extraction inheritance. Synthetic review judgments in
+these controls are explicitly labeled and are not mathematical audit results.
+Skill validation and git diff --check passed. No mathematical model run is
+implied by these software controls.

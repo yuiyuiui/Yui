@@ -8,8 +8,8 @@ interpretation and examples, not an independent permission policy.
 
 ## Two boundaries
 
-NL0 is a complete proof relative only to its declared H/E/M roots and frozen
-logical foundation. It is not an outline requiring the original manuscript to
+Accepted NL0 is a complete proof relative to its declared H/E/M roots, frozen
+logical foundation and version-bound verified background notes. It is not an outline requiring the original manuscript to
 recover missing definitions, formulas, assumptions, or arguments. E/M statements
 are fully restated; their primary sources are inspected for provenance, not
 used to supply unstated premises. The fixed library's own proof dependencies
@@ -21,6 +21,11 @@ output, its local declarations, and its own argument. Another R's proof body,
 an ancestor not listed as an input, an ambient original H, an original-source
 crosswalk, or remembered material is not an additional mathematical resource.
 Whole-target/source-fidelity checks are separate from this local proof check.
+Under verified-background-1, local review may additionally verify routine
+pinned-mathlib facts using logged read-only queries and record them in the
+receipt. They join this R's effective dependencies, without new H or a graph
+rewrite. See [background notes](background-notes.md). Mathematical uncertainty
+still blocks; ordinary correct elementary compression alone does not.
 
 Original theorem conditions are H nodes, including conditions that could be
 encoded in a refined type. Parameters introduce ambient data/structures, not
@@ -69,9 +74,9 @@ variables may be reused in disjoint local scopes.
 ## Dependency closure
 
 Inventory actual factual uses from the prose back to their grounds, not just
-from an input list forward to a generic `uses` list. Each imported theorem,
-prior project lemma or original assumption used directly must be a listed
-input. A definition supplies meaning, not a theorem. An R output is not its
+from an input list forward to a generic `uses` list. Each substantive imported theorem, prior project lemma or original
+assumption must be a direct input. Eligible omitted basic library uses are
+recorded as verified audit notes in the effective dependency ledger. A definition supplies meaning, not a theorem. An R output is not its
 own premise. Adding the desired formula as an unproved input is not a repair.
 
 Explicit local calculations and fully proved intermediate facts may remain
@@ -110,10 +115,11 @@ proof, or writing a PASS label cannot establish closure.
    producer proofs, provenance file locators, extra ancestor statements or
    undeclared ambient H. Direct source contracts and required definitions are
    included. Packet hashes bind the mathematical input actually reviewed.
-3. Review statement, object and dependency closure separately, then the actual
-   inference. Record concrete packet locations and reasons for every verdict.
-4. Perform a fresh packet-only replay. The reviewer gets the skill instructions
-   and that packet, without the original proof, other R bodies, author review
+3. Review all closure/inference checks, admitting positively checked routine
+   background notes under the shared policy. Record concrete packet locations and reasons for every verdict.
+4. Perform a fresh local replay with disclosed controlled background lookup. The reviewer gets the skill instructions
+   and that packet plus logged pinned-mathlib queries, without original proof,
+   other R bodies, author review
    notes, old verdicts, or an answer key. Record the actual carrier, packet hash,
    prior exposure and mathematical material read. Skill instructions supply no
    extra mathematical premise. Do not falsely claim a same-context rereading
@@ -123,10 +129,10 @@ proof, or writing a PASS label cannot establish closure.
    Prior exposure means known task/proof material supplied or read in earlier
    contexts; this is not a claim about unknown pretraining contents. Learned
    mathematical knowledge cannot replace a missing declared premise or proof.
-5. A missing declaration, missing statement content, unlisted theorem or need
+5. An ineligible missing declaration, missing statement content, unlisted substantive theorem or need
    to look outside the packet blocks acceptance. Record the defect; do not
-   silently repair it while assigning PASS. Return it to authoring, freeze the
-   revision, and review that version. Routine completion does not require a
+   silently repair it while assigning PASS. Return substantive/structural defects to authoring and review the frozen
+   revision; eligible background notes need no author rewrite. Routine completion does not require a
    separate user interruption for every omission. Distinguish a representation
    defect from a substantive mathematical gap under the existing gap policy.
 

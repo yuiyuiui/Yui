@@ -28,9 +28,11 @@ checks, not extra mathematics. Submit only your actual review.
 '''
 
 
-def validate_review(packet,value):
-    if set(value)!={'verdict','findings'} or value['verdict'] not in nl0.VERDICTS or not isinstance(value['findings'],list):
+def validate_review(packet,value,base=None):
+    if set(value)-{'background_notes'}!={'verdict','findings'} or value['verdict'] not in nl0.VERDICTS or not isinstance(value['findings'],list):
         raise ValueError('Expected actual verdict and findings list')
+    import background
+    background.validate(value.get('background_notes',[]),packet,base or Path('.'))
     for item in value['findings']:
         if set(item)!={'location','check','explanation'} or not item['check'].strip() or not item['explanation'].strip():
             raise ValueError('Each finding needs a location, check and actual explanation')
@@ -41,6 +43,7 @@ def validate_review(packet,value):
 def matches_expected(expected, actual):
     """Compare recorded verdict/location only; never supply a mathematical judgment."""
     if not actual or actual.get('verdict')!=expected['expected_verdict']:return False
+    if expected.get('requires_library_note') and not any(n.get('kind')=='mathlib' for n in actual.get('background_notes',[])):return False
     if expected.get('kind')=='global' and actual.get('target_verdict')!=expected.get('expected_target_verdict'):return False
     if expected['location'] is None:return True
     allowed=expected.get('accepted_locations',[expected['location']])
@@ -108,7 +111,7 @@ def run(directory,timeout,budget=None):
             manifest(target);(target/'prompt.txt').write_text(PROMPT)
             stage=ArtifactStage(target/'stage',PROMPT,phase='audit-a-behavior',
                 inputs=target/'inputs.json',library=False,timeout=timeout,budget=budget,
-                validator=lambda value:validate_review(packet,value))
+                validator=lambda value:validate_review(packet,value,target/'stage'))
             result,actual=stage.execute();stage_dir=target/'stage'
         health=bool(result.get('measurement_valid') and result.get('exposure',{}).get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED')
         qualified=record_qualification(result,allow_blocked=expected.get('kind')=='global')

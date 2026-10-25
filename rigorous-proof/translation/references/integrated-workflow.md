@@ -226,3 +226,13 @@ reports separate preparation, freeze, proof makespan, queued/model-stage costs,
 assembly and audit; uninstrumented owner work stays UNMEASURED. Cold and warm
 reuse costs are separate, first construction is not free, and nested tool time
 is not added twice. Functional success does not establish general acceleration.
+
+## Sources carrying verified background notes
+
+Start from the accepted NL0 plus Audit A supplement. Read notes in the source
+inventory and enriched packets before planning. Bind the supplement hash in
+the contract, use the effective M inputs and account for elementary notes in
+the local proof plan. This requires no author graph rewrite. The current
+extraction adapter explicitly blocks a changed consumer with notes pending its
+scoped review; unchanged notes and a zero-extraction handoff are preserved.
+Never silently omit notes to obtain an interface or Audit B pass.

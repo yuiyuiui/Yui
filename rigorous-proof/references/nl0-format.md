@@ -383,3 +383,23 @@ Numbered-reference diagnostics reject common opaque references, not every
 possible paraphrase or hidden import. Behavioral tests must actually ask an
 auditor to review unseen controls; manually prefilled FAIL records only test
 receipt rejection and must be reported as such.
+
+## Verified background receipt extension
+
+New receipts declare `background_policy: "verified-background-1"`. Each R review
+may contain `background_notes`, with fields in background-notes.md. These are
+actual reviewer judgments, not unverified extra hypotheses. Old consumers must
+reject unsupported fields rather than silently drop them. The authored graph
+remains unchanged. A new replay uses `fresh_packet_with_verified_background`
+and binds `library_evidence` plus its actual material hashes; old strict
+empty-note records can retain `fresh_packet_only`.
+
+`nl0.validate` returns the note supplement/hash and note count. A packet read
+from an accepted source includes its notes and the original reviewed-packet
+hash. This enriched view is not claimed to be the original replay input.
+Translation binds the supplement in `contract.source.background_supplement_sha256`.
+
+The interface source also retains the complete `background_supplement`, not
+just its hash. Plan steps list the relevant qualified note IDs, for example
+`background_notes:["R004.BG001"]`. Workflow freeze checks the paragraph mapping;
+local Lean packets receive only their selected notes.

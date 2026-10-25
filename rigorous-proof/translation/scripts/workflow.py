@@ -18,6 +18,7 @@ import ir
 import run_graph
 import source_preparation as source
 import execution_state
+import background
 
 VERSION = 'nl0-lean-workflow-1'
 INTERFACE_CHECKS = {'source_route_and_coverage', 'parameters_and_allowed_inputs',
@@ -31,7 +32,12 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
     ir.need(data[0]['current_standard_receipt_valid'], 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
     c, nodes, _ = ir.validate(contract, ir.load(plan))
     ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
-    props = data[3]
+    props, effective_steps = background.effective(data)
+    supplement=data[0].get('background_supplement')
+    if data[0].get('background_note_count',0):
+        ir.need(c['source'].get('background_supplement_sha256') == supplement['sha256']
+                and c['source'].get('background_supplement') == supplement,
+                'interface omitted or changed accepted background supplement')
     roots = {p['id'] for p in c['premises']}
     ir.need(roots <= {p for p,v in props.items() if v['kind'] in {'hypothesis','external','mathlib'}}, 'unregistered/internal root premise')
     ir.need({p for p,v in props.items() if v['kind'] in {'hypothesis','external'}} <= roots, 'missing original hypothesis/external premise')
@@ -53,6 +59,14 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
         ir.need(pair in paragraphs and row['text'] == paragraphs[pair], 'source argument text differs from canonical NL0')
         actual.add(pair)
     ir.need(actual == set(paragraphs), 'whole workflow omits source argument paragraphs')
+    for step in nodes.values():
+        pairs={(mapping[s]['inference'],mapping[s]['paragraph']) for s in step['source_steps']}
+        needed=set()
+        for rid,notes in data[0].get('background_notes',{}).items():
+            for note in notes:
+                index=int(note['at'].split('/')[3]);sid=data[4][rid]['argument'][index]['id']
+                if (rid,sid) in pairs:needed.add(rid+'.'+note['id'])
+        ir.need(set(step.get('background_notes',[]))==needed,'local plan omitted or imported background notes at '+step['id'])
     exported = review['source_outputs']
     expected = {r['output'] for r in data[4].values()}
     ir.need(set(exported) == expected and exported['P'] == ir.load(plan)['terminal'], 'missing/extra source output mapping')
@@ -65,7 +79,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
         if tid != start and tid in boundary: return {boundary[tid]}
         ir.need(tid not in seen, 'cyclic implementation dependency')
         return set().union(*(dependencies(x,start,seen|{tid}) for x in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
-    for rid,r in data[4].items():
+    for rid,r in effective_steps.items():
         tid = exported[r['output']]
         ir.need(dependencies(tid,tid,set()) == set(r['inputs']), 'source input boundary changed at ' + rid)
     ir.need(review['evidence'], 'missing actual interface review evidence')
@@ -88,6 +102,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
                 'bindings': bindings, 'tools': tools, 'contract':str(copied), 'plan':str(out/'inputs/plan.json'),
                 'interface_review':str(interface_review), 'concurrency':configuration,
                 'source_outputs':exported, 'created_at_unix':time.time(),
+                'background_supplement':supplement,
                 'freeze_seconds':time.monotonic()-started, 'types_check':typed,
                 'preparation_cost':review.get('preparation_cost', {'status':'UNMEASURED'}),
                 'status':'SOURCE_AND_IR_FROZEN'}

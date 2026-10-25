@@ -228,6 +228,8 @@ class Stage(carrier.Trial):
                     'conclusion_type':'Lean Prop','representation_notes':'explain choices'}},ensure_ascii=False)
         if self.mode == 'plan':
             public = {k:c[k] for k in ('header','parameters','premises','conclusion','representation','source_steps')}
+            if c['source'].get('background_supplement'):
+                public['background_supplement']=c['source']['background_supplement']
             if c['version'] == 2:
                 public.update({k:c.get(k, []) for k in ('objects','shared_obligations')})
             return json.dumps({'task':'Construct a small typed transition plan following every supplied NL paragraph. Do not write proof bodies. Prefer a small number of useful closed obligations; each has only listed direct inputs. All retained steps must reach terminal.',
@@ -235,7 +237,7 @@ class Stage(carrier.Trial):
                 'output_schema':{'version':c['version'],'contract_sha256':ir.digest(self.cpath),'representation_notes':'describe the actual ranges, equality modes and representation bridges',
                     'steps':[{'id':'T001','statement':'complete Lean Prop','inputs':['H001'],
                               'source_steps':['S001'],'explanation':'mathematical mechanism'}],'terminal':'last T ID'},
-                'constraint':'Terminal statement must be exactly the supplied conclusion type; local premise proof names are h_H001 or h_T001. Cover all source paragraphs. In version 2, mark a step with shared_lemma only when it exactly matches a frozen shared_obligations entry. Never create or approve a new export.'},ensure_ascii=False)
+                'constraint':'Terminal statement must be exactly the supplied conclusion type; local premise proof names are h_H001 or h_T001. Cover all source paragraphs. When background notes are supplied, add background_notes:["Rnnn.BGnnn"] to each corresponding step; retain the checked facts and conditions, never add H. In version 2, mark shared_lemma only for an exact frozen shared_obligations entry. Never create or approve a new export.'},ensure_ascii=False)
         return json.dumps({'task':'Prove exactly this local conditional obligation using the supplied NL route. Return only the tactic body through submit_transition. All displayed parameter and input proof binders are already in context.',
                            'packet':ir.local_packet(self.cpath,self.plan,self.step)},ensure_ascii=False)
 

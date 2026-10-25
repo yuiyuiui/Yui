@@ -26,6 +26,15 @@ application under [Audit A](../references/audit-a.md). Source text is used for
 fidelity, not to supply an unstated premise during local replay. Unavailable
 citation checks remain UNVERIFIED under the existing retrieval procedure.
 
+## Verified background
+
+Retain all ten checks. Use ordinary rigorous elementary compression. Positively
+check eligible omitted basic mathlib facts using probe_background and record
+them with record_background_note; no new H, uncertain source or substantive gap
+qualifies. The receipt declares background_policy:verified-background-1 and
+background_notes per R. Saved notes are retained in from_saved_review completion.
+See references/background-notes.md for exact fields and handoff semantics.
+
 ## Ten separate checks per R
 
 | Check | Required inspection |
@@ -49,17 +58,18 @@ actually inspected content; do not copy author notes as a generic assurance.
 ## Replay and findings
 
 The replay record gives `packet_sha256`, `mode`, `carrier`, `prior_exposure`
-and `read_materials`. A real pass requires `fresh_packet_only`, a real carrier
+and `read_materials`. A new background-enabled pass uses `fresh_packet_with_verified_background`, a real carrier
 identifier, no previous exposure to this proof, and mathematical materials
-equal to `["packet:<hash>"]`. Skill instructions supply procedure, not facts.
+equal to the packet hash plus the bound pinned-library evidence hashes.
+Old strict empty-note records may retain fresh_packet_only. Skill instructions supply procedure, not facts.
 Exclude original proofs, other R bodies, author reviews and expected answers.
 Preserve execution evidence. This template grants no external dispatch authority.
 Disclose known prior task/proof exposure; do not claim to certify unknown
 pretraining contents. Learned facts still need legitimate declared grounds.
 
 Use `same_context_diagnostic` for rereading and `unperformed` when no replay
-ran; keep replay/affected overall verdict UNVERIFIED. Missing content must be
-reported with its location, not reconstructed from memory and then passed.
+ran; keep replay/affected overall verdict UNVERIFIED. Substantive missing content remains blocking. Eligible verified background
+completion is recorded explicitly rather than silently supplied from memory.
 Return repairs to authoring and review the newly frozen revision.
 
 For behavioral controls give the reviewer neutral packets and keep the owner's
