@@ -203,9 +203,10 @@ python3 scripts/workflow.py audit-prepare /absolute/new-workflow
 ```
 
 Read source and actual types; complete the pending `audit-b/mapping.json`,
-including all canonical expected types, M library signatures/discharge terms
-and any explicitly permitted calculation links. Source-output selectors are
-suggested from the reviewed IR; types remain unreviewed proposals.
+including actual E/P encoded types and concise direct/equivalent correspondence
+explanations. P includes all hypotheses. Supply `library_terms` only for retained
+M ports; Mathlib itself needs no source-registration or signature ledger. Types
+and explanations remain unreviewed proposals until independent B.
 
 ```sh
 python3 scripts/workflow.py audit-build /absolute/new-workflow
@@ -215,7 +216,8 @@ Read complete kernel/source evidence, then write a real located semantic
 review using [Audit B](audit-b.md). Revalidate ordinary or incremental A; do not
 repeat A mathematics inside B. Inspect actual dependencies/hidden fields and
 the final exported root, not just compiler success. No unresolved internal
-input or unmapped imported result is allowed. External publications remain
+project assumption or local axiom is allowed. Pinned Mathlib results are freely
+available and are not checked against NL0 M names or uses. External publications remain
 declared source-faithful inputs, not theorems proved by Lean.
 Validate location format before ending a model review: every pointer must
 resolve and include the required paired locations from mechanical.json. Keep
@@ -237,12 +239,12 @@ is not added twice. Functional success does not establish general acceleration.
 ## Sources carrying verified background notes
 
 Start from the accepted NL0 plus Audit A supplement. New interfaces use
-`node_local_reference`: keep the original H/E/M inputs, bind the full supplement
+`node_local_reference`: keep original H/E inputs and optional M ports, bind the full supplement
 hash, and retain each node's notes as on-demand implementation references. Do
 not pre-type or promote every note into an additional M input. The controller
 attaches exact note IDs to the relevant paragraphs. This requires no source
-rewrite and no fresh Audit A. At final Audit B, compare any actual use with
-that inference's permissions and evidence. Legacy `promoted_inputs` contracts
+rewrite and no fresh Audit A. Mathlib use is globally available in stage two;
+notes remain local references, not permissions. Legacy `promoted_inputs` contracts
 remain supported for reproducibility.
 
 Preserving this authority does not require every proof worker to read every

@@ -18,7 +18,7 @@ The author receives this problem's actual proof bundle, frozen contract/plan,
 original H/E/M/N/P/D inventory, source-output map and own saved assembly
 feedback. It may read its own checked proof bodies. Other cases, developer
 history and hidden reference proofs remain unavailable. Do not preload all
-background notes; retain their original node-local permissions.
+background notes; retain their node-local reference locations.
 
 ## Connection rules
 
@@ -27,12 +27,12 @@ background notes; retain their original node-local permissions.
    producer; preserve implicit and instance arguments. Source-facing N outputs
    must use their recorded T realizations. Never replace a missing producer by
    an assumption, placeholder, opaque proof or changed target.
-2. **Discharge every original M input.** Resolve its exact pinned declaration,
-   complete general signature and actual application conditions. Supply a real
-   Lean proof for the interface port, retaining required H/E. A declaration
-   spelling is not a proof. Unicode name components are data, not evidence of
-   a missing theorem. Actual pinned lookup and elaboration decide whether the
-   named declaration exists and fits.
+2. **Discharge retained M ports.** Supply a real Lean proof of each port in
+   `library_terms`, preserving required H/E. Any proved result in the pinned
+   Mathlib environment may be used; no matching source-M name, library signature
+   copy or permission ledger is required. New interfaces should normally apply
+   the library directly and omit unnecessary M ports. A declaration name alone
+   cannot discharge an assumption.
 3. **Export the original interface.** Retain all original H/E, parameters and
    definitions; remove M as assumptions by supplying the library proofs. Do
    not change representations, domains or hypotheses to force a match. The
@@ -40,7 +40,10 @@ background notes; retain their original node-local permissions.
    Those occurring in retained parameters/H/E/conclusion are inferred from
    that interface. Only implementation-only levels absent from the retained
    interface are instantiated at zero at this application site; the general
-   library declarations and reviewed signatures stay intact. Compile the
+   library declarations stay intact. Elaborate the generated assembled root
+   synchronously (`set_option Elab.async false in`) so proof-only universe
+   parameters are included at declaration commit. This does not serialize
+   separate proof workers. Compile the
    result; do not guess that implicit inference succeeded.
 4. **Build a standalone artifact.** `Proof.lean` contains definitions, actual
    local proofs, connected conditional root, checked library discharges and
@@ -48,11 +51,13 @@ background notes; retain their original node-local permissions.
    appended. `assembly.json` and `assembly-compiler.json` record that real
    complete-file outcome. A conditional fragment is not this gate.
 5. **Prepare actual audit evidence.** After standalone assembly passes, inspect
-   full kernel signatures, actual dependencies, hidden fields and node-local
-   note permissions. Save `Audit.lean`, `compiler.json`, `inspection.json`,
-   correspondence, source/proof hashes and the review packet. Inspection has a
-   bounded, disclosed internal computation budget. Its timeout is an inspection
-   failure, not mathematical rejection or expiry of the model's wall budget.
+   actual E/P kernel signatures and root closure. Carry short author
+   correspondence notes for every E and complete P; relevant definitions and
+   hidden fields remain visible to the independent reviewer. Save `Audit.lean`, `compiler.json`, `inspection.json`,
+   correspondence, source/proof hashes and the review packet. Inspection has no
+   default wall-clock or heartbeat budget. An explicitly requested cutoff or
+   actual execution failure is an incomplete inspection, not a mathematical
+   rejection. Full endpoint fidelity and kernel trust checks still apply.
 
 ## Repair and handoff
 

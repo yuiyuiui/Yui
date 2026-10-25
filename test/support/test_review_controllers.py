@@ -337,7 +337,8 @@ class ReviewControllerTests(unittest.TestCase):
                 'source_steps':[source['source_steps'][0]['id']],'explanation':'Equality symmetry.'},
                 {'id':'T002','statement':'a + 0 = b','inputs':['T001'],
                  'source_steps':[s['id'] for s in source['source_steps'][1:]],'explanation':'Substitution and additive identity.'}],
-            'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'}}
+            'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'},
+            'endpoint_correspondence':{'P':{'mode':'direct','explanation':'For natural a,b with a=b, the source and export both assert a+0=b.'}}}
         self.assertFalse(validator(draft)['mathematical_acceptance'])
         paths=json.loads((out/'accepted-interface-paths.json').read_text())
         contract=json.loads(Path(paths['contract']).read_text())

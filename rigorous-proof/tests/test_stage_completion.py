@@ -103,7 +103,7 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(json.loads(self.worker.proc.stdin.getvalue())['error']['code'],-32800)
 
     def test_protocol_wait_stop_preserves_uncertain_outcome_and_cleans_workspace(self):
-        current=[0.];guard=ProviderWaitGuard(clock=lambda:current[0])
+        current=[0.];guard=ProviderWaitGuard(idle_seconds=120,clock=lambda:current[0])
         guard.normalized(7);guard.observe({'type':'response.output_item.done','item':{
             'type':'function_call','call_id':'synthetic-call','id':'item7','name':'check_draft'}},7)
         guard.delivered('synthetic-call','actual-tool-result');current[0]=121

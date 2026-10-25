@@ -66,28 +66,11 @@ class MinimalTranslationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'another paragraph'):
             bg.attach_notes(steps,source,supplement)
 
-    def test_note_library_permission_is_local_and_does_not_add_an_assumption(self):
-        note={'id':'BG001','kind':'mathlib','at':'/inference/argument/0/text','fact':'test',
-              'grounds':[],'source':{'declaration':'Nat.add_comm'}}
-        inventory={'background_mode':bg.REFERENCE_ONLY,'logic':{},'background_supplement':{
-            'notes':{'R001':[note]}},'inferences':[
-                {'id':'R001','inputs':[],'output':'N001'},
-                {'id':'R002','inputs':['N001'],'output':'P'}]}
-        plan={'terminal':'T002','steps':[{'id':'T001','inputs':[]},
-                                       {'id':'T002','inputs':['T001']}]}
-        mapping={'entries':{'N001':{'selector':'decl:Translation.T001'},
-                            'P':{'selector':'decl:AuditBExport.P'}},'calculation_links':{}}
-        decls=[{'name':'Translation.T001','imported':False,'direct_constants':['Nat.add_comm']},
-               {'name':'Translation.T002','imported':False,'direct_constants':[]},
-               {'name':'Nat.add_comm','imported':True,'proof_valued':True}]
-        rows=audit_b.dependency_correspondence(inventory,mapping,plan,decls)
-        self.assertTrue(all(r['matched'] for r in rows))
-        self.assertEqual(rows[0]['actual_boundary_inputs'],[])
-        self.assertEqual(list(rows[0]['background_library_uses']),['Nat.add_comm'])
-        decls[1]['direct_constants']=['Nat.add_comm']
-        rows=audit_b.dependency_correspondence(inventory,mapping,plan,decls)
-        self.assertFalse(rows[1]['matched'])
-        self.assertEqual(rows[1]['unpermitted_imported_proofs'],['Nat.add_comm'])
+    def test_notes_do_not_create_a_library_permission_gate(self):
+        self.assertNotIn('calculation_links', author.PROMPT)
+        self.assertIn('freely available', author.PROMPT)
+        self.assertNotIn('library_and_calculation_correspondence', audit_b.REVIEW_CHECKS)
+        self.assertFalse(hasattr(audit_b, 'dependency_correspondence'))
 
     def test_deferred_freeze_is_not_a_synthetic_semantic_pass(self):
         graph,spec,_=case(self.root/'case');receipt=synthetic_audit(graph,spec)
@@ -121,13 +104,21 @@ class MinimalTranslationTests(unittest.TestCase):
         finally:recorder.close('SYNTHETIC_DEADLINE_CONTROL')
         self.assertTrue(execution.inspect(self.root/'run')['time_budget']['expired'])
 
-    def test_instance_support_excludes_ordinary_proof_uses(self):
-        declaration={'name':'TEST_ONLY.instance','imported':True,'proof_valued':True,'instance_declaration':True}
-        use={'name':'Translation.T001','imported':False,'proof_valued':True,
-             'proof_uses':{'ordinary':[],'instance_argument':['TEST_ONLY.instance']}}
-        self.assertEqual(audit_b.instance_support([declaration,use]),{'TEST_ONLY.instance'})
-        use['proof_uses']['ordinary'].append('TEST_ONLY.instance')
-        self.assertEqual(audit_b.instance_support([declaration,use]),set())
+    def test_unlimited_case_does_not_gain_a_stage_deadline(self):
+        recorder=execution.Recorder(self.root/'unlimited','test',a.concurrency.resolve(2))
+        try:
+            budget=a.concurrency.Budget(a.concurrency.resolve(1),execution=recorder)
+            self.assertIsNone(flow.stage_seconds(budget))
+            self.assertIsNone(recorder.deadline)
+            self.assertIsNone(recorder.state['time_budget']['seconds'])
+            recorder.check()
+            execution.request_cancel(recorder.root)
+            with self.assertRaises(execution.Cancelled):recorder.check()
+        finally:recorder.close('SYNTHETIC_UNLIMITED_CONTROL')
+
+    def test_instance_proofs_need_no_separate_semantic_permission_row(self):
+        self.assertFalse(hasattr(audit_b, 'instance_support'))
+        self.assertEqual(len(audit_b.REVIEW_CHECKS),4)
 
     def test_artifact_obstacle_api_has_no_routine_incomplete_report(self):
         stage=ArtifactStage(self.root/'stage','test',phase='interface-authoring',library=False)

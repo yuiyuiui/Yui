@@ -6,8 +6,10 @@ and ready for Lean formalization. It has two stages:
 1. Build a self-contained structured natural-language proof (`NL0`) and run
    Audit A over its statements, dependencies, local arguments and citations.
 2. Translate the accepted proof through typed local interfaces into Lean,
-   assemble checked local proofs, and run Audit B over source fidelity and
-   actual kernel types/dependencies.
+   assemble checked local proofs, and run Audit B over every external theorem
+   and the complete target (including hypotheses), plus actual kernel closure.
+   Short author explanations document direct or equivalent encodings for the
+   independent reviewer. All pinned Mathlib results are available in this stage.
 
 Literature results that have not been proved in Lean remain explicitly listed
 external premises. Checking a citation and proving that cited theorem in Lean
@@ -137,4 +139,6 @@ Review completion, bounded repairs and conservative inherited evidence are
 described in [the execution contract](rigorous-proof/references/review-execution.md).
 The small [source catalog](rigorous-proof/library/foundations.json) contains
 eight natively checked pinned declarations, with complete signatures and original
-query cost. It grants no source/application review or blanket Mathlib permission.
+query cost. It grants no source/application review or blanket Mathlib permission
+inside NL0/Audit A. Stage-two translation separately allows all pinned Mathlib
+results without a source-M correspondence or use-permission ledger.

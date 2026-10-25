@@ -1,54 +1,48 @@
-# Audit B review record
+# Audit B endpoint review record
 
-For a revised source record the accepted NL0 and source-acceptance.json,
-baseline Audit A, scoped new reviews and inherited qualifications. The adapter
-revalidates this chain; B does not redo unchanged NL0 mathematics.
+Policy: endpoint-fidelity-2. Status remains UNVERIFIED until actual review.
 
-Status: UNVERIFIED until actual review and mechanical gates are complete.
+## Bound scope
 
-## Scope and frozen inputs
+- Accepted source/Audit A and inherited qualifications:
+- Contract, plan, proof bundle and actual standalone root:
+- Lean/Mathlib pins and compiler/inspection evidence:
+- Reviewer identity, independence and exposure:
 
-- Source graph/specification/Audit A paths and hashes:
-- Contract, plan, proof bundle, actual root and shared-source versions:
-- Lean/mathlib/dependency pins and actual verifier command:
-- Whole proof or precisely named development fragment:
-- Reviewer identity, context, reference/author exposure and independence:
-- Upstream citation or mathematical qualifications carried forward:
+## External and complete-target correspondence
 
-## Source correspondence table
+One row per original E and final P. P includes all hypotheses and parameters.
+No separate H/M/N/D or imported-library permission rows are required.
 
-One row per H/E/M/N/P/D. List all implementation helpers separately.
-
-| Source ID and complete statement location | Actual Lean declaration/port and full type location | Domains/quantifiers/assumptions/conclusion | Representations/guards/instantiation | PASS/FAIL/UNVERIFIED and located evidence |
+| Endpoint | Original complete statement | Actual Lean selector/full type | Author mode and short explanation | Independent comparison, verdict and evidence |
 | --- | --- | --- | --- | --- |
-| Pending | Pending | Pending | Pending | UNVERIFIED |
+| P or E ID | Source location | Actual elaborated location | direct/equivalent; why meanings agree | PASS/FAIL/UNVERIFIED; specific located findings |
 
-For E compare the complete NL0 statement, source-context qualifications and
-every field. For M compare both the general library signature and actual local
-application; show that root uses are discharged by a real library proof.
-Names/counts alone do not establish correspondence.
+Read every explanation against both the source and the actual type. For an
+equivalent encoding, check the identification in both directions under the
+actual assumptions. Consult relevant definitions and hidden fields. Do not
+require a duplicate Lean representation merely for literal correspondence.
+Actual conversions used by the proof must be checked code. An author's note
+or a compiler pass cannot populate the review automatically.
 
-## Global review
+## Four global checks
 
-- Inventory exactness and scope, including unused original H:
-- Mathematical parameters, definitions and representation/normalization fidelity:
-- Every explicit/implicit parameter, structure field, instance and selector:
-- Source R inputs versus actual source-boundary dependencies and proof route:
-- Shared/administrative proofs and complete final assembly:
-- Permitted M/calculations and all actual imported proof constants:
-- Source scans, warnings, fresh build, actual root type and foundation axioms:
+- endpoint_inventory_and_scope:
+- external_statement_fidelity:
+- complete_target_and_representations:
+- kernel_closure_and_trust:
 
-Each check needs source and actual formal evidence locations, a specific note,
-and PASS/FAIL/UNVERIFIED. An unperformed check stays UNVERIFIED. Kernel success
-cannot fill the semantic review entries.
+Each has a specific PASS/FAIL/UNVERIFIED finding and actual evidence locations.
+Mathlib is freely available; no NL0 M name/count/use matching is performed.
+Intermediate M ports, if retained, must be discharged by real library proofs.
+No extra unproved assumptions, hidden target assumptions or local axioms.
 
 ## Verdict
 
-- Mechanical gates:
-- Semantic/dependency concordance:
-- Upstream Audit A status and unresolved items:
-- Exact accepted statement and remaining external assumptions:
-- Audit B status, reviewer scope and invalidation boundary:
+- Actual standalone build and inspection:
+- Complete original target and remaining external assumptions:
+- Actual independent semantic outcome and unresolved findings:
+- Whole-proof/development scope, inherited qualifications and invalidation:
 
-Record conditional, development and whole-proof acceptance distinctly. Do not
-claim that external results were proved in Lean or that a self-audit was independent.
+Retain version-1 historical verdicts under their original policy. Never promote
+an explanation, pending receipt or conditional fragment to an Audit B PASS.

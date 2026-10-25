@@ -454,3 +454,73 @@ actual audit/assembly errors were saved in a hash-verified small offline
 archive outside this checkout. Raw carrier histories/caches are not required
 to retain that curated evidence. This reset launches no new model experiment;
 synthetic native/software controls are not the three exercises passing B.
+
+
+## 2026-10-26: separate assembly, source fidelity and inspector failures
+
+The R3 follow-up diagnosis was recorded before reset; its untracked detailed
+report and generated proof/diagnostic files were deleted at the user's request
+on 2026-10-26. The concise findings below remain. No new model test ran during
+that diagnosis.
+
+- Geometry's 23 checked jobs assembled into a root that triggered Lean's async
+  universe-parameter commit error. The byte-identical source fails again;
+  a diagnostic copy with async elaboration disabled compiles. Fix the root
+  generator/gate rather than reauthoring all node proofs.
+- PDE's eleven library-signature rejections disappear under bijective universe
+  renaming. All five source input sets already match. Its 274 reported imported
+  proof names mix foundational tactic machinery and genuine missing dependency
+  correspondence; never report that count as 274 mathematical gaps.
+- Lie's separate Yui-only review found missing bridges to the integral and
+  tensor Lie-algebra objects despite a compiling operator proof. Native
+  inspector heartbeat exhaustion is a different, additional execution defect.
+- Ordinary runs now have no automatic time/token/call budget or post-tool idle
+  cutoff. Explicit cancellation and resource ownership remain. Earlier finite
+  manifests and original failed artifacts retain their historical meaning.
+
+
+## 2026-10-26: endpoint correspondence and Mathlib policy revision
+
+Audit B version 2 (`endpoint-fidelity-2`) reviews every external theorem E and
+complete target P, including parameters, hypotheses and conclusion. Authors
+supply a short direct/equivalent correspondence explanation; reviewers must
+check it against original text, actual types and relevant definitions. A
+missing literal Mathlib object or a missing redundant second representation is
+not by itself evidence of a wrong translation. The earlier Lie bridge finding
+remains an old-policy result, not proof that the operator encoding is
+mathematically inequivalent. Its new-policy semantic verdict is still pending.
+
+All pinned Mathlib theorems may now be used without per-M registration or
+node-level library permission review. Optional intermediate M ports must still
+be discharged by real Lean proofs. There is no per-M signature inventory,
+calculation permission ledger or imported-proof whitelist in the new Audit B.
+Unproved extra assumptions, local axioms and changed endpoint meanings remain
+failures. Old measured outcomes are not relabeled.
+
+The generated assembled root now elaborates synchronously to avoid missing
+proof-only universe parameters at async commit. Signature comparisons allow
+bijective universe renaming while preserving distinct levels and their
+relations. Regression controls cover these changes, permitted direct library
+use, wrong targets, stronger external assumptions, hidden proof fields, pending
+reviews and explanation/evidence bindings. These are software/native checks;
+this revision does not launch a new three-exercise model test or establish a
+new mathematical Audit B pass or timing improvement.
+
+
+## 2026-10-26: clean stage-two restart under endpoint-fidelity-2
+
+The user requested deletion of previous stage-two processes, temporary resources,
+Lean artifacts and audit/diagnostic drafts before another run. Exact-ownership
+cleanup found no remaining live old model process or owned carrier workspace.
+Stage-two outputs and their untracked diagnostic handoffs were removed. The
+accepted R24 NL0/Audit A evidence and fixed problem inputs were hash-checked
+before and after cleanup; those stage-one sources remain the new run's inputs.
+
+Before reset, 296 core, 150 translation and 92 support controls passed (538
+software tests), along with skill validation and whitespace checks. These are
+software/native controls, not new mathematical Audit B verdicts. The next run
+uses the pushed source commit and a new output directory, with no old Lean
+proof, interface, verdict, repair hint or owner mathematical help supplied.
+Each of the three cases has five independent proof slots and serial preparation
+and review, using gpt-6.1-sol/high/Standard with no fallback and no imposed
+case/stage/native/token budget. Reuse accepted Audit A by integrity checks only.

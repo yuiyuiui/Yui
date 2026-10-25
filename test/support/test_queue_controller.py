@@ -44,6 +44,13 @@ class QueueControllerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'plain unique'):
             q.validate_job({**job,'audit_controls':'../foreign-control'})
 
+    def test_unlimited_job_accepts_null_and_still_validates_explicit_limits(self):
+        job={'id':'neutral-control','kind':'nl0','case':'wave-map-energy','run':'neutral-nl0',
+             'audit':'neutral-audit','stop_after':'audit_a'}
+        for value in (None,30):q.validate_job({**job,'time_budget_seconds':value})
+        for value in (False,0,-10,'unlimited'):
+            with self.assertRaises(ValueError):q.validate_job({**job,'time_budget_seconds':value})
+
     def test_submitted_interface_gets_a_new_review_without_reauthoring(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);case=root/'test/results/neutral/case';case.mkdir(parents=True)

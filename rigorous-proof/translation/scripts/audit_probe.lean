@@ -103,7 +103,7 @@ private def inspect (roots : Array Name) : MetaM Json := do
   let mut pending := roots
   let mut seen : NameSet := {}
   let mut rows : Array Json := #[]
-  while !pending.isEmpty && seen.size < 10000 do
+  while !pending.isEmpty do
     let name := pending.back!
     pending := pending.pop
     if seen.contains name then continue
@@ -121,7 +121,7 @@ private def actualType (selector : String) (parts : Array String) : TermElabM Ex
     return (← getConstInfo (nameOf parts)).type
   if selector.startsWith "premise:" then
     let wanted := "h_" ++ (selector.drop 8).toString
-    let root ← getConstInfo `Translation.P
+    let root ← getConstInfo `AuditBExport.P
     return ← forallTelescope root.type fun xs _ => do
       let mut context : Array Expr := #[]
       for x in xs do
@@ -132,29 +132,47 @@ private def actualType (selector : String) (parts : Array String) : TermElabM Ex
       throwError "Missing actual root premise {wanted}"
   throwError "Unsupported selector {selector}"
 
+/- Universe parameter names belong to each declaration's binder scope.
+   Rename them bijectively, retaining repetitions and all level expressions.
+   This is alpha-equivalence, not a proof of logical equivalence. -/
+private def sameSignature (actual expected : Expr) : MetaM (Bool × String) := do
+  if ← withoutModifyingState <| isDefEq actual expected then
+    return (true, "definitional")
+  let actualParams := (collectLevelParams {} actual).params.toList
+  let expectedParams := (collectLevelParams {} expected).params.toList
+  if actualParams.length != expectedParams.length then
+    return (false, "different_universe_binders")
+  let levels := (List.range actualParams.length).map fun i =>
+    Level.param (Name.mkSimple ("_yuiAuditLevel" ++ toString i))
+  let equal ← withoutModifyingState <| isDefEq
+    (actual.instantiateLevelParams actualParams levels)
+    (expected.instantiateLevelParams expectedParams levels)
+  return (equal, "bijective_universe_renaming")
+
 elab "#nl2lean_audit_probe" : command => do
   let result ← liftTermElabM <| withOptions
       (fun o => (o.setBool `pp.all true).setBool `pp.universes true) do
     let checks : Array (String × String × String × Array String) := __AUDIT_CHECKS__
     let mut comparisons : Array Json := #[]
-    let mut roots : Array Name := #[`Translation.P]
+    let mut roots : Array Name := #[`AuditBExport.P]
     for (id, selector, expectedText, parts) in checks do
       let stx ← ofExcept <| Parser.runParserCategory (← getEnv) `term expectedText
       let expected ← Term.elabTerm stx none
       Term.synthesizeSyntheticMVarsNoPostponing
       let expected ← instantiateMVars expected
       let actual ← actualType selector parts
-      let equal ← isDefEq actual expected
+      let (equal, method) ← sameSignature actual expected
       comparisons := comparisons.push <| Json.mkObj [
         ("id", toJson id), ("selector", toJson selector),
         ("expected_type", toJson (← showType expected)),
-        ("actual_type", toJson (← showType actual)), ("definitionally_equal", toJson equal)]
+        ("actual_type", toJson (← showType actual)), ("definitionally_equal", toJson equal),
+        ("comparison_method", toJson method)]
       if selector.startsWith "decl:" then
         roots := roots.push (nameOf parts)
     let dependencies ← inspect roots
     return Json.mkObj [("comparisons", toJson comparisons), ("dependencies", dependencies)]
   logInfo m!"NL2LEAN_AUDIT_JSON:{result.compress}"
 
-set_option maxHeartbeats 2000000 in
+set_option maxHeartbeats 0 in
 #nl2lean_audit_probe
 end NL2LeanAuditProbe

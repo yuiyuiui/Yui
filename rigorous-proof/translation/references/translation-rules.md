@@ -34,8 +34,11 @@ then export the actual worker packets from the accepted source version.
    conversion obligations explicitly. Do not require boundedness merely to
    compare extended-valued suprema; do not derive fixed-point evaluation from
    a.e. equality without a justified representative condition.
-5. Review each port against NL0, including quantifiers, uniformity, exceptional
-   branches, constants and structure fields. Freeze the contract with hashes.
+5. Supply short `endpoint_correspondence` explanations for every external E
+   and complete P (all parameters, hypotheses and conclusion). Use `direct` for
+   immediate translations; use `equivalent` to explain the identification, its
+   conditions and both directions. Relevant definitions/fields must support
+   that account. Freeze the contract with hashes; independent B checks fidelity.
    Missing proof content returns to NL0/Audit A; a missing API remains an
    implementation issue. No automatic alternative mathematical proof search.
 
@@ -60,7 +63,8 @@ label. New extraction labels should identify the baseline revision explicitly.
    Keep existence guards direct and quantify all locally introduced objects.
 4. List representation bridges, library application conditions and computational
    normalization in the explanation. A strategy suggests operations; it never
-   supplies a theorem. Source fidelity and direct-premise use remain required.
+   supplies a theorem. Project premises stay explicit; all pinned Mathlib
+   theorems may be used without separate registration.
 5. Run structure and type checks. Inspect semantics separately. A plan whose
    transition cannot be justified is not rescued by well-formed syntax.
 
@@ -71,8 +75,8 @@ label. New extraction labels should identify the baseline revision explicitly.
    Shared context contains definitions and parameters, not ambient hypotheses.
 2. Generate only the tactic body for the fixed T target. Use the pinned library
    to implement the NL step. Prefer explicit intermediate conclusions and
-   `simp only` when they make dependency accounting inspectable. Record library
-   results actually used, including substantive facts invoked by automation.
+   library automation when it fits. No per-theorem Mathlib permission or
+   correspondence ledger is required; actual Lean compilation checks its use.
 3. Check locally. If it fails, preserve the goal, local context, diagnostic,
    attempted code and hashes. Continue a clear local repair directly. Optional
    obstacle lookup is available after observed lack of progress; it is not a

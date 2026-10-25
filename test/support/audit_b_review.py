@@ -19,30 +19,38 @@ from review_contract import ReviewContract
 from execution_health import require_review_execution, review_outcome
 
 
-PROMPT='''Perform the actual fresh Audit B semantic review. Read the original
-independent NL0 inventory and all paired actual kernel evidence in
-review-packet.json, mechanical.json, and the relevant Yui Audit B rules.
-The completed proof and formalizer's types are candidates, not a reference
-answer. For every required source node, implementation declaration and allowed
-calculation, compare the FULL source statement with the FULL elaborated Lean
-type and inspect actual proof/definition/dependency evidence. Check all
-parameters, hypothesis strength, quantifiers, domains, representation bridges,
-hidden proof fields, source N closure, permitted library uses, original target,
-edge cases, assembly and trust assumptions. Read every paired location in
-mechanical.required_review_locations. Compiler success and equal labels alone
-are insufficient. External source inputs remain explicitly conditional; do not
-claim the publications themselves proved in Lean. Return JSON with exactly
-nodes,checks,findings. nodes has exactly every required_review_locations key;
-checks has exactly inventory_and_scope,
-parameters_definitions_and_representations,complete_signature_and_hidden_fields,
-direct_dependencies_and_route,shared_proofs_and_final_closure,
-library_and_calculation_correspondence,warnings_and_trusted_environment.
-Every row has {verdict:PASS|FAIL|UNVERIFIED,notes:<actual specific comparison>,
-locations:[<resolving JSON pointers into review-packet.json>]}. Each node row
-must include all its required paired source/kernel pointers. Each global check
-includes /inventory and /actual_elaborated_evidence plus useful precise fields.
+PROMPT='''Perform the actual fresh Audit B semantic review under endpoint-fidelity-2.
+Use the original NL0 inventory/full target, actual elaborated endpoint types,
+relevant definitions and the author's endpoint correspondence explanations in
+review-packet.json. Review exactly every external E and complete P. The target
+includes ALL parameters, quantifiers, hypotheses, domains and the conclusion.
+The author's explanation helps locate the comparison; independently verify it
+against the source and actual Lean. A claimed direct translation or equivalence
+is not itself evidence of correctness. Check hidden proof fields and edge cases
+when they affect an endpoint's meaning. Equivalent mathematical encodings are
+allowed without duplicating a literal Mathlib object or requiring a redundant
+formal isomorphism. If a proof uses two representations, their actual conversions
+must be checked. Reject changed/strengthened assumptions, unsupported equivalence,
+wrong domains or an omitted target clause.
+
+The pinned Mathlib environment is freely available. Do NOT review whether its
+theorem names, counts or per-node uses match the NL0 M inventory. There is no
+per-M, per-N, per-D, instance or calculation permission audit. Inspect relevant
+local definitions to understand E/P, not as a separate source-inventory test.
+Check the actual standalone root, completed assembly and recorded kernel trust
+evidence. External inputs remain conditional; do not claim their publications
+were proved in Lean. Compilation and accepted JSON are not a semantic PASS.
+
+Return exactly nodes,checks,findings. nodes has exactly the required_review_locations
+keys (E and P). checks has exactly endpoint_inventory_and_scope,
+external_statement_fidelity,complete_target_and_representations,kernel_closure_and_trust.
+Each row is {verdict:PASS|FAIL|UNVERIFIED,notes:<specific comparison>,
+locations:[<JSON pointers into review-packet.json>]}. Include every required
+source/type/explanation pointer for each endpoint. Each global check includes
+/inventory and /actual_elaborated_evidence plus useful specific locations.
 findings is a list of concrete {verdict,explanation,locations}, empty if none.
-Preserve real defects; do not fix the proof, strengthen H, or invent a PASS.
+If there are no external inputs, say so in that global check. Preserve defects;
+do not repair the proof or treat an author's assurance as a passed review.
 '''
 
 
@@ -64,7 +72,7 @@ def validate(value,out):
     out=Path(out);packet=ir.load(out/'inputs/review-packet.json');mechanical=ir.load(out/'inputs/mechanical.json')
     if set(value)!={'nodes','checks','findings'}:raise ValueError('Return exactly nodes, checks and findings')
     if set(value['nodes'])!=set(mechanical['required_review_locations']) or set(value['checks'])!=set(audit_b.REVIEW_CHECKS):
-        raise ValueError('Review every required source/implementation/calculation and all seven global checks')
+        raise ValueError('Review every external/target endpoint and all four global checks')
     for key,row in {**value['nodes'],**value['checks']}.items():
         if set(row)!={'verdict','notes','locations'} or row['verdict'] not in {'PASS','FAIL','UNVERIFIED'} or not row['notes'].strip():
             raise ValueError('Each row needs a real verdict, specific notes and locations')
@@ -77,7 +85,7 @@ def validate(value,out):
     return {'scope':'Completeness, location and judgment consistency only; actual semantic decisions are the reviewer\'s.'}
 
 
-def run(out,timeout=1800,budget=None):
+def run(out,timeout=None,budget=None):
     out=Path(out).resolve()
     mechanical=ir.load(out/'inputs/mechanical.json')
     required=['/nodes/'+key for key in mechanical['required_review_locations']]+['/checks/'+key for key in audit_b.REVIEW_CHECKS]
@@ -115,7 +123,7 @@ def collect(out):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--audit');p.add_argument('--timeout-seconds',type=int,default=1800)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--audit');p.add_argument('--timeout-seconds',type=int,default=None)
     args=p.parse_args()
     result=prepare(args.audit,args.out) if args.command=='prepare' else run(args.out,args.timeout_seconds) if args.command=='run' else collect(args.out)
     print(json.dumps(result,ensure_ascii=False,indent=2))

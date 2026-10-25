@@ -86,7 +86,7 @@ def audit_source(case,source,name,budget,progress,*,reuse_from=(),controls=None)
         if campaign['graph']!=a.bind(source/'nl0.json') or campaign['spec']!=a.bind(source/'spec.json'):
             raise ValueError('The prepared audit is for a different exact source')
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
-    a.run(directory,1200,budget=budget)
+    a.run(directory,stage_seconds(budget),budget=budget)
     if budget.execution:budget.execution.check()
     result=a.collect(directory,controls or a.ROOT/'test/results/audit-a-behavior-v1/behavioral-summary.json')
     if not result['full_acceptance']:
@@ -98,7 +98,7 @@ def audit_source(case,source,name,budget,progress,*,reuse_from=(),controls=None)
 
 
 def stage_seconds(budget):
-    limit=__import__('json').loads((a.CORE/'config.json').read_text())['timeouts']['case_seconds']
+    limit=__import__('runtime_config').configured_timeout('stage')
     return budget.execution.remaining(limit) if budget.execution else limit
 
 

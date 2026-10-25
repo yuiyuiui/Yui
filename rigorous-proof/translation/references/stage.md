@@ -30,7 +30,7 @@ connects this translation module to the NL0/Audit A stage.
 The IR is a typed proof plan with unproved obligations. Python validates its
 explicit structure and renders Lean; Lean proves transitions and assembly.
 Neither component establishes natural-language fidelity automatically. Record
-a statement/dependency/route review in final Audit B and distinguish its actual
+an external/complete-target fidelity review in final Audit B and distinguish its actual
 scope. The default interface freeze is mechanical, with semantic status
 `PENDING_AUDIT_B`; a separate pre-proof model review is optional.
 
@@ -39,9 +39,10 @@ each input, plan, proof and feedback hash, retain failed attempts, and invalidat
 affected descendants after an interface change. Do not add an assumption,
 external theorem, opaque declaration or structure field to close an obligation.
 
-Pinned mathlib is the library implementation substrate. A new substantive
-mathematical fact not justified by NL0's direct inputs must return to NL0/Audit A;
-an API/type conversion difficulty alone is FORMALIZATION-ENGINEERING.
+All proved results in the pinned Mathlib environment are freely available in
+stage two; no source-M registration or use-permission audit is required. A new
+external axiom or stronger hypothesis must return to the affected source
+boundary. An API/type conversion difficulty alone is FORMALIZATION-ENGINEERING.
 
 Only stable interfaces permit proof-body parallelism. Prove each local theorem
 against explicit direct inputs, then discharge every internal input during
@@ -61,7 +62,7 @@ a choice; it neither proves equivalence nor chooses the best representation.
 Preserve natural NL0 node boundaries. An already justified shared lemma may
 be exported once and referenced by multiple nodes. A substantive mathematical
 extraction changes the NL0 dependency graph and requires affected Audit A review.
-Implementation-only factoring still needs a recorded correspondence review.
+Implementation-only factoring is checked through assembly and endpoint fidelity.
 
 Default to direct proof work. Strategy lookup is optional, not a mandatory
 diagnosis pass or a proved fact. Keep recipes separate from checked Lean proofs.
@@ -72,7 +73,8 @@ elaboration; there is no .olean cache or automatic semantic adapter here.
 
 For accepted current structured NL0 use `scripts/workflow.py`: freeze the
 source and type-checked IR, run proof work, then prepare/build/check Audit B. It
-requires exact source paragraphs, output mapping and direct-input boundaries.
+requires exact source paragraphs, output mapping and project-input boundaries;
+Mathlib references are excluded from input-permission comparisons.
 This is artifact orchestration; models/humans still choose representations
 and review mathematical fidelity. It does not automatically translate arbitrary
 papers or select optimal types. No-extraction is a normal path.
@@ -94,15 +96,17 @@ the node queue, structured status file, scoped cancellation and finite exit.
 This stage produces translation artifacts and checked local Lean evidence.
 `FRAGMENT-ASSEMBLED` is not an Audit B verdict. After translation, read and apply
 [Audit B](audit-b.md) and its [review template](../templates/audit-b.md).
-Map every source H/E/M/N/P/D to actual complete Lean types and dependencies;
-review definitions, hidden parameters/fields and source fidelity. Run the
-fresh kernel/signature/dependency gates, then perform the located semantic
-review. Pending receipts cannot pass. Preserve all qualifications and distinguish
-development checks from whole-proof acceptance under current Audit A.
+Map each original external E and complete P to its actual encoded Lean type
+with a short direct/equivalent correspondence explanation. P includes its
+parameters, hypotheses and conclusion. The independent reviewer checks these
+notes against source, actual types and relevant definitions. No separate
+M/H/N/D semantic ledger is required. Run the fresh standalone build and kernel
+closure checks; pending receipts cannot pass. Preserve inherited qualifications
+and distinguish development checks from whole-proof acceptance.
 
-Use `scripts/audit_b.py` and its trusted Lean inspector for this generated-graph
-adapter. Neither a suggested mapping, equal name/count nor a compiler pass is
-semantic evidence. Imported mathematical facts absent from the permitted source
-ledger block B; return substantive additions to NL0/Audit A. Report end-to-end
-costs including audit work, failed attempts and evidence limits. No general
-acceleration or completed Audit C follows from adding this stage.
+Use `scripts/audit_b.py` and its trusted inspector for these generated graphs.
+A suggested explanation, equal label or compiler pass is not semantic evidence.
+Version-2 Audit B permits faithful equivalent encodings without a redundant
+literal Mathlib representation; actual cross-representation conversions still
+need checked proofs. Report end-to-end costs including audit work and failures.
+No general acceleration or completed Audit C follows from this stage alone.

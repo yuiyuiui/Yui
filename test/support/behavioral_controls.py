@@ -93,7 +93,7 @@ def global_observation(raw):
         'actual_global_record':raw,'scope':'Summary of actual saved global judgments; not whole-proof certification.'}
 
 
-def run(directory,timeout,budget=None):
+def run(directory,timeout=None,budget=None):
     directory=Path(directory).resolve()
     key=json.loads((directory/'owner/expected.json').read_text())
     shutil.copyfile(__file__,directory/'controller.py.snapshot.txt')
@@ -133,5 +133,5 @@ def run(directory,timeout,budget=None):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--prepared',required=True);parser.add_argument('--timeout-seconds',type=int,default=600)
+    parser.add_argument('--prepared',required=True);parser.add_argument('--timeout-seconds',type=int,default=None)
     args=parser.parse_args();print(json.dumps(run(args.prepared,args.timeout_seconds),indent=2))

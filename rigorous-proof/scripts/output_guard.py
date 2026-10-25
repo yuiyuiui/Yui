@@ -8,9 +8,9 @@ POLICY = {'version': 'function-json-whitespace-1', 'outside_string_whitespace_li
           'action': 'interrupt exact active turn and preserve this unfinished attempt',
           'partial_arguments_executed': False, 'automatic_model_retry': False}
 
-PROVIDER_WAIT_POLICY = {'version': 'delivered-tool-terminal-wait-1', 'idle_seconds': 120,
+PROVIDER_WAIT_POLICY = {'version': 'delivered-tool-terminal-wait-2', 'idle_seconds': None,
     'requires': 'actual completed function call and genuinely delivered tool result; no provider terminal or next request',
-    'action': 'interrupt exact active turn; preserve unfinished attempt with attribution UNVERIFIED',
+    'action': 'record pending tool delivery without an idle cutoff; explicit finite limits are opt-in',
     'automatic_model_retry': False, 'synthetic_terminal_or_usage': False}
 TERMINAL_EVENTS = {'response.completed', 'response.incomplete', 'response.failed'}
 
@@ -35,8 +35,7 @@ class ProviderWaitGuard:
     """Monitor a narrow post-tool protocol wait, never mathematical difficulty."""
     def __init__(self,*,idle_seconds=None,clock=time.monotonic):
         self.limit=PROVIDER_WAIT_POLICY['idle_seconds'] if idle_seconds is None else idle_seconds
-        if not isinstance(self.limit,(int,float)) or isinstance(self.limit,bool) or self.limit<=0:
-            raise ValueError('Positive provider wait limit required')
+        self.limit = __import__('runtime_config').time_limit(self.limit)
         self.clock=clock;self.lock=threading.Lock()
         self.latest_request=None;self.calls={};self.terminals=set();self.waits={}
 
@@ -77,6 +76,8 @@ class ProviderWaitGuard:
         with self.lock:return deepcopy(self.calls.get(call_id))
 
     def check(self):
+        if self.limit is None:
+            return None
         with self.lock:
             mono=self.clock()
             for row in self.waits.values():

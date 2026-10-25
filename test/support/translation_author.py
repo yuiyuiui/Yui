@@ -25,6 +25,7 @@ import nl0
 import source_preparation
 import background
 import background_inputs
+import correspondence
 import concurrency
 from clean_stage import ArtifactStage
 import model_pilot as pilot
@@ -58,18 +59,29 @@ are available on demand. Do not read every rule or background note at startup.
 The controller retains all accepted paragraphs and attaches each step's own
 Audit A note index. Notes are optional implementation references, not new
 premise ports: do not give every note a Lean type or add it to premise_types.
-Keep exactly the original H/E/M root inputs and every N/P output. Choose a
+Keep the original H/E project inputs and every N/P output. The pinned Mathlib
+environment is freely available without registration. Prefer direct library use
+to M premise ports; omit M roots unless an intermediate port is useful. Choose a
 coherent Lean representation preserving domains, assumptions, quantifiers and
 the full target. Definitions cannot hide unproved results or stronger assumptions.
 Use typed steps for mathematical obligations; no proof bodies are required yet.
 
 Submit an object with header, parameters, premise_types, conclusion_type,
-representation, objects, steps, terminal, source_outputs. header starts with
+representation, objects, steps, terminal, source_outputs, endpoint_correspondence.
+endpoint_correspondence maps exactly every E ID and P to
+{mode:direct|equivalent, explanation:<concise mathematical account>}. Explain
+why each external statement and the WHOLE target (parameters, quantifiers,
+hypotheses, conclusion) has the original meaning. Direct translations need only
+a short account. For equivalent encodings, state the identification and why it
+works in both directions under the actual assumptions. Do not invent a second
+Lean representation just to prove an unnecessary conversion. If the proof
+actually crosses two Lean representations, plan a checked conversion. These
+notes are author guidance for independent Audit B, not approval. header starts with
 "import Mathlib\n" and contains only object definitions/notation/structures,
 no axioms, proof declarations, placeholders or executable metaprogramming.
 parameters: [{name,type,binder_kind?}], where binder_kind is explicit (default),
-implicit or instance. premise_types maps each source-map root ID to its Lean
-proposition. source_outputs maps every N/P to a distinct step Tddd. steps:
+implicit or instance. premise_types maps every H/E root and any retained M
+port to its Lean proposition. Mathlib references are not a permission list. source_outputs maps every N/P to a distinct step Tddd. steps:
 [{id,statement,inputs:[root/T IDs],source_steps:[S IDs],explanation}]. Each step
 is a closed conditional obligation; include useful independent subarguments or
 representation bridges when they reduce work. Every step must reach terminal;
@@ -157,15 +169,19 @@ class InterfaceContract:
             raise ValueError(f'Candidate {self.attempt} saved; repair it with base_candidate. {error}') from error
 
     def check(self,value,directory):
-        expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs'}
+        expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs','endpoint_correspondence'}
         if not expected<=set(value) or not set(value)<=expected|{'shared_obligations'}:raise ValueError('Expected '+', '.join(sorted(expected))+'; optional shared_obligations')
         header=value['header']
         if not isinstance(header,str) or not header.startswith('import Mathlib\n'):
             raise ValueError('Header must start with import Mathlib followed by a newline')
         if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',header):
             raise ValueError('Candidate header may define mathematical objects, not proof/result declarations or executable commands')
-        if set(value['premise_types'])!={p['id'] for p in self.source['roots']}:
-            raise ValueError('Provide exactly the original H/E/M root types; background notes are not root inputs')
+        required={p['id'] for p in self.source['roots'] if p['kind']!='mathlib'}
+        available={p['id'] for p in self.source['roots']}
+        if not required <= set(value['premise_types']) <= available:
+            raise ValueError('Provide all original H/E roots; original M ports are optional')
+        correspondence.validate_notes(value['endpoint_correspondence'],
+            [p['id'] for p in self.source['roots'] if p['kind']=='external']+['P'])
         if set(value['source_outputs'])!=set(self.source['source_outputs']):
             raise ValueError('Map exactly every source N/P to its primary typed T')
         shutil.copyfile(self.out/'inputs/nl0.json',directory/'nl0.json')
@@ -174,7 +190,8 @@ class InterfaceContract:
                       'background_mode':background_inputs.REFERENCE_ONLY},
             'source_steps':self.source['source_steps'],'pins':self.spec['pins'],
             'header':header,'parameters':value['parameters'],
-            'premises':[{**p,'type':value['premise_types'][p['id']]} for p in self.source['roots']],
+            'premises':[{**p,'type':value['premise_types'][p['id']]} for p in self.source['roots'] if p['id'] in value['premise_types']],
+            'endpoint_correspondence':value['endpoint_correspondence'],
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
             'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
             'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Candidate generated in a clean selected-model context; only syntax/types and source boundaries are checked by this adapter.'}}
@@ -198,7 +215,7 @@ class InterfaceContract:
             self.source['paragraph_mapping'],value['source_outputs'])
         decomposition=ir.decomposition(directory/'contract.json',plan)
         write(directory/'decomposition.json',decomposition)
-        result=ir.check(directory/'contract.json',plan,types_only=True,out=directory/'types',timeout=current()[0].remaining(120) if current()[0] else 120)
+        result=ir.check(directory/'contract.json',plan,types_only=True,out=directory/'types',timeout=current()[0].remaining() if current()[0] else None)
         if result['exit_code']!=0:
             raise ValueError('Actual Lean type check failed:\n'+result['stdout'][:14000]+result['stderr'][:2000])
         write(self.out/'accepted-interface-paths.json',{'contract':str(directory/'contract.json'),
@@ -296,7 +313,7 @@ class InterfaceStage(ArtifactStage):
         return result
 
 
-def run(out,timeout,budget=None):
+def run(out,timeout=None,budget=None):
     out=Path(out).resolve();validator=InterfaceContract(out)
     stage=InterfaceStage(out/'stage',(out/'prompt.txt').read_text(),phase='interface-authoring',
         inputs=out/'inputs/inputs.json',timeout=timeout,validator=validator,
@@ -307,7 +324,7 @@ def run(out,timeout,budget=None):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);commands=parser.add_subparsers(dest='command',required=True)
     p=commands.add_parser('prepare');p.add_argument('--case',required=True);p.add_argument('--problem',required=True);p.add_argument('--out',required=True)
-    p=commands.add_parser('run');p.add_argument('--out',required=True);p.add_argument('--timeout-seconds',type=int,default=1800)
+    p=commands.add_parser('run');p.add_argument('--out',required=True);p.add_argument('--timeout-seconds',type=int,default=None)
     args=parser.parse_args()
     result=prepare(args.case,args.problem,args.out) if args.command=='prepare' else run(args.out,args.timeout_seconds)
     print(json.dumps(result,indent=2))

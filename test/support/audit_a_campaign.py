@@ -419,7 +419,7 @@ def prepare(case, problem, out, *, reuse_from=()):
     return plan
 
 
-def run(out, timeout, budget=None):
+def run(out, timeout=None, budget=None):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
     verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
@@ -614,7 +614,7 @@ def collect(out, controls):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);commands=parser.add_subparsers(dest='command',required=True)
     prepare_=commands.add_parser('prepare');prepare_.add_argument('--case',required=True);prepare_.add_argument('--problem',required=True);prepare_.add_argument('--out',required=True);prepare_.add_argument('--reuse-from',action='append',default=[])
-    run_=commands.add_parser('run');run_.add_argument('--out',required=True);run_.add_argument('--timeout-seconds',type=int,default=900)
+    run_=commands.add_parser('run');run_.add_argument('--out',required=True);run_.add_argument('--timeout-seconds',type=int,default=None)
     collect_=commands.add_parser('collect');collect_.add_argument('--out',required=True);collect_.add_argument('--controls')
     args=parser.parse_args()
     if args.command=='prepare':result=prepare(args.case,args.problem,args.out,reuse_from=args.reuse_from)

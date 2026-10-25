@@ -136,9 +136,9 @@ def prepare(out, index):
     manifest = {'schema': 'yui-cold-first-pass-round-1', 'round': index,
                 'created_at_utc': execution_state.now(), 'profile': PROFILE,
                 'case_concurrency': 3, 'within_case_model_cap': 1,
-                'budgets': {'author_seconds': 1800, 'each_audit_stage_seconds': 1200,
-                            'each_control_seconds': 600},
-                'budget_scope': 'Per-stage limits, not an end-to-end campaign deadline.',
+                'budgets': {'author_seconds': None, 'each_audit_stage_seconds': None,
+                            'each_control_seconds': None, 'total_tokens': None},
+                'budget_scope': 'No automatic time or token cutoff. External cancellation remains available.',
                 'shared_calibration': str(controls), 'cases': cases,
                 'author_prompt': AUTHOR, 'author_prompt_sha256': hashlib.sha256(AUTHOR.encode()).hexdigest(),
                 'git_commit': git, 'runtime_source_hashes': hashes,'runtime_snapshot':str(snapshot),
@@ -250,7 +250,7 @@ def run(out):
     status = 'ROUND_INCOMPLETE'
     try:
         with execution_state.activate(recorder), recorder.signals():
-            actual = behavioral_controls.run(controls, 600, budget=budgets.serial)
+            actual = behavioral_controls.run(controls, budget=budgets.serial)
         recorder.close(actual['status'])
         if actual['status'] != 'BEHAVIORAL-CONTROLS-PASSED':
             status = 'CALIBRATION_FAILED'; return collect(out, status)

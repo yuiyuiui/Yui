@@ -36,10 +36,13 @@ def check_source_boundary(data, c, plan, mapping, exported):
                 and c['source'].get('background_supplement') == supplement,
                 'interface omitted or changed accepted background supplement')
     roots = {p['id'] for p in c['premises']}
-    ir.need(roots <= {p for p,v in props.items() if v['kind'] in {'hypothesis','external','mathlib'}}, 'unregistered/internal root premise')
+    ir.need({p['id'] for p in c['premises'] if p['kind']!='mathlib'} <=
+            {p for p,v in props.items() if v['kind'] in {'hypothesis','external'}},
+            'unregistered/internal root premise')
     ir.need({p for p,v in props.items() if v['kind'] in {'hypothesis','external'}} <= roots, 'missing original hypothesis/external premise')
     for p in c['premises']:
-        ir.need(p['kind'] == props[p['id']]['kind'] and p['statement'] == props[p['id']]['statement'], 'changed source premise text/kind')
+        if p['kind']!='mathlib':
+            ir.need(p['kind'] == props[p['id']]['kind'] and p['statement'] == props[p['id']]['statement'], 'changed source premise text/kind')
     ir.need(c['conclusion']['statement'] == props['P']['statement'], 'changed source target text')
     # Every NL paragraph is paired to exact bytes, rather than a planner's recollection.
     paragraphs = {(rid,s['id']): s['text'] for rid,r in data[4].items() for s in r['argument']}
@@ -69,9 +72,12 @@ def check_source_boundary(data, c, plan, mapping, exported):
         if tid != start and tid in boundary: return {boundary[tid]}
         ir.need(tid not in seen, 'cyclic implementation dependency')
         return set().union(*(dependencies(x,start,seen|{tid}) for x in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
+    mathlib_ids = {p for p,v in props.items() if v['kind']=='mathlib'} | {
+        p['id'] for p in c['premises'] if p['kind']=='mathlib'}
     for rid,r in effective_steps.items():
         tid = exported[r['output']]
-        ir.need(dependencies(tid,tid,set()) == set(r['inputs']), 'source input boundary changed at ' + rid)
+        ir.need(dependencies(tid,tid,set()) - mathlib_ids == set(r['inputs']) - mathlib_ids,
+                'source input boundary changed at ' + rid)
     return {'status':'SOURCE_BOUNDARIES_CHECKED','semantic_review':'PENDING_AUDIT_B'}
 
 
@@ -152,7 +158,7 @@ def bound(directory):
     return manifest
 
 
-def run(directory, *, shared_store=None, timeout_seconds=180, bank=False):
+def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
     out = Path(directory).resolve(); manifest = bound(out)
     recorder=execution_state.Recorder(out,ir.contract(manifest['contract'])['id'],manifest['concurrency'])
     budget = concurrency.Budget(manifest['concurrency'],execution=recorder,role='proof')
@@ -175,8 +181,6 @@ def prepare_audit(directory):
             'proof run uses a different frozen interface or plan')
     prepared = audit_b.prepare(cpath,ppath,out/'proof-run/proofs.json',out/'audit-b',**manifest['authority'])
     mapping = ir.load(out/'audit-b/mapping.json')
-    for pid,tid in manifest['source_outputs'].items():
-        if pid != 'P': mapping['entries'][pid]['selector']='decl:Translation.'+tid
     ir.write(out/'audit-b/mapping.json',mapping)
     return prepared
 
@@ -212,7 +216,7 @@ def main():
     ap.add_argument('directory',type=Path)
     for name in ('graph','spec','audit-a','incremental','contract','plan','interface-review','review','shared-store','interface-binding'):
         ap.add_argument('--'+name,type=Path)
-    ap.add_argument('--max-concurrency',default='auto');ap.add_argument('--timeout-seconds',type=int,default=180)
+    ap.add_argument('--max-concurrency',default='auto');ap.add_argument('--timeout-seconds',type=int,default=None)
     ap.add_argument('--task',help='Cancel only this recorded task; omission cancels the case run')
     ap.add_argument('--bank',action='store_true');args=ap.parse_args()
     try:

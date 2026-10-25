@@ -126,8 +126,7 @@ class Recorder:
         self.lock = threading.RLock(); self.write_lock = threading.Lock()
         self.done = threading.Event(); self.dirty = True
         self.started = time.monotonic(); self.last_write = 0.; self._heartbeat = 0.
-        if time_budget_seconds is not None and (isinstance(time_budget_seconds,bool) or time_budget_seconds <= 0):
-            raise ValueError('The case time budget must be positive')
+        time_budget_seconds = __import__('runtime_config').time_limit(time_budget_seconds)
         self.deadline = self.started+time_budget_seconds if time_budget_seconds is not None else None
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
         self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}

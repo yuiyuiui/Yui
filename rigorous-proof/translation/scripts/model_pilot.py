@@ -44,10 +44,10 @@ carrier.load_lock = load_lock
 HARNESS = 'yui-0.1.3'
 BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
 STAGE_LIMITER = None
-carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission and time remains. '
+carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission. '
                           'Continue with the same inputs and tools; preserve the fixed specification.')
 SYSTEM = ('You translate the supplied natural-language proof faithfully into Lean 4. '
-          'Use only the explicit task inputs and pinned mathlib through the available tools. '
+          'Use the explicit project premises and any proved result in the pinned Mathlib environment. '
           'Preserve all assumptions, conclusions, equality modes and the supplied proof route. '
           'No reference answers, personal context, other tasks, shell or external services are available. '
           'Use the submit tool when the requested artifact is complete; if rejected, repair it. '
@@ -72,7 +72,7 @@ class Stage(carrier.Trial):
         self.mode, self.plan, self.step = mode, plan, step
         self.model_selection = model_profile(mode)
         self.budget = budget
-        self.timeout = timeout
+        self.timeout = __import__('runtime_config').time_limit(timeout)
         self.harness_version = HARNESS
         self.strict = True
         self.argument_guard = ArgumentGuard()

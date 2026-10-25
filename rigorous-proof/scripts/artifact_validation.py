@@ -415,7 +415,7 @@ def expand_submission(value, documents, drafts=None):
     return result,provenance
 
 
-def signature_probe(case, identifier, declaration, module, sequence, *, timeout=120, use_catalog=True, on_native=None):
+def signature_probe(case, identifier, declaration, module, sequence, *, timeout=None, use_catalog=True, on_native=None):
     """Only validated identifiers enter this trusted, sandboxed query program."""
     case=Path(case).resolve()
     if not re.fullmatch(r'M\d{3,}', identifier):

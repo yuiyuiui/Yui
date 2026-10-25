@@ -1,213 +1,104 @@
-# Audit B: faithful NL0 translation and Lean proof closure
+# Audit B: endpoint fidelity and checked Lean closure
 
-Audit the frozen source and actual exported proof. This stage has two gates:
-**semantic/dependency concordance** and **a clean checked Lean proof**. Both
-must pass. The checker is an evidence organizer and kernel-inspection adapter;
-it cannot decide arbitrary natural-language meaning automatically.
+The stage-two policy is `endpoint-fidelity-2` (Audit B schema version 2).
+Its semantic objects are every original external theorem E and the complete
+final target P. P includes its parameters, quantifiers, hypotheses, domains and
+conclusion. Accepted NL0/Audit A remains the source authority; B does not repeat
+unchanged natural-language proof checking.
 
-Enter from the [postprocessing assembly protocol](assembly.md): the standalone
-source-facing proof must compile before independent semantic review. Record
-`assembly.json` and `inspection.json` separately. A name-format/tool rejection,
-export-generator defect or inspector computation limit is not a mathematical
-FAIL; preserve its actual diagnostics and do not issue PASS. Unicode spelling
-does not weaken the requirement for a real pinned proved declaration. Inspect
-the actual names/types rather than imposing an ASCII-only approximation.
+## Author correspondence explanations
 
-## 1. Freeze authority and coverage
+During interface authoring, provide `endpoint_correspondence`, keyed by every
+E ID and P. Each entry is `{mode: direct|equivalent, explanation: string}`.
+Keep it short and useful; do not restate the entire proof or manufacture a
+line-by-line formalization commentary:
 
-For a whole proof use the current structured NL0 graph, specification, Audit A
-receipt, definitions, source ledger, and pinned Lean/mathlib. Revalidate source
-and Audit A bindings. Do not replace these with a formalizer-authored summary.
-An accepted local revision may instead supply the incremental record from
-source_preparation.py. Revalidate the original accepted A, protected content,
-new producer/cut reviews and every evidence binding; carry qualifications forward.
-This reads existing mathematical reviews rather than rerunning them inside B.
-A plain extracted fragment must be labelled development-only, accompanied by
-its full independent mathematical inventory and original source bytes. Its
-coverage/extraction itself needs semantic review. Never promote it to a
-whole-case audit or inherit current Audit A from a legacy proof.
+- **Direct:** identify the corresponding variables, hypotheses and assertion.
+  One sentence is enough when the translation is immediate.
+- **Equivalent:** explain the mathematical identification or reformulation,
+  why it works in both directions and which existing conditions it uses.
+  Point to relevant definitions or checked conversions when needed.
 
-Map every H, E, M, N, P and global definition D. Preserve unused original H in
-the final theorem and report unused inputs. Coverage is exact at this source
-boundary. An NL0 node has a primary Lean realization and may have multiple
-proved administrative helpers; counting all Lean declarations is not the
-coverage test. Helpers need explicit roles, complete signatures and proof/dependency
-checks. They cannot contain a new assumption, imported mathematical fact or
-changed target disguised as implementation detail.
+For example, expressing invariance under a finite basis of operators can encode
+invariance under their linear span: explain the spanning property and closure
+of a subspace under linear combinations. The review must establish those facts
+for the actual source algebra/action; the word “equivalent” alone is insufficient.
 
-## 2. Review each source/formal pair
+The postprocessing author carries these notes into each E/P entry in
+`mapping.json`, checks them against the actual export and completes missing
+notes for older frozen contracts. It must not change frozen proof statements
+or bodies merely to improve a note. An explanation is an author's claim, not
+an Audit B verdict or a formal proof.
 
-Read the full source item and actual elaborated Lean type, not just its name.
-Check variables, universes, domains, quantifiers/order, all explicit and implicit
-parameters, hypotheses, exceptional cases, constants, uniformity, and conclusion.
-Check a.e./pointwise equality, representatives, sup/ess sup, finite/extended
-ranges, measures, norms, normalization and domain restrictions when relevant.
+## Independent semantic review
 
-- **H**: the actual original hypothesis, without strengthening it or silently
-  dropping it. A theorem argument is a mathematical assumption even when it
-  does not appear in `#print axioms`.
-- **E**: exactly the NL0 external theorem, including all conditions and the
-  general statement before specialization. Bundled data/fields must correspond
-  field by field. Do not add a project corollary to a published theorem's record.
-  Audit A owns verification against the publication; B verifies NL0-to-Lean
-  fidelity and carries A's unresolved citation qualifications forward.
-- **M**: the actual named, proved declaration in the pinned library, with the
-  complete general signature and each used specialization/condition checked.
-  A root M port must be discharged by a checked library proof before export;
-  it cannot remain an unproved additional hypothesis merely because it is
-  called a library theorem.
-- **N/P**: the same mathematical conclusion under exactly the allowed inputs
-  and definitions, with a real proof. Keep the source dependency boundaries.
-  A substantive new mathematical fact returns to a new NL0/Audit A version.
-- **D and representations**: the declared mathematical meaning, definition body,
-  binding/scope and any existence/domain guards. Distinct Lean views need the
-  actual proved relation required by their use; a registry label is not a proof.
+Read the explanation together with the original source statement and actual
+elaborated Lean type. Follow the definitions needed to interpret the endpoint,
+including structure fields that might hide extra assumptions. Check each E/P
+row, then these four global checks:
 
-Use definitional equality against the reviewed types where possible. If an
-equivalent representation is not definitionally equal, prove the bridge and
-export the canonical source-facing statement. Do not mark approximate or
-"morally equivalent" content PASS. The current executable adapter checks
-canonical definitional equality; it does not synthesize these bridges.
+1. `endpoint_inventory_and_scope`: all original E statements and P are covered;
+   the source version, reviewer scope and inherited qualifications are explicit.
+2. `external_statement_fidelity`: each external assumption has the source's
+   complete mathematical meaning, including conditions and quantifiers. With
+   no external inputs, record that fact.
+3. `complete_target_and_representations`: the entire target theorem has the
+   same meaning, including every hypothesis. Validate the explanation of each
+   direct or equivalent encoding and relevant edge cases.
+4. `kernel_closure_and_trust`: the actual exported proof compiled, all required
+   producers and intermediate library ports were discharged, and the checked
+   root has only the declared external assumptions and permitted foundations.
 
-## 3. Audit dependencies and hidden assumptions
+Equivalent formulations are allowed. Do not reject a faithful encoding because
+it lacks a particular Mathlib type/name, a separate object for every NL0
+D node, or a duplicate formal representation. A mathematical source-to-code
+identification can be checked semantically without constructing an unnecessary
+second model. If the implementation actually crosses two different Lean
+representations, the required conversion must occur in checked Lean code.
+Unexplained equivalence, stronger assumptions, missing hypotheses, changed
+domains or hidden target assumptions remain defects.
 
-Inspect actual proof constants, including those selected by automation. The
-adapter recursively inspects project-owned declarations and their type/value
-references, reports all binder kinds, and follows project structure constructors
-to expose proof fields. Review project instances, coercions, selectors and
-data fields for hidden mathematical obligations. The source and full elaborated
-types remain available for checks that this conservative traversal cannot decide.
+Do not accept an explanation on trust or copy the author's conclusion into the
+review. Record PASS/FAIL/UNVERIFIED with specific findings and source/type/note
+locations. A compiler pass cannot substitute for this independent judgment.
 
-Each directly used imported mathematical proof must correspond to a permitted
-source M, or a specific calculation explicitly declared in the NL0 logic policy.
-Fixed logical constructors/congruence rules are recorded separately. A named
-M's already-checked library-internal proof is a trusted boundary; do not demand
-that its entire transitive mathlib proof be copied into NL0. Canonical imported
-data/definition implementations are a pinned substrate, not extra freely usable
-project theorems. Their relevant mathematical meaning still needs review.
+## Freely available Mathlib
 
-An unmatched imported mathematical result blocks B as
-`UNMAPPED_IMPORTED_MATHEMATICAL_RESULT`. Explain whether it needs a new source
-node/Audit A review or can be proved locally from the allowed inputs. Do not
-silently classify it as "standard" or permit every mathlib theorem. This is a
-dependency-accounting/formalization issue, not evidence that NL0 is false.
+All proved results in the pinned Mathlib environment are available in stage
+two. Do not compare their names, counts or node-by-node uses with the NL0 M
+inventory. There is no per-M semantic row, imported-proof whitelist,
+`calculation_links` ledger, or separate review of implementation N/D nodes.
+Definitions are examined when they determine endpoint meaning, not for an
+exact inventory match. Notes from Audit A are optional local guidance, not
+permissions to use a library theorem.
 
-Preserve source R input boundaries. Implementation-only T steps can expand
-within a source inference, but cannot borrow another source node not listed
-as its input. All cached/shared proofs must match current definitions, types,
-conditions and allowed sources. Final assembly must supply their real proofs;
-conditional worker success does not close an unfinished shared producer.
+New interfaces normally use Mathlib directly. An older or deliberately
+conditional interface can retain M ports; `library_terms` supplies an actual
+Lean proof for each such port at assembly. These are discharge proofs, not a
+library correspondence inventory. They cannot remain unproved assumptions of
+the final export. New external axioms or stronger project hypotheses still
+require returning to the affected source boundary.
 
-## 4. Check the actual Lean proof
+## Mechanical evidence and limits
 
-Use the recorded pinned toolchain, clean mathlib source/dependency manifest and
-offline fresh verifier. Recheck each local proof without sibling declarations,
-the exact assembled root, and the source-facing root with library M ports
-discharged. Print/extract full elaborated signatures and axiom dependencies.
-Scan project input for missing proofs, custom axioms, axiom-like opaque results
-and unchecked metaprogramming. Read warnings rather than suppressing them.
-The adapter's header scan is conservative; unsupported headers require an
-explicitly reviewed adapter, not an ignored failure.
+`audit_b.py prepare/build/check` binds the source, accepted A, contract, plan,
+proofs, tool versions and environment hashes. Build compiles standalone
+`Proof.lean` before adding inspection. It checks E/P against their declared
+encoded types, modulo definitional equality and bijective universe renaming.
+It does not prove equivalence between natural-language text and Lean.
+Distinct universes must not be collapsed; changed types or hypotheses must not
+be normalized away. Source fidelity remains the independent reviewer's job.
 
-Reject a decoy/wrapper proving a different statement, a changed hypothesis,
-an unfinished local proof, custom axioms or stale proof bytes. Report permitted
-foundation axioms explicitly. Compilation does not establish natural-language
-fidelity, citation truth or absence of additional theorem parameters by itself.
+Inspection follows the actual `AuditBExport.P` closure. No `sorry`, unproved
+local axiom/opaque substitute or undeclared foundation may be introduced.
+Local bodies still compile against their own task inputs and the pinned
+library; every required producer must exist. Assembly, inspection and semantic
+review have separate recorded outcomes.
 
-## 5. Execute and record a real review
-
-The rules and [human review template](../templates/audit-b.md) are the skill
-part. `scripts/audit_b.py` implements three steps for this candidate's generated
-conditional graphs (contract v1/v2). It is not a general multifile Lean-project
-auditor or an automatic semantic judge.
-
-```sh
-python3 scripts/audit_b.py prepare /absolute/new-audit \
-  --contract /absolute/case/contract.json --plan /absolute/case/plan.json \
-  --proofs /absolute/run/proofs.json \
-  --graph /absolute/case/nl0.json --spec /absolute/case/spec.json \
-  --audit-a /absolute/case/audit-a.json
-```
-
-For a locally revised current source use
-`--incremental /absolute/revision/source-acceptance.json` instead of
-`--audit-a` in the command above. The parent audit-v3 format remains unchanged;
-a worksheet or development-only local review cannot grant current acceptance.
-See [the integrated freeze/run/audit guide](integrated-workflow.md).
-
-Read the independent NL0 first, then complete `mapping.json`: every source ID's
-actual selector and reviewed full expected type. A premise selector is
-`premise:H001`; a local result is `decl:Translation.T001`; the required exported
-target is `decl:AuditBExport.P`. These examples are selectors, not replacement
-mathematical statements. The preparer's suggested types are UNVERIFIED proposals
-and must not be accepted simply because they repeat the formalizer's contract.
-For M also provide the full library type and a tactic body `library_term`
-implementing its local root use. `calculation_links` maps exact library names
-to indices in the source's declared `logic.calculations`, each separately reviewed.
-
-```sh
-python3 scripts/audit_b.py build /absolute/new-audit
-```
-
-This produces actual kernel types/dependencies, fresh local/root checks,
-mechanical findings, a full review packet and a pending JSON review template.
-Every template verdict is UNVERIFIED. Read the paired full statements and
-proofs, and write a separate review with located notes/evidence for each source
-node, implementation declaration and global check. Do not generate PASS by
-looping over the template. Disclose whether the reviewer authored the proof,
-saw reference answers, or used the same context. A self-review is not independent.
-Before ending a model review stage, validate paired required pointers against
-`mechanical.json` and resolve every pointer in `review-packet.json`. Give format
-errors back within that stage; a reviewer may still submit FAIL/UNVERIFIED.
-Location corrections never justify changing a mathematical verdict to PASS.
-If a later owner corrects reference-only metadata, retain the raw review and
-disclose the intervention rather than claiming an untouched independent receipt.
-
-```sh
-python3 scripts/audit_b.py check /absolute/new-audit \
-  --review /absolute/new-audit/completed-review.json
-```
-
-The checker rejects unperformed/incomplete reviews, changed inputs, types,
-proofs, inspection tools, review packets or evidence. Source/actual signature
-pointers are mandatory. These are provenance and receipt checks, not an
-authentication system or mathematical validation of a reviewer who writes a
-false assertion. Semantic judgment remains the reviewer's responsibility.
-
-`AUDIT-B-PASSED` requires complete whole-graph coverage, current upstream Audit A,
-all mechanical gates and all actual semantic reviews. A development fragment or
-unverified upstream A can at most receive `DEVELOPMENT-AUDIT-B-PASSED` with its
-scope/qualifications. A receipt proves neither external publications in Lean
-nor model-independent certification. Preserve all failures. Edits revoke the
-affected audit; start a new audit directory instead of overwriting evidence.
-
-Record preparation, kernel inspection and semantic-review cost separately and
-include them when claiming end-to-end formalization acceleration. Exact frozen
-audit results may be reused only within their recorded scope and dependency
-versions. Audit C/NL1 round-trip reconstruction is a different future stage.
-
-## Audit A background notes
-
-Source concordance includes the accepted background supplement. Omitted basic
-M registration supplied during Audit A is disclosed as such. Validate its
-policy, evidence and hash. With `source.background_mode: node_local_reference`,
-map only the original H/E/M/N/P/D inventory. The note bodies remain references;
-do not generate extra M ports or mapping entries for every note. The dependency
-inspector records actually used note declarations and checks their permission
-at the corresponding source inference. A note from another inference cannot
-authorize that use. The semantic reviewer checks the actual instantiation,
-conditions, source evidence and complete Lean representation.
-
-Old contracts without this field retain the `promoted_inputs` interpretation
-and its effective M mapping. Notes are no additional original H or external
-axioms. Mathematical acceptance of a note cannot stand in for a compiled Lean
-implementation. Interface semantics deferred before proof work remain pending
-until this actual final review; no prior interface PASS is assumed.
-
-The kernel inspector distinguishes ordinary proof constants from registered
-typeclass instances occurring exclusively in actual instance-argument positions.
-The latter are recorded as representation support and receive explicit semantic
-review of their full signatures and available source conditions. This does not
-license an instance used as an ordinary proof, a new hypothesis, or arbitrary
-Mathlib results. Do not require a separate NL0 M node for every implicit
-structure projection inserted by elaboration.
+Version-1 receipts remain historical results under their original policy.
+They cannot be silently relabeled or accepted as version-2 reviews. Start a
+new bound audit when policy, source, code or evidence changes. Pending templates
+never pass. A whole accepted source plus mechanical gates and complete actual
+semantic review yields `AUDIT-B-PASSED`; a fragment yields at most the explicitly
+scoped development verdict. Neither proves external publications in Lean or
+establishes formalizer speedup. Preserve failures and report actual costs.

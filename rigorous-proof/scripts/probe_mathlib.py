@@ -54,9 +54,9 @@ def main():
                   f'#eval IO.println "BEGIN_AXIOMS:{item["id"]}"', f"#print axioms {name}",
                   f'#eval IO.println "END_SOURCE:{item["id"]}"']
     probe.write_text("\n".join(lines) + "\n")
-    command = ["lake", "env", "lean", str(probe)]
+    command = ["lake", "env", "lean", "-DmaxHeartbeats=0", str(probe)]
     started = datetime.now(timezone.utc).isoformat()
-    result = subprocess.run(command, cwd=args.mathlib, capture_output=True, text=True, timeout=120)
+    result = subprocess.run(command, cwd=args.mathlib, capture_output=True, text=True)
     (out / "library-probe.log").write_text(result.stdout + result.stderr)
     if result.returncode:
         print(json.dumps({"status": "FAILED", "exit_code": result.returncode,

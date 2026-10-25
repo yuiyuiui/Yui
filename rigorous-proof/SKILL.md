@@ -44,21 +44,24 @@ invalidation rules; completing stage one does not require stage two.
   fixed logic and its hash-bound verified background supplement. Important
   tools remain explicit; ordinary correct elementary reasoning needs no
   exhaustive calculation chain. See [background notes](references/background-notes.md).
-- Each inference uses only its direct inputs, global definitions and explicitly
+- Within NL0, each inference uses only its direct inputs, global definitions and explicitly
   established in-scope local facts or positively checked node-local background
   notes. Notes never add H or repair a substantive gap. Source papers and producer proof bodies do
   not fill gaps in a task packet.
 - Preserve one global mathematical identity while allowing local Lean views.
-  Cross-view conversions need proved, explicitly permitted inputs.
+  Actual cross-view conversions need checked proofs. In stage two, the pinned
+  Mathlib environment is freely available without NL0 M registration.
 - Shared mathematical extraction is a bounded local change at translation entry.
   Review its new producer and substitution cuts; inherit unchanged evidence.
   Freeze the revised NL0 before final IR and worker packets.
 - Local conditional bodies may run concurrently. Assembly must discharge every
   internal dependency with an actual checked proof; conditional checks alone
   are not a final result.
-- Audit B checks exact semantic correspondence, allowed assumptions, definitions,
-  actual full kernel signatures/dependencies, and fresh Lean closure. Its
-  reviewer is an actual model/human judgment, not an automatically populated PASS.
+- Audit B checks every external E and the complete target P, including its
+  hypotheses, against actual Lean types and relevant definitions. Supply short
+  direct/equivalent correspondence explanations; an independent reviewer verifies
+  them. Check fresh Lean closure and trust, without a Mathlib-to-NL0 use ledger.
+  Neither author notes nor a compiler pass are semantic approval.
 - Stop on a judged substantive mathematical gap. Ordinary expansion and local
   verifiable corrections remain allowed. Difficulty or elapsed time does not
   establish that a mathematical claim is false.

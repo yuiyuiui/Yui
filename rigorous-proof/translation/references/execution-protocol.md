@@ -36,8 +36,8 @@ worker limit or overlap that case's proof work. All roles share one usage ledger
 5. Recheck returned proofs with Lean. Existing store locks serialize admission.
    Do not overwrite accepted results with late attempts. Preserve rejected code.
 6. Ordinary unfinished work permits other queued conditional jobs to finish,
-   but leaves the root incomplete. Keep bounded local repair, without automatic
-   unlimited retries or model escalation. Source/interface changes return to
+   but leaves the root incomplete. Continue local implementation work without a
+   fixed time/token quota; do not silently restart failed experiments or escalate models. Source/interface changes return to
    their gate; a tactic failure does not automatically require rewriting NL0.
 7. Assemble actual bodies, discharge every internal input, run fresh Lean and
    complete existing Audit B. Execution records never grant mathematical PASS.
@@ -47,14 +47,19 @@ and exit, including on mathematical failures. Reject duplicate active case IDs
 within a batch and existing output ownership. Do not wait indefinitely for all
 mathematics to pass. No adaptive priority or expensive scheduling model is used.
 
-Translation jobs may set `time_budget_seconds`; the current default is 10,800
-seconds for the complete second stage of each case. Its deadline starts when
-the case process starts, and is shared by preparation, model-slot waiting,
-proofs, assembly and Audit B. A later stage receives the remaining time rather
-than a fresh three-hour allowance. Expiry preserves outputs and terminates owned
-children; it is distinct from an external stop and is attributed using the
-recorded execution health. Per-check native safeguards can be shorter without
-imposing a thirty-minute preparation cutoff.
+Omitted or null `time_budget_seconds` means unlimited execution. Configuration
+also leaves stage/native time limits and the total token budget null. The
+runtime does not cap model-call count or stop a healthy task because tool-result
+idle time exceeded a threshold. Native Lean runs with unlimited heartbeats and
+without an artificial per-process heap quota. Explicit cancellation, completed
+or rejected submissions, and actual execution failures still terminate work.
+
+Only an explicit user request may enable a positive case deadline for a separate
+bounded experiment. It starts with the case process and covers preparation,
+model-slot waiting, proofs, assembly and Audit B without resetting at each
+stage. Preserve outputs on expiry and distinguish it from external cancellation.
+Transport handshakes, dead sockets, cleanup/reaping waits, and polling intervals
+are operational controls, not allowances for mathematical work.
 
 ## One execution record
 

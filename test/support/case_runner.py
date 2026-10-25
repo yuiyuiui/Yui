@@ -13,7 +13,7 @@ from execution_health import StageFailure
 
 def execute(job,root):
     is_translation=job['kind'] in {'translate','checked_interface','submitted_interface'}
-    seconds=job.get('time_budget_seconds',json.loads((a.CORE/'config.json').read_text())['timeouts']['case_seconds'] if is_translation else None)
+    seconds=job.get('time_budget_seconds',__import__('runtime_config').configured_timeout('case'))
     recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='translation-preparation' if is_translation else 'preparation',time_budget_seconds=seconds)
     budgets=a.concurrency.CaseBudgets(job.get('max_concurrency','auto'),execution=recorder)
     budget=budgets.serial
@@ -29,7 +29,7 @@ def execute(job,root):
             if job['kind']=='nl0':
                 out=a.ROOT/'test/results'/job['run'];progress(job['case'],'NL0_AUTHORING',directory=str(out))
                 stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',case_id=job['case'],
-                    inputs=out/'inputs.json',timeout=1800,budget=budget)
+                    inputs=out/'inputs.json',timeout=f.stage_seconds(budget),budget=budget)
                 stage.execute();recorder.check();author_artifact=f.nl0_artifact_for_audit(out)
                 a.write(Path(root)/'author-artifact-eligibility.json',author_artifact)
                 source=out/'stage/case'

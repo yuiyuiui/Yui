@@ -3,6 +3,29 @@
 This is maintained engineering documentation, not a mathematical test result or
 a document supplied to measured model workers.
 
+## 2026-10-26: endpoint fidelity, unlimited execution and clean restart
+
+Audit B now uses `endpoint-fidelity-2`: verify external E statements and the
+complete target P, guided by concise author direct/equivalent correspondence
+explanations, plus real standalone assembly and kernel trust checks. P includes
+all hypotheses and parameters. Pinned Mathlib needs no source-M name/count/use
+matching. Actual cross-representation conversions and any retained M discharge
+ports still require checked Lean proofs. The generated assembled root uses
+synchronous elaboration; signature comparison permits bijective universe
+renaming without collapsing distinct levels.
+
+All 538 no-model controls passed (296 core, 150 translation, 92 support); skill
+validation and Git whitespace checks passed. The 15 frozen NL0/Audit A
+normative files are unchanged. Ordinary execution now has no automatic case,
+stage, native-check, token or call quota; explicit cancellation remains.
+
+The requested reset deletes old second-stage outputs and untracked diagnostic
+copies while retaining hash-identical accepted R24 stage-one authority and
+fixed problem inputs. The fresh three-case continuation starts only after the
+source push. Its model contexts receive Yui and their own explicit source/tool
+materials, with no old stage-two artifacts or owner mathematical assistance.
+Old failures retain their historical policy; deletion is not a passing result.
+
 ## 2026-10-26: source-facing assembly and Audit B execution repair
 
 The serial postprocessing author now has an explicit

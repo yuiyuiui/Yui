@@ -58,7 +58,7 @@ class PostprocessingTests(unittest.TestCase):
         shutil.copyfile(bp,directory/'proof-run/proofs.json')
         mapping.audit_b.prepare(cp,pp,bp,directory/'audit-b',fragment=ip)
         value=mapping.ir.load(directory/'audit-b/mapping.json')
-        value['entries']['M001'].update(library_type='∀ (a b : ℕ), a+b=b+a',library_term='exact Nat.add_comm a b')
+        value['library_terms']['M001']='exact Nat.add_comm a b'
         out=self.root/'author';mapping.ir.write(out/'authority.json',{'workflow':str(directory)})
         frozen={'authority':{'fragment':str(ip)}}
         return mapping.MappingContract(out),value,frozen
@@ -82,12 +82,12 @@ class PostprocessingTests(unittest.TestCase):
 
     def test_rejected_mapping_is_saved_with_located_feedback(self):
         validator,value,frozen=self.prepared()
-        value['entries']['M001']['library_declaration']='Nat.add_comm\n#eval 1'
+        value['entries']['P']['correspondence']['explanation']=''
         with patch.object(mapping.workflow,'bound',return_value=frozen):
-            with self.assertRaisesRegex(ValueError,r'Candidate 1: M001\.library_declaration'):
+            with self.assertRaisesRegex(ValueError,r'Candidate 1: P\.correspondence explanation is missing'):
                 validator(value)
         self.assertEqual(mapping.ir.load(validator.out/'drafts/0001.json'),value)
-        self.assertIn('M001.library_declaration',mapping.ir.load(validator.out/'feedback/0001.json')['error'])
+        self.assertIn('P.correspondence explanation is missing',mapping.ir.load(validator.out/'feedback/0001.json')['error'])
         self.assertFalse((validator.out/'accepted-mapping-path.json').exists())
 
 

@@ -74,12 +74,12 @@ TOOL_NAMES = {t['name'] for t in TOOLS}
 SYSTEM_WITH_AUXILIARY = SYSTEM + (
     'check_auxiliary 可单独检查一个全称量化的辅助命题及其证明体；该检查不会把结果加入前提或最终目标。'
     '最终提交仍须在 P 的证明体中包含所有自建辅助结果的证明。')
-CONTINUE_PROMPT = ('最终目标P尚未通过提交验收，本次试验仍有剩余预算。请继续利用本题已有上下文和工具修复并提交完整证明。'
+CONTINUE_PROMPT = ('最终目标P尚未通过提交验收。请继续利用本题已有上下文和工具修复并提交完整证明。'
                    '目标、定义和许可前提不变；本条不提供新的数学事实。')
 SYSTEM_PERSISTENT = SYSTEM_WITH_AUXILIARY + (
     '本题Target.lean.txt中theorem P已经声明的参数和假设，在最终证明体开头已位于Lean上下文中，不要再次intro这些参数。'
     '最终证明体不要以额外的by开头；只有新建的have子证明需要自己的by。辅助命题的全称量词仍需在辅助证明内引入。'
-    '最终提交未通过时应继续修复；单次回合结束不代表任务完成，管理程序可能在总预算内发出固定继续指令。')
+    '最终提交未通过时应继续修复；单次回合结束不代表任务完成，管理程序可能发出固定继续指令。')
 TOOLS_WITH_AUXILIARY = TOOLS + [
     tool('check_auxiliary', '在同一前提下独立编译一个辅助命题，不接受最终目标，也不扩充后续上下文。'
          'statement 只填命题类型（含全部量词），proof 只填 := by 之后的证明体。',
@@ -141,14 +141,14 @@ class Trial:
     def model(self):
         return self.model_selection['id'] if hasattr(self, 'model_selection') else MODEL
 
-    def __init__(self, case: str, run_dir: Path, timeout: float, suite: str = 'pilot-v1',
+    def __init__(self, case: str, run_dir: Path, timeout: float | None = None, suite: str = 'pilot-v1',
                  harness_version: str = '0.2.0'):
         self.harness_version = harness_version
         self.model_selection = model_profile()
         self.strict = harness_version in PERSISTENT_VERSIONS
         self.system, self.tools = harness_policy(harness_version)
         self.tool_names = {t['name'] for t in self.tools}
-        self.case, self.logs, self.timeout = case, run_dir / case, timeout
+        self.case, self.logs, self.timeout = case, run_dir / case, __import__('runtime_config').time_limit(timeout)
         self.logs.mkdir(parents=True)
         self.work = Path(tempfile.mkdtemp(prefix=f'nl2lean-{case}-')).resolve()
         from run_resources import register_workspace
@@ -196,14 +196,15 @@ class Trial:
         self.cancelled_requests: dict[int, dict] = {}
         self.initial_user_message = None
 
-    def lean_timeout(self) -> float:
+    def lean_timeout(self) -> float | None:
         recorder = getattr(self,'execution',None)
-        case_left = recorder.remaining(120) if recorder else 120
-        if self.strict and self.started is not None and self.phase == 'proof':
+        limit = __import__('runtime_config').configured_timeout('native')
+        case_left = recorder.remaining(limit) if recorder else limit
+        if self.strict and self.started is not None and self.timeout is not None:
             remaining = self.started + self.timeout - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('证明预算已耗尽，不再启动Lean检查。')
-            return min(case_left, remaining)
+            return min(case_left, remaining) if case_left is not None else remaining
         return case_left
 
     def check(self, proof: str, submit: bool = False) -> dict:
@@ -286,7 +287,7 @@ class Trial:
                 ml = Path(load_lock()['mathlib']['local_path']) / 'Mathlib'
                 rg = load_lock()['tools']['ripgrep']['binary_path']
                 p = subprocess.run([rg, '--no-config', '-n', '--max-count', '5', '--glob', '*.lean',
-                                    '--', args['query'], str(ml)], capture_output=True, text=True, timeout=12,
+                                    '--', args['query'], str(ml)], capture_output=True, text=True,
                                    env={'PATH': '/usr/bin:/bin', 'HOME': str(self.work / 'home'), 'LANG': 'en_US.UTF-8'})
                 result = {'matches': '\n'.join(p.stdout.replace(str(ml) + '/', 'Mathlib/').splitlines()[:100])[:16000],
                           'exit_code': p.returncode, 'stderr': p.stderr[-2000:]}
@@ -599,12 +600,12 @@ class Trial:
         append(self.logs / 'client.jsonl', msg)
         return self.rpc_id
 
-    def receive_until(self, predicate, deadline: float):
-        while time.monotonic() < deadline:
+    def receive_until(self, predicate, deadline: float | None):
+        while deadline is None or time.monotonic() < deadline:
             self.check_argument_guard()
             execution=getattr(self,'execution',None)
             if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
-            try: msg = self.inbox.get(timeout=min(1, deadline - time.monotonic()))
+            try: msg = self.inbox.get(timeout=1 if deadline is None else max(0, min(1, deadline - time.monotonic())))
             except queue.Empty:
                 if self.proc.poll() is not None: raise RuntimeError('Codex 传输进程提前结束。')
                 continue
@@ -728,12 +729,8 @@ enable_request_compression = false
 recommended_plugins = false
 tool_suggest = false
 '''
-        if self.strict:
-            # A separate network sandbox makes the carrier's only reachable
-            # peer its own loopback relay. Authentication refresh is not an
-            # unrestricted fallback; expired credentials must fail visibly.
-            config = config.replace('project_doc_max_bytes = 0\n',
-                'project_doc_max_bytes = 0\nmodel_auto_compact_token_limit = 1000000\n')
+        # Leave context compaction to the carrier's model-aware default. It is
+        # not a task token budget, and disabling it prevents long runs continuing.
         (state / 'config.toml').write_text(config)
         (self.logs / 'effective-config.toml').write_text(config)
         env = {'PATH': '/usr/bin:/bin', 'HOME': str(self.work / 'home'), 'CODEX_HOME': str(state),
@@ -775,17 +772,17 @@ tool_suggest = false
         self.proc.stdin.write(json.dumps({'method': 'initialized'}) + '\n'); self.proc.stdin.flush()
 
     def solve_turns(self, user: str, *, smoke: bool = False) -> dict:
-        """Keep the same isolated history until acceptance or the fixed deadline."""
+        """Continue in the same isolated history; no deadline unless requested."""
         self.allowed_user_messages.add(user)
         self.initial_user_message = user
         self.started = time.monotonic()
-        deadline = self.started + self.timeout
+        deadline = self.started + self.timeout if self.timeout is not None else None
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
         while True:
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': 'high',
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
-                seconds=min(30, max(0.001, deadline - time.monotonic())))
+                seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
             done = self.receive_until(lambda m: m.get('method') == 'turn/completed'
                 or getattr(self,'submission_closed',False), deadline)
@@ -807,7 +804,7 @@ tool_suggest = false
                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
             if smoke or self.accepted or not self.strict:
                 return done
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError('本轮达到预先设置的时间限制。')
             self.continuation_count += 1
             append(self.logs / 'controller.jsonl', {'event': 'continue_after_unaccepted_turn',
@@ -912,7 +909,8 @@ tool_suggest = false
                 self.allowed_user_messages.add(AUDIT_QUESTION)
                 self.rpc('turn/start', {'threadId': self.thread_id, 'effort': 'high',
                     'input': [{'type': 'text', 'text': AUDIT_QUESTION}], 'environments': []})
-                self.receive_until(lambda m: m.get('method') == 'turn/completed', time.monotonic() + 180)
+                self.receive_until(lambda m: m.get('method') == 'turn/completed',
+                    self.started + self.timeout if self.timeout is not None else None)
                 result['environment_audit_status'] = 'COMPLETED'
         except ProviderTerminalWaitExceeded as e:
             result.update(status='UNFINISHED',task_outcome='PROVIDER_TERMINAL_WAIT_EXCEEDED',

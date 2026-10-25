@@ -93,7 +93,7 @@ def prepare(directory):
     return {'status':'PREPARED_NOT_RUN','cases':list(owner),'scope':'Owner labels are outside every reviewer input manifest.'}
 
 
-def run(directory,timeout=600):
+def run(directory,timeout=None):
     directory=Path(directory).resolve();expected=a.nl0.load(directory/'owner/expected.json');results=[]
     budget=a.concurrency.serial_budget()
     for name,label in expected.items():

@@ -21,7 +21,7 @@ def main():
     stage.add_argument('--phase', required=True)
     stage.add_argument('--arm', choices=['direct', 'yui'], default='yui')
     stage.add_argument('--out', type=Path, required=True)
-    stage.add_argument('--timeout-seconds', type=int, default=600)
+    stage.add_argument('--timeout-seconds', type=int, default=None, help='Optional wall limit in seconds; omitted means unlimited')
     stage.add_argument('--inputs', type=Path, help='Frozen explicit task-document manifest')
     stage.add_argument('--kind', choices=['json','nl0'], default='json', help='Built-in structural contract; no automatic semantic certification')
     stage.add_argument('--case-id', help='Required case identity for NL0 authoring')

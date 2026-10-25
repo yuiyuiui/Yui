@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""NL0/Lean concordance ledger, kernel inspection and review-bound Audit B.
+"""External/complete-target fidelity and review-bound Audit B.
 
 Semantic reviews remain actual reviewer work. Pending templates never pass.
-This adapter audits the candidate's generated conditional graph, not arbitrary
+This adapter audits the candidate's actual source-facing export, not arbitrary
 Lean repositories or the truth of external publications.
 """
 from __future__ import annotations
@@ -24,28 +24,15 @@ import background
 import background_inputs
 import assembly
 import lean_names
+import correspondence
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
-VERSION = 1
+VERSION = 2
 KINDS = {'hypothesis','external','mathlib','internal','target'}
-FOUNDATION = {
-    'Eq.refl','Eq.rec','Eq.recOn','Eq.ndrec','Eq.ndrecOn','Eq.casesOn',
-    'Eq.symm','Eq.trans','Eq.subst','Eq.mp','Eq.mpr','Eq.congr','cast',
-    'congrArg','congrFun','congr','funext','propext','Quot.sound',
-    'True.intro','False.elim','False.rec','False.recOn','False.casesOn',
-    'And.intro','And.left','And.right','And.rec','And.recOn','And.casesOn',
-    'Or.inl','Or.inr','Or.elim','Or.rec','Or.recOn','Or.casesOn',
-    'Iff.intro','Iff.mp','Iff.mpr','Iff.rfl','Iff.refl','Iff.symm','Iff.trans',
-    'Exists.intro','Exists.elim','Exists.rec','Exists.recOn','Exists.casesOn',
-    'HEq.refl','HEq.rec','HEq.ndrec','HEq.symm','HEq.trans','eq_of_heq','heq_of_eq',
-    'Classical.choice'}
-CLASSICAL = {'Classical.em','Classical.byContradiction','Classical.not_not','byContradiction'}
 AXIOMS = {'propext','Classical.choice','Quot.sound'}
-REVIEW_CHECKS = ('inventory_and_scope','parameters_definitions_and_representations',
-                 'complete_signature_and_hidden_fields','direct_dependencies_and_route',
-                 'shared_proofs_and_final_closure','library_and_calculation_correspondence',
-                 'warnings_and_trusted_environment')
+REVIEW_CHECKS = ('endpoint_inventory_and_scope', 'external_statement_fidelity',
+                 'complete_target_and_representations', 'kernel_closure_and_trust')
 
 
 def environment():
@@ -130,30 +117,33 @@ def prepare(cpath,ppath,bpath,out,**source):
     inventory, source_paths = source_data(cpath,**source)
     out.mkdir(parents=True,exist_ok=False)
     ir.write(out/'source-inventory.json',inventory)
-    mapping = {'version':VERSION,'source_inventory_sha256':ir.digest(out/'source-inventory.json'),
-               'entries':{},'calculation_links':{}}
+    mapping = {'version':VERSION,'policy':correspondence.POLICY,
+               'source_inventory_sha256':ir.digest(out/'source-inventory.json'),
+               'entries':{},'library_terms':{}}
     premises = {p['id']:p for p in c['premises']}
     retained = [p for p in c['premises'] if p['kind']!='mathlib']
+    notes = c.get('endpoint_correspondence', {})
     for item in inventory['propositions']:
         sid = item['id']
-        row = {'selector':None,'expected_type':None}
+        if item['kind'] not in {'external', 'target'}:
+            continue
         if sid == 'P':
-            row = {'selector':'decl:AuditBExport.P',
-                   'expected_type':full_type(c,c['conclusion']['type'],retained)}
-        elif sid in premises:
-            before = c['premises'][:next(i for i,p in enumerate(c['premises']) if p['id']==sid)]
-            row = {'selector':'premise:'+sid,'expected_type':full_type(c,premises[sid]['type'],before)}
-        if item['kind']=='mathlib':
-            row.update({'library_declaration':item.get('source',{}).get('declaration'),
-                        'library_type':None,'library_term':None})
-        mapping['entries'][sid] = row
-    for definition in inventory.get('definitions',[]):
-        mapping['entries'][definition['id']] = {'selector':None,'expected_type':None}
+            selector = 'decl:AuditBExport.P'
+            expected = full_type(c,c['conclusion']['type'],retained)
+        else:
+            ir.need(sid in premises, 'missing external root: '+sid)
+            before = retained[:next(i for i,p in enumerate(retained) if p['id']==sid)]
+            selector = 'premise:'+sid
+            expected = full_type(c,premises[sid]['type'],before)
+        mapping['entries'][sid] = {'selector':selector,'expected_type':expected,
+                                  'correspondence':notes.get(sid)}
+    # Compatibility ports are proof obligations, never a library whitelist.
+    mapping['library_terms'] = {p['id']:None for p in c['premises'] if p['kind']=='mathlib'}
     ir.write(out/'mapping.json',mapping)
     source_file = (cpath.parent/c['source']['path']).resolve()
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
-             Path(assembly.__file__),Path(lean_names.__file__),
+             Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'scripts/nl0.py',HERE.parent/'scripts/closure.py',
              ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
@@ -189,109 +179,40 @@ def bound_inputs(out):
     return manifest
 
 
-def instance_support(declarations):
-    """Only registered instances used exclusively in actual instance arguments.
-
-    These remain explicit final semantic-review obligations. An instance used
-    as an ordinary proof is not covered by this representation-level category.
-    """
-    ordinary=set();arguments=set()
-    for d in declarations:
-        uses=d.get('proof_uses',{})
-        ordinary.update(uses.get('ordinary',[]))
-        arguments.update(uses.get('instance_argument',[]))
-    return {d['name'] for d in declarations if d['name'] in arguments-ordinary
-            and d.get('instance_declaration') and d['imported'] and d['proof_valued']}
-
-
-def dependency_correspondence(inventory,mapping,plan,declarations):
-    """Stop at mapped source N nodes; implementation-only T helpers may expand."""
-    nodes={s['id']:s for s in plan['steps']}
-    boundary={row['selector'][len('decl:Translation.'):]:sid for sid,row in mapping['entries'].items()
-              if row['selector'].startswith('decl:Translation.T')}
-    byname={d['name']:d for d in declarations}
-    library={}
-    for sid,row in mapping['entries'].items():
-        if row.get('library_declaration'):library.setdefault(lean_names.canonical(row['library_declaration']),set()).add(sid)
-    common = set(FOUNDATION) | {lean_names.canonical(name) for name in mapping.get('calculation_links', {})}
-    common |= instance_support(declarations)
-    if inventory.get('logic', {}).get('classical'):
-        common |= CLASSICAL
-    def constants(name,seen,allowed,notes,used,unpermitted):
-        if name in seen: return set()
-        seen.add(name)
-        if name in library and library[name]&allowed:
-            return library[name]&allowed
-        d=byname.get(name)
-        if d and d['imported']:
-            if name in notes:
-                used.add(name)
-                return set()
-            if name in library:
-                return library[name]
-            if d['proof_valued'] and name not in common:
-                unpermitted.add(name)
-            return set()
-        if not d: return set()
-        return set().union(*(constants(x,seen,allowed,notes,used,unpermitted) for x in d['direct_constants'])) if d['direct_constants'] else set()
-    def inputs(tid,start,seen,allowed,notes,used,unpermitted):
-        if tid not in nodes: return {tid}
-        if tid!=start and tid in boundary: return {boundary[tid]}
-        if tid in seen: return set()
-        seen.add(tid)
-        result=set().union(*(inputs(dep,start,seen,allowed,notes,used,unpermitted) for dep in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
-        result |= constants('Translation.'+tid,set(),allowed,notes,used,unpermitted)
-        return result
-    rows=[]
-    for inference in inventory.get('inferences',[]):
-        source_id=inference['output'];selector=mapping['entries'][source_id]['selector']
-        tid=plan['terminal'] if source_id=='P' else selector.removeprefix('decl:Translation.')
-        notes=background_inputs.library_notes(inventory,inference['id'])
-        used=set();unpermitted=set()
-        expected=set(inference['inputs']);actual=inputs(tid,tid,set(),expected,notes,used,unpermitted)
-        rows.append({'inference':inference['id'],'source_output':source_id,'source_inputs':sorted(expected),
-                     'actual_boundary_inputs':sorted(actual),'matched':actual==expected and not unpermitted,
-                     'background_library_uses':{name:notes[name] for name in sorted(used)},
-                     'unpermitted_imported_proofs':sorted(unpermitted)})
-    return rows
-
-
 def validate_mapping(c,inventory,mapping):
-    ids = {p['id'] for p in inventory['propositions']} | {d['id'] for d in inventory.get('definitions',[])}
-    ir.need(mapping['version']==VERSION and set(mapping['entries'])==ids,'missing/extra source correspondence')
-    ir.need(mapping['entries']['P']['selector']=='decl:AuditBExport.P','audit must inspect the actual assembled root')
+    ids = set(correspondence.endpoint_ids(inventory['propositions']))
+    ir.need(mapping.get('version')==VERSION and mapping.get('policy')==correspondence.POLICY,
+            'unsupported Audit B policy; create a new endpoint audit')
+    ir.need(isinstance(mapping.get('entries'),dict) and set(mapping['entries'])==ids,
+            'missing/extra endpoint correspondence')
+    ir.need(mapping['entries']['P']['selector']=='decl:AuditBExport.P',
+            'audit must inspect the actual assembled root')
     source_props = {p['id']:p for p in inventory['propositions']}
     for p in c['premises']:
-        ir.need(p['id'] in source_props and source_props[p['id']]['kind']==p['kind'],'extra/changed root assumption')
+        if p['kind']=='mathlib':
+            continue  # Proven during assembly, independent of any NL0 M list.
+        ir.need(p['id'] in source_props and source_props[p['id']]['kind']==p['kind'],
+                'extra/changed root assumption')
         if inventory['scope']=='whole_structured_nl0':
-            ir.need(p['kind'] in {'hypothesis','external','mathlib'},'internal NL0 result remains an unproved root premise')
+            ir.need(p['kind'] in {'hypothesis','external'},
+                    'internal NL0 result remains an unproved root premise')
     roots = {p['id'] for p in c['premises']}
     required = {p['id'] for p in inventory['propositions'] if p['kind'] in {'hypothesis','external'}}
     ir.need(required <= roots,'missing original hypothesis/external source input')
     for sid,row in mapping['entries'].items():
-        ir.need(isinstance(row['selector'],str),'unmapped source node: '+sid)
-        if row['selector'].startswith('decl:'):
-            ir.need(lean_names.valid(row['selector'][5:]),f'{sid}.selector: malformed Lean declaration name: {row["selector"]!r}')
-        else:
-            ir.need(row['selector']=='premise:'+sid and sid in roots,'invalid premise selector')
+        ir.need(isinstance(row,dict) and set(row)=={'selector','expected_type','correspondence'},
+                'invalid endpoint correspondence fields: '+sid)
+        wanted = 'decl:AuditBExport.P' if sid=='P' else 'premise:'+sid
+        ir.need(row['selector']==wanted,'endpoint must select its actual exported statement: '+sid)
         ir.type_text(row['expected_type'])
-        item = source_props.get(sid,{})
-        if item.get('kind') in {'hypothesis','external'}:
-            ir.need(row['selector']=='premise:'+sid,'source premise cannot be replaced by another theorem')
-        if item.get('kind')=='internal' and inventory['scope']=='whole_structured_nl0':
-            ir.need(row['selector'].startswith('decl:Translation.T'),'internal source node lacks an actual local proof')
-        if item.get('kind')=='mathlib':
-            name = row.get('library_declaration')
-            ir.need(lean_names.valid(name),f'{sid}.library_declaration: missing or malformed Lean name: {name!r}')
-            declared = item.get('source',{}).get('declaration')
-            ir.need(not declared or lean_names.canonical(declared)==lean_names.canonical(name),
-                    f'{sid}.library_declaration: changed named source mathlib theorem')
-            ir.type_text(row['library_type'])
-            if sid in roots: ir.proof_text(row['library_term'])
-    calculations = inventory.get('logic',{}).get('calculations',[])
-    for name,index in mapping['calculation_links'].items():
-        ir.need(lean_names.valid(name) and type(index) is int and 0 <= index < len(calculations),
-                'unregistered foundational calculation')
+        correspondence.validate_note(row['correspondence'],sid)
+    terms = mapping.get('library_terms')
+    ir.need(isinstance(terms,dict) and set(terms)=={p['id'] for p in c['premises'] if p['kind']=='mathlib'},
+            'provide exactly the intermediate Mathlib-port discharge proofs')
+    for body in terms.values():
+        ir.proof_text(body)
+    ir.need(set(mapping)=={'version','policy','source_inventory_sha256','entries','library_terms'},
+            'obsolete or unexpected mapping fields; no library permission ledger is used')
 
 
 def export_source(c,mapping,level_metadata=None):
@@ -308,15 +229,6 @@ def build(out):
     ir.need(mapping['source_inventory_sha256']==ir.digest(out/'source-inventory.json'),'stale mapping inventory')
     validate_mapping(c,inventory,mapping)
     checks = [(sid,row['selector'],row['expected_type']) for sid,row in mapping['entries'].items()]
-    for p in inventory['propositions']:
-        if p['kind']=='mathlib':
-            row=mapping['entries'][p['id']]
-            checks.append((p['id']+'/library','decl:'+row['library_declaration'],row['library_type']))
-    # Inspect every T even when the source mapper omitted an implementation helper.
-    for sid,node in ir.validate(cpath,plan)[1].items():
-        types={**ir.premises(c),**{s['id']:s['statement'] for s in plan['steps']}}
-        params=[{'id':k,'type':types[k]} for k in node['inputs']]
-        checks.append(('implementation/'+sid,'decl:Translation.'+sid,full_type(c,node['statement'],params)))
     rows = [(*row, lean_names.parts(row[1][5:]) if row[1].startswith('decl:') else []) for row in checks]
     array = '#['+', '.join('('+', '.join(('#['+', '.join(json.dumps(p,ensure_ascii=False) for p in x)+']')
                           if isinstance(x,list) else json.dumps(x,ensure_ascii=False) for x in row)+')' for row in rows)+']'
@@ -349,49 +261,25 @@ def build(out):
         evidence = json.loads(found[-1]) if found else None
         ir.write(out/'elaborated.json',evidence)
         errors=[]
-        dependency_rows=[]
         if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
         if assembled['status']!='ASSEMBLY-PASSED': errors.append('SOURCE_FACING_ASSEMBLY_FAILED')
         if inspected['status']=='INSPECTION_HEARTBEAT_EXHAUSTED': errors.append('INSPECTION_HEARTBEAT_EXHAUSTED')
         if result['exit_code'] != 0 or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
         if any(r['exit_code'] for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
-        imported=[]
         if evidence:
-            if not all(r['definitionally_equal'] for r in evidence['comparisons']): errors.append('ELABORATED_SIGNATURE_MISMATCH')
+            if not all(r['definitionally_equal'] for r in evidence['comparisons']):
+                errors.append('ELABORATED_SIGNATURE_MISMATCH')
             deps=evidence['dependencies']
             if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
-            allowed=set(FOUNDATION)
-            if inventory.get('logic',{}).get('classical'): allowed |= CLASSICAL
-            allowed.update(lean_names.canonical(name) for name in mapping['calculation_links'])
-            support=instance_support(deps['declarations'])
-            allowed.update(support)
-            allowed.update(lean_names.canonical(row['library_declaration']) for row in mapping['entries'].values() if row.get('library_declaration'))
-            dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
-            allowed.update(name for row in dependency_rows for name in row['background_library_uses'])
             for d in deps['declarations']:
                 if set(d['axioms'])-AXIOMS: errors.append('UNPERMITTED_AXIOM:'+d['name'])
-                if not d['imported'] and d['kind'] in {'axiom','opaque'}: errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
-                if d['imported'] and d['proof_valued'] and d['name'] not in allowed: imported.append(d['name'])
-            if imported: errors.append('UNMAPPED_IMPORTED_MATHEMATICAL_RESULT')
-            if any(not r['matched'] for r in dependency_rows): errors.append('NL0_DIRECT_DEPENDENCY_MISMATCH')
-            byname={d['name']:d for d in deps['declarations']}
-            for row in dependency_rows:
-                for name,notes in row['background_library_uses'].items():
-                    declaration=byname.get(name)
-                    if not declaration or not declaration['imported'] or not declaration['proof_valued']:
-                        errors.append('BACKGROUND_NOT_A_PROVED_LIBRARY_RESULT:'+name)
-                    for note in notes:
-                        module=note['source'].get('module')
-                        if declaration and module and declaration['module']!=module:
-                            errors.append('BACKGROUND_MODULE_MISMATCH:'+note['id'])
-            for p in inventory['propositions']:
-                if p['kind']=='mathlib':
-                    name=lean_names.canonical(mapping['entries'][p['id']]['library_declaration']);d=byname.get(name)
-                    if not d or not d['imported'] or not d['proof_valued']: errors.append('SOURCE_M_NOT_A_PROVED_LIBRARY_RESULT:'+p['id'])
-                    module=p.get('source',{}).get('module')
-                    if d and module and module!=d['module']: errors.append('SOURCE_M_MODULE_MISMATCH:'+p['id'])
+                if not d['imported'] and d['kind'] in {'axiom','opaque'}:
+                    errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
+        # Imported theorems in the pinned environment are globally available.
+        # No name, count, per-node edge or arithmetic-permission comparison
+        # against the NL0 M inventory belongs to endpoint Audit B.
         packet={'inventory':inventory,'mapping':mapping,'contract':c,'plan':plan,
-            'actual_elaborated_evidence':evidence,'dependency_correspondence':dependency_rows,
+            'actual_elaborated_evidence':evidence,'policy':correspondence.POLICY,
             'original_source_text':(cpath.parent/c['source']['path']).read_text(),'lean_source':source,
             'source_and_proof_bytes':manifest['inputs'],
             'assembly':assembled,'inspection':inspected,
@@ -399,34 +287,16 @@ def build(out):
         ir.write(out/'review-packet.json',packet)
         required_locations={}
         comparisons=evidence['comparisons'] if evidence else []
-        for group in ('propositions','definitions'):
-            for i,item in enumerate(inventory.get(group,[])):
-                matches=[j for j,q in enumerate(comparisons) if q['id'] in {item['id'],item['id']+'/library'}]
-                required_locations[item['id']]=['/inventory/'+group+'/'+str(i)]+[
-                    '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
-        declarations=evidence['dependencies']['declarations'] if evidence else []
-        support=instance_support(declarations)
-        for i,d in enumerate(declarations):
-            if not d['imported']:
-                required_locations['implementation/'+d['name']]=['/lean_source','/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
-            if d['name'] in support:
-                required_locations['instance_support/'+d['name']]=[
-                    '/inventory/parameters','/inventory/definitions','/lean_source',
-                    '/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
-        for name,index in mapping['calculation_links'].items():
-            locations=['/inventory/logic/calculations/'+str(index)]
-            locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==lean_names.canonical(name)]
-            if evidence and len(locations)!=2:
-                errors.append('UNUSED_OR_UNINSPECTED_CALCULATION:'+name)
-            required_locations['calculation/'+name]=locations
-        for i,row in enumerate(dependency_rows):
-            for name,notes in row['background_library_uses'].items():
-                positions=[j for j,d in enumerate(declarations) if d['name']==name]
-                for note in notes:
-                    required_locations['background/'+note['id']]=[
-                        '/inventory/background_supplement/notes/'+row['inference'],
-                        '/dependency_correspondence/'+str(i),
-                        *['/actual_elaborated_evidence/dependencies/declarations/'+str(j) for j in positions]]
+        for i,item in enumerate(inventory['propositions']):
+            sid=item['id']
+            if sid not in mapping['entries']:
+                continue
+            matches=[j for j,q in enumerate(comparisons) if q['id']==sid]
+            required_locations[sid]=['/inventory/propositions/'+str(i),
+                '/mapping/entries/'+sid+'/correspondence']+[
+                '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
+            if sid=='P':
+                required_locations[sid] += ['/inventory/full_target','/inventory/parameters']
         required_rows=set(required_locations)
         receipts={key:{'verdict':'UNVERIFIED','notes':'Read the complete paired statements and actual elaborated evidence.',
                        'locations':[],'evidence':[]} for key in sorted(required_rows)}
@@ -434,9 +304,8 @@ def build(out):
                 'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
                 'nodes':receipts,'checks':{k:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]} for k in REVIEW_CHECKS}}
         mechanical={'version':VERSION,'passed':not errors,'errors':sorted(set(errors)),
-            'instance_argument_support':sorted(support),
-            'required_review_locations':required_locations,'dependency_correspondence':dependency_rows,
-            'unmapped_imported_proofs':sorted(set(imported)),'wall_seconds':time.monotonic()-start,
+            'policy':correspondence.POLICY,
+            'required_review_locations':required_locations,'wall_seconds':time.monotonic()-start,
             'local_checks':local,'compiler_exit_code':result['exit_code'],
             'assembly':assembled,'inspection':inspected,
             'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
@@ -449,7 +318,7 @@ def build(out):
         review['mechanical_sha256']=ir.digest(out/'mechanical.json')
         ir.write(out/'review-template.json',review)
         return {'status':'AUDIT-B-MECHANICAL-PASSED' if not errors else 'AUDIT-B-MECHANICAL-FAILED',
-                'errors':mechanical['errors'],'unmapped_imported_proofs':mechanical['unmapped_imported_proofs'],
+                'errors':mechanical['errors'],'policy':correspondence.POLICY,
                 'assembly':assembled['status'],'inspection':inspected['status'],
                 'semantic_review':'UNVERIFIED'}
     finally:
@@ -494,7 +363,7 @@ def check(out,review_path):
     inventory=ir.load(out/'source-inventory.json')
     certified=inventory['scope']=='whole_structured_nl0' and inventory['audit_a_current_passed']
     return {'status':'AUDIT-B-PASSED' if certified else 'DEVELOPMENT-AUDIT-B-PASSED',
-            'checks_passed':True,'scope':inventory['scope'],'upstream_audit_a':inventory['audit_a_status'],
+            'checks_passed':True,'policy':correspondence.POLICY,'scope':inventory['scope'],'upstream_audit_a':inventory['audit_a_status'],
             'whole_nl0_and_current_audit_a':certified,'reviewer':reviewer,
             'kernel_correct_relative_to_declared_externals':True,
             'external_publications_proved_by_lean':False,'semantic_review_automatically_verified':False,

@@ -154,7 +154,7 @@ class ExecutionTests(unittest.TestCase):
         self.r.flush(force=True)
         def check():
             with e.activate(self.r,'T001'):
-                try:pilot_common.run_lean(file,work,timeout=40)
+                try:pilot_common.run_lean(file,work)
                 except e.Cancelled:result.append('CANCELLED')
         t=threading.Thread(target=check);t.start()
         deadline=time.monotonic()+10

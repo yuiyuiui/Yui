@@ -47,12 +47,19 @@ def fixture(directory,variant='identity'):
     if variant=='hidden_field':
         header+='\nstructure Box (q : Prop) where\n  hidden : q\n'
         params.append({'name':'box','type':'Box p'})
+    if variant=='equivalent_target': target='p ∧ True';body='exact ⟨h_H001, True.intro⟩'
     if variant=='wrong_target': target='True';body='exact True.intro'
+    if variant=='extra_axiom':
+        header+='axiom hiddenProof : False\n'
+        body='exact False.elim hiddenProof'
     c={'version':1,'id':'audit_control','source':{'path':'source.json','sha256':ir.digest(directory/'source.json')},
        'source_steps':source['source_steps'],'pins':{'lean_version':'4.32.2','mathlib_commit':mathlib},
        'header':header,'parameters':params,'premises':premises,
+       'endpoint_correspondence':{p['id']:{'mode':'direct','explanation':'The displayed binders and assertion encode the source '+p['id']+'.'} for p in props if p['kind'] in {'external','target'}},
        'conclusion':{'statement':props[-1]['statement'],'type':target},'representation':{'scope':'propositional/Nat controls'},
        'review':{'mode':'development_owner_review','scope':'Synthetic Audit B controls; no whole-case certification.'}}
+    if variant=='equivalent_target':
+        c['endpoint_correspondence']['P']={'mode':'equivalent','explanation':'The encoding pairs the original assertion with True; take the first projection to recover the original, and pair it with True.intro in the other direction.'}
     cpath=directory/'contract.json';ir.write(cpath,c)
     plan={'version':1,'contract_sha256':ir.digest(cpath),'representation_notes':'Preserve the fixed proposition or natural-number statement.',
           'steps':[{'id':'T001','statement':target,'inputs':[p['id'] for p in premises],
@@ -80,8 +87,7 @@ def prepare_control(base,variant='identity'):
         mapping['entries']['P']['expected_type']='∀ (p q : Prop) (h_E001 : p), p'
         mapping['entries']['E001']['expected_type']='∀ (p q : Prop), p'
     if variant=='mathlib':
-        mapping['entries']['M001']['library_type']='∀ (a b : ℕ), a+b=b+a'
-        mapping['entries']['M001']['library_term']='exact Nat.add_comm a b'
+        mapping['library_terms']['M001']='exact Nat.add_comm a b'
     ir.write(directory/'mapping.json',mapping)
     return directory
 
@@ -110,7 +116,7 @@ class AuditBTests(unittest.TestCase):
         cls.base=Path(tempfile.mkdtemp(prefix='audit-b-controls-'))
         cls.directories={}
         cls.outcomes={}
-        for variant in ('identity','wrong_target','hidden_field','mathlib','unmapped_mathlib','weakened_external','unmapped_instance'):
+        for variant in ('identity','wrong_target','hidden_field','mathlib','unmapped_mathlib','weakened_external','unmapped_instance','extra_axiom','equivalent_target'):
             directory=prepare_control(cls.base/variant,variant)
             cls.outcomes[variant]=audit.build(directory)
             cls.directories[variant]=directory
@@ -148,17 +154,31 @@ class AuditBTests(unittest.TestCase):
         exported=next(r for r in data['comparisons'] if r['id']=='P')
         self.assertNotIn('h_M001',exported['actual_type'])
 
-    def test_unlisted_mathlib_result_blocks_even_though_lean_passes(self):
+    def test_equivalent_encoding_is_passed_to_review_not_automatically_certified(self):
+        directory=self.directories['equivalent_target']
+        report=ir.load(directory/'mechanical.json')
+        self.assertTrue(report['passed'])
+        note=ir.load(directory/'review-packet.json')['mapping']['entries']['P']['correspondence']
+        self.assertEqual(note['mode'],'equivalent')
+        with self.assertRaises(ir.Invalid):
+            audit.check(directory,directory/'review-template.json')
+
+    def test_unlisted_mathlib_result_is_freely_available(self):
         report=ir.load(self.directories['unmapped_mathlib']/'mechanical.json')
         self.assertEqual(report['compiler_exit_code'],0)
-        self.assertIn('Nat.add_comm',report['unmapped_imported_proofs'])
-        self.assertFalse(report['passed'])
+        self.assertTrue(report['passed'])
+        self.assertNotIn('unmapped_imported_proofs',report)
 
-    def test_library_instance_used_as_an_ordinary_proof_is_not_implicitly_permitted(self):
+    def test_library_instance_can_be_used_as_an_ordinary_proof(self):
         report=ir.load(self.directories['unmapped_instance']/'mechanical.json')
         self.assertEqual(report['compiler_exit_code'],0)
-        self.assertIn('instIsTopologicalRingReal',report['unmapped_imported_proofs'])
+        self.assertTrue(report['passed'])
+
+    def test_unproved_project_axiom_is_still_rejected(self):
+        report=ir.load(self.directories['extra_axiom']/'mechanical.json')
         self.assertFalse(report['passed'])
+        self.assertIn('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION',report['errors'])
+        self.assertTrue(any(e.startswith('UNPERMITTED_AXIOM:') for e in report['errors']))
 
     def test_external_input_with_same_count_but_changed_content_rejected(self):
         directory=self.directories['weakened_external'];report=ir.load(directory/'mechanical.json')
@@ -167,14 +187,24 @@ class AuditBTests(unittest.TestCase):
         comparison=next(r for r in ir.load(directory/'elaborated.json')['comparisons'] if r['id']=='E001')
         self.assertFalse(comparison['definitionally_equal'])
 
-    def test_mathlib_review_must_cover_general_library_signature(self):
-        other=self.copy.parent/'mathlib-audit';shutil.copytree(self.directories['mathlib'],other)
-        path=synthetic_receipt(other);record=ir.load(path)
-        evidence=ir.load(other/'elaborated.json')
-        index=next(i for i,r in enumerate(evidence['comparisons']) if r['id']=='M001/library')
-        pointer='/actual_elaborated_evidence/comparisons/'+str(index)
-        record['nodes']['M001']['locations'].remove(pointer);ir.write(path,record)
-        with self.assertRaisesRegex(ir.Invalid,'paired source/kernel'): audit.check(other,path)
+    def test_only_external_and_complete_target_have_semantic_rows(self):
+        for variant in ('identity','mathlib','unmapped_mathlib'):
+            report=ir.load(self.directories[variant]/'mechanical.json')
+            self.assertEqual(set(report['required_review_locations']),{'P'})
+        report=ir.load(self.directories['weakened_external']/'mechanical.json')
+        self.assertEqual(set(report['required_review_locations']),{'E001','P'})
+
+    def test_explanation_is_required_and_bound_to_review(self):
+        c=ir.contract(self.base/'identity/case/contract.json')
+        inventory=ir.load(self.copy/'source-inventory.json')
+        mapping=ir.load(self.copy/'mapping.json')
+        mapping['entries']['P']['correspondence']['explanation']=''
+        with self.assertRaisesRegex(ir.Invalid,'explanation is missing'):
+            audit.validate_mapping(c,inventory,mapping)
+        path=synthetic_receipt(self.copy);record=ir.load(path)
+        record['nodes']['P']['locations'].remove('/mapping/entries/P/correspondence')
+        ir.write(path,record)
+        with self.assertRaisesRegex(ir.Invalid,'paired source/kernel'): audit.check(self.copy,path)
 
     def test_pending_template_never_passes(self):
         with self.assertRaises(ir.Invalid): audit.check(self.copy,self.copy/'review-template.json')
@@ -187,13 +217,13 @@ class AuditBTests(unittest.TestCase):
 
     def test_missing_source_mapping_rejected(self):
         c=ir.contract(self.base/'identity/case/contract.json');inventory=ir.load(self.copy/'source-inventory.json')
-        mapping=ir.load(self.copy/'mapping.json');del mapping['entries']['H001']
+        mapping=ir.load(self.copy/'mapping.json');del mapping['entries']['P']
         with self.assertRaisesRegex(ir.Invalid,'missing/extra'): audit.validate_mapping(c,inventory,mapping)
 
     def test_mismatched_root_source_kind_rejected(self):
         c=ir.contract(self.base/'identity/case/contract.json');inventory=ir.load(self.copy/'source-inventory.json')
         inventory['propositions'][0]['kind']='external'
-        with self.assertRaisesRegex(ir.Invalid,'root assumption'):
+        with self.assertRaisesRegex(ir.Invalid,'missing/extra|root assumption'):
             audit.validate_mapping(c,inventory,ir.load(self.copy/'mapping.json'))
 
     def test_different_or_decoy_root_rejected(self):
@@ -222,15 +252,23 @@ class AuditBTests(unittest.TestCase):
         path=synthetic_receipt(self.copy);(self.copy/'test-only-evidence.txt').write_text('changed')
         with self.assertRaisesRegex(ir.Invalid,'semantic evidence'): audit.check(self.copy,path)
 
-    def test_source_dependency_bypass_rejected(self):
-        mapping={'entries':{'H001':{},'N001':{'selector':'decl:Translation.T001'},'P':{'selector':'decl:AuditBExport.P'}}}
-        # Fill only the selectors needed by the independent graph comparison.
-        mapping['entries']['H001']['selector']='premise:H001'
-        inventory={'inferences':[{'id':'R001','inputs':['H001'],'output':'N001'},
-                                  {'id':'R002','inputs':['N001'],'output':'P'}]}
-        plan={'steps':[{'id':'T001','inputs':['H001']},{'id':'T002','inputs':['H001']}],'terminal':'T002'}
-        rows=audit.dependency_correspondence(inventory,mapping,plan,[])
-        self.assertTrue(rows[0]['matched']);self.assertFalse(rows[1]['matched'])
+    def test_old_policy_or_permission_ledger_is_not_silently_reused(self):
+        c=ir.contract(self.base/'identity/case/contract.json')
+        inventory=ir.load(self.copy/'source-inventory.json')
+        mapping=ir.load(self.copy/'mapping.json');mapping['version']=1
+        with self.assertRaisesRegex(ir.Invalid,'unsupported Audit B policy'):
+            audit.validate_mapping(c,inventory,mapping)
+        mapping['version']=audit.VERSION;mapping['calculation_links']={}
+        with self.assertRaisesRegex(ir.Invalid,'obsolete or unexpected'):
+            audit.validate_mapping(c,inventory,mapping)
+
+    def test_equivalence_explanation_does_not_override_independent_rejection(self):
+        path=synthetic_receipt(self.copy);record=ir.load(path)
+        record['nodes']['P']['verdict']='FAIL'
+        record['nodes']['P']['notes']='Synthetic negative: the stated identification omits a hypothesis.'
+        ir.write(path,record)
+        with self.assertRaisesRegex(ir.Invalid,'unperformed/failed semantic review: P'):
+            audit.check(self.copy,path)
 
 
 if __name__=='__main__':unittest.main()

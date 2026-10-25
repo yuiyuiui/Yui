@@ -2,7 +2,8 @@
 
 ## Three semantic stages
 
-1. Structured NL0/Audit A owns the mathematics and permitted inputs.
+1. Structured NL0/Audit A owns the source mathematics and project premises;
+   stage two may freely use the pinned Mathlib environment.
 2. Typed translation produces an actual Lean proof along that route.
 3. Audit B checks source/formal concordance and real kernel closure.
 
@@ -16,7 +17,8 @@ The source graph has H/E/M/N/P proposition vertices and R inference vertices.
 A particular R or prepared fragment may be implemented by several T obligations.
 These T steps are implementation proof ports, not automatic new NL0 theorems.
 Each carries its complete Lean type, direct inputs, source-paragraph mapping
-and mechanism. Substantive new mathematics returns to the source graph/Audit A.
+and mechanism. A changed source claim or new external assumption returns to
+the source graph/Audit A; direct use of pinned Mathlib does not.
 
 The current runner consumes one frozen contract/plan. The legacy model pilot
 can generate interfaces/plans for its three prepared development extracts, using
@@ -24,7 +26,8 @@ an owner-reviewed interface oracle. It is not a general semantic NL0 compiler.
 A whole-paper controller that automatically discovers every representation,
 converts all source R nodes and joins arbitrary dependent witness interfaces is
 not implemented. Audit B can cover a whole structured graph only when the
-provided actual assembly and mapping cover all its nodes.
+provided actual assembly closes its obligations and the endpoint mapping
+covers every E and complete P.
 
 ## Execution pipeline and responsibility
 
@@ -41,14 +44,14 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Stage | Responsibility | Main artifact/tool |
 | --- | --- | --- |
 | Translation-entry source preparation | Extract existing shared derivations through allowlisted local patches; review new producers and substitution cuts, preserving old evidence | source_preparation.py inventory/stage/check; ordinary or incremental Audit A authority |
-| Source/IR freeze | Preserve baseline, accepted source, definitions, target/H/E/M, exact paragraph/output mapping and direct input boundaries | workflow.py freeze; checked source boundaries/types, immutable bindings, semantic status pending Audit B |
+| Source/IR freeze | Preserve baseline, accepted source, definitions, complete target/H/E, optional M ports, paragraph/output mapping and project input boundaries | workflow.py freeze; checked source boundaries/types, immutable bindings, semantic status pending Audit B |
 | Interface authoring | Choose source-faithful Lean representations and complete input/output types | contract.json; model proposal plus real type check, semantic review in final Audit B |
 | Local planning | Define useful typed T ports, direct input IDs and source correspondence | plan.json; structural/type checks in ir.py |
 | Explicit reuse | Match a reviewed common port against a supplied project source store | shared_lemmas.py, initial index, full conditional types |
 | Local proof work | Fresh worker proves only its own conditional obligation; direct proof by default | Stage in model_pilot.py; fixed search/read/check/submit tools |
 | Bounded execution | Launch independent conditional bodies; deduplicate compatible shared jobs within one graph | scheduler.py; pending/running/results and actual intervals |
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
-| Audit B | Independently review source/type meaning, inspect actual dependencies/fields, resolve source M ports and check final export | audit_b.py, audit_probe.lean, located semantic receipt |
+| Audit B | Independently review external E and complete P meaning using concise correspondence notes; check final export and kernel trust | audit_b.py, audit_probe.lean, located semantic receipt |
 
 Only Lean proof jobs within one case share its disclosed `max_concurrency=auto|N`
 budget. NL0, preparation, Audit A, interface work and Audit B have a separate
@@ -112,20 +115,20 @@ it is not distributed cross-process proof-job coordination.
 Audit B's two gates are detailed in audit-b.md. Source coverage and actual
 elaborated types/dependencies are machine-inspected, but meaning still requires
 a real source/formal review. Compiler success is only one gate. Audit B examines
-actual imported proofs, proof-valued parameters/fields and local/project closure,
-including unlisted results selected by automation. Pending templates stay pending.
+the actual E/P statements, relevant proof-valued fields and local/project
+closure. Imported Mathlib results selected by automation need no source-M match. Pending templates stay pending.
 
 If source M is represented by a theorem parameter in the intermediate graph,
-the audit adapter proves that port using the actual library declaration and
+the assembly adapter proves that port using any applicable pinned library result and
 exports AuditBExport.P without that extra unproved argument. Source E remains
 an explicitly declared external input and is not claimed proved by Lean.
 Unresolved internal N ports are permitted only in a disclosed fragment scope.
 
 The earlier six-run norm pilot measured frozen-port proof work, with no full
-Audit B acceptance. The new stricter inspection identifies unregistered direct
-uses of ofReal_norm and iSup_congr in its source inventory. Preserve that result
-as a dependency finding; do not rewrite its frozen source or claim its old
-timings already measure fully audited NL0 formalization.
+Audit B acceptance. Version-1 inspection identified unregistered direct uses of ofReal_norm and
+iSup_congr; retain that historical finding under its original policy. Version 2
+permits such Mathlib use, but it does not retrospectively certify old proofs or
+make their timings measurements of fully audited formalization.
 
 Include source/interface authoring, shared first construction, kernel/tool work,
 assembly, Audit B review and failures in an end-to-end speed claim. Per-stage

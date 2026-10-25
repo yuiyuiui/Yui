@@ -186,7 +186,8 @@ class BackgroundTests(unittest.TestCase):
             'objects':[],'steps':[{'id':'T001','statement':'Continuous (f + g)',
                 'inputs':['H001','H002'],'source_steps':['S001'],
                 'background_notes':['R001.BG001'],'explanation':'Apply the permitted continuous addition input.'}],
-            'terminal':'T001','source_outputs':{'P':'T001'}}
+            'terminal':'T001','source_outputs':{'P':'T001'},
+            'endpoint_correspondence':{'P':{'mode':'direct','explanation':'For continuous real functions f and g the target is continuity of their pointwise sum.'}}}
         checked=author.InterfaceContract(out)(artifact)
         self.assertEqual(checked['status'],'IR-TYPES-CHECKED')
         contract=json.loads((out/'candidates/0001/contract.json').read_text())
@@ -207,12 +208,13 @@ class BackgroundTests(unittest.TestCase):
         audit=out/'audit-b'
         audit_b.prepare(cp,pp,bp,audit,graph=self.base/'nl0.json',spec=self.base/'spec.json',
                         audit_a=self.base/'audit-a.json')
-        self.assertEqual(set(ir.load(audit/'mapping.json')['entries']),{'H001','H002','P'})
+        self.assertEqual(set(ir.load(audit/'mapping.json')['entries']),{'P'})
         result=audit_b.build(audit)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED',result)
         mechanical=ir.load(audit/'mechanical.json')
-        self.assertIn('background/R001.BG001',mechanical['required_review_locations'])
-        self.assertIn('Continuous.add',mechanical['dependency_correspondence'][0]['background_library_uses'])
+        self.assertEqual(set(mechanical['required_review_locations']),{'P'})
+        self.assertNotIn('dependency_correspondence',mechanical)
+        self.assertEqual(ir.load(audit/'source-inventory.json')['background_supplement']['notes']['R001'][0]['source']['declaration'],'Continuous.add')
         with self.assertRaises(ir.Invalid):audit_b.check(audit,audit/'review-template.json')
 
     def test_clean_local_reviewer_can_save_notes_without_a_second_model(self):

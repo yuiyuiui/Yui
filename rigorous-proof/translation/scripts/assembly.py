@@ -40,7 +40,7 @@ def library_source(c, mapping):
     text = '\nnamespace AuditBExport\nset_option autoImplicit false\n'
     for p in c['premises']:
         if p['kind'] == 'mathlib':
-            text += f"theorem resolved_{p['id']} {context} {ins} : {p['type']} := by\n{ir.proof_text(mapping['entries'][p['id']]['library_term'])}\n\n"
+            text += f"theorem resolved_{p['id']} {context} {ins} : {p['type']} := by\n{ir.proof_text(mapping['library_terms'][p['id']])}\n\n"
     return text
 
 
@@ -60,7 +60,7 @@ def export_source(c, mapping, level_metadata=None):
               for p in c['premises']]
     args = ' '.join([p['name'] for p in c['parameters']] + actual)
     text = library_source(c, mapping)
-    text += f"theorem P {context} {ins} : {c['conclusion']['type']} := by\n  exact @Translation.P{universe} {args}\n\n#check @P\n#print axioms P\nend AuditBExport\n"
+    text += f"set_option Elab.async false in\ntheorem P {context} {ins} : {c['conclusion']['type']} := by\n  exact @Translation.P{universe} {args}\n\n#check @P\n#print axioms P\nend AuditBExport\n"
     return text
 
 

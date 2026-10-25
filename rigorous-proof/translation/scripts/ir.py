@@ -240,7 +240,7 @@ def local_packet(cpath, plan, sid):
             'inputs': [{'id': k, 'binder': 'h_' + k, 'type': types[k]} for k in step['inputs']],
             'target': step['statement'], 'explanation': step['explanation'],
             'source_steps': [s for s in c['source_steps'] if s['id'] in step['source_steps']],
-            'boundary': 'Only listed inputs are mathematical premises. No sibling proof is supplied.'}
+            'boundary': 'Only listed inputs are project premises. The pinned Mathlib environment is freely available; no sibling proof is supplied.'}
     supplement=c['source'].get('background_supplement')
     selected=step.get('background_notes',[])
     notes={rid+'.'+note['id']:note for rid,rows in (supplement or {}).get('notes',{}).items() for note in rows}
@@ -294,7 +294,9 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
             text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(proofs[sid])}\n\n"
     if not only and not types_only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
-        text += f"theorem P {context} {ins} :\n    {c['conclusion']['type']} := by\n"
+        # The body may generalize universe parameters absent from its result.
+        # Elaborate this assembly synchronously so declaration commit sees them.
+        text += f"set_option Elab.async false in\ntheorem P {context} {ins} :\n    {c['conclusion']['type']} := by\n"
         args = ' '.join(p['name'] for p in c['parameters'])
         for sid in order:
             dep = ' '.join('h_' + k for k in nodes[sid]['inputs'])
@@ -305,7 +307,7 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
     return text + '\nend Translation\n'
 
 
-def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=120):
+def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=None):
     lean = render(cpath, plan, proofs, only, types_only)
     work = Path(tempfile.mkdtemp(prefix='nl0-ir-check-')).resolve()
     try:
@@ -342,7 +344,7 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
         shutil.rmtree(work)
 
 
-def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=120):
+def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None):
     """Check one closed helper in exactly this port's context; add no premise."""
     c,nodes,_=validate(cpath,plan)
     need(step in nodes,'unknown auxiliary context port')
@@ -377,7 +379,7 @@ elab "yui_aux_type% " text:str : term => do
         shutil.rmtree(work)
 
 
-def check_interface(cpath, draft, timeout=120):
+def check_interface(cpath, draft, timeout=None):
     """Development oracle: compare proposed ports with owner-reviewed ports.
 
     This is not a semantic natural-language equivalence checker. Its frozen

@@ -80,3 +80,19 @@ final ledgers remain authoritative. Recording/control consume no model calls.
 Separate per-case worker concurrency from concurrent-case count, and report
 explicit cancellation independently from a healthy model deadline. Reusing an
 existing compatible proof store in a new run remains disclosed warm reuse.
+
+## Unlimited execution policy
+
+Current default configuration uses JSON null for whole-case, stage and native
+time budgets and the total token budget. Null means no automatic cutoff, not
+zero. Keep usage, elapsed time, process ownership and cancellation recording.
+A user-requested finite limit is a separate disclosed experiment setting.
+
+There is no total token, reasoning-token, model-call or continuation-count quota
+in Yui. The carrier's automatic context compaction uses its model-aware default;
+Yui still discards opaque summaries and restores only its own permitted inputs.
+A tool-result display/page bound is not a cumulative token allowance. Provider
+context windows, per-response output limits and account quotas are outside Yui's
+control: record an actual provider failure without claiming it was removed.
+Native checks have no default wall timeout, fixed heartbeat cap or heap quota.
+Cancellation and bounded socket/handshake/cleanup operations remain active.

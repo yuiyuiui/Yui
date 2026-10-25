@@ -76,11 +76,12 @@ def transport_sandbox_profile(work: Path, relay_port: int) -> str:
 
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
-             output: Path | None = None, timeout: float = 120) -> dict:
+             output: Path | None = None, timeout: float | None = None) -> dict:
+    timeout = __import__('runtime_config').time_limit(timeout)
     lock = load_lock()
     for name in ['home', 'tmp', 'output']:
         (work / name).mkdir(parents=True, exist_ok=True)
-    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1', '-M', '8192']
+    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1', '-DmaxHeartbeats=0']
     if output: cmd += ['-o', str(output)]
     cmd += [str(file)]
     if sandbox:
@@ -110,7 +111,7 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
                 break
             except subprocess.TimeoutExpired:
                 cancelled=recorder is not None and recorder.cancelled(task)
-                if cancelled or time.monotonic()-started>=timeout:
+                if cancelled or (timeout is not None and time.monotonic()-started>=timeout):
                     stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
                     if not stopped: raise RuntimeError('Native process cleanup could not be confirmed')
                     stdout,stderr=process.communicate()

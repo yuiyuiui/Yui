@@ -35,7 +35,7 @@ class AssemblyTests(unittest.TestCase):
         ir.write(cp, c)
         plan['contract_sha256'] = ir.digest(cp)
         ir.write(pp, plan)
-        mapping = {'entries': {'M001': {'library_term': 'exact DoesNotExist' if invalid_library else 'exact @List.length_append'}}}
+        mapping = {'library_terms': {'M001': 'exact DoesNotExist' if invalid_library else 'exact @List.length_append'}}
         out, work = self.base / 'audit', self.base / 'native'
         out.mkdir(); (work / 'input').mkdir(parents=True); (work / 'output').mkdir()
         report = assembly.build(c, mapping, ir.render(cp, plan, bundle['proofs']), out, work)
@@ -74,14 +74,14 @@ class AssemblyTests(unittest.TestCase):
             with self.subTest(name=bad):
                 self.assertFalse(lean_names.valid(bad))
 
-    def test_invalid_library_name_has_exact_source_location(self):
+    def test_discharge_cannot_contain_commands_or_placeholders(self):
         cp, pp, bp, ip = fixture(self.base / 'case', 'mathlib')
         c, inventory = ir.contract(cp), ir.load(ip)
         out = self.base / 'audit'
         audit_b.prepare(cp, pp, bp, out, fragment=ip)
         mapping = ir.load(out / 'mapping.json')
-        mapping['entries']['M001']['library_declaration'] = 'Nat.add_comm\n#eval 1'
-        with self.assertRaisesRegex(ir.Invalid, r'M001\.library_declaration'):
+        mapping['library_terms']['M001'] = 'sorry'
+        with self.assertRaisesRegex(ir.Invalid, 'forbidden proof'):
             audit_b.validate_mapping(c, inventory, mapping)
 
     def test_assembly_helpers_are_bound_by_the_audit_manifest(self):
@@ -98,9 +98,6 @@ class AssemblyTests(unittest.TestCase):
         c['header'] += 'open MeasureTheory\nopen scoped ENNReal\n'
         c['parameters'] = [{'name':'mu','type':'Measure ℝ'}, {'name':'s','type':'Set ℝ'},
                            {'name':'c','type':'ℝ≥0∞'}]
-        general = ('∀ {A : Type*} {m : MeasurableSpace A} {mu : Measure A} {s : Set A}, '
-                   'NullMeasurableSet s mu → ∀ c : ℝ≥0∞, '
-                   '(∫⁻ x, s.indicator (fun _ => c) x ∂mu) = c * mu s')
         target = '(∫⁻ x, s.indicator (fun _ => c) x ∂mu) = c * mu s'
         c['premises'] = [{'id':'H001','kind':'hypothesis','type':'NullMeasurableSet s mu','statement':'s is null-measurable.'},
                          {'id':'M001','kind':'mathlib','type':target,'statement':'Integral of this constant indicator.'}]
@@ -117,8 +114,7 @@ class AssemblyTests(unittest.TestCase):
             {'id':'P','kind':'target','statement':'The stated indicator integral equality.'}]
         inventory['inferences'][0]['inputs']=['H001','M001'];ir.write(ip,inventory)
         out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
-        mapping=ir.load(out/'mapping.json');mapping['entries']['M001'].update(
-            library_type=general,library_term='exact MeasureTheory.lintegral_indicator_const₀ h_H001 c')
+        mapping=ir.load(out/'mapping.json');mapping['library_terms']['M001']='exact MeasureTheory.lintegral_indicator_const₀ h_H001 c'
         ir.write(out/'mapping.json',mapping)
         result=audit_b.build(out)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED',
@@ -129,9 +125,7 @@ class AssemblyTests(unittest.TestCase):
     def test_quoted_library_name_resolves_to_the_same_pinned_declaration(self):
         cp,pp,bp,ip=fixture(self.base/'case','mathlib')
         out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
-        mapping=ir.load(out/'mapping.json');mapping['entries']['M001'].update(
-            library_declaration='Nat.«add_comm»',library_type='∀ (a b : ℕ), a+b=b+a',
-            library_term='exact Nat.add_comm a b')
+        mapping=ir.load(out/'mapping.json');mapping['library_terms']['M001']='exact Nat.«add_comm» a b'
         ir.write(out/'mapping.json',mapping)
         result=audit_b.build(out)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED',result)
@@ -139,8 +133,7 @@ class AssemblyTests(unittest.TestCase):
     def test_inspector_budget_failure_does_not_relabel_checked_assembly(self):
         cp,pp,bp,ip=fixture(self.base/'case','mathlib')
         out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
-        mapping=ir.load(out/'mapping.json');mapping['entries']['M001'].update(
-            library_type='∀ (a b : ℕ), a+b=b+a',library_term='exact Nat.add_comm a b')
+        mapping=ir.load(out/'mapping.json');mapping['library_terms']['M001']='exact Nat.add_comm a b'
         ir.write(out/'mapping.json',mapping)
         actual=ir.run_lean
         def controlled(file,work,**kwargs):

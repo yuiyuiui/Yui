@@ -49,18 +49,3 @@ def attach_notes(steps, source_map, supplement):
             raise ValueError('A step cannot borrow another paragraph\'s background note')
         step['background_notes'] = sorted(allowed)
     return result
-
-
-def library_notes(inventory, inference):
-    """Only already-verified notes at this inference may license library use."""
-    if inventory.get('background_mode') != REFERENCE_ONLY:
-        return {}
-    rows = (inventory.get('background_supplement') or {}).get('notes', {}).get(inference, [])
-    result = {}
-    for note in rows:
-        if note['kind'] == 'mathlib':
-            source = note['source']
-            result.setdefault(source['declaration'], []).append({
-                'id': inference+'.'+note['id'], 'source': source, 'fact': note['fact'],
-                'at': note['at'], 'grounds': note['grounds']})
-    return result

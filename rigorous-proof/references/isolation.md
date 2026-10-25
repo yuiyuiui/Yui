@@ -98,18 +98,13 @@ and independently reads back exposure and usage. `measurement_valid` requires
 the requested observed model, confirmed Standard tier, complete token ledger,
 and no recorded execution fault. It does not imply mathematical acceptance.
 
-The frozen `delivered-tool-terminal-wait-1` execution policy observes a narrow
-protocol wait: after an actual completed function call and its real tool
-response flushed to the native carrier, 120 seconds without a provider terminal,
-next normalized request or substantive output protectively stops the attempt.
-Pre-tool reasoning and local tool execution do not start this timer. Connection
-keepalives are recorded separately and cannot reset it. This Python observer
-makes no model calls. The outcome is `PROVIDER_TERMINAL_WAIT_EXCEEDED`, cause
-`UNVERIFIED`; it is neither a mathematical gap nor healthy model-budget
-exhaustion. Preserve the exact events, interrupted request's unknown usage,
-scoped interrupt and cleanup. No automatic retry, partial-call execution or
-synthetic terminal/usage is permitted. A separately recorded actual transport
-fault takes precedence in health attribution.
+The `delivered-tool-terminal-wait-2` policy records real tool-result delivery
+without a default idle timeout. Silence alone does not exhaust a mathematical
+budget. Explicit opt-in finite protocol limits remain available for controlled
+experiments; if triggered, record `PROVIDER_TERMINAL_WAIT_EXCEEDED` with cause
+`UNVERIFIED`, never a mathematical gap. Actual dead sockets/process exits remain
+execution failures. No synthetic terminal/usage or partial-call execution is
+permitted. This Python observer makes no model calls.
 
 Case-local execution snapshots/control files are controller material, not
 worker inputs. Their updates and heartbeats make no model calls. Independent

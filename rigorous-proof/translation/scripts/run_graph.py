@@ -34,8 +34,8 @@ def package(cpath, ppath, out):
     return inputs/'contract.json', ir.load(inputs/'plan.json')
 
 
-def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=180, bank=False, budget=None, arm='yui'):
-    ir.need(timeout_seconds >= 1, 'positive time limit required')
+def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui'):
+    timeout_seconds = __import__('runtime_config').time_limit(timeout_seconds)
     ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
     ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
     budget = budget or concurrency.Budget(concurrency.resolve(max_concurrency), role='proof')
@@ -115,7 +115,7 @@ def main():
     ap.add_argument('--shared-store',type=Path)
     ap.add_argument('--max-concurrency', default='auto')
     ap.add_argument('--workers',type=int, help='Compatibility alias for --max-concurrency; explicit integers only.')
-    ap.add_argument('--timeout-seconds',type=int,default=180)
+    ap.add_argument('--timeout-seconds',type=int,default=None)
     ap.add_argument('--bank',action='store_true')
     ap.add_argument('--arm',choices=['direct','yui'],default='yui')
     args = ap.parse_args()

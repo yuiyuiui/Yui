@@ -28,15 +28,17 @@ interface and typed plan. Read all frozen inputs and the relevant Yui rules.
 The canonical source spec/graph are the mathematical authority; the formalizer's
 representations, types and plan are proposals, not a reference answer. Compare
 the actual complete Lean types (including binders, typeclasses, structure fields
-and guards) with every original H/E/M/N/P and global definition. Check both
+and guards) with every external E and complete P, including all hypotheses and relevant
+definitions. Use endpoint_correspondence explanations as claims to verify.
+Mathlib results are freely available; do not audit M registration or names. Check both
 directions of claimed representations/equivalences and their explicit planned
 conversion obligations; reject stronger assumptions, hidden conclusions, standard-basis
 surrogates for arbitrary lattices, omitted dimensions/characteristics/endpoints,
 and types that merely give a name to an unproved result. Type elaboration is not
 faithful translation. Check each source paragraph, source output and exact
 direct input boundary through implementation-only helpers. The plan must follow
-the accepted source argument, not silently research a new proof or use a stronger
-library shortcut. Each typed obligation may be conditional, but assembly must
+the accepted source argument, not silently research a new proof or introduce a stronger
+project hypothesis. Each typed obligation may be conditional, but assembly must
 discharge all internal hypotheses. A difficult yet faithful obligation is not
 an interface error simply because it may take time to prove.
 Return JSON with exactly checks and findings. checks has exactly
@@ -97,7 +99,8 @@ def verify_candidate_artifact(actual,c,p,outputs):
            (actual['representation'],c['representation']),(actual['objects'],c['objects']),
            (actual_steps,plan_steps),(actual['terminal'],p['terminal']),
            (actual.get('shared_obligations',[]),c.get('shared_obligations',[])),
-           (actual['source_outputs'],outputs)]
+           (actual['source_outputs'],outputs),
+           (actual.get('endpoint_correspondence',{}),c.get('endpoint_correspondence',{}))]
     if any(left!=right for left,right in pairs):raise ValueError('The selected typed candidate differs from the actual model artifact')
 
 
@@ -194,7 +197,7 @@ def validate(value,out):
     return {'scope':'Review completeness and resolving paired locations only; semantic verdicts remain the actual reviewer judgments.'}
 
 
-def run(out,timeout=1800,budget=None):
+def run(out,timeout=None,budget=None):
     out=Path(out).resolve()
     docs={p.name:ir.load(p) for p in (out/'inputs').glob('*.json') if p.name!='inputs.json'}
     contract=ReviewContract(out/'review-work',{'checks':{}},
@@ -245,7 +248,7 @@ def collect(out):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--author');p.add_argument('--candidate',type=int);p.add_argument('--timeout-seconds',type=int,default=1800);p.add_argument('--adjudicate',type=Path);p.add_argument('--dispute',type=Path)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','collect']);p.add_argument('--out',required=True);p.add_argument('--author');p.add_argument('--candidate',type=int);p.add_argument('--timeout-seconds',type=int,default=None);p.add_argument('--adjudicate',type=Path);p.add_argument('--dispute',type=Path)
     args=p.parse_args()
     result=prepare(args.author,args.out,args.candidate,adjudicate=args.adjudicate,dispute=args.dispute) if args.command=='prepare' else run(args.out,args.timeout_seconds) if args.command=='run' else collect(args.out)
     print(json.dumps(result,ensure_ascii=False,indent=2))

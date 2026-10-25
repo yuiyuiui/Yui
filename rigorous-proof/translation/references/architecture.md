@@ -16,9 +16,9 @@ acceptance, an IR is a derived artifact:
 1. An **interface contract** fixes source/packet hashes, toolchain, shared
    Lean definitions, parameters, exact direct premises, the conclusion and the
    correspondence of these expressions with NL0. Creating this contract is
-   formalization work, not free preprocessing. A semantic reviewer must accept
-   representation choices before parallel proof-body work. A source-fidelity
-   review cannot be replaced by exact string comparison.
+   formalization work, not free preprocessing. Semantic acceptance is deferred
+   to the final independent Audit B by default; a separate pre-proof review is
+   optional. Exact string comparison cannot establish source fidelity.
 2. A **transition plan** maps NL0 paragraphs to typed local obligations with
    explicit inputs. It binds the interface-contract hash. Each obligation is
    a proposition under the shared parameter types and only its listed inputs.
@@ -39,9 +39,12 @@ Legacy extracts do not inherit current Audit A status.
 `contract.json` contains `version: 1` or `2`, `id`, `source` (relative file and SHA256),
 `source_steps` (the fragment's complete NL argument), `pins`, `header`,
 `parameters` (`name`, `type`), `premises` (`id`, `type`, `kind`, `statement`),
-`conclusion` (`statement`, `type`), `representation` and `review`.
-`header` is owner-reviewed, immutable Lean imports/definitions, never a model
-output channel. `review` records actual reviewer/exposure and pending issues;
+`conclusion` (`statement`, `type`), `representation` and `review`. New whole-source
+authors also supply `endpoint_correspondence`: a short direct/equivalent
+explanation for each E and P, including all target hypotheses. Older contracts
+may omit these notes; postprocessing then supplies them without editing proofs.
+`header` holds the frozen imports/definitions selected during interface authoring;
+proof workers cannot edit it. `review` records reviewer/exposure and pending issues;
 it cannot grant Audit A/B. `representation` records equality/convergence mode,
 norm/range, measure, representative and normalization choices when relevant.
 
@@ -53,7 +56,9 @@ shared-proof keys and Audit B signatures. It supplies no new mathematical
 assumption: the corresponding field/structure prerequisites still need exact
 source correspondence review. Ordinary existing contracts retain their default.
 
-`premises` are exact direct H/E/M/N inputs, not extra convenient facts. In a
+`premises` contain project H/E inputs and optional M discharge ports, not extra
+unproved facts. New translations can apply any pinned Mathlib result directly,
+without an M port or permission record. In a
 multi-node package, an N port is resolved by its actual upstream declaration.
 Within one fragment, a conditional result may retain its declared N port, but
 the report must say that the larger proof was not assembled. Definitions must
@@ -140,27 +145,25 @@ sequential bodies and must retain that interpretation.
 - `SEMANTIC-REVIEWED`: the named reviewer inspected target/input/route
   correspondence; disclose owner/reference exposure and unresolved items.
 
-None is a new whole-case Audit A/B or evidence of acceleration. The prototype
-does not automatically audit unrestricted mathlib automation dependencies.
-Review used library facts and do not infer permitted-premise fidelity merely
-from kernel acceptance. [Audit B](audit-b.md) is now a separate implemented
-rule/template/checker stage for these generated graphs. It inspects actual
-elaborated types, project structure fields, instances/dependencies and source
-mapping, then requires actual semantic reviews. Earlier fragment checks have
-not retrospectively passed it. A complete generic Lean-repository adapter and
-Audit C/NL1 reconstruction remain outside Yui.
+None is a new whole-case Audit A/B or evidence of acceleration.
+[Audit B](audit-b.md) independently checks every external statement and the
+complete target (including hypotheses) against actual Lean types and relevant
+definitions, guided by concise author explanations. Pinned Mathlib results are
+freely available; no imported-theorem permission ledger is required. Fresh
+assembly and root trust inspection remain necessary. Earlier fragment checks
+have not retrospectively passed the changed policy. A complete generic Lean
+repository adapter and Audit C/NL1 reconstruction remain outside Yui.
 
 ## Accepted background supplement
 
 The source authority includes verified node-local Audit A background notes.
 Bind its supplement hash in `contract.source.background_supplement_sha256`
 before interface freeze. New contracts use `source.background_mode:
-node_local_reference`: original M ports remain, but notes are node-local
+node_local_reference`: original M references remain available, but notes are node-local
 implementation references rather than extra typed premise ports. Elementary
 notes inform local Lean work. Legacy contracts retain `promoted_inputs`.
 Do not create new assumptions or forget notes when constructing task packets.
-Audit B checks actual library uses against the corresponding node's verified
-notes and requires actual Lean closure.
+Audit B requires actual Lean closure; these notes do not restrict Mathlib use.
 
 The interface source also retains the complete `background_supplement`, not
 just its hash. Plan steps list the relevant qualified note IDs, for example
@@ -169,7 +172,6 @@ local Lean packets receive only their selected notes.
 
 Canonical packets retain those complete notes. The Yui proof carrier projects
 them to a compact local index in its initial prompt and supplies a scoped
-`read_background_note` tool for full readback. Source/plan bindings, permitted
-facts and Audit B coverage do not change. The versioned access policy is
+`read_background_note` tool for full readback. Source/plan bindings and local reference isolation remain in place. The versioned access policy is
 `local-background-on-demand-1`, recorded by translation carrier `yui-0.1.1`;
 it is not retroactively attributed to old runs or pooled with their timing.

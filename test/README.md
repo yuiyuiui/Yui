@@ -75,25 +75,32 @@ assembled kernel-checked Lean and actual Audit B under the same exact target.
 - Reuse the accepted source and Audit A after local integrity checks. Do not
   repeat model Audit A for unchanged mathematics.
 - Use the [minimal translation procedure](../rigorous-proof/translation/references/minimal-translation.md):
-  original H/E/M ports, node-local notes on demand, incremental saved interfaces,
+  original H/E project ports, optional M discharge ports, node-local notes on
+  demand, incremental saved interfaces and concise E/P correspondence explanations,
   and a mechanical type/source-boundary freeze. Semantic interface review is
   deferred to actual final Audit B; no pre-proof review PASS is manufactured.
 - Run three independent cases, each with five proof slots when requested. Only
   proof nodes use those slots; preparation/review within a case is serial.
-- Set `time_budget_seconds: 10800` on each translation job. This is one total
-  three-hour case deadline covering all stages, including Audit B. No internal
-  thirty-minute preparation cutoff is used. Queue waiting consumes that case's
-  wall budget once its case process has started.
+- Omit `time_budget_seconds`, or set it to `null`, for unlimited execution.
+  There is no default case/stage/native-check deadline, token quota, call quota,
+  or post-tool idle cutoff. Stop a run explicitly when required. Only a user-requested positive case limit still covers all its stages and queue waiting;
+  no later stage resets it.
 - Save partial artifacts; routine `TASK_INCOMPLETE` reports are not a tool.
   Short continuation prompts follow only an unfinished model turn. State and
   usage recording do not call a model.
 - After all local jobs pass, one fresh serial postprocessing author follows
   [assembly and export](../rigorous-proof/translation/references/assembly.md).
-  It connects actual proofs, discharges original M inputs, compiles standalone
+  It connects actual proofs, discharges retained M ports, compiles standalone
   `Proof.lean` and prepares actual inspection evidence. A subsequent fresh
   independent Audit B reviewer judges source fidelity. Record assembly,
   inspection and semantic review separately; a conditional fragment is not a
   complete proof and an inspector execution error is not a mathematical FAIL.
+- Audit B version 2 checks every external E and the entire target P, including
+  hypotheses, against actual Lean types. The author supplies a short direct or
+  equivalent-encoding explanation; the independent reviewer verifies it. All
+  pinned Mathlib results are available without matching an NL0 M use ledger.
+  Earlier version-1 verdicts keep their historical scope; they are not converted
+  into new-policy passes.
 
 ## Cold first-pass NL0 rounds
 

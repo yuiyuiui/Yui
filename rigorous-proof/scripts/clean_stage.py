@@ -31,7 +31,7 @@ def read_page(text, start, end):
 
 
 class ArtifactStage(pilot.Stage):
-    def __init__(self, logs, prompt, *, phase, arm='yui', timeout=600, validator=None, budget=None, library=True, inputs=None,
+    def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None):
         logs=Path(logs).resolve()
         budget = pilot.concurrency.serial_budget(budget)
@@ -358,7 +358,7 @@ class ArtifactStage(pilot.Stage):
             'last_structurally_valid_candidate':self.validator.last_valid_candidate,
             'acceptance_scope':'NL0_STRUCTURE_ONLY_NOT_AUDIT_A',
             'resume':'Use read_draft with this exact own-stage candidate and a narrow JSON pointer. Preserve its edits with base_candidate. A passed structural candidate still needs actual Audit A; submit it only when your drafting is complete.',
-            'remaining_stage_seconds':max(0,round(self.timeout-(time.monotonic()-self.started),1)) if self.started else None}
+            'remaining_stage_seconds':max(0,round(self.timeout-(time.monotonic()-self.started),1)) if self.started and self.timeout is not None else None}
         sources=[candidate,check]
         if self.validator.last_valid_candidate is not None:
             sources.append(self.validator.directory/f'check-result-{self.validator.last_valid_candidate:04d}.json')

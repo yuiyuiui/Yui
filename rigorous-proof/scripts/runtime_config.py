@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 from functools import lru_cache
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -11,6 +12,19 @@ import subprocess
 import sys
 
 CORE = Path(__file__).resolve().parents[1]
+
+
+def time_limit(value):
+    """None means unlimited; finite limits require explicit positive seconds."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError('A time limit must be null (unlimited) or positive finite seconds')
+    return value
+
+
+def configured_timeout(scope):
+    return time_limit(json.loads((CORE / 'config.json').read_text())['timeouts'][scope + '_seconds'])
 
 
 def model_profile(phase=None):

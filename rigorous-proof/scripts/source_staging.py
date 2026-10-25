@@ -29,7 +29,7 @@ def stage_external(case, proposition, destination):
                 record.update(readback_kind='PDF_TEXT_EXTRACTION',converter=str(converter),
                     converter_sha256=hashlib.sha256(Path(converter).read_bytes()).hexdigest())
                 try:
-                    result=subprocess.run([converter,'-layout',str(path),'-'],capture_output=True,timeout=60)
+                    result=subprocess.run([converter,'-layout',str(path),'-'],capture_output=True)
                     text=result.stdout.decode('utf-8',errors='replace')
                     if result.returncode or not text.strip():raise ValueError(result.stderr.decode('utf-8',errors='replace')[:1000] or 'Empty PDF extraction')
                 except (OSError,ValueError,subprocess.TimeoutExpired) as error:

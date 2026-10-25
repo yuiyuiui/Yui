@@ -22,7 +22,7 @@ import model_pilot as pilot
 
 PROMPT='''Act as the single postprocessing/assembly author after all required local
 proofs have been checked. Read translation/references/assembly.md. Close the
-dependency graph using the actual frozen proof bodies; complete the original M
+dependency graph using the actual frozen proof bodies; complete any retained M
 library discharges and source-facing export through the checked assembly tool.
 You are not the independent Audit B reviewer. Do not rerun local proof authors,
 reconstruct NL0, change a frozen interface, add assumptions or declare a PASS.
@@ -34,28 +34,30 @@ library application or diagnostic issues are local implementation work.
 Preserve your draft and use the exact candidate number in feedback. The
 read_assembly_feedback tool pages your own generated source and complete
 compiler/mechanical records; do not stop merely because a short excerpt ends.
-Complete the actual source/Lean correspondence for the frozen proof.
-Read the source inventory, contract/plan and initial mapping. Consult source
-paragraphs, proof bodies and relevant Audit B rules where needed for exact correspondence. Submit the complete
-mapping object, preserving its version/source_inventory_sha256 and exact source
-entry IDs. For each source H/E/M/N/P/D supply the actual selector and complete
-expected Lean type, with all parameters and conditional input binders in order.
-H/E selectors remain premise:ID; P is decl:AuditBExport.P; N uses its actual
-decl:Translation.Tddd from the frozen source-output mapping. For each source M
-also provide its complete library_type and a real Lean tactic-body library_term
-discharging that intermediate root from the named pinned declaration, retaining
-all hypotheses. With node_local_reference, background notes are not mapping
-entries or additional M ports: use their already-verified local declarations
-only in the corresponding source inference. Preserve the supplement; do not
-restate or retype every note. No sorry, admit, extra axiom or changed theorem is permitted.
-calculation_links may map actual imported proof names only to genuinely matching
-explicit original logic.calculations indices. Do not classify substantive
-mathematics as arithmetic, add a new calculation policy or silently use an
-unlisted theorem. A truly additional mathematical source requires a new source
-revision/review; it cannot be approved by this mapping stage. check_draft gives
-real clean compiler, full-type and actual dependency feedback, not automatic
-semantic approval. Correct legitimate implementation/mapping errors. No
-performance result or final Audit B pass is implied by a successful build.
+Complete endpoint correspondence and the standalone proof export for the frozen
+proof. Read the source inventory, contract/plan and initial mapping; consult
+original definitions and relevant proof bodies when needed. Preserve the
+version, policy and source_inventory_sha256. entries contains exactly every E
+and P, not H/M/N/D rows. E selectors are premise:ID; P is decl:AuditBExport.P.
+Supply each complete expected Lean type and {mode:direct|equivalent,
+explanation:<concise account>} in its correspondence field. Reuse the interface
+author's notes, correcting inaccurate explanations against the actual encoding.
+The target means the whole theorem, including parameters and hypotheses.
+For a direct encoding a short explanation is enough. For equivalent encodings,
+explain the identification, assumptions and both directions; do not invent a
+duplicate formal representation solely to make a literal-name match. Actual
+cross-representation steps in the proof must have checked conversions.
+
+library_terms contains a Lean tactic body for each intermediate M port still
+in the contract; discharge it using the pinned Mathlib environment. Any pinned
+library theorem is available: no name whitelist, library_type copy, source M
+matching or calculation_links is required. Audit A notes are optional local
+references. They neither restrict library use nor add assumptions. Do not
+restate or retype every note. No sorry, admit, unproved local axiom, changed
+frozen theorem or extra project premise is permitted. check_draft returns real
+standalone compilation and endpoint type/kernel-closure feedback. Passing it
+is not the independent semantic Audit B. Preserve and repair your own mapping
+and assembly candidates after actual feedback.
 '''
 
 
@@ -176,7 +178,7 @@ class AssemblyStage(ArtifactStage):
         return result
 
 
-def run(out,timeout=1800,budget=None):
+def run(out,timeout=None,budget=None):
     out=Path(out).resolve();stage=AssemblyStage(out/'stage',(out/'prompt.txt').read_text(),phase='audit-b-assembly',
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,validator=MappingContract(out),
         budget=concurrency.serial_budget(budget))
@@ -198,6 +200,6 @@ def adopt(out):
 
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','adopt']);p.add_argument('--out',required=True);p.add_argument('--workflow');p.add_argument('--timeout-seconds',type=int,default=1800)
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('command',choices=['prepare','run','adopt']);p.add_argument('--out',required=True);p.add_argument('--workflow');p.add_argument('--timeout-seconds',type=int,default=None)
     args=p.parse_args();result=prepare(args.workflow,args.out) if args.command=='prepare' else run(args.out,args.timeout_seconds) if args.command=='run' else adopt(args.out)
     print(json.dumps(result,ensure_ascii=False,indent=2))
