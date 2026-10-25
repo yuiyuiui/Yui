@@ -162,3 +162,10 @@ The interface source also retains the complete `background_supplement`, not
 just its hash. Plan steps list the relevant qualified note IDs, for example
 `background_notes:["R004.BG001"]`. Workflow freeze checks the paragraph mapping;
 local Lean packets receive only their selected notes.
+
+Canonical packets retain those complete notes. The Yui proof carrier projects
+them to a compact local index in its initial prompt and supplies a scoped
+`read_background_note` tool for full readback. Source/plan bindings, permitted
+facts and Audit B coverage do not change. The versioned access policy is
+`local-background-on-demand-1`, recorded by translation carrier `yui-0.1.1`;
+it is not retroactively attributed to old runs or pooled with their timing.

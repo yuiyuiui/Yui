@@ -40,7 +40,8 @@ def load_lock():
 
 carrier.load_lock = load_lock
 
-HARNESS = 'yui-0.1.0'
+HARNESS = 'yui-0.1.1'
+BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
 STAGE_LIMITER = None
 carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission and time remains. '
                           'Continue with the same inputs and tools; preserve the fixed specification.')
@@ -111,6 +112,22 @@ class Stage(carrier.Trial):
                 {'statement':{'type':'string'},'proof':{'type':'string'}},['statement','proof']),
                 carrier.tool('read_lean_draft','Read only your own same-stage proof/helper attempts. kind=index lists attempts; proof/auxiliary returns the selected body lines and actual check. No other stage or file is accessible.',
                 {'kind':{'type':'string','enum':['index','proof','auxiliary']},'candidate':{'type':'integer'},'start':{'type':'integer'},'end':{'type':'integer'}},['kind','candidate','start','end'])]
+        self.background_note_policy = None
+        if (mode == 'proof' and instruction_arm == 'yui'
+                and ir.local_packet(self.cpath, plan, step).get('accepted_background_notes')):
+            self.background_note_policy = BACKGROUND_NOTE_POLICY
+            self.tools.append(carrier.tool('read_background_note',
+                'Read one complete audited background note from this task index by its qualified ID. No other task, file or proof is accessible; this is guidance, not a checked Lean proof.',
+                {'id':{'type':'string'}}, ['id']))
+            self.system += (
+                ' Use familiar interfaces directly; no background-note scan is required. '
+                'For a relevant obstacle, select a matching local background_note_index entry and '
+                'read_background_note if its details may help. Relate the actual Lean goal/context '
+                'to its NL step: use the note grounds to identify a small missing application premise '
+                'or transport, prove it from permitted inputs, then check the intended application. '
+                'Verify actual types and conditions; a note is not a Lean proof or extra assumption. '
+                'If it does not fit, continue ordinary allowed search or repair without insisting '
+                'on that note or rebuilding a larger argument by default.')
         if bank_enabled:
             self.tools += [json_tool('find_strategies','Query the indexed bank using a JSON diagnostic. Fields: family, tags, facts, lean_version. Advice is not a premise.','query_json')]
         self.tool_names = {t['name'] for t in self.tools}
@@ -152,6 +169,19 @@ class Stage(carrier.Trial):
                     c['pins']['lean_version'],self.last_diagnostic)
                 result = strategy_bank.search(query)
                 result['routing_receipt']=receipt
+            elif name == 'read_background_note':
+                ir.need(self.background_note_policy == BACKGROUND_NOTE_POLICY,
+                        'background note access is unavailable for this stage')
+                packet = ir.local_packet(self.cpath, self.plan, self.step)
+                notes = packet.get('accepted_background_notes', {})
+                key = args['id']
+                ir.need(isinstance(key, str) and key in notes,
+                        'background note is outside this local task')
+                result = {'id':key, 'note':notes[key],
+                    'background_supplement_sha256':packet['background_supplement_sha256'],
+                    'scope':('Audited local guidance only. Ground locations address the source NL packet, '
+                             'not positional Lean binders; match their content to this local context. '
+                             'Prove required Lean facts under the unchanged permitted inputs.')}
             elif self.mode == 'interface' and name in ('check_interface','submit_interface'):
                 value = ir.load_json_text(args['interface_json']) if hasattr(ir,'load_json_text') else json.loads(args['interface_json'],object_pairs_hook=ir.unique)
                 result = ir.check_interface(self.cpath,value,timeout=self.lean_timeout())
@@ -215,6 +245,16 @@ class Stage(carrier.Trial):
             return {**result,'stdout':result['stdout'][:14000],'stderr':result.get('stderr','')[:2000]}
         return result
 
+    def proof_packet(self):
+        packet = ir.local_packet(self.cpath, self.plan, self.step)
+        if self.background_note_policy:
+            notes = packet.pop('accepted_background_notes')
+            packet['background_note_index'] = [
+                {'id':key, 'at':note['at'], 'kind':note['kind'], 'fact':note['fact'],
+                 **({'declaration':note['source']['declaration']} if note.get('source') else {})}
+                for key, note in notes.items()]
+        return packet
+
     def prompt(self):
         c = ir.contract(self.cpath)
         if self.mode == 'interface':
@@ -239,7 +279,7 @@ class Stage(carrier.Trial):
                               'source_steps':['S001'],'explanation':'mathematical mechanism'}],'terminal':'last T ID'},
                 'constraint':'Terminal statement must be exactly the supplied conclusion type; local premise proof names are h_H001 or h_T001. Cover all source paragraphs. When background notes are supplied, add background_notes:["Rnnn.BGnnn"] to each corresponding step; retain the checked facts and conditions, never add H. In version 2, mark shared_lemma only for an exact frozen shared_obligations entry. Never create or approve a new export.'},ensure_ascii=False)
         return json.dumps({'task':'Prove exactly this local conditional obligation using the supplied NL route. Return only the tactic body through submit_transition. All displayed parameter and input proof binders are already in context.',
-                           'packet':ir.local_packet(self.cpath,self.plan,self.step)},ensure_ascii=False)
+                           'packet':self.proof_packet()},ensure_ascii=False)
 
     def execute(self):
         self.execution=getattr(self.budget,'execution',None) or execution.current()[0]
@@ -276,6 +316,7 @@ class Stage(carrier.Trial):
                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
             ir.write(self.logs/'execution-manifest.json',{'model':carrier.MODEL,'effort':'high','speed':'standard',
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
+                'background_note_policy':self.background_note_policy,
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
@@ -283,6 +324,7 @@ class Stage(carrier.Trial):
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
         result = {'mode':self.mode,'step':self.step,'model':carrier.MODEL,'effort':'high',
+                  'background_note_policy':self.background_note_policy,
                   'output_verbosity':getattr(self,'output_verbosity','low'),
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,
                   'queue_seconds':getattr(self, 'queue_seconds', 0),

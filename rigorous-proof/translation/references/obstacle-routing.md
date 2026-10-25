@@ -13,6 +13,12 @@ in shared-lemmas.md; it does not query these advice cards.
 
 ## Query the first blocked transition
 
+If its local audited-note index already suggests the missing premise or
+transport, consult that note before a broad strategy search. Follow the
+[local note procedure](translation-rules.md#use-local-audit-a-notes-when-they-can-shorten-an-implementation-route)
+inside the current worker; neither note nor strategy lookup is mandatory when
+the next local repair is clear.
+
 Capture its contract/plan/step hashes, goal, exact local context, compiler
 diagnostic, attempted code and progress made. Separate these observations from
 a proposed root cause. A `type mismatch` can be a coercion issue, incompatible

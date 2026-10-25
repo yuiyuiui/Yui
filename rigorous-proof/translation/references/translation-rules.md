@@ -94,6 +94,50 @@ label. New extraction labels should identify the baseline revision explicitly.
    semantic review with its actual scope. These steps, rather than the earlier
    compiler gates alone, govern the new B verdict.
 
+## Use local Audit A notes when they can shorten an implementation route
+
+Use familiar library interfaces directly. For an unfamiliar exact interface,
+a relevant local note's checked declaration may save a lookup; otherwise use
+ordinary pinned-library search. Neither case requires a preliminary note scan.
+
+The main use is an application or transport obstacle. During the existing
+worker's normal reasoning, relate the actual Lean goal and available context
+to its mapped NL paragraph. If the local index suggests a useful note:
+
+1. Read that note's full grounds and justification. Identify the intended
+   application, the precise premise it needs, and what the current context
+   already supplies. A condition's mathematical source may have a different
+   Lean representation from the required premise.
+   Ground pointers address the audited NL packet, not positions in the current
+   Lean context. Match their content to actual binders; never assume that an
+   input index or an NL fact label is itself a Lean proof.
+2. Form the smallest useful intermediate goal connecting those available
+   grounds to the premise. Prove it from permitted inputs and local facts,
+   then try the intended application. Do not turn a note into a new assumption,
+   require a separate helper theorem per note, or reconstruct a larger source
+   argument merely because a routine interface premise is expressed differently.
+3. Check the actual Lean types, guards, equality/convergence mode and feedback.
+   A verified mathematical note is not an executable proof or a guarantee of
+   representation compatibility. If it does not fit, continue ordinary allowed
+   search/repair; do not force its route or cycle through every note. A genuine
+   source/interface change follows the existing review boundary.
+
+For example, suppose a limit of `f` is established and the NL argument says
+`g` agrees with `f` on a sufficiently small punctured neighborhood. To prove
+the same limit for `g`, first express that local agreement as
+`heq : f =ᶠ[l] g` for the actual filter `l`, then apply
+`Filter.Tendsto.congr' heq hf`. The note can identify this intermediate premise
+and its existing grounds; the worker still proves `heq`. This is a schematic
+interface-bridge example, not a supplied proof of a benchmark obligation.
+
+The canonical packet retains all selected audited notes and source bindings.
+Under `local-background-on-demand-1`, a Yui proof worker initially sees only
+its task's compact `background_note_index`: ID, location, fact, kind and any
+checked declaration name. `read_background_note` returns one selected note's
+complete material. No sibling notes/proofs or whole-case supplement are exposed
+through that tool. Mathematical inputs and Audit B accounting remain unchanged.
+There is no separate diagnosis model, mandatory lookup or claimed speedup.
+
 ## Reuse and parallel work
 
 Identify mathematical extraction candidates during translation-entry source

@@ -18,6 +18,9 @@ staging a revision or executing a complete source-to-Audit-B workflow.
 Use [the working pipeline map](workflow.md) to distinguish source
 R nodes, implementation T obligations, actual assembly and Audit B.
 Use [obstacle routing](obstacle-routing.md) when a transition stalls.
+Use [local audited-note guidance](translation-rules.md#use-local-audit-a-notes-when-they-can-shorten-an-implementation-route)
+when its current goal needs a premise or transport already explained by a note;
+familiar direct proof work requires no note lookup.
 Read [the experiment protocol](experiments.md) before a model run.
 Read [shared lemmas](shared-lemmas.md) when freezing a reusable
 interface or supplying a shared store. [The skill entry](../../SKILL.md)

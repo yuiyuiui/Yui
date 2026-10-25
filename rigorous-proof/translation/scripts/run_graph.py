@@ -81,15 +81,16 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
     ir.write(out/'decomposition.json',ir.decomposition(cpath,plan,configuration['effective']))
-    ir.write(out/'configuration.json',{'harness':'yui-0.1.0','model':pilot.carrier.MODEL,
+    ir.write(out/'configuration.json',{'harness':pilot.HARNESS,'model':pilot.carrier.MODEL,
              'reasoning':'high','speed':'standard','arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
+             'background_note_policy':pilot.BACKGROUND_NOTE_POLICY if arm == 'yui' else None,
              'bank_enabled':bank,'initial_shared_input':store.snapshot() if store else None,
              'script_sha256':{p.name:ir.digest(p) for p in files},
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
     def worker(sid, packet):
         stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm)
-        stage.harness_version = 'yui-0.1.0'
+        stage.harness_version = pilot.HARNESS
         result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
     result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)

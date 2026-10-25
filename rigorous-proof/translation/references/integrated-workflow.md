@@ -236,3 +236,10 @@ the local proof plan. This requires no author graph rewrite. The current
 extraction adapter explicitly blocks a changed consumer with notes pending its
 scoped review; unchanged notes and a zero-extraction handoff are preserved.
 Never silently omit notes to obtain an interface or Audit B pass.
+
+Preserving this authority does not require every proof worker to read every
+justification. Its initial prompt contains a compact index for its selected
+notes; it can request one full note by ID when useful. Apply the
+[local note procedure](translation-rules.md#use-local-audit-a-notes-when-they-can-shorten-an-implementation-route)
+to connect existing conditions to a Lean interface premise, without changing
+source facts or adding mandatory analysis stages.
