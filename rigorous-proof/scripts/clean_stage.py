@@ -221,7 +221,7 @@ class ArtifactStage(pilot.Stage):
             destination.write_text(text)
             task_bindings.append({'id':identifier,'path':str(destination.relative_to(self.logs)),
                                   'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
-        (self.logs/'execution-manifest.json').write_text(json.dumps({'model':pilot.carrier.MODEL,'effort':'high','speed':'standard',
+        (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':'high','speed':'standard',
             'model_output_policy':pilot.OUTPUT_POLICY,
             'provider_wait_policy':pilot.PROVIDER_WAIT_POLICY,
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,

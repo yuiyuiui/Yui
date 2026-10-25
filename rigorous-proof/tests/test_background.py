@@ -169,6 +169,35 @@ class BackgroundTests(unittest.TestCase):
         inventory,_=audit_b.source_data(cp,graph=self.base/'nl0.json',spec=self.base/'spec.json',audit_a=self.base/'audit-test-only.json')
         self.assertEqual(next(p for p in inventory['propositions'] if p['id']=='M001')['source']['declaration'],'Continuous.add')
 
+    def test_exercise_translation_adapter_retains_effective_ports_and_notes(self):
+        self.accepted()
+        sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'test/support'))
+        import translation_author as author
+        import interface_review
+        out=self.base/'translation-adapter'
+        __import__('shutil').copyfile(self.base/'audit-test-only.json',self.base/'audit-a.json')
+        author.prepare(self.base,self.base,out)
+        inputs=json.loads((out/'inputs/source-map.json').read_text())
+        self.assertEqual([p['id'] for p in inputs['roots']],['H001','H002','M001'])
+        self.assertEqual(inputs['direct_boundaries']['R001']['background_notes'],['R001.BG001'])
+        artifact={'header':'import Mathlib\n','parameters':[{'name':x,'type':'ℝ → ℝ'} for x in ['f','g']],
+            'premise_types':{'H001':'Continuous f','H002':'Continuous g',
+                'M001':'Continuous f → Continuous g → Continuous (f + g)'},
+            'conclusion_type':'Continuous (f + g)','representation':'Usual real functions.',
+            'objects':[],'steps':[{'id':'T001','statement':'Continuous (f + g)',
+                'inputs':['H001','H002','M001'],'source_steps':['S001'],
+                'background_notes':['R001.BG001'],'explanation':'Apply the permitted continuous addition input.'}],
+            'terminal':'T001','source_outputs':{'P':'T001'}}
+        checked=author.InterfaceContract(out)(artifact)
+        self.assertEqual(checked['status'],'IR-TYPES-CHECKED')
+        contract=json.loads((out/'candidates/0001/contract.json').read_text())
+        supplement=json.loads((out/'inputs/background-supplement.json').read_text())
+        self.assertEqual(contract['source']['background_supplement'],supplement)
+        review_inputs=self.base/'review-copy';review_inputs.mkdir()
+        interface_review.copy_review_inputs(out,review_inputs)
+        self.assertEqual((review_inputs/'background-supplement.json').read_bytes(),
+                         (out/'inputs/background-supplement.json').read_bytes())
+
     def test_clean_local_reviewer_can_save_notes_without_a_second_model(self):
         from clean_stage import ArtifactStage
         from review_contract import ReviewContract

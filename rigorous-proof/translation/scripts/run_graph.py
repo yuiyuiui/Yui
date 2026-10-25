@@ -81,7 +81,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
     ir.write(out/'decomposition.json',ir.decomposition(cpath,plan,configuration['effective']))
-    ir.write(out/'configuration.json',{'harness':pilot.HARNESS,'model':pilot.carrier.MODEL,
+    ir.write(out/'configuration.json',{'harness':pilot.HARNESS,'model':pilot.carrier.model_profile('proof')['id'],'model_selection':pilot.carrier.model_profile('proof'),
              'reasoning':'high','speed':'standard','arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
              'background_note_policy':pilot.BACKGROUND_NOTE_POLICY if arm == 'yui' else None,
              'bank_enabled':bank,'initial_shared_input':store.snapshot() if store else None,

@@ -29,8 +29,9 @@ from pathlib import Path
 
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
 from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
+from runtime_config import model_profile
 
-MODEL = json.loads((Path(__file__).resolve().parents[1] / 'config.json').read_text())['model']['id']
+MODEL = model_profile()['id']
 PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
 CURRENT_VERSION = '0.4.1'
 SYSTEM = ('你是 Lean 4 证明形式化模型。只依据本次任务提供的定义、允许前提、自然语言证明和固定版本的 mathlib，'
@@ -109,7 +110,7 @@ def format_proof_body(proof: str) -> str:
     return textwrap.indent(textwrap.dedent(proof).strip('\n'), '  ')
 
 
-def validate_model_event(event: dict, allowed_names: set[str] | None = None, *, strict: bool = False) -> None:
+def validate_model_event(event: dict, allowed_names: set[str] | None = None, *, strict: bool = False, expected_model=None) -> None:
     allowed_names = TOOL_NAMES if allowed_names is None else allowed_names
     items = [event.get('item', {})] + event.get('response', {}).get('output', [])
     for item in items:
@@ -119,7 +120,7 @@ def validate_model_event(event: dict, allowed_names: set[str] | None = None, *, 
             raise PermissionError('上游消息角色不属于本题模型。')
         if item.get('type') == 'function_call' and item.get('name') not in allowed_names:
             raise PermissionError('上游返回了非白名单工具调用：' + str(item.get('name')))
-    if strict and event.get('response', {}).get('model') not in [None, MODEL]:
+    if strict and event.get('response', {}).get('model') not in [None, expected_model or MODEL]:
         raise PermissionError('上游实际返回了其他模型。')
     if strict and event.get('type') in {'response.completed', 'response.incomplete', 'response.failed'}:
         tier = event.get('response', {}).get('service_tier')
@@ -136,9 +137,14 @@ def system_https_proxy() -> tuple[str, int] | None:
 
 
 class Trial:
+    @property
+    def model(self):
+        return self.model_selection['id'] if hasattr(self, 'model_selection') else MODEL
+
     def __init__(self, case: str, run_dir: Path, timeout: float, suite: str = 'pilot-v1',
                  harness_version: str = '0.2.0'):
         self.harness_version = harness_version
+        self.model_selection = model_profile()
         self.strict = harness_version in PERSISTENT_VERSIONS
         self.system, self.tools = harness_policy(harness_version)
         self.tool_names = {t['name'] for t in self.tools}
@@ -311,7 +317,7 @@ class Trial:
             return number
 
     def normalize_request(self, payload: dict, *, request_number=None) -> dict:
-        if payload.get('model') != MODEL:
+        if payload.get('model') != self.model:
             raise ValueError('禁止替换指定模型：' + str(payload.get('model')))
         if payload.get('reasoning', {}).get('effort') != 'high':
             raise ValueError('推理档位不是 high。')
@@ -359,7 +365,7 @@ class Trial:
                      if i.get('role') == 'user' else i) for i in kept]
             # Construct the complete semantic request, rather than forwarding
             # unreviewed provider fields such as client_metadata.
-            result = {'model': MODEL, 'stream': True, 'input': kept, 'instructions': self.system,
+            result = {'model': self.model, 'stream': True, 'input': kept, 'instructions': self.system,
                       'tools': result['tools'], 'tool_choice': 'auto', 'parallel_tool_calls': False,
                       'reasoning': {'effort': 'high', 'context': 'all_turns'},
                       'include': ['reasoning.encrypted_content'], 'store': False,
@@ -394,7 +400,7 @@ class Trial:
         return result
 
     def observe_model_event(self, event: dict, request_number=None) -> None:
-        validate_model_event(event, self.tool_names, strict=self.strict)
+        validate_model_event(event, self.tool_names, strict=self.strict, expected_model=self.model)
         wait_guard=getattr(self,'provider_wait_guard',None)
         if wait_guard is not None:wait_guard.observe(event,request_number)
         guard = getattr(self, 'argument_guard', None)
@@ -459,7 +465,7 @@ class Trial:
                 if not self.path.startswith('/models'):
                     self.send_error(403); return
                 cached = json.loads((trial.work / 'state/models_cache.json').read_text())
-                models = [m for m in cached['models'] if m.get('slug') == MODEL]
+                models = [m for m in cached['models'] if m.get('slug') == trial.model]
                 data = json.dumps({'models': models}).encode()
                 append(trial.logs / 'http.jsonl', {'path': self.path, 'status': 200, 'source': 'local pinned model catalog; no upstream request'})
                 self.send_response(200); self.send_header('Content-Type', 'application/json')
@@ -685,11 +691,11 @@ class Trial:
             if source.exists(): shutil.copyfile(source, state / name); os.chmod(state / name, 0o600)
         if self.strict and (state / 'models_cache.json').exists():
             cache = json.loads((state / 'models_cache.json').read_text())
-            cache['models'] = [m for m in cache['models'] if m.get('slug') == MODEL]
+            cache['models'] = [m for m in cache['models'] if m.get('slug') == self.model]
             if not cache['models']:
                 raise ValueError('本机缓存中缺少指定模型，禁止改用其他模型。')
             (state / 'models_cache.json').write_text(json.dumps(cache))
-        config = f'''model = "{MODEL}"
+        config = f'''model = "{self.model}"
 model_provider = "pilot-relay"
 model_reasoning_effort = "high"
 web_search = "disabled"
@@ -775,7 +781,7 @@ tool_suggest = false
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
         while True:
-            started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': MODEL, 'effort': 'high',
+            started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': 'high',
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
                 seconds=min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
@@ -842,7 +848,7 @@ tool_suggest = false
             'status': self.last_turn_event.get('params', {}).get('turn', {}).get('status')})
 
     def run(self, *, smoke: bool = False) -> dict:
-        result = {'case': self.case, 'suite': self.suite, 'model': MODEL, 'effort': 'high', 'status': 'STARTING',
+        result = {'case': self.case, 'suite': self.suite, 'model': self.model, 'effort': 'high', 'status': 'STARTING',
                   'harness_version': self.harness_version,
                   'runtime_directory': str(self.work), 'started_at_utc': now(), 'smoke': smoke}
         try:
@@ -854,7 +860,7 @@ tool_suggest = false
             self.start_process()
             inventory = self.rpc('skills/list', {'cwds': [str(self.work / 'input')], 'forceReload': True})
             (self.logs / 'skills-inventory.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2))
-            t = self.rpc('thread/start', {'model': MODEL, 'modelProvider': 'pilot-relay',
+            t = self.rpc('thread/start', {'model': self.model, 'modelProvider': 'pilot-relay',
                 'allowProviderModelFallback': False, 'ephemeral': True, 'cwd': str(self.work / 'input'),
                 'approvalPolicy': 'never', 'sandbox': 'read-only', 'baseInstructions': self.system,
                 'developerInstructions': '', 'dynamicTools': self.tools, 'environments': [], 'experimentalRawEvents': True})

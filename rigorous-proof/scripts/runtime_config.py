@@ -13,6 +13,23 @@ import sys
 CORE = Path(__file__).resolve().parents[1]
 
 
+def model_profile(phase=None):
+    """Resolve a declared phase without changing another live stage's model."""
+    raw = (CORE / 'config.json').read_bytes()
+    config = json.loads(raw)
+    name = str(phase or '').lower().replace('_', '-')
+    translation = name in {'proof', 'plan', 'interface', 'assembly'} or name.startswith(
+        ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-'))
+    key = 'nl0_to_lean' if translation else 'model'
+    profile = dict(config['phase_models'][key] if translation else config['model'])
+    if (set(profile) != {'id', 'reasoning_effort', 'speed', 'automatic_fallback'}
+            or not isinstance(profile['id'], str) or not profile['id']
+            or profile['reasoning_effort'] != 'high' or profile['speed'] != 'standard'
+            or profile['automatic_fallback'] is not False):
+        raise ValueError('This carrier requires an explicit model, high, Standard and no fallback')
+    return {**profile, 'profile_key': key, 'config_sha256': hashlib.sha256(raw).hexdigest()}
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 

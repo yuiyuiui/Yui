@@ -29,6 +29,7 @@ from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'scripts'))
 import run_pilot as carrier
+from runtime_config import model_profile
 from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, POLICY as OUTPUT_POLICY,
                           ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
 from pilot_common import sha256, load_lock as runtime_lock
@@ -40,7 +41,7 @@ def load_lock():
 
 carrier.load_lock = load_lock
 
-HARNESS = 'yui-0.1.1'
+HARNESS = 'yui-0.1.2'
 BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
 STAGE_LIMITER = None
 carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission and time remains. '
@@ -69,6 +70,7 @@ class Stage(carrier.Trial):
             (self.work/n).mkdir(mode=0o700)
         self.cpath = Path(cpath)
         self.mode, self.plan, self.step = mode, plan, step
+        self.model_selection = model_profile(mode)
         self.budget = budget
         self.timeout = timeout
         self.harness_version = HARNESS
@@ -286,7 +288,8 @@ class Stage(carrier.Trial):
         self.execution_task=execution.current()[1] or self.step or 'stage-'+hashlib.sha256(str(self.logs).encode()).hexdigest()[:12]
         recorder=self.execution
         if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode,
-            role='proof' if self.mode=='proof' else 'preparation_review')
+            role='proof' if self.mode=='proof' else 'preparation_review',model=self.model,
+            model_selection=self.model_selection)
         queued = time.monotonic()
         limiter = self.budget or STAGE_LIMITER
         try:
@@ -314,7 +317,7 @@ class Stage(carrier.Trial):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)
                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
-            ir.write(self.logs/'execution-manifest.json',{'model':carrier.MODEL,'effort':'high','speed':'standard',
+            ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':'high','speed':'standard',
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
                 'background_note_policy':self.background_note_policy,
                 'model_output_policy':OUTPUT_POLICY,
@@ -323,7 +326,7 @@ class Stage(carrier.Trial):
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
-        result = {'mode':self.mode,'step':self.step,'model':carrier.MODEL,'effort':'high',
+        result = {'mode':self.mode,'step':self.step,'model':self.model,'model_selection':self.model_selection,'effort':'high',
                   'background_note_policy':self.background_note_policy,
                   'output_verbosity':getattr(self,'output_verbosity','low'),
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,
@@ -337,7 +340,7 @@ class Stage(carrier.Trial):
             self.start_process()
             inventory = self.rpc('skills/list',{'cwds':[str(self.work/'input')],'forceReload':True})
             ir.write(self.logs/'skills-inventory.json',inventory)
-            thread = self.rpc('thread/start',{'model':carrier.MODEL,'modelProvider':'pilot-relay',
+            thread = self.rpc('thread/start',{'model':self.model,'modelProvider':'pilot-relay',
                 'allowProviderModelFallback':False,'ephemeral':True,'cwd':str(self.work/'input'),
                 'approvalPolicy':'never','sandbox':'read-only','baseInstructions':self.system,
                 'developerInstructions':'','dynamicTools':self.tools,'environments':[],
@@ -442,7 +445,7 @@ class Stage(carrier.Trial):
                 try:
                     result['exposure'] = audit_stage(self.logs)
                     result['measurement_valid'] = (result['exposure']['status']=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
-                        and result['exposure']['actual_model_ids']==[carrier.MODEL]
+                        and result['exposure']['actual_model_ids']==[self.model]
                         and result['exposure']['standard_tier_verified'] and result['usage']['complete']
                         and result['execution_health']=='NO_RECORDED_FAULT')
                     if result['exposure']['errors']:

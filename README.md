@@ -38,7 +38,8 @@ installation, previous chats or a historical proof store.
 
 ## Execution profile
 
-The selected profile is `gpt-6.1-sol`, reasoning `high`, Standard speed, through
+The test profiles use `gpt-6.1-sol/high/Standard` for NL0 and Audit A, and
+`gpt-6-luna/high/Standard` for NL0-to-Lean preparation, proof work and Audit B, through
 an existing authenticated Codex subscription. There is no automatic model
 fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
 the runtime discloses its conservative fallback and records observed concurrency.

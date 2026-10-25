@@ -30,7 +30,7 @@ class ExecutionTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_atomic_coalescing_and_usage_unknown_until_reported(self):
-        profile=json.loads((SCRIPTS.parent/'config.json').read_text())['model']
+        profile=__import__('runtime_config').model_profile('proof')
         self.assertEqual(self.r.state['model'],{'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']})
         with patch.object(e,'atomic',wraps=e.atomic) as writer:
             for n in range(50):self.r.task('T001',sequence=n);self.r.flush()

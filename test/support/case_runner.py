@@ -12,12 +12,16 @@ from execution_health import StageFailure
 
 
 def execute(job,root):
-    recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='preparation')
+    recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='translation-preparation' if job['kind'] in {'translate','checked_interface','submitted_interface'} else 'preparation')
     budgets=a.concurrency.CaseBudgets(job.get('max_concurrency','auto'),execution=recorder)
     budget=budgets.serial
     result={};author_artifact=None
     def progress(case,phase,**extra):
-        recorder.check();recorder.update(phase=phase,stage_artifacts=extra);recorder.flush(force=True)
+        recorder.check();recorder.update(phase=phase,stage_artifacts=extra)
+        if phase.startswith(('INTERFACE','FROZEN_LEAN','AUDIT_B','WORKFLOW')):
+            profile=__import__('runtime_config').model_profile('translation-preparation')
+            recorder.update(model={'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']},model_selection=profile)
+        recorder.flush(force=True)
     try:
         with execution.activate(recorder),recorder.signals():
             if job['kind']=='nl0':

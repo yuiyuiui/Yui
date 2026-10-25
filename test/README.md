@@ -33,9 +33,23 @@ record is maintained source documentation and survives cleanup. It must not
 enter any measured model's task inputs, including reviewer and direct-model
 inputs; do not add an extra model review just to maintain it.
 
-Selected model: `gpt-6.1-sol`, reasoning `high`, Standard speed; no fallback.
-This supersedes the earlier Luna development profile. Keep the model identities
-and measured results separate; a profile change is not a same-model speedup.
+Use the phase profiles in [config.json](../rigorous-proof/config.json):
+
+| Phase | Model | Reasoning | Speed |
+| --- | --- | --- | --- |
+| NL0 authoring and Audit A, including its calibration | `gpt-6.1-sol` | `high` | Standard |
+| NL0-to-Lean preprocessing, interface authoring/review, local proof workers and Audit B mapping/review | `gpt-6-luna` | `high` | Standard |
+
+There is no automatic fallback or stronger-model rescue. Python coordination,
+Lean compilation and assembly make no model calls. The carrier selects and
+freezes a profile **per model stage**, including when a full case crosses the
+phase boundary in one controller process. Its configuration hash, actual model
+identity, reasoning and tier are retained in stage records. Reviews use fresh
+contexts; Audit B has the same Luna profile as the formalization workers.
+An accepted Sol NL0/Audit A receipt can be reused unchanged for a new Luna
+translation run. That is inherited stage-one acceptance, not a fresh NL0 test.
+Keep phase costs and model identities separate; this is not a same-model speedup
+comparison. Owner reasoning and personal context never enter measured stages.
 A batch consists of independent case processes. Each case has a separate
 serial author/preparation/review lane and its own `auto|N` Lean proof-worker
 budget. The Python controller does not consume a proof-worker slot. Report

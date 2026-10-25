@@ -81,7 +81,10 @@ without Yui planning, strategy or shared-proof guidance. Log actual transmitted
 instructions, complete allowed inputs, tool schemas/results, model identity,
 phase, usage and health. Never execute model-generated Python or shell text.
 
-Use the selected profile in `config.json` (currently `gpt-6.1-sol/high/Standard`).
+Use the phase profiles in `config.json`: NL0/Audit A uses
+`gpt-6.1-sol/high/Standard`; NL0-to-Lean (including preparation) and Audit B use
+`gpt-6-luna/high/Standard`. Freeze and record each stage's selected profile;
+never silently substitute a stronger model or fallback.
 Resolve default concurrency
 before dispatch and record its basis; do not claim an unknown backend maximum.
 The concurrency parameter limits Lean proof jobs only. NL0 authoring,

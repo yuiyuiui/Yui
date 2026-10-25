@@ -101,7 +101,7 @@ def collect(out):
         path=out/'stage'/name;evidence.append({**bind(path),'path':str(path.relative_to(out))})
     review={'version':audit_b.VERSION,'mechanical_sha256':binding['mechanical']['sha256'],
         'mapping_sha256':binding['mapping']['sha256'],
-        'reviewer':{'identity':__import__('run_pilot').MODEL+' high Standard','mode':'fresh_model_review','independent':True,
+        'reviewer':{'identity':result.get('model',__import__('run_pilot').MODEL)+' high Standard','mode':'fresh_model_review','independent':True,
             'disclosure':'Fresh clean context; read only original source/paired kernel review packet, actual mechanical results, Yui rules and pinned Mathlib. No author history, prior verdict, or hidden reference proof.'},
         'nodes':{key:{**row,'evidence':evidence} for key,row in raw['nodes'].items()},
         'checks':{key:{**row,'evidence':evidence} for key,row in raw['checks'].items()}}

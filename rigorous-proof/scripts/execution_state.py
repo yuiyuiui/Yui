@@ -128,11 +128,11 @@ class Recorder:
         self._usage_errors = []; self._signals = {}; self._locals = threading.local()
         owner = identity(os.getpid())
         if owner is None: raise RuntimeError('Cannot establish controller process identity')
-        profile = json.loads((Path(__file__).resolve().parents[1]/'config.json').read_text())['model']
+        profile = __import__('runtime_config').model_profile(phase)
         self.state = {'schema_version': 'yui-execution-1', 'case_id': case_id, 'run_id': str(uuid.uuid4()),
             'updated_at_utc': now(), 'controller_heartbeat_at_utc': now(),
             'controller': {**owner, 'ppid': os.getppid(), 'state': 'RUNNING'}, 'phase': phase,
-            'bindings': {}, 'model': {'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']},
+            'bindings': {}, 'model': {'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']}, 'model_selection':profile,
             'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0,
                 'roles': {}, 'proof_limit_scope': 'Lean proof jobs only'},
             'tasks': {}, 'processes': {}, 'usage': {},

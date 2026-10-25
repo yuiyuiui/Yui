@@ -66,7 +66,7 @@ def validate_comparison(comparison,docs):
     if not isinstance(comparison,dict) or set(comparison)!={'source','formal','difference'} or not isinstance(comparison['difference'],str) or not comparison['difference'].strip():
         raise ValueError('A mismatch needs paired quoted source/formal evidence and its specific difference')
     import audit_b
-    for side,allowed in [('source',{'spec.json','nl0.json'}),('formal',{'contract.json','plan.json'})]:
+    for side,allowed in [('source',{'spec.json','nl0.json','background-supplement.json'}),('formal',{'contract.json','plan.json'})]:
         row=comparison[side]
         if not isinstance(row,dict) or set(row)!={'document','pointer','quote'} or row['document'] not in allowed:
             raise ValueError('Locate quoted evidence on its actual source/formal side')
@@ -80,7 +80,7 @@ def validate_comparison(comparison,docs):
 
 def copy_review_inputs(author,inputs):
     """Disclose canonical task data, not the author's repair history/verdicts."""
-    permitted={'spec.json','nl0.json','source-map.json','problem.md','source-context.md','frozen-target.md'}
+    permitted={'spec.json','nl0.json','source-map.json','background-supplement.json','problem.md','source-context.md','frozen-target.md'}
     for src in (Path(author)/'inputs').iterdir():
         if src.is_file() and src.name in permitted:shutil.copyfile(src,Path(inputs)/src.name)
 
@@ -218,7 +218,7 @@ def collect(out):
         p=out/'stage'/name;files.append({**bind(p),'path':str(p.relative_to(out))})
     review={'version':workflow.VERSION,'source_graph_sha256':bindings['source_graph']['sha256'],
         'contract_sha256':bindings['contract']['sha256'],'plan_sha256':bindings['plan']['sha256'],
-        'reviewer':{'identity':__import__('run_pilot').MODEL+' high Standard','mode':'fresh_model_review','independent':True,
+        'reviewer':{'identity':result.get('model',__import__('run_pilot').MODEL)+' high Standard','mode':'fresh_model_review','independent':True,
             'disclosure':'Separate clean semantic reviewer; read only the explicit source, typed candidate and Yui rules, with pinned Mathlib tools. No author history, previous verdict or proof reference.'},
         'checks':raw['checks'],'paragraph_mapping':bindings['paragraph_mapping'],
         'source_outputs':bindings['source_outputs'],'evidence':files,

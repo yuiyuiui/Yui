@@ -23,6 +23,7 @@ sys.path.insert(0,str(CORE/'translation/scripts'))
 import ir
 import nl0
 import source_preparation
+import background
 import concurrency
 from clean_stage import ArtifactStage
 import model_pilot as pilot
@@ -54,6 +55,13 @@ accepted NL0, preserving its mathematical content and proof route. Read every
 task input and relevant Yui translation/architecture/Audit B rules. No earlier
 Lean proof, hidden reference type or external project is available. Only the
 explicit accepted source, task and pinned Mathlib are mathematical inputs.
+When background-supplement.json is supplied, retain that audited supplement.
+source-map.json gives the effective roots and per-inference direct inputs,
+including the library facts admitted by Audit A. Give every effective M root
+a faithful type. Each step may select only its own source inference's relevant
+qualified background_notes IDs (Rnnn.BGnnn); this is not permission to borrow
+another inference's facts. Preserve all notes across the plan, including
+elementary notes, and their grounds. They add no original hypothesis.
 Submit JSON with exactly header,parameters,premise_types,conclusion_type,
 representation,objects,steps,terminal,source_outputs. header starts with import
 Mathlib and contains only mathematical definitions/notation/structures needed
@@ -106,19 +114,24 @@ def prepare(case,problem,out):
     out.mkdir(parents=True,exist_ok=False)
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
     inputs=out/'inputs';inputs.mkdir()
+    props,inferences=background.effective(data)
+    supplement=data[0].get('background_supplement')
+    if supplement:write(inputs/'background-supplement.json',supplement)
     for f in ['spec.json','nl0.json']:shutil.copyfile(case/f,inputs/f)
     for f in ['problem.md','source-context.md','frozen-target.md']:
         if (problem/f).exists():shutil.copyfile(problem/f,inputs/f)
     paragraphs=[];mapping={}
-    for rid,r in data[4].items():
+    for rid,r in inferences.items():
         for s in r['argument']:
             identifier='S'+str(len(paragraphs)+1).zfill(3)
             paragraphs.append({'id':identifier,'text':s['text']})
             mapping[identifier]={'inference':rid,'paragraph':s['id']}
     source_map={'source_steps':paragraphs,'paragraph_mapping':mapping,
-        'roots':[{'id':p['id'],'kind':p['kind'],'statement':p['statement']} for p in data[3].values() if p['kind'] in {'hypothesis','external','mathlib'}],
+        'roots':[{'id':p['id'],'kind':p['kind'],'statement':p['statement']} for p in props.values() if p['kind'] in {'hypothesis','external','mathlib'}],
         'source_outputs':{r['output']:data[3][r['output']]['statement'] for r in data[4].values()},
-        'direct_boundaries':{rid:{'inputs':r['inputs'],'output':r['output']} for rid,r in data[4].items()}}
+        'direct_boundaries':{rid:{'inputs':r['inputs'],'output':r['output'],
+            'background_notes':[rid+'.'+n['id'] for n in r.get('background_notes',[])]}
+            for rid,r in inferences.items()}}
     write(inputs/'source-map.json',source_map)
     manifest(inputs);(out/'prompt.txt').write_text(PROMPT)
     write(out/'authority.json',{'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),'audit_a':bind(case/'audit-a.json')})
@@ -166,6 +179,11 @@ class InterfaceContract:
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
             'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
             'review':{'mode':'development_owner_review','status':'PENDING_ACTUAL_SEMANTIC_REVIEW','disclosure':'Candidate generated in a clean selected-model context; only syntax/types are checked by this adapter.'}}
+        supplement_file=self.out/'inputs/background-supplement.json'
+        if supplement_file.is_file():
+            supplement=json.loads(supplement_file.read_text())
+            contract['source'].update(background_supplement=supplement,
+                background_supplement_sha256=supplement['sha256'])
         write(directory/'contract.json',contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':value['steps'],'terminal':value['terminal']}
