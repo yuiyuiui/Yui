@@ -24,6 +24,10 @@ CASES={'geometry-product-dimension','lie-module-irreducibility','wave-map-energy
 
 def validate_job(value):
     common={'id','kind','case'}
+    if 'time_budget_seconds' in value:
+        if type(value['time_budget_seconds']) is not int or value['time_budget_seconds']<1:
+            raise ValueError('The whole-case wall budget must be a positive integer number of seconds')
+        common.add('time_budget_seconds')
     if 'stop_after' in value:
         if value['stop_after']!='audit_a' or value.get('kind') not in {'nl0','audit_source'}:
             raise ValueError('stop_after=audit_a requires an NL0/Audit A job')

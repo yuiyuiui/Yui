@@ -89,7 +89,9 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
         cmd = ['/usr/bin/sandbox-exec', '-f', str(profile)] + cmd
     started = time.monotonic()
     recorder, task = current()
-    if recorder: recorder.check(task)
+    if recorder:
+        recorder.check(task)
+        timeout = recorder.remaining(timeout)
     from run_resources import MARKER, register_workspace, register_child
     if (recorder and not (work/MARKER).exists() and
         work.resolve().parent == Path(__import__('tempfile').gettempdir()).resolve()):

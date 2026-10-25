@@ -4,8 +4,9 @@ Preserve the given mathematical proof route, target, hypotheses and allowed
 external results. Keep the original NL0/Audit A artifacts immutable. Treat
 legacy fragments as development inputs, not newly Audit-A-approved packages.
 
-Read [architecture](architecture.md) and
-[translation rules](translation-rules.md) before building an IR.
+Start with [the minimal translation procedure](minimal-translation.md).
+Read [architecture](architecture.md) and [translation rules](translation-rules.md)
+when their details are needed; do not preload every reference.
 At translation entry, use [local source refactoring](source-refactoring.md)
 and its [revision record](../templates/source-refactoring.md) if sharing requires
 changing NL0. Extract existing derivations with an explicit patch boundary;
@@ -29,7 +30,9 @@ connects this translation module to the NL0/Audit A stage.
 The IR is a typed proof plan with unproved obligations. Python validates its
 explicit structure and renders Lean; Lean proves transitions and assembly.
 Neither component establishes natural-language fidelity automatically. Record
-a separate statement/dependency/route review and distinguish its actual scope.
+a statement/dependency/route review in final Audit B and distinguish its actual
+scope. The default interface freeze is mechanical, with semantic status
+`PENDING_AUDIT_B`; a separate pre-proof model review is optional.
 
 Use the scripts described in those references. Keep
 each input, plan, proof and feedback hash, retain failed attempts, and invalidate
@@ -47,8 +50,8 @@ assembly. Do not report conditional local checks as final proof closure.
 Keep mathematical object identity global and Lean implementation views local.
 Freeze cross-node ports and planned typed conversion obligations. Their proof
 bodies are worker tasks; assembly/Audit B must supply every actual conversion.
-The interface review checks complete types, direct inputs and source fidelity,
-without demanding the completed bodies before dispatch.
+The interface preflight checks types and source boundaries. Final Audit B checks
+semantic fidelity of those choices against the completed proof.
 Do not require one Lean type for every use of an object. A view record documents
 a choice; it neither proves equivalence nor chooses the best representation.
 
@@ -65,7 +68,7 @@ Cache misses return to ordinary proof work. Source reuse still costs Lean
 elaboration; there is no .olean cache or automatic semantic adapter here.
 
 For accepted current structured NL0 use `scripts/workflow.py`: freeze the
-source and reviewed IR, run proof work, then prepare/build/check Audit B. It
+source and type-checked IR, run proof work, then prepare/build/check Audit B. It
 requires exact source paragraphs, output mapping and direct-input boundaries.
 This is artifact orchestration; models/humans still choose representations
 and review mathematical fidelity. It does not automatically translate arbitrary

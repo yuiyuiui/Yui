@@ -24,6 +24,10 @@ class Cancelled(Exception):
     """An explicit external stop, never a model deadline or mathematical gap."""
 
 
+class CaseDeadlineExceeded(TimeoutError):
+    """The shared case wall budget expired; this is not an external cancel."""
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -115,13 +119,16 @@ def inspect(directory):
 
 
 class Recorder:
-    def __init__(self, root, case_id, configuration, *, phase='proof'):
+    def __init__(self, root, case_id, configuration, *, phase='proof', time_budget_seconds=None):
         self.root = Path(root).resolve(); self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root/'execution-status.json'
         if self.path.exists(): raise ValueError('Preserve the existing run; use a new output directory')
         self.lock = threading.RLock(); self.write_lock = threading.Lock()
         self.done = threading.Event(); self.dirty = True
         self.started = time.monotonic(); self.last_write = 0.; self._heartbeat = 0.
+        if time_budget_seconds is not None and (isinstance(time_budget_seconds,bool) or time_budget_seconds <= 0):
+            raise ValueError('The case time budget must be positive')
+        self.deadline = self.started+time_budget_seconds if time_budget_seconds is not None else None
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
         self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}
         self._usage_totals = {}; self._usage_unknown = {}
@@ -137,6 +144,8 @@ class Recorder:
                 'roles': {}, 'proof_limit_scope': 'Lean proof jobs only'},
             'tasks': {}, 'processes': {}, 'usage': {},
             'cancellation': {'requests':[], 'cleanup':'NOT_REQUESTED'}, 'result': {'status':'RUNNING'}}
+        self.state['time_budget'] = {'scope':'whole_case_wall_clock','seconds':time_budget_seconds,
+                                    'expired':False}
         self.owner_lock = self.root/'.execution-owner.lock'
         fd = os.open(self.owner_lock, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as handle: json.dump({'run_id': self.state['run_id'], **owner}, handle)
@@ -175,6 +184,18 @@ class Recorder:
 
     def check(self, task=None):
         if self.cancelled(task): raise Cancelled('External cancellation requested for this run/task')
+        self.remaining()
+
+    def remaining(self, limit=None):
+        if self.deadline is None:
+            return limit
+        left = self.deadline-time.monotonic()
+        if left <= 0:
+            with self.lock:
+                self.state['time_budget']['expired'] = True
+                self.dirty = True
+            raise CaseDeadlineExceeded('The shared whole-case wall-clock budget is exhausted')
+        return min(left,limit) if limit is not None else left
 
     def update(self, **values):
         with self.lock: self.state.update(values); self.dirty = True

@@ -19,8 +19,8 @@ from clean_stage import ArtifactStage
 
 
 PROMPT='''Complete the actual Audit B mapping for the frozen, assembled proof.
-Read all supplied source inventory, original graph/spec, contract/plan, completed
-proof bodies, initial mapping and relevant Yui Audit B rules. Submit the complete
+Read the source inventory, contract/plan and initial mapping. Consult source
+paragraphs, proof bodies and relevant Audit B rules where needed for exact correspondence. Submit the complete
 mapping object, preserving its version/source_inventory_sha256 and exact source
 entry IDs. For each source H/E/M/N/P/D supply the actual selector and complete
 expected Lean type, with all parameters and conditional input binders in order.
@@ -28,7 +28,10 @@ H/E selectors remain premise:ID; P is decl:AuditBExport.P; N uses its actual
 decl:Translation.Tddd from the frozen source-output mapping. For each source M
 also provide its complete library_type and a real Lean tactic-body library_term
 discharging that intermediate root from the named pinned declaration, retaining
-all hypotheses. No sorry, admit, extra axiom or changed theorem is permitted.
+all hypotheses. With node_local_reference, background notes are not mapping
+entries or additional M ports: use their already-verified local declarations
+only in the corresponding source inference. Preserve the supplement; do not
+restate or retype every note. No sorry, admit, extra axiom or changed theorem is permitted.
 calculation_links may map actual imported proof names only to genuinely matching
 explicit original logic.calculations indices. Do not classify substantive
 mathematics as arithmetic, add a new calculation policy or silently use an

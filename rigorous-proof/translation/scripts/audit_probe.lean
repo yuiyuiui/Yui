@@ -35,10 +35,53 @@ private def binderInventory (type : Expr) : MetaM Json :=
         ("type", toJson (← showType d.type)), ("proof_valued", toJson (← isProp d.type))]
     return Json.mkObj [("binders", toJson rows), ("result", toJson (← showType body))]
 
+private def mergeUses (a b : NameSet × NameSet) : NameSet × NameSet := Id.run do
+  let mut result := a
+  for name in b.1.toArray do result := (result.1.insert name, result.2)
+  for name in b.2.toArray do result := (result.1, result.2.insert name)
+  return result
+
+/- Distinguish actual proof use from canonical typeclass evidence inserted as
+   an instance argument. Never infer this distinction from a name prefix. -/
+private partial def proofUses (e : Expr) (insideInstance := false) : MetaM (NameSet × NameSet) := do
+  match e with
+  | .const name _ =>
+    let info ← getConstInfo name
+    if ← isProp info.type then
+      if insideInstance then return ({}, ({} : NameSet).insert name)
+      else return (({} : NameSet).insert name, {})
+    return ({}, {})
+  | .app .. =>
+    let fn := e.getAppFn
+    let mut result ← proofUses fn insideInstance
+    let mut type ← inferType fn
+    for arg in e.getAppArgs do
+      type ← whnf type
+      match type with
+      | .forallE _ _ body bi =>
+        result := mergeUses result (← proofUses arg (insideInstance || bi == .instImplicit))
+        type := body.instantiate1 arg
+      | _ => throwError "Application has no function binder in dependency inspection"
+    return result
+  | .lam name type body bi | .forallE name type body bi =>
+    let before ← proofUses type insideInstance
+    let after ← withLocalDecl name bi type fun x => proofUses (body.instantiate1 x) insideInstance
+    return mergeUses before after
+  | .letE name type value body _ =>
+    let before := mergeUses (← proofUses type insideInstance) (← proofUses value insideInstance)
+    let after ← withLetDecl name type value fun x => proofUses (body.instantiate1 x) insideInstance
+    return mergeUses before after
+  | .mdata _ value | .proj _ _ value => proofUses value insideInstance
+  | _ => return ({}, {})
+
 private def record (name : Name) : MetaM Json := do
   let info ← getConstInfo name
   let env ← getEnv
   let imported := env.isImportedConst name
+  let uses ← if imported then pure (({} : NameSet), ({} : NameSet))
+    else match info.value? (allowOpaque := true) with
+      | some value => proofUses value
+      | none => pure (({} : NameSet), ({} : NameSet))
   let moduleName := match env.getModuleIdxFor? name with
     | some idx => (env.header.moduleNames[idx.toNat]!).toString
     | none => env.mainModule.toString
@@ -46,6 +89,10 @@ private def record (name : Name) : MetaM Json := do
     ("name", toJson name.toString), ("kind", toJson (kindOf info)),
     ("imported", toJson imported), ("module", toJson moduleName),
     ("proof_valued", toJson (← isProp info.type)),
+    ("instance_declaration", toJson (isInstanceCore env name)),
+    ("proof_uses", Json.mkObj [
+      ("ordinary", toJson (uses.1.toArray.map Name.toString)),
+      ("instance_argument", toJson (uses.2.toArray.map Name.toString))]),
     ("type", toJson (← showType info.type)),
     ("signature", ← binderInventory info.type),
     ("levels", toJson (info.levelParams.map Name.toString)),

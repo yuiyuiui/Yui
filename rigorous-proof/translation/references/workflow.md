@@ -41,8 +41,8 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Stage | Responsibility | Main artifact/tool |
 | --- | --- | --- |
 | Translation-entry source preparation | Extract existing shared derivations through allowlisted local patches; review new producers and substitution cuts, preserving old evidence | source_preparation.py inventory/stage/check; ordinary or incremental Audit A authority |
-| Source/IR freeze | Preserve baseline, accepted source, definitions, target/H/E/M, exact paragraph/output mapping and direct input boundaries | workflow.py freeze; located interface review plus immutable bindings |
-| Interface authoring | Choose source-faithful Lean representations and complete input/output types | contract.json; model proposal plus real semantic review |
+| Source/IR freeze | Preserve baseline, accepted source, definitions, target/H/E/M, exact paragraph/output mapping and direct input boundaries | workflow.py freeze; checked source boundaries/types, immutable bindings, semantic status pending Audit B |
+| Interface authoring | Choose source-faithful Lean representations and complete input/output types | contract.json; model proposal plus real type check, semantic review in final Audit B |
 | Local planning | Define useful typed T ports, direct input IDs and source correspondence | plan.json; structural/type checks in ir.py |
 | Explicit reuse | Match a reviewed common port against a supplied project source store | shared_lemmas.py, initial index, full conditional types |
 | Local proof work | Fresh worker proves only its own conditional obligation; direct proof by default | Stage in model_pilot.py; fixed search/read/check/submit tools |
@@ -67,6 +67,11 @@ view record selects a local expression/type; explicit proved input relations
 justify crossings. The current implementation keeps fixed cross-node parameters
 within one contract and permits local views/definitions. It does not choose an
 optimal view or generate an arbitrary bridge automatically.
+
+Each case uses one total wall-clock deadline for preparation, proof work,
+assembly and final review. Stages and parallel workers receive only the
+remaining budget; the controller occupies no model slot. See
+[minimal translation](minimal-translation.md) for the current default.
 
 ## What a local worker sees
 

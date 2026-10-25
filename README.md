@@ -38,14 +38,18 @@ installation, previous chats or a historical proof store.
 
 ## Execution profile
 
-The test profiles use `gpt-6.1-sol/high/Standard` for NL0 and Audit A, and
-`gpt-6-luna/high/Standard` for NL0-to-Lean preparation, proof work and Audit B, through
+The current test profiles use `gpt-6.1-sol/high/Standard` for NL0/Audit A and
+NL0-to-Lean preparation, proof work and Audit B, through
 an existing authenticated Codex subscription. There is no automatic model
 fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
 the runtime discloses its conservative fallback and records observed concurrency.
 This limit applies to Lean proof jobs per case. NL0 authoring, preparation,
 Audit A, interface work and Audit B use a separate serial lane. Both lanes share
 one all-stage cost ledger. The test batch has a separate concurrent-case limit.
+Current stage-two tests use one three-hour wall budget per case, shared across
+preparation, proof work, assembly and Audit B. See the
+[minimal translation procedure](rigorous-proof/translation/references/minimal-translation.md)
+for saved drafts, on-demand notes and deferred interface semantic review.
 Each case writes `nl0-to-lean/execution-status.json`, with coalesced one-second
 updates and a five-second heartbeat. Recording makes no model calls. See the
 [execution protocol](rigorous-proof/translation/references/execution-protocol.md)

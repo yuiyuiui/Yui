@@ -130,13 +130,13 @@ class WorkflowPolicyTests(unittest.TestCase):
                  patch.object(f.workflow,'bound',return_value={'contract':str(contract),'plan':str(plan)}),\
                  patch.object(f.run_graph,'run',return_value={'status':'SYNTHETIC_UNFINISHED'}) as run:
                 with self.assertRaises(StageFailure) as failed:
-                    f.from_interface('neutral',self.source,'typed','frozen',budgets.serial,lambda *args,**kwargs:None,proof_budget=budgets.proof)
+                    f.from_interface('neutral',self.source,'typed','frozen',budgets.serial,lambda *args,**kwargs:None,proof_budget=budgets.proof,review_name='typed-review')
                 self.assertEqual(failed.exception.result['phase'],'proof')
                 self.assertEqual(freeze.call_args.kwargs['max_concurrency'],5)
                 self.assertIs(run.call_args.kwargs['budget'],budgets.proof)
                 freeze.reset_mock();(copied/'nl0.json').write_text('{"changed":true}')
                 with self.assertRaisesRegex(ValueError,'exact source bytes'):
-                    f.from_interface('neutral',self.source,'typed','frozen',budgets.serial,lambda *args,**kwargs:None,proof_budget=budgets.proof)
+                    f.from_interface('neutral',self.source,'typed','frozen',budgets.serial,lambda *args,**kwargs:None,proof_budget=budgets.proof,review_name='typed-review')
                 freeze.assert_not_called()
         finally:recorder.close('SYNTHETIC_CONTROL_ONLY')
 

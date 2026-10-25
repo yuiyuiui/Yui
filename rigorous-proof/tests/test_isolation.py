@@ -355,16 +355,16 @@ class IsolationTests(unittest.TestCase):
             'partial_progress':'The actual draft is preserved.'})
         self.assertTrue(value['stage_complete']);self.assertFalse(value['mathematical_acceptance'])
 
-    def test_unfinished_registration_is_nonterminal_progress_not_a_mathematical_gap(self):
+    def test_unfinished_registration_does_not_create_a_report_or_mathematical_gap(self):
         value=self.worker.dispatch('report_obstacle',{'obstacle_json':json.dumps({
             'status':'TASK_INCOMPLETE','location':'source inventory',
             'explanation':'A conventional source application still needs registration.',
             'basis':'Actual draft feedback, not evidence against the theorem.',
             'partial_progress':'The source was found and the draft is retained.'})})
-        self.assertTrue(value['progress_recorded'])
-        self.assertFalse(value['stage_complete'])
+        self.assertFalse(value['accepted'])
+        self.assertNotIn('progress_recorded',value)
+        self.assertNotIn('next_action',value)
         self.assertIsNone(self.worker.accepted)
-        self.assertIn('Continue',value['next_action'])
 
     def test_nl0_author_does_not_replace_work_with_incomplete_progress_reports(self):
         import shutil

@@ -67,6 +67,8 @@ def type_text(value):
 def contract(path):
     path = Path(path).resolve()
     c = load(path)
+    import background_inputs
+    background_inputs.mode(c)
     need(c['version'] in SUPPORTED_VERSIONS, 'unsupported contract version')
     need(IDENTIFIER.fullmatch(c['id']) is not None, 'invalid contract id')
     source = (path.parent / c['source']['path']).resolve()
@@ -101,7 +103,9 @@ def contract(path):
     need(all(s['text'].strip() for s in steps), 'missing NL argument')
     # The header is trusted reviewed input. It is never accepted from a worker.
     need(isinstance(c['header'], str) and c['header'].startswith('import '), 'missing frozen header')
-    need(c['review']['mode'] in {'development_owner_review', 'upstream_audited_packet'}, 'missing review scope')
+    need(c['review']['mode'] in {'development_owner_review', 'upstream_audited_packet', 'deferred_semantic_review'}, 'missing review scope')
+    if c['review']['mode']=='deferred_semantic_review':
+        need(c['review'].get('status')=='PENDING_AUDIT_B', 'deferred semantics cannot claim a review pass')
     if c['version'] == 2:
         objects = c.get('objects', [])
         need(len({o['id'] for o in objects}) == len(objects), 'duplicate mathematical object')

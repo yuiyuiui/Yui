@@ -325,7 +325,11 @@ class ReviewControllerTests(unittest.TestCase):
             'source_outputs':{'N001':'b=a.','P':'a+0=b.'}})
         source=json.loads((out/'inputs/source-map.json').read_text())
         self.assertEqual(len(source['paragraph_mapping']),len(source['source_steps']))
-        validator=t.InterfaceContract(out)
+        a.write(out/'authority.json',{'case':str(self.fixture),
+            **{key:a.bind(self.fixture/name) for key,name in [('graph','nl0.json'),('spec','spec.json'),('audit_a','audit-a.json')]}})
+        # This injected acceptance bit tests only adapter mechanics, not a real audit.
+        data[0]['current_standard_receipt_valid']=True
+        with patch.object(t.nl0,'validate',return_value=data):validator=t.InterfaceContract(out)
         draft={'header':'import Mathlib\n','parameters':[{'name':'a','type':'ℕ'},{'name':'b','type':'ℕ'}],
             'premise_types':{'H001':'a = b'},'conclusion_type':'a + 0 = b',
             'representation':'Natural-number equality in the neutral controller fixture.',
@@ -364,7 +368,7 @@ class ReviewControllerTests(unittest.TestCase):
         bad=copy.deepcopy(draft);bad['conclusion_type']=bad['steps'][-1]['statement']='unboundTarget'
         with self.assertRaisesRegex(ValueError,'Actual Lean type check failed'):validator(bad)
         bad=copy.deepcopy(draft);bad['header']='import Mathlib\naxiom forged : False\n'
-        with self.assertRaisesRegex(ValueError,'not execute code'):validator(bad)
+        with self.assertRaisesRegex(ValueError,'not proof/result declarations'):validator(bad)
 
     def test_interface_reviews_require_resolving_source_and_formal_locations(self):
         out=self.root/'interface-review';inputs=out/'inputs';inputs.mkdir(parents=True)

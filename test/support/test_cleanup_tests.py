@@ -97,6 +97,17 @@ while True:time.sleep(.1)
         self.assertEqual(result['status'], 'BLOCKED')
         self.assertTrue(self.output.exists()); self.assertTrue(work.exists())
 
+    def test_selected_cleanup_preserves_frozen_source_and_rejects_outside(self):
+        preserved = self.repo/'test/results/accepted-nl0/stage'
+        preserved.mkdir(parents=True)
+        (preserved/'audit-a.json').write_text('frozen receipt')
+        result = c.clean(self.repo, apply=True, outputs=[self.output.parent])
+        self.assertEqual(result['status'], 'CLEANED', result)
+        self.assertFalse(self.output.exists())
+        self.assertEqual((preserved/'audit-a.json').read_text(), 'frozen receipt')
+        with self.assertRaisesRegex(ValueError, 'must be a child'):
+            c.clean(self.repo, apply=True, outputs=[self.repo/'test'])
+
     def test_output_root_symlink_cannot_delete_an_outside_directory(self):
         __import__('shutil').rmtree(self.repo/'test/results')
         outside = Path(self.tmp.name)/'outside'; outside.mkdir()

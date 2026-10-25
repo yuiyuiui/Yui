@@ -197,12 +197,14 @@ class Trial:
         self.initial_user_message = None
 
     def lean_timeout(self) -> float:
+        recorder = getattr(self,'execution',None)
+        case_left = recorder.remaining(120) if recorder else 120
         if self.strict and self.started is not None and self.phase == 'proof':
             remaining = self.started + self.timeout - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('证明预算已耗尽，不再启动Lean检查。')
-            return min(120, remaining)
-        return 120
+            return min(case_left, remaining)
+        return case_left
 
     def check(self, proof: str, submit: bool = False) -> dict:
         if self.strict and re.match(r'^\s*by(?:\s|$)', proof):

@@ -124,22 +124,19 @@ engineering; substantive source changes require a separately reviewed revision.
 
 For the whole workflow the contract's relative `source.path` points to exact
 canonical NL0 bytes, not a summary. `source_steps` copy every argument paragraph
-with distinct implementation IDs. A separate actual interface review contains:
+with distinct implementation IDs. The controller copies these paragraphs and
+note locations from the accepted source rather than asking the author to
+transcribe them. The author supplies types and local plans, and can save partial
+JSON before completing the whole interface.
 
-- `version: "nl0-lean-workflow-1"`, `source_graph_sha256`, `contract_sha256`,
-  `plan_sha256`, reviewer identity/mode/independence/disclosure and evidence;
-- `paragraph_mapping`: each contract S ID maps to `{inference, paragraph}`;
-- `source_outputs`: every source N/P maps to its primary T ID, with P mapping
-  to the plan terminal;
-- `checks`: `source_route_and_coverage`, `parameters_and_allowed_inputs`,
-  `representations_and_conversion_obligations`, `statements_and_local_plans`,
-  each with an actual `verdict` and specific `notes`;
-- optional `preparation_cost`, distinguishing measured times from UNMEASURED.
-
-Review source mathematical meaning and complete Lean types; dictionary labels
-and equal names are insufficient. The controller checks exact paragraph
-coverage, permitted root premises, source output coverage and direct-input
-boundaries through implementation-only helpers. It elaborates all IR types.
+The default freeze uses a mechanically checked binding with
+`source_graph_sha256`, `contract_sha256`, `plan_sha256`, `paragraph_mapping` and
+`source_outputs`. It checks exact source coverage and direct boundaries and runs
+Lean type elaboration. This binding is **not a semantic review receipt**; the
+recorded semantic status is `PENDING_AUDIT_B`. Actual source/type fidelity is
+reviewed with the completed Lean proof in final Audit B. A separately requested
+interface review remains supported through `--interface-review`; it is not a
+mandatory extra model stage.
 
 ```sh
 python3 scripts/workflow.py freeze /absolute/new-workflow \
@@ -147,11 +144,12 @@ python3 scripts/workflow.py freeze /absolute/new-workflow \
   --spec /absolute/new-revision/case/spec.json \
   --incremental /absolute/new-revision/source-acceptance.json \
   --contract /absolute/interface/contract.json --plan /absolute/interface/plan.json \
-  --interface-review /absolute/interface/review.json --max-concurrency auto
+  --interface-binding /absolute/interface/accepted-interface-paths.json \
+  --max-concurrency auto
 ```
 
 Without extraction use original graph/spec and ordinary `--audit-a`. Freeze
-binds original/revised source, evidence, IR, review, source paragraphs and code.
+binds original/revised source, evidence, IR, mechanical binding (or optional review), source paragraphs and code.
 Any later change blocks the next stage. It does not regenerate old task packets
 or automatically rerun mathematical audits.
 `freeze-seal.json` binds the complete run manifest, including configuration and
@@ -229,13 +227,14 @@ is not added twice. Functional success does not establish general acceleration.
 
 ## Sources carrying verified background notes
 
-Start from the accepted NL0 plus Audit A supplement. Read notes in the source
-inventory and enriched packets before planning. Bind the supplement hash in
-the contract, use the effective M inputs and account for elementary notes in
-the local proof plan. This requires no author graph rewrite. The current
-extraction adapter explicitly blocks a changed consumer with notes pending its
-scoped review; unchanged notes and a zero-extraction handoff are preserved.
-Never silently omit notes to obtain an interface or Audit B pass.
+Start from the accepted NL0 plus Audit A supplement. New interfaces use
+`node_local_reference`: keep the original H/E/M inputs, bind the full supplement
+hash, and retain each node's notes as on-demand implementation references. Do
+not pre-type or promote every note into an additional M input. The controller
+attaches exact note IDs to the relevant paragraphs. This requires no source
+rewrite and no fresh Audit A. At final Audit B, compare any actual use with
+that inference's permissions and evidence. Legacy `promoted_inputs` contracts
+remain supported for reproducibility.
 
 Preserving this authority does not require every proof worker to read every
 justification. Its initial prompt contains a compact index for its selected

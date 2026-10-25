@@ -383,3 +383,32 @@ and Git tag `nl0-audit-a-2026-10-25`. Continue translation work against this
 baseline. No further model experiment or Lean translation is authorized by
 this freeze alone. Background notes provide source/application guidance, not
 ready-made Lean proofs; their time benefit remains unmeasured.
+
+## 2026-10-26: stage-two simplification before a new Sol run
+
+The first Luna stage-two attempt spent its allowance in interface construction;
+it did not reach proof workers or Audit B. Repeated ordinary incomplete reports,
+long continuation instructions and mandatory pre-typing of the background-note
+inventory added work before any proof could begin. Partial type probes did not
+provide a persistent, incrementally editable complete-interface draft.
+
+The user requested removal of that attempt's stage-two outputs and owned
+processes while retaining all accepted R24 NL0/Audit A sources and evidence.
+The cleanup was scoped to those four stage-two output directories. It found no
+remaining matching live process. New translation contracts keep the original
+H/E/M ports and carry verified notes as node-local references; they no longer
+promote every note into a typed M input. Incomplete interface JSON is preserved
+before validation; normal work does not require an obstacle report. A separate
+interface semantic review is deferred to final Audit B, with its pending status
+made explicit rather than filled with PASS values.
+
+An actual continuous-addition control also exposed a dependency-classification
+issue: implicit typeclass evidence was counted as undeclared independent
+mathematics. The inspector now records actual instance-argument uses and
+requires final semantic review of that support. It does not exempt an instance
+used as an ordinary proof, extra hypotheses, or arbitrary library theorems.
+
+The next run uses Sol / high / Standard, five proof slots per independent case,
+and one three-hour second-stage wall budget per case. Preserve original source
+acceptance and separate pre-processing, proof and Audit B results. These changes
+and software controls do not by themselves demonstrate success or acceleration.

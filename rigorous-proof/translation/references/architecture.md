@@ -26,8 +26,9 @@ acceptance, an IR is a derived artifact:
 
 The core transition engine consumes a frozen interface contract. A fresh model
 or human may author this interface from the accepted NL0, explicit representation
-choices and library tools. A separate actual semantic review compares the result
-with the source; elaboration alone cannot do this. Internal regression fixtures
+choices and library tools. The actual final Audit B compares the result with
+the source; elaboration alone cannot do this. A separate pre-proof interface
+review is optional, with `PENDING_AUDIT_B` recorded when deferred. Internal regression fixtures
 also contain prepared interfaces for deterministic controls. Those fixtures and
 their reference ports are never model-visible inputs to a mathematical test.
 Reports include interface authoring/review costs; unmeasured owner work is labeled.
@@ -152,11 +153,14 @@ Audit C/NL1 reconstruction remain outside Yui.
 ## Accepted background supplement
 
 The source authority includes verified node-local Audit A background notes.
-Use the effective dependency view and bind its supplement hash in
-`contract.source.background_supplement_sha256` before interface freeze. Basic M
-notes become permitted library ports; elementary notes inform local Lean work.
+Bind its supplement hash in `contract.source.background_supplement_sha256`
+before interface freeze. New contracts use `source.background_mode:
+node_local_reference`: original M ports remain, but notes are node-local
+implementation references rather than extra typed premise ports. Elementary
+notes inform local Lean work. Legacy contracts retain `promoted_inputs`.
 Do not create new assumptions or forget notes when constructing task packets.
-Audit B reads the same enriched inventory and requires actual Lean closure.
+Audit B checks actual library uses against the corresponding node's verified
+notes and requires actual Lean closure.
 
 The interface source also retains the complete `background_supplement`, not
 just its hash. Plan steps list the relevant qualified note IDs, for example

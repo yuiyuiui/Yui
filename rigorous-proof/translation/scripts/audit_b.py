@@ -21,6 +21,7 @@ import time
 import ir
 import source_preparation
 import background
+import background_inputs
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
@@ -64,12 +65,14 @@ def source_data(cpath, *, graph=None, spec=None, audit_a=None, incremental=None,
         ir.need(spec is not None and fragment is None, 'provide graph/spec or a fragment inventory')
         data, authority_paths = source_preparation.read_source(graph, spec, audit_a, incremental)
         result,g,s,props,inferences,defs,*_ = data
-        props,inferences=background.effective(data)
+        selected = background_inputs.mode(c)
+        props,inferences=background_inputs.effective(data, selected)
         if result.get('background_note_count',0):
             ir.need(c['source'].get('background_supplement_sha256') == result['background_supplement']['sha256']
                     and c['source'].get('background_supplement')==result['background_supplement'],
                     'Audit B interface omitted/changed accepted background notes')
         inventory = {'scope':'whole_structured_nl0','propositions':list(props.values()),
+            'background_mode':selected,
             'background_supplement':result.get('background_supplement'),
             'parameters':s['parameters'],'definitions':list(defs.values()),'logic':s['logic'],
             'inferences':list(inferences.values()),'full_target':s['full_target'],
@@ -150,7 +153,8 @@ def prepare(cpath,ppath,bpath,out,**source):
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'scripts/nl0.py',HERE.parent/'scripts/closure.py',
-             ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',ir.ROOT/'toolchain/lock.json']
+             ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',
+             Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
     inputs = out/'input-bytes';inputs.mkdir()
     bound = []
     for i,p in enumerate(dict.fromkeys(originals)):
@@ -183,6 +187,21 @@ def bound_inputs(out):
     return manifest
 
 
+def instance_support(declarations):
+    """Only registered instances used exclusively in actual instance arguments.
+
+    These remain explicit final semantic-review obligations. An instance used
+    as an ordinary proof is not covered by this representation-level category.
+    """
+    ordinary=set();arguments=set()
+    for d in declarations:
+        uses=d.get('proof_uses',{})
+        ordinary.update(uses.get('ordinary',[]))
+        arguments.update(uses.get('instance_argument',[]))
+    return {d['name'] for d in declarations if d['name'] in arguments-ordinary
+            and d.get('instance_declaration') and d['imported'] and d['proof_valued']}
+
+
 def dependency_correspondence(inventory,mapping,plan,declarations):
     """Stop at mapped source N nodes; implementation-only T helpers may expand."""
     nodes={s['id']:s for s in plan['steps']}
@@ -192,28 +211,46 @@ def dependency_correspondence(inventory,mapping,plan,declarations):
     library={}
     for sid,row in mapping['entries'].items():
         if row.get('library_declaration'):library.setdefault(row['library_declaration'],set()).add(sid)
-    def constants(name,seen,allowed):
+    common = set(FOUNDATION) | set(mapping.get('calculation_links', {}))
+    common |= instance_support(declarations)
+    if inventory.get('logic', {}).get('classical'):
+        common |= CLASSICAL
+    def constants(name,seen,allowed,notes,used,unpermitted):
         if name in seen: return set()
         seen.add(name)
-        if name in library: return library[name]&allowed or library[name]
+        if name in library and library[name]&allowed:
+            return library[name]&allowed
         d=byname.get(name)
-        if not d or d['imported']: return set()
-        return set().union(*(constants(x,seen,allowed) for x in d['direct_constants'])) if d['direct_constants'] else set()
-    def inputs(tid,start,seen,allowed):
+        if d and d['imported']:
+            if name in notes:
+                used.add(name)
+                return set()
+            if name in library:
+                return library[name]
+            if d['proof_valued'] and name not in common:
+                unpermitted.add(name)
+            return set()
+        if not d: return set()
+        return set().union(*(constants(x,seen,allowed,notes,used,unpermitted) for x in d['direct_constants'])) if d['direct_constants'] else set()
+    def inputs(tid,start,seen,allowed,notes,used,unpermitted):
         if tid not in nodes: return {tid}
         if tid!=start and tid in boundary: return {boundary[tid]}
         if tid in seen: return set()
         seen.add(tid)
-        result=set().union(*(inputs(dep,start,seen,allowed) for dep in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
-        result |= constants('Translation.'+tid,set(),allowed)
+        result=set().union(*(inputs(dep,start,seen,allowed,notes,used,unpermitted) for dep in nodes[tid]['inputs'])) if nodes[tid]['inputs'] else set()
+        result |= constants('Translation.'+tid,set(),allowed,notes,used,unpermitted)
         return result
     rows=[]
     for inference in inventory.get('inferences',[]):
         source_id=inference['output'];selector=mapping['entries'][source_id]['selector']
         tid=plan['terminal'] if source_id=='P' else selector.removeprefix('decl:Translation.')
-        expected=set(inference['inputs']);actual=inputs(tid,tid,set(),expected)
+        notes=background_inputs.library_notes(inventory,inference['id'])
+        used=set();unpermitted=set()
+        expected=set(inference['inputs']);actual=inputs(tid,tid,set(),expected,notes,used,unpermitted)
         rows.append({'inference':inference['id'],'source_output':source_id,'source_inputs':sorted(expected),
-                     'actual_boundary_inputs':sorted(actual),'matched':actual==expected})
+                     'actual_boundary_inputs':sorted(actual),'matched':actual==expected and not unpermitted,
+                     'background_library_uses':{name:notes[name] for name in sorted(used)},
+                     'unpermitted_imported_proofs':sorted(unpermitted)})
     return rows
 
 
@@ -321,15 +358,27 @@ def build(out):
             allowed=set(FOUNDATION)
             if inventory.get('logic',{}).get('classical'): allowed |= CLASSICAL
             allowed.update(mapping['calculation_links'])
+            support=instance_support(deps['declarations'])
+            allowed.update(support)
             allowed.update(row['library_declaration'] for row in mapping['entries'].values() if row.get('library_declaration'))
+            dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
+            allowed.update(name for row in dependency_rows for name in row['background_library_uses'])
             for d in deps['declarations']:
                 if set(d['axioms'])-AXIOMS: errors.append('UNPERMITTED_AXIOM:'+d['name'])
                 if not d['imported'] and d['kind'] in {'axiom','opaque'}: errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
                 if d['imported'] and d['proof_valued'] and d['name'] not in allowed: imported.append(d['name'])
             if imported: errors.append('UNMAPPED_IMPORTED_MATHEMATICAL_RESULT')
-            dependency_rows=dependency_correspondence(inventory,mapping,plan,deps['declarations'])
             if any(not r['matched'] for r in dependency_rows): errors.append('NL0_DIRECT_DEPENDENCY_MISMATCH')
             byname={d['name']:d for d in deps['declarations']}
+            for row in dependency_rows:
+                for name,notes in row['background_library_uses'].items():
+                    declaration=byname.get(name)
+                    if not declaration or not declaration['imported'] or not declaration['proof_valued']:
+                        errors.append('BACKGROUND_NOT_A_PROVED_LIBRARY_RESULT:'+name)
+                    for note in notes:
+                        module=note['source'].get('module')
+                        if declaration and module and declaration['module']!=module:
+                            errors.append('BACKGROUND_MODULE_MISMATCH:'+note['id'])
             for p in inventory['propositions']:
                 if p['kind']=='mathlib':
                     name=mapping['entries'][p['id']]['library_declaration'];d=byname.get(name)
@@ -350,14 +399,27 @@ def build(out):
                 required_locations[item['id']]=['/inventory/'+group+'/'+str(i)]+[
                     '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
         declarations=evidence['dependencies']['declarations'] if evidence else []
+        support=instance_support(declarations)
         for i,d in enumerate(declarations):
             if not d['imported']:
                 required_locations['implementation/'+d['name']]=['/lean_source','/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
+            if d['name'] in support:
+                required_locations['instance_support/'+d['name']]=[
+                    '/inventory/parameters','/inventory/definitions','/lean_source',
+                    '/actual_elaborated_evidence/dependencies/declarations/'+str(i)]
         for name,index in mapping['calculation_links'].items():
             locations=['/inventory/logic/calculations/'+str(index)]
             locations += ['/actual_elaborated_evidence/dependencies/declarations/'+str(i) for i,d in enumerate(declarations) if d['name']==name]
             ir.need(len(locations)==2,'unused/uninspected calculation link')
             required_locations['calculation/'+name]=locations
+        for i,row in enumerate(dependency_rows):
+            for name,notes in row['background_library_uses'].items():
+                positions=[j for j,d in enumerate(declarations) if d['name']==name]
+                for note in notes:
+                    required_locations['background/'+note['id']]=[
+                        '/inventory/background_supplement/notes/'+row['inference'],
+                        '/dependency_correspondence/'+str(i),
+                        *['/actual_elaborated_evidence/dependencies/declarations/'+str(j) for j in positions]]
         required_rows=set(required_locations)
         receipts={key:{'verdict':'UNVERIFIED','notes':'Read the complete paired statements and actual elaborated evidence.',
                        'locations':[],'evidence':[]} for key in sorted(required_rows)}
@@ -365,6 +427,7 @@ def build(out):
                 'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
                 'nodes':receipts,'checks':{k:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]} for k in REVIEW_CHECKS}}
         mechanical={'version':VERSION,'passed':not errors,'errors':sorted(set(errors)),
+            'instance_argument_support':sorted(support),
             'required_review_locations':required_locations,'dependency_correspondence':dependency_rows,
             'unmapped_imported_proofs':sorted(set(imported)),'wall_seconds':time.monotonic()-start,
             'local_checks':local,'compiler_exit_code':result['exit_code'],

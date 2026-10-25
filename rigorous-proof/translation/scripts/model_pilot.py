@@ -41,7 +41,7 @@ def load_lock():
 
 carrier.load_lock = load_lock
 
-HARNESS = 'yui-0.1.2'
+HARNESS = 'yui-0.1.3'
 BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
 STAGE_LIMITER = None
 carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission and time remains. '
@@ -295,10 +295,21 @@ class Stage(carrier.Trial):
         try:
             with execution.activate(recorder,self.execution_task):
                 if recorder:recorder.check(self.execution_task)
-                if limiter is None:return self._execute()
+                if limiter is None:
+                    if recorder:self.timeout=recorder.remaining(self.timeout)
+                    return self._execute()
                 with limiter:
                     self.queue_seconds = time.monotonic()-queued
+                    if recorder:self.timeout=recorder.remaining(self.timeout)
                     return self._execute()
+        except execution.CaseDeadlineExceeded as error:
+            result={'status':'UNFINISHED','task_outcome':'MODEL_BUDGET_EXHAUSTED','stop_reason':'CASE_DEADLINE',
+                'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT',
+                'scope':'No new model session started after the shared case budget expired.'}
+            shutil.rmtree(self.work)
+            ir.write(self.logs/'result.json',result)
+            if recorder:recorder.task(self.execution_task,state='FINISHED',stage_result=result,finished_at_utc=execution.now())
+            return result,None
         except execution.Cancelled as error:
             result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL',
                 'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT'}

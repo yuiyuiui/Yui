@@ -65,12 +65,8 @@ class ArtifactStage(pilot.Stage):
         self.background_notes = []
         self.output_verbosity='high' if kind=='nl0' else 'low'
         self.library_probes=0
-        self.continuation_prompt = ('The requested stage artifact has not been accepted. Continue from your own '
-            'same-stage drafts and actual tool feedback, preserving the task, allowed inputs and proof route. '
-            'Complete ordinary source registration, mathematical expansion and format corrections. '
-            'Routine unfinished drafting is progress, not a mathematical gap; report TASK_INCOMPLETE if needed '
-            'and continue within the remaining stage budget. Use a mathematical-gap outcome only for an actual '
-            'unsupported mathematical implication with concrete grounds, not for an unfilled JSON artifact.')
+        self.continuation_prompt = ('Continue from your saved work and actual tool feedback. '
+            'Take the next concrete step; submit when complete or report a genuine terminal obstacle.')
         if kind=='nl0':
             self.continuation_prompt=('Continue constructing the actual NL0 from your own draft and source evidence. '
                 'Ordinary unfinished work is not an obstacle report: make the next concrete source query, '
@@ -110,8 +106,8 @@ class ArtifactStage(pilot.Stage):
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
-                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; SOURCE_UNAVAILABLE/INPUT_CONFLICT stop for an actual access/input obstacle. TASK_INCOMPLETE only records unfinished non-NL0 work. No mathematical acceptance is generated.',
-                           {'status':{'type':'string','enum':['SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT','TASK_INCOMPLETE']},
+                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; SOURCE_UNAVAILABLE/INPUT_CONFLICT stop for an actual access/input obstacle. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
+                           {'status':{'type':'string','enum':['SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT']},
                             **{key:{'type':'string'} for key in ['location','explanation','basis','partial_progress']}},
                            ['status','location','explanation','basis','partial_progress'])]
         if kind=='nl0':
@@ -323,8 +319,7 @@ class ArtifactStage(pilot.Stage):
                 'all unresolved issues and current proof checks remain required.')
         if arm == 'yui':
             if phase.startswith('interface'):
-                index=['SKILL.md','translation/references/stage.md','translation/references/architecture.md',
-                       'translation/references/translation-rules.md','translation/references/audit-b.md']
+                index=['translation/references/minimal-translation.md']
             elif phase.startswith('audit-b'):
                 index=['SKILL.md','translation/references/audit-b.md','translation/templates/audit-b.md']
             elif phase.startswith('audit-a'):
@@ -334,7 +329,9 @@ class ArtifactStage(pilot.Stage):
                        'references/self-containment.md','templates/authoring.md','templates/submission-example.md',
                        'templates/source-application-example.md','references/logical-rules.md',
                        'templates/quantified-implication-example.md']
-            self.input_prompt += ('\nYui entry: read_yui(path="SKILL.md", start=1, end=200). '
+            entry=('\nRead the stage rules on demand; no need to preload the whole skill. ' if phase.startswith('interface')
+                   else '\nYui entry: read_yui(path="SKILL.md", start=1, end=200). ')
+            self.input_prompt += (entry+
                 'Relevant frozen rule paths (relative to rigorous-proof): '+', '.join(index)+'. '
                 'Other declared Markdown references linked from these remain available through read_yui. '
                 'Reads return explicit pages of at most 250 lines with continuation metadata. Follow relevant links; operator scheduling/control manuals are not proof-worker inputs.')
@@ -395,20 +392,15 @@ class ArtifactStage(pilot.Stage):
                         '; missing='+repr(sorted(required-set(value)) if isinstance(value,dict) else sorted(required))+
                         '; unexpected='+repr(sorted(set(value)-required) if isinstance(value,dict) else [])+
                         '. Use the published function schema; legacy obstacle_json is accepted only as the sole wrapper field.')
-                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT','TASK_INCOMPLETE'}:
+                if value['status']=='TASK_INCOMPLETE' and self.artifact_kind=='nl0':
+                    raise ValueError('AUTHOR_ACTION_REQUIRED: unfinished drafting is not an obstacle. '
+                        'Continue a concrete source lookup, draft or local edit.')
+                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
                     raise ValueError('Unknown obstacle status')
                 if any(not isinstance(value[k],str) or not value[k].strip() for k in ['location','explanation','basis','partial_progress']):
                     raise ValueError('Every obstacle field needs a substantive explanation')
-                if value['status']=='TASK_INCOMPLETE':
-                    if self.artifact_kind=='nl0':
-                        raise ValueError('AUTHOR_ACTION_REQUIRED: unfinished drafting is not an obstacle. '
-                            'Continue an actual source lookup, coherent draft or local edit; do not replace work '
-                            'with repeated progress reports. No mathematical-gap inference is made.')
-                    result={'progress_recorded':True,'stage_complete':False,'mathematical_acceptance':False,
-                            'outcome':'TASK_INCOMPLETE','next_action':self.continuation_prompt}
-                else:
-                    self.accepted = value
-                    result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
+                self.accepted = value
+                result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
             elif name == 'record_review_item':
                 result=self.validator.record(args['pointer'],args['coverage'],args.get('judgment'))
             elif name == 'read_review_progress':

@@ -182,6 +182,24 @@ versions. Audit C/NL1 round-trip reconstruction is a different future stage.
 
 Source concordance includes the accepted background supplement. Omitted basic
 M registration supplied during Audit A is disclosed as such. Validate its
-policy, evidence and hash, and map its effective M ports just like other library
-inputs. Notes are no additional original H or external axioms. Mathematical
-acceptance of a note cannot stand in for a compiled Lean implementation.
+policy, evidence and hash. With `source.background_mode: node_local_reference`,
+map only the original H/E/M/N/P/D inventory. The note bodies remain references;
+do not generate extra M ports or mapping entries for every note. The dependency
+inspector records actually used note declarations and checks their permission
+at the corresponding source inference. A note from another inference cannot
+authorize that use. The semantic reviewer checks the actual instantiation,
+conditions, source evidence and complete Lean representation.
+
+Old contracts without this field retain the `promoted_inputs` interpretation
+and its effective M mapping. Notes are no additional original H or external
+axioms. Mathematical acceptance of a note cannot stand in for a compiled Lean
+implementation. Interface semantics deferred before proof work remain pending
+until this actual final review; no prior interface PASS is assumed.
+
+The kernel inspector distinguishes ordinary proof constants from registered
+typeclass instances occurring exclusively in actual instance-argument positions.
+The latter are recorded as representation support and receive explicit semantic
+review of their full signatures and available source conditions. This does not
+license an instance used as an ordinary proof, a new hypothesis, or arbitrary
+Mathlib results. Do not require a separate NL0 M node for every implicit
+structure projection inserted by elaboration.

@@ -38,18 +38,18 @@ Use the phase profiles in [config.json](../rigorous-proof/config.json):
 | Phase | Model | Reasoning | Speed |
 | --- | --- | --- | --- |
 | NL0 authoring and Audit A, including its calibration | `gpt-6.1-sol` | `high` | Standard |
-| NL0-to-Lean preprocessing, interface authoring/review, local proof workers and Audit B mapping/review | `gpt-6-luna` | `high` | Standard |
+| NL0-to-Lean preprocessing, interface authoring, local proof workers and Audit B mapping/review | `gpt-6.1-sol` | `high` | Standard |
 
 There is no automatic fallback or stronger-model rescue. Python coordination,
 Lean compilation and assembly make no model calls. The carrier selects and
 freezes a profile **per model stage**, including when a full case crosses the
 phase boundary in one controller process. Its configuration hash, actual model
 identity, reasoning and tier are retained in stage records. Reviews use fresh
-contexts; Audit B has the same Luna profile as the formalization workers.
-An accepted Sol NL0/Audit A receipt can be reused unchanged for a new Luna
+contexts; Audit B has the same Sol profile as the formalization workers.
+An accepted Sol NL0/Audit A receipt can be reused unchanged for a new Sol
 translation run. That is inherited stage-one acceptance, not a fresh NL0 test.
-Keep phase costs and model identities separate; this is not a same-model speedup
-comparison. Owner reasoning and personal context never enter measured stages.
+Keep phase costs and model identities separate; this continuation alone is
+not a measured speedup comparison. Owner reasoning and personal context never enter measured stages.
 A batch consists of independent case processes. Each case has a separate
 serial author/preparation/review lane and its own `auto|N` Lean proof-worker
 budget. The Python controller does not consume a proof-worker slot. Report
@@ -70,6 +70,24 @@ is used. The old controls were removed with the old results; do not fabricate
 a passing summary or rely on a deleted historical receipt. An NL0-only run may
 finish `DRAFT-AUDIT-PASSED`; full formalization acceptance additionally requires
 assembled kernel-checked Lean and actual Audit B under the same exact target.
+
+## Current stage-two default
+
+- Reuse the accepted source and Audit A after local integrity checks. Do not
+  repeat model Audit A for unchanged mathematics.
+- Use the [minimal translation procedure](../rigorous-proof/translation/references/minimal-translation.md):
+  original H/E/M ports, node-local notes on demand, incremental saved interfaces,
+  and a mechanical type/source-boundary freeze. Semantic interface review is
+  deferred to actual final Audit B; no pre-proof review PASS is manufactured.
+- Run three independent cases, each with five proof slots when requested. Only
+  proof nodes use those slots; preparation/review within a case is serial.
+- Set `time_budget_seconds: 10800` on each translation job. This is one total
+  three-hour case deadline covering all stages, including Audit B. No internal
+  thirty-minute preparation cutoff is used. Queue waiting consumes that case's
+  wall budget once its case process has started.
+- Save partial artifacts; routine `TASK_INCOMPLETE` reports are not a tool.
+  Short continuation prompts follow only an unfinished model turn. State and
+  usage recording do not call a model.
 
 ## Cold first-pass NL0 rounds
 
@@ -166,3 +184,10 @@ the outcome. This is disclosed routine completion during review, not an old
 strict-policy or zero-note success. Important dependencies and substantive
 mathematical obligations remain fully checked. Accepted notes accompany later
 formalization; they are never additional original hypotheses.
+
+Selective cleanup preserves accepted stage-one inputs. Use repeated absolute
+`--output /absolute/path/to/results/child` arguments with
+`python3 -B test/support/cleanup_tests.py --apply` to remove only specified
+stage-two runs and their exact owned processes/resources. Omitting `--output`
+cleans all generated outputs, including stage-one runs; do not use that mode
+when retaining accepted NL0/Audit A evidence. Always inspect a preview first.

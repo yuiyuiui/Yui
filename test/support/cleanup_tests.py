@@ -59,8 +59,28 @@ def generated_roots(repo):
             repo/'rigorous-proof/translation/tests/results']
 
 
-def inventory(repo):
+def selected_roots(repo, outputs=None):
     roots = generated_roots(repo)
+    if outputs is None:
+        return roots
+    selected = []
+    for raw in outputs:
+        path = Path(raw).absolute()
+        if any(p.is_symlink() and any(root == p.resolve() or root in p.resolve().parents for root in roots)
+               for p in [path,*path.parents]):
+            raise ValueError('Refuse symlink selected output: '+str(path))
+        path = path.resolve()
+        if not any(root in path.parents for root in roots):
+            raise ValueError('Selected output must be a child of a generated results directory: '+str(path))
+        if not any(parent == path or parent in path.parents for parent in selected):
+            selected = [p for p in selected if path not in p.parents] + [path]
+    if not selected:
+        raise ValueError('An explicit cleanup selection cannot be empty')
+    return selected
+
+
+def inventory(repo, outputs=None):
+    roots = selected_roots(repo, outputs)
     records, workspaces, snapshots, batches, errors = [], {}, [], [], []
     temp_root = Path(tempfile.gettempdir()).resolve()
     for root in roots:
@@ -196,12 +216,12 @@ def signal_owned(rows, sig):
                 pass
 
 
-def clean(repo=REPO, *, apply=False, grace=10):
+def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
     repo = Path(repo).resolve()
     if grace < 0 or grace > 60:
         raise ValueError('Grace must be between zero and sixty seconds')
     with cleanup_lock(repo) if apply else contextlib.nullcontext():
-        inv = inventory(repo)
+        inv = inventory(repo, outputs)
         table = process_table(); owned = discover(inv, table, repo)
         report = {'mode': 'APPLY' if apply else 'PREVIEW', 'at_utc': now(),
                   'generated_roots': [str(p) for p in inv['roots'] if p.exists()],
@@ -227,18 +247,18 @@ def clean(repo=REPO, *, apply=False, grace=10):
         deadline = time.monotonic()+grace
         while owned and time.monotonic() < deadline:
             time.sleep(.1)
-            inv = inventory(repo); table = process_table()
+            inv = inventory(repo, outputs); table = process_table()
             found = discover(inv, table, repo)
             owned = {**{pid: r for pid, r in owned.items() if matching(r, table)}, **found}
         # Rescan after graceful shutdown to include children registered during cancellation.
-        inv = inventory(repo); table = process_table()
+        inv = inventory(repo, outputs); table = process_table()
         owned = {**{pid: r for pid, r in owned.items() if matching(r, table)}, **discover(inv, table, repo)}
         signal_owned(owned, signal.SIGKILL)
         deadline = time.monotonic()+3
         while owned and time.monotonic() < deadline:
             time.sleep(.05); table = process_table()
             owned = {pid: r for pid, r in owned.items() if matching(r, table)}
-        inv = inventory(repo); table = process_table()
+        inv = inventory(repo, outputs); table = process_table()
         owned.update(discover(inv, table, repo))
         if owned or inv['errors']:
             report.update(status='BLOCKED', errors=inv['errors'], residual_pids=sorted(owned))
@@ -250,7 +270,7 @@ def clean(repo=REPO, *, apply=False, grace=10):
             if root.exists():
                 shutil.rmtree(root); report['removed_roots'].append(str(root))
         caches = []
-        for parent in (repo/'test', repo/'rigorous-proof'):
+        for parent in (() if outputs is not None else (repo/'test', repo/'rigorous-proof')):
             for directory, dirs, _ in os.walk(parent, followlinks=False):
                 dirs[:] = [d for d in dirs if not (Path(directory)/d).is_symlink()]
                 if '__pycache__' in dirs:
@@ -265,9 +285,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true', help='Stop owned tests and delete generated outputs')
     parser.add_argument('--grace-seconds', type=float, default=10)
+    parser.add_argument('--output', type=Path, action='append', help='Clean only this results child; repeat to select several. Omit for all test outputs.')
     args = parser.parse_args()
     try:
-        result = clean(apply=args.apply, grace=args.grace_seconds)
+        result = clean(apply=args.apply, grace=args.grace_seconds, outputs=args.output)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         result = {'status': 'BLOCKED', 'error': str(error)}
     print(json.dumps(result, indent=2))

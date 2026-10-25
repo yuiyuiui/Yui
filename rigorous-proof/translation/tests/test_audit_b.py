@@ -37,6 +37,11 @@ def fixture(directory,variant='identity'):
         premises=[{'id':'E001','kind':'external','type':'p ∧ q','statement':'Intentionally strengthened external input.'}]
         target='p';body='exact h_E001.1'
         props=[{'id':'E001','kind':'external','statement':'p holds.'},{'id':'P','kind':'target','statement':'p holds.'}]
+    if variant=='unmapped_instance':
+        source={'mathematical_input':'An unregistered mathematical property of the reals.',
+                'source_steps':[{'id':'S001','text':'Attempt to use a library instance as the entire proof.'}]}
+        params=[];premises=[];target='IsTopologicalRing ℝ';body='exact instIsTopologicalRingReal'
+        props=[{'id':'P','kind':'target','statement':'The real numbers form a topological ring.'}]
     (directory/'source.json').write_text(__import__('json').dumps(source,indent=2)+'\n')
     header='import Mathlib\n'
     if variant=='hidden_field':
@@ -105,7 +110,7 @@ class AuditBTests(unittest.TestCase):
         cls.base=Path(tempfile.mkdtemp(prefix='audit-b-controls-'))
         cls.directories={}
         cls.outcomes={}
-        for variant in ('identity','wrong_target','hidden_field','mathlib','unmapped_mathlib','weakened_external'):
+        for variant in ('identity','wrong_target','hidden_field','mathlib','unmapped_mathlib','weakened_external','unmapped_instance'):
             directory=prepare_control(cls.base/variant,variant)
             cls.outcomes[variant]=audit.build(directory)
             cls.directories[variant]=directory
@@ -147,6 +152,12 @@ class AuditBTests(unittest.TestCase):
         report=ir.load(self.directories['unmapped_mathlib']/'mechanical.json')
         self.assertEqual(report['compiler_exit_code'],0)
         self.assertIn('Nat.add_comm',report['unmapped_imported_proofs'])
+        self.assertFalse(report['passed'])
+
+    def test_library_instance_used_as_an_ordinary_proof_is_not_implicitly_permitted(self):
+        report=ir.load(self.directories['unmapped_instance']/'mechanical.json')
+        self.assertEqual(report['compiler_exit_code'],0)
+        self.assertIn('instIsTopologicalRingReal',report['unmapped_imported_proofs'])
         self.assertFalse(report['passed'])
 
     def test_external_input_with_same_count_but_changed_content_rejected(self):

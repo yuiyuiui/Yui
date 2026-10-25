@@ -47,6 +47,15 @@ and exit, including on mathematical failures. Reject duplicate active case IDs
 within a batch and existing output ownership. Do not wait indefinitely for all
 mathematics to pass. No adaptive priority or expensive scheduling model is used.
 
+Translation jobs may set `time_budget_seconds`; the current default is 10,800
+seconds for the complete second stage of each case. Its deadline starts when
+the case process starts, and is shared by preparation, model-slot waiting,
+proofs, assembly and Audit B. A later stage receives the remaining time rather
+than a fresh three-hour allowance. Expiry preserves outputs and terminates owned
+children; it is distinct from an external stop and is attributed using the
+recorded execution health. Per-check native safeguards can be shorter without
+imposing a thirty-minute preparation cutoff.
+
 ## One execution record
 
 Read `<translation-output>/execution-status.json`. New complete test runs keep

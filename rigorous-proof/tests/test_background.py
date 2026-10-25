@@ -169,7 +169,7 @@ class BackgroundTests(unittest.TestCase):
         inventory,_=audit_b.source_data(cp,graph=self.base/'nl0.json',spec=self.base/'spec.json',audit_a=self.base/'audit-test-only.json')
         self.assertEqual(next(p for p in inventory['propositions'] if p['id']=='M001')['source']['declaration'],'Continuous.add')
 
-    def test_exercise_translation_adapter_retains_effective_ports_and_notes(self):
+    def test_exercise_translation_adapter_keeps_notes_without_promoting_ports(self):
         self.accepted()
         sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'test/support'))
         import translation_author as author
@@ -178,14 +178,13 @@ class BackgroundTests(unittest.TestCase):
         __import__('shutil').copyfile(self.base/'audit-test-only.json',self.base/'audit-a.json')
         author.prepare(self.base,self.base,out)
         inputs=json.loads((out/'inputs/source-map.json').read_text())
-        self.assertEqual([p['id'] for p in inputs['roots']],['H001','H002','M001'])
+        self.assertEqual([p['id'] for p in inputs['roots']],['H001','H002'])
         self.assertEqual(inputs['direct_boundaries']['R001']['background_notes'],['R001.BG001'])
         artifact={'header':'import Mathlib\n','parameters':[{'name':x,'type':'ℝ → ℝ'} for x in ['f','g']],
-            'premise_types':{'H001':'Continuous f','H002':'Continuous g',
-                'M001':'Continuous f → Continuous g → Continuous (f + g)'},
+            'premise_types':{'H001':'Continuous f','H002':'Continuous g'},
             'conclusion_type':'Continuous (f + g)','representation':'Usual real functions.',
             'objects':[],'steps':[{'id':'T001','statement':'Continuous (f + g)',
-                'inputs':['H001','H002','M001'],'source_steps':['S001'],
+                'inputs':['H001','H002'],'source_steps':['S001'],
                 'background_notes':['R001.BG001'],'explanation':'Apply the permitted continuous addition input.'}],
             'terminal':'T001','source_outputs':{'P':'T001'}}
         checked=author.InterfaceContract(out)(artifact)
@@ -193,10 +192,28 @@ class BackgroundTests(unittest.TestCase):
         contract=json.loads((out/'candidates/0001/contract.json').read_text())
         supplement=json.loads((out/'inputs/background-supplement.json').read_text())
         self.assertEqual(contract['source']['background_supplement'],supplement)
+        self.assertEqual(contract['source']['background_mode'],'node_local_reference')
         review_inputs=self.base/'review-copy';review_inputs.mkdir()
         interface_review.copy_review_inputs(out,review_inputs)
         self.assertEqual((review_inputs/'background-supplement.json').read_bytes(),
                          (out/'inputs/background-supplement.json').read_bytes())
+        # Compile an actual note use without introducing an M premise. These
+        # are synthetic source receipts testing the adapter, not model evidence.
+        import ir,audit_b
+        cp=out/'candidates/0001/contract.json';pp=cp.parent/'plan.json'
+        bp=cp.parent/'proofs.json'
+        ir.write(bp,{'contract_sha256':ir.digest(cp),'plan_sha256':ir.digest(pp),
+                     'proofs':{'T001':'exact h_H001.add h_H002'}})
+        audit=out/'audit-b'
+        audit_b.prepare(cp,pp,bp,audit,graph=self.base/'nl0.json',spec=self.base/'spec.json',
+                        audit_a=self.base/'audit-a.json')
+        self.assertEqual(set(ir.load(audit/'mapping.json')['entries']),{'H001','H002','P'})
+        result=audit_b.build(audit)
+        self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED',result)
+        mechanical=ir.load(audit/'mechanical.json')
+        self.assertIn('background/R001.BG001',mechanical['required_review_locations'])
+        self.assertIn('Continuous.add',mechanical['dependency_correspondence'][0]['background_library_uses'])
+        with self.assertRaises(ir.Invalid):audit_b.check(audit,audit/'review-template.json')
 
     def test_clean_local_reviewer_can_save_notes_without_a_second_model(self):
         from clean_stage import ArtifactStage

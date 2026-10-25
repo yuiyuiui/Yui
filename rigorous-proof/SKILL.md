@@ -23,7 +23,8 @@ invalidation rules; completing stage one does not require stage two.
    for serial audit coverage, exact evidence inheritance and stage boundaries.
 2. **Translate an accepted NL0 and run Audit B.** Verify the supplied Audit A
    authority and exact source version first; do not reconstruct or re-audit an
-   unchanged proof. Read [translation](translation/references/stage.md),
+   unchanged proof. Start with [minimal translation](translation/references/minimal-translation.md).
+   Read [translation](translation/references/stage.md),
    [the working sequence](translation/references/integrated-workflow.md), and
    [Audit B](translation/references/audit-b.md). Operators use
    [execution and file-based control](translation/references/execution-protocol.md)
@@ -83,7 +84,7 @@ phase, usage and health. Never execute model-generated Python or shell text.
 
 Use the phase profiles in `config.json`: NL0/Audit A uses
 `gpt-6.1-sol/high/Standard`; NL0-to-Lean (including preparation) and Audit B use
-`gpt-6-luna/high/Standard`. Freeze and record each stage's selected profile;
+`gpt-6.1-sol/high/Standard` in the current test configuration. Freeze and record each stage's selected profile;
 never silently substitute a stronger model or fallback.
 Resolve default concurrency
 before dispatch and record its basis; do not claim an unknown backend maximum.

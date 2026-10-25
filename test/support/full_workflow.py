@@ -97,12 +97,17 @@ def audit_source(case,source,name,budget,progress,*,reuse_from=(),controls=None)
     return result
 
 
+def stage_seconds(budget):
+    limit=__import__('json').loads((a.CORE/'config.json').read_text())['timeouts']['case_seconds']
+    return budget.execution.remaining(limit) if budget.execution else limit
+
+
 def translate(case,source,interface_name,workflow_name,budget,progress,*,proof_budget=None):
     source=Path(source).resolve();results=a.ROOT/'test/results'
     interface=results/interface_name
     if not interface.exists():author.prepare(source,a.ROOT/'test'/case,interface)
     progress(case,'INTERFACE_AUTHORING',directory=str(interface))
-    author.run(interface,1800,budget=budget);accepted(interface)
+    author.run(interface,stage_seconds(budget),budget=budget);accepted(interface)
     return from_interface(case,source,interface_name,workflow_name,budget,progress,proof_budget=proof_budget)
 
 
@@ -111,33 +116,43 @@ def from_interface(case,source,interface_name,workflow_name,budget,progress,cand
     source=Path(source).resolve();results=a.ROOT/'test/results';interface=results/interface_name
     budget=a.concurrency.serial_budget(budget)
     proof_budget=proof_budget or a.concurrency.Budget(a.concurrency.resolve(),execution=budget.execution,role='proof')
-    review=results/(review_name or interface_name+'-review');interface_review.prepare(interface,review,candidate=candidate)
-    progress(case,'INTERFACE_SEMANTIC_REVIEW',directory=str(review))
-    interface_review.run(review,1200,budget=budget)
-    if budget.execution:budget.execution.check()
-    checked=interface_review.collect(review)
-    if not checked['all_checks_passed']:raise StageFailure(checked.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual interface review did not pass',phase='interface',evidence=review/'report.json')
-    progress(case,'INTERFACE_REVIEW_PASSED',directory=str(review))
-    bindings=ir.load(review/'bindings.json');destination=budget.execution.root/'workflow' if budget.execution else results/workflow_name
-    for key,name in [('source_graph','nl0.json'),('spec','spec.json')]:
-        recorded=bindings[key]
-        if ir.digest(recorded['path'])!=recorded['sha256'] or recorded['sha256']!=ir.digest(source/name):
-            raise ValueError('The recovered interface is not bound to these exact source bytes: '+name)
-    workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract']['path'],bindings['plan']['path'],review/'review.json',destination,
-        audit_a=source/'audit-a.json',max_concurrency=proof_budget.configuration['requested'])
+    destination=budget.execution.root/'workflow' if budget.execution else results/workflow_name
+    if candidate is not None or review_name is not None:
+        # Explicit legacy recovery requests retain their separate interface review.
+        review=results/(review_name or interface_name+'-review');interface_review.prepare(interface,review,candidate=candidate)
+        progress(case,'INTERFACE_SEMANTIC_REVIEW',directory=str(review))
+        interface_review.run(review,stage_seconds(budget),budget=budget)
+        if budget.execution:budget.execution.check()
+        checked=interface_review.collect(review)
+        if not checked['all_checks_passed']:raise StageFailure(checked.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual interface review did not pass',phase='interface',evidence=review/'report.json')
+        bindings=ir.load(review/'bindings.json')
+        for key,name in [('source_graph','nl0.json'),('spec','spec.json')]:
+            recorded=bindings[key]
+            if ir.digest(recorded['path'])!=recorded['sha256'] or recorded['sha256']!=ir.digest(source/name):
+                raise ValueError('The recovered interface is not bound to these exact source bytes: '+name)
+        workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract']['path'],bindings['plan']['path'],review/'review.json',destination,
+            audit_a=source/'audit-a.json',max_concurrency=proof_budget.configuration['requested'])
+    else:
+        bindings=ir.load(interface/'accepted-interface-paths.json')
+        progress(case,'INTERFACE_TYPES_CHECKED_SEMANTIC_REVIEW_DEFERRED',directory=str(interface))
+        workflow.freeze(source/'nl0.json',source/'spec.json',bindings['contract'],bindings['plan'],None,destination,
+            audit_a=source/'audit-a.json',max_concurrency=proof_budget.configuration['requested'],
+            interface_binding=interface/'accepted-interface-paths.json')
     frozen=workflow.bound(destination)
     progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(destination))
     proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),destination/'proof-run',
-        timeout_seconds=1800,bank=False,budget=proof_budget,
+        timeout_seconds=stage_seconds(proof_budget),bank=False,budget=proof_budget,
         shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
     workflow.bound(destination)
+    if budget.execution:budget.execution.check()
     if proof['status']!='FRAGMENT_ASSEMBLED':raise StageFailure('PROOF_UNFINISHED','Actual Lean assembly unfinished',phase='proof',evidence=destination/'proof-run/report.json')
     mapping=results/(workflow_name+'-mapping');audit_b_mapping.prepare(destination,mapping)
     progress(case,'AUDIT_B_MAPPING_AND_REAL_BUILD',directory=str(mapping))
-    audit_b_mapping.run(mapping,1800,budget=budget);audit_b_mapping.adopt(mapping)
+    audit_b_mapping.run(mapping,stage_seconds(budget),budget=budget);accepted(mapping);audit_b_mapping.adopt(mapping)
     audit_review=results/(workflow_name+'-audit-b-review');audit_b_review.prepare(destination/'audit-b',audit_review)
     progress(case,'AUDIT_B_FRESH_SEMANTIC_REVIEW',directory=str(audit_review))
-    audit_b_review.run(audit_review,1800,budget=budget)
+    audit_b_review.run(audit_review,stage_seconds(budget),budget=budget)
+    if budget.execution:budget.execution.check()
     verdict=audit_b_review.collect(audit_review)
     if not verdict['all_checks_passed']:raise StageFailure(verdict.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual Audit B semantic review did not pass',phase='audit-b',evidence=audit_review/'report.json')
     result=workflow.finish(destination,audit_review/'review.json')

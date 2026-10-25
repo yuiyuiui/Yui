@@ -86,11 +86,16 @@ def copy_review_inputs(author,inputs):
 
 
 def verify_candidate_artifact(actual,c,p,outputs):
+    actual_steps,plan_steps=actual['steps'],p['steps']
+    if c['source'].get('background_mode')=='node_local_reference':
+        # Note locations are copied from accepted Audit A by the controller.
+        actual_steps=[{k:v for k,v in step.items() if k!='background_notes'} for step in actual_steps]
+        plan_steps=[{k:v for k,v in step.items() if k!='background_notes'} for step in plan_steps]
     pairs=[(actual['header'],c['header']),(actual['parameters'],c['parameters']),
            (actual['premise_types'],{x['id']:x['type'] for x in c['premises']}),
            (actual['conclusion_type'],c['conclusion']['type']),
            (actual['representation'],c['representation']),(actual['objects'],c['objects']),
-           (actual['steps'],p['steps']),(actual['terminal'],p['terminal']),
+           (actual_steps,plan_steps),(actual['terminal'],p['terminal']),
            (actual.get('shared_obligations',[]),c.get('shared_obligations',[])),
            (actual['source_outputs'],outputs)]
     if any(left!=right for left,right in pairs):raise ValueError('The selected typed candidate differs from the actual model artifact')

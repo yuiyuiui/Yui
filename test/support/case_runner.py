@@ -12,7 +12,9 @@ from execution_health import StageFailure
 
 
 def execute(job,root):
-    recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='translation-preparation' if job['kind'] in {'translate','checked_interface','submitted_interface'} else 'preparation')
+    is_translation=job['kind'] in {'translate','checked_interface','submitted_interface'}
+    seconds=job.get('time_budget_seconds',json.loads((a.CORE/'config.json').read_text())['timeouts']['case_seconds'] if is_translation else None)
+    recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job.get('max_concurrency','auto')),phase='translation-preparation' if is_translation else 'preparation',time_budget_seconds=seconds)
     budgets=a.concurrency.CaseBudgets(job.get('max_concurrency','auto'),execution=recorder)
     budget=budgets.serial
     result={};author_artifact=None
@@ -48,12 +50,21 @@ def execute(job,root):
                     proof_budget=budgets.proof))
     except execution.Cancelled as error:
         result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL','error':str(error)}
+    except execution.CaseDeadlineExceeded as error:
+        stages=[t['stage_result'] for t in recorder.state['tasks'].values() if t.get('stage_result')]
+        fault=any(t.get('execution_health')=='FAULT' for t in stages)
+        unknown=any(t.get('execution_health') not in {'FAULT','NO_RECORDED_FAULT'} for t in stages)
+        outcome='UNFINISHED_WITH_EXECUTION_FAULT' if fault else 'UNFINISHED_ATTRIBUTION_UNVERIFIED' if unknown else 'MODEL_BUDGET_EXHAUSTED'
+        result={'status':'UNFINISHED','task_outcome':outcome,'stop_reason':'CASE_DEADLINE','error':str(error),
+                'execution_health':'FAULT' if fault else 'UNVERIFIED' if unknown else 'NO_RECORDED_FAULT'}
     except StageFailure as error:
         result=error.result
     except Exception as error:
         result={'status':'CANCELLED' if recorder.cancelled() else 'ARTIFACT_OR_CONTRACT_REJECTED' if isinstance(error,ValueError) else 'EXECUTION_FAULT',
                 'error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
     finally:
+        result['time_budget_seconds']=seconds
+        result['elapsed_case_seconds']=__import__('time').monotonic()-recorder.started
         if author_artifact is not None:result['author_artifact']=author_artifact
         target='AUDIT_A_PASS' if job.get('stop_after')=='audit_a' else 'AUDIT_B_PASS'
         passed=result.get('status')==('DRAFT-AUDIT-PASSED' if target=='AUDIT_A_PASS' else 'WORKFLOW-PASSED')

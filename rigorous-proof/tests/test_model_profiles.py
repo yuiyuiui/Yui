@@ -22,7 +22,7 @@ class ModelProfileTests(unittest.TestCase):
                       'audit-b-mapping', 'audit-b-semantic-review', 'translation-preparation',
                       'assembly', 'FROZEN_LEAN_PROOF_WORK']:
             p = runtime_config.model_profile(phase)
-            self.assertEqual(p['id'], 'gpt-6-luna', phase)
+            self.assertEqual(p['id'], 'gpt-6.1-sol', phase)
             self.assertEqual((p['reasoning_effort'], p['speed'], p['automatic_fallback']),
                              ('high', 'standard', False))
             self.assertEqual(len(p['config_sha256']), 64)
@@ -48,7 +48,7 @@ class ModelProfileTests(unittest.TestCase):
             author = ArtifactStage(root / 'author', 'EXPLICIT_TASK', phase='nl0-authoring', library=False)
             reviewer = ArtifactStage(root / 'reviewer', 'EXPLICIT_TASK', phase='audit-b-semantic-review', library=False)
             try:
-                for stage, expected in [(author, 'gpt-6.1-sol'), (reviewer, 'gpt-6-luna')]:
+                for stage, expected in [(author, 'gpt-6.1-sol'), (reviewer, 'gpt-6.1-sol')]:
                     stage.allowed_user_messages = {'EXPLICIT_TASK'}
                     stage.initial_user_message = 'EXPLICIT_TASK'
                     payload = {'model': expected, 'reasoning': {'effort': 'high'},
@@ -63,13 +63,13 @@ class ModelProfileTests(unittest.TestCase):
                     self.assertEqual(manifest['model'], expected)
                     self.assertEqual(manifest['model_selection'], stage.model_selection)
                 self.assertEqual(author.model, 'gpt-6.1-sol')
-                self.assertEqual(reviewer.model, 'gpt-6-luna')
+                self.assertEqual(reviewer.model, 'gpt-6.1-sol')
             finally:
                 shutil.rmtree(author.work)
                 shutil.rmtree(reviewer.work)
 
 
-    def test_luna_native_carrier_config_is_isolated_without_a_model_call(self):
+    def test_sol_native_carrier_config_is_isolated_without_a_model_call(self):
         import io
         import tomllib
         from unittest.mock import Mock
@@ -87,7 +87,7 @@ class ModelProfileTests(unittest.TestCase):
                         patch('run_resources.register_child'):
                     stage.start_process()
                 config = tomllib.loads((stage.logs / 'effective-config.toml').read_text())
-                self.assertEqual(config['model'], 'gpt-6-luna')
+                self.assertEqual(config['model'], 'gpt-6.1-sol')
                 self.assertEqual(config['model_reasoning_effort'], 'high')
                 self.assertEqual(config['project_doc_max_bytes'], 0)
                 self.assertFalse(config['features']['memories'])

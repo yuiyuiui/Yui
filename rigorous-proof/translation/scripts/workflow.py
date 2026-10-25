@@ -19,20 +19,17 @@ import run_graph
 import source_preparation as source
 import execution_state
 import background
+import background_inputs
 
 VERSION = 'nl0-lean-workflow-1'
 INTERFACE_CHECKS = {'source_route_and_coverage', 'parameters_and_allowed_inputs',
                     'representations_and_conversion_obligations', 'statements_and_local_plans'}
 
 
-def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, incremental=None, max_concurrency='auto'):
-    started = time.monotonic()
-    graph, spec, contract, plan, interface_review, out = [Path(x).resolve() for x in (graph, spec, contract, plan, interface_review, out)]
-    data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
-    ir.need(data[0]['current_standard_receipt_valid'], 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
-    c, nodes, _ = ir.validate(contract, ir.load(plan))
-    ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
-    props, effective_steps = background.effective(data)
+def check_source_boundary(data, c, plan, mapping, exported):
+    """Mechanical source/port/paragraph checks; never a semantic review verdict."""
+    nodes = {step['id']:step for step in plan['steps']}
+    props, effective_steps = background_inputs.effective(data, background_inputs.mode(c))
     supplement=data[0].get('background_supplement')
     if data[0].get('background_note_count',0):
         ir.need(c['source'].get('background_supplement_sha256') == supplement['sha256']
@@ -44,14 +41,8 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
     for p in c['premises']:
         ir.need(p['kind'] == props[p['id']]['kind'] and p['statement'] == props[p['id']]['statement'], 'changed source premise text/kind')
     ir.need(c['conclusion']['statement'] == props['P']['statement'], 'changed source target text')
-    review = ir.load(interface_review)
-    ir.need(review['version'] == VERSION and review['source_graph_sha256'] == ir.digest(graph)
-            and review['contract_sha256'] == ir.digest(contract) and review['plan_sha256'] == ir.digest(plan), 'stale interface review')
-    source.reviewer(review['reviewer'])
-    ir.need(set(review['checks']) == INTERFACE_CHECKS and all(x['verdict'] == 'PASS' and x['notes'].strip() for x in review['checks'].values()), 'unperformed interface review')
     # Every NL paragraph is paired to exact bytes, rather than a planner's recollection.
     paragraphs = {(rid,s['id']): s['text'] for rid,r in data[4].items() for s in r['argument']}
-    mapping = review['paragraph_mapping']
     ir.need(set(mapping) == {s['id'] for s in c['source_steps']}, 'missing/extra source paragraph mapping')
     actual = set()
     for row in c['source_steps']:
@@ -67,9 +58,8 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
                 index=int(note['at'].split('/')[3]);sid=data[4][rid]['argument'][index]['id']
                 if (rid,sid) in pairs:needed.add(rid+'.'+note['id'])
         ir.need(set(step.get('background_notes',[]))==needed,'local plan omitted or imported background notes at '+step['id'])
-    exported = review['source_outputs']
     expected = {r['output'] for r in data[4].values()}
-    ir.need(set(exported) == expected and exported['P'] == ir.load(plan)['terminal'], 'missing/extra source output mapping')
+    ir.need(set(exported) == expected and exported['P'] == plan['terminal'], 'missing/extra source output mapping')
     ir.need(len(set(exported.values())) == len(exported), 'distinct source outputs need distinct primary realizations')
     ir.need(set(exported.values()) <= nodes.keys(), 'source output maps to an unknown Lean task')
     # Compare direct source boundaries through implementation-only helper ports.
@@ -82,15 +72,49 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
     for rid,r in effective_steps.items():
         tid = exported[r['output']]
         ir.need(dependencies(tid,tid,set()) == set(r['inputs']), 'source input boundary changed at ' + rid)
-    ir.need(review['evidence'], 'missing actual interface review evidence')
-    review_paths = source.evidence_paths(review['evidence'], interface_review.parent)
+    return {'status':'SOURCE_BOUNDARIES_CHECKED','semantic_review':'PENDING_AUDIT_B'}
+
+
+def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
+           incremental=None, max_concurrency='auto', interface_binding=None):
+    started = time.monotonic()
+    graph, spec, contract, plan, out = [Path(x).resolve() for x in (graph, spec, contract, plan, out)]
+    data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
+    ir.need(data[0]['current_standard_receipt_valid'], 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
+    c, nodes, _ = ir.validate(contract, ir.load(plan))
+    ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
+    if data[0].get('background_note_count',0):
+        supplement=data[0]['background_supplement']
+        ir.need(c['source'].get('background_supplement_sha256')==supplement['sha256']
+                and c['source'].get('background_supplement')==supplement,
+                'interface omitted or changed accepted background supplement')
+    if interface_review is not None:
+        interface_review = Path(interface_review).resolve()
+        review = ir.load(interface_review)
+        ir.need(review['version'] == VERSION and review['source_graph_sha256'] == ir.digest(graph)
+                and review['contract_sha256'] == ir.digest(contract) and review['plan_sha256'] == ir.digest(plan), 'stale interface review')
+        source.reviewer(review['reviewer'])
+        ir.need(set(review['checks']) == INTERFACE_CHECKS and all(x['verdict'] == 'PASS' and x['notes'].strip() for x in review['checks'].values()), 'unperformed interface review')
+        ir.need(review['evidence'], 'missing actual interface review evidence')
+        record_paths = [interface_review]+source.evidence_paths(review['evidence'], interface_review.parent)
+        semantic_status = 'INTERFACE_REVIEW_PASSED_FINAL_AUDIT_B_REQUIRED'
+    else:
+        ir.need(interface_binding is not None, 'Deferred review requires an actual bound interface artifact')
+        interface_binding = Path(interface_binding).resolve()
+        review = ir.load(interface_binding)
+        ir.need(review.get('contract_sha256') == ir.digest(contract)
+                and review.get('plan_sha256') == ir.digest(plan)
+                and review.get('source_graph_sha256') == ir.digest(graph), 'stale interface binding')
+        ir.need(review.get('status') == 'IR_TYPES_CHECKED_SEMANTIC_REVIEW_PENDING_AUDIT_B', 'not a mechanically checked interface')
+        record_paths = [interface_binding]
+        semantic_status = 'PENDING_AUDIT_B'
+    check_source_boundary(data,c,ir.load(plan),review['paragraph_mapping'],review['source_outputs'])
     typed = ir.check(contract, ir.load(plan), types_only=True)
     ir.need(typed['exit_code'] == 0, 'interface types/representations fail Lean')
     configuration = concurrency.resolve(max_concurrency)
     out.mkdir(parents=True, exist_ok=False)
     copied, _ = run_graph.package(contract, plan, out)
-    # run_graph.package makes the unchanged source/contract/plan available locally.
-    bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan,interface_review]+review_paths)]
+    bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'scripts').glob('*.py'),
         ir.ROOT/'SKILL.md',ir.ROOT/'config.json',ir.ROOT/'toolchain/lock.json',
         *(ir.ROOT/'references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
@@ -100,9 +124,12 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None, 
                 'audit_a':str(Path(audit_a).resolve()) if audit_a else None,
                 'incremental':str(Path(incremental).resolve()) if incremental else None},
                 'bindings': bindings, 'tools': tools, 'contract':str(copied), 'plan':str(out/'inputs/plan.json'),
-                'interface_review':str(interface_review), 'concurrency':configuration,
-                'source_outputs':exported, 'created_at_unix':time.time(),
-                'background_supplement':supplement,
+                'interface_review':str(interface_review) if interface_review else None,
+                'interface_binding':str(interface_binding) if interface_binding else None,
+                'interface_semantic_status':semantic_status,'concurrency':configuration,
+                'source_outputs':review['source_outputs'], 'created_at_unix':time.time(),
+                'background_supplement':data[0].get('background_supplement'),
+                'background_mode':background_inputs.mode(c),
                 'freeze_seconds':time.monotonic()-started, 'types_check':typed,
                 'preparation_cost':review.get('preparation_cost', {'status':'UNMEASURED'}),
                 'status':'SOURCE_AND_IR_FROZEN'}
@@ -183,7 +210,7 @@ def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('command',choices=['freeze','run','audit-prepare','audit-build','audit-check','status','cancel'])
     ap.add_argument('directory',type=Path)
-    for name in ('graph','spec','audit-a','incremental','contract','plan','interface-review','review','shared-store'):
+    for name in ('graph','spec','audit-a','incremental','contract','plan','interface-review','review','shared-store','interface-binding'):
         ap.add_argument('--'+name,type=Path)
     ap.add_argument('--max-concurrency',default='auto');ap.add_argument('--timeout-seconds',type=int,default=180)
     ap.add_argument('--task',help='Cancel only this recorded task; omission cancels the case run')
@@ -195,7 +222,7 @@ def main():
             if (args.directory/'manifest.json').is_file():result['frozen_source_status']=bound(args.directory)['status']
         elif args.command=='freeze':
             result=freeze(args.graph,args.spec,args.contract,args.plan,args.interface_review,args.directory,
-                          audit_a=args.audit_a,incremental=args.incremental,max_concurrency=args.max_concurrency)
+                          audit_a=args.audit_a,incremental=args.incremental,max_concurrency=args.max_concurrency,interface_binding=args.interface_binding)
         elif args.command=='run':result=run(args.directory,shared_store=args.shared_store,timeout_seconds=args.timeout_seconds,bank=args.bank)
         elif args.command=='audit-prepare':result=prepare_audit(args.directory)
         elif args.command=='audit-build':bound(args.directory);result=audit_b.build(args.directory/'audit-b')
