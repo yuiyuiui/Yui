@@ -41,7 +41,7 @@ Three supplied examples are ordinary inputs to the same runtime:
 | Lie algebras and representations | [Admissible lattice reduction](test/lie-module-irreducibility/problem.md) |
 | PDE | [Sphere-valued wave-map energy](test/wave-map-energy/problem.md) |
 
-Each example also includes its archived `rigorous-proof/` results. The completed
+Each example also includes its latest completed `rigorous-proof/` result. The
 runs below contain the final standalone Lean file, actual Audit A/B reports,
 execution records and the result reported by the workflow:
 
@@ -51,12 +51,11 @@ execution records and the result reported by the workflow:
 | Lie algebras and representations | [Result](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/case-result.json) | [Proof.lean](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
 | PDE | [Result](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/case-result.json) | [Proof.lean](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
 
-Earlier stopped attempts remain alongside the completed Lie/PDE runs for
-provenance. A directory's presence or a supplied proof does not establish
-acceptance; consult that run's actual result and gate reports. These are
-historical archives with machine-specific paths and runtime bindings, not
-portable run configurations. Preserved dependency copies and relocation notes
-document earlier runtime moves without rewriting the original receipts.
+Only the latest completed run is kept for each example; earlier attempts remain
+in Git history. Consult each run's actual result and gate reports for its
+acceptance scope. These historical archives contain machine-specific paths and
+runtime bindings. Preserved evidence, dependency copies and relocation notes
+retain the completed run's provenance without rewriting the original receipts.
 
 ## Runtime
 
