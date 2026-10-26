@@ -1,144 +1,93 @@
 # Yui
 
-Yui is a harness for making existing mathematical proofs explicit, auditable,
-and ready for Lean formalization. It has two stages:
+Yui is a harness for making an existing mathematical proof explicit, auditable,
+and ready for Lean. Its single entry is the `rigorous-proof` skill:
 
-1. Build a self-contained structured natural-language proof (`NL0`) and run
-   Audit A over its statements, dependencies, local arguments and citations.
-2. Translate the accepted proof through typed local interfaces into Lean,
-   assemble checked local proofs, and run Audit B over every external theorem
-   and the complete target (including hypotheses), plus actual kernel closure.
-   Short author explanations document direct or equivalent encodings for the
-   independent reviewer. All pinned Mathlib results are available in this stage.
+1. Write structured natural-language proof `NL0` and perform independent Audit A.
+2. Optionally translate the accepted proof through local Lean obligations,
+   assemble the checked proofs, and perform independent Audit B.
 
-Literature results that have not been proved in Lean remain explicitly listed
-external premises. Checking a citation and proving that cited theorem in Lean
-are separate tasks. Neither a schema check nor an LLM review is an automatic
-proof of natural-language mathematics. No speed advantage is claimed yet.
+Audit B checks every external theorem and the complete target, including all
+hypotheses, against the actual Lean statements. The pinned Mathlib environment
+is available freely. Literature theorems not proved in Lean remain explicit
+external premises. An LLM review is not a kernel proof of natural-language
+mathematics, and a successful compilation alone is not source-fidelity approval.
 
-Current status: development candidate. The runtime and its regression controls
-are executable. The NL0 authoring and Audit A rules are frozen at
-[`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json), retaining
-the existing `nl0-audit-a-8` / `verified-background-1` acceptance policy.
-R24's three fixed development exercises passed their first complete independent
-Audit A with verified background notes. They have **not** passed the complete
-NL0/Audit A/Lean/Audit B workflow. Translation development remains open. See
-the [test protocol](test/README.md) and
-[software maintenance record](test/support/MAINTENANCE.md).
+## Use
 
-## Layout
+Install/copy the complete `rigorous-proof/` directory as a skill. Then ask, for
+example:
 
-| Directory | Purpose |
+- “Use rigorous-proof on this paper's existing proof, through NL0 and Audit A.”
+- “Use rigorous-proof on this proof, including Lean and Audit B.”
+- “Use rigorous-proof on these three supplied problems concurrently.”
+- “Continue from this accepted NL0 into Lean.”
+
+The invoking agent asks once for missing active phase model/reasoning/speed
+settings, retaining already specified choices. NL0/Audit A and Lean/Audit B have
+independent profiles. The harness then stages inputs, schedules independent
+roles, handles located local repairs and records actual results. It does not
+require the user to create task packets or dispatch reviewers manually.
+
+Results go beside each problem, under `rigorous-proof/<run-id>/`. The skill
+installation contains code and rules, never a global scientific output tree.
+Three supplied examples are ordinary inputs to the same runtime:
+
+| Example | Original problem and supplied natural-language proof |
 | --- | --- |
-| [`rigorous-proof/`](rigorous-proof/SKILL.md) | Complete runtime and the single `rigorous-proof` skill entry; internal regression tests are kept here |
-| [`test/`](test/README.md) | Three fixed exercise/proof inputs and clean-run test tools |
-| [`benchmark/`](benchmark/README.md) | Protocol, parameters and eventual paper-scale direct/sequential/parallel comparisons |
+| Geometry and measure | [Hausdorff product dimension](test/geometry-product-dimension/problem.md) |
+| Lie algebras and representations | [Admissible lattice reduction](test/lie-module-irreducibility/problem.md) |
+| PDE | [Sphere-valued wave-map energy](test/wave-map-energy/problem.md) |
 
-Only `rigorous-proof/` is needed to carry the runtime to another location.
-This repository does not depend on an NL2Lean checkout, a personal skill
-installation, previous chats or a historical proof store.
+`test/` contains only these three problem directories and their `problem.md`.
+Their supplied proofs do not confer acceptance. Old development run outputs were
+removed at the user's request; they are not shipped as reproducible evidence.
 
-## Execution profile
+## Runtime
 
-The current test profiles use `gpt-6.1-sol/high/Standard` for NL0/Audit A and
-NL0-to-Lean preparation, proof work and Audit B, through
-an existing authenticated Codex subscription. There is no automatic model
-fallback. Default concurrency is `auto`; when a backend hard limit is unknown,
-the runtime discloses its conservative fallback and records observed concurrency.
-This limit applies to Lean proof jobs per case. NL0 authoring, preparation,
-Audit A, interface work and Audit B use a separate serial lane. Both lanes share
-one all-stage cost ledger. The test batch has a separate concurrent-case limit.
-Current stage-two tests use one three-hour wall budget per case, shared across
-preparation, proof work, assembly and Audit B. See the
-[minimal translation procedure](rigorous-proof/translation/references/minimal-translation.md)
-for saved drafts, on-demand notes and deferred interface semantic review.
-Each case writes `nl0-to-lean/execution-status.json`, with coalesced one-second
-updates and a five-second heartbeat. Recording makes no model calls. See the
-[execution protocol](rigorous-proof/translation/references/execution-protocol.md)
-for queues, scoped cancellation and the desktop main-chat Stop limitation.
-
-The current strong local boundary uses macOS `sandbox-exec`, a fresh carrier
-home/state/working directory, an upstream request allowlist, and offline Lean
-checking. Unsupported execution boundaries fail visibly. Read
-[`isolation.md`](rigorous-proof/references/isolation.md) before interpreting a
-clean-run claim. The subscription carrier necessarily makes network model
-requests; it does not grant model-visible access to personal files or tools.
-
-## Quick start
+Only `rigorous-proof/` is required for the workflow. It contains the four
+mathematical responsibilities, their shared Python controllers, software tests,
+and one skill entry. [Operator instructions](rigorous-proof/references/operation.md)
+cover commands, profile selection, local output, repair, status and cleanup.
 
 ```sh
-python3 rigorous-proof/scripts/yui.py doctor
-python3 rigorous-proof/scripts/yui.py selftest
+python3 -B rigorous-proof/scripts/yui.py doctor
+python3 -B rigorous-proof/scripts/yui.py selftest
 ```
 
-Inspect supplied artifacts or recorded costs without starting a model:
+The current isolated carrier requires macOS `sandbox-exec`, Python, ripgrep,
+an authenticated compatible Codex installation and Lean 4.32.2 with Mathlib
+commit `905b95818eb32af7874a58b427f50c1711a5e96c`. Configure `YUI_LEAN_ROOT`,
+`YUI_MATHLIB_ROOT`, `YUI_CODEX_BINARY`, `YUI_RG_BINARY` or `YUI_CODEX_HOME` when
+existing compatible installations are outside the usual locations. Credentials
+are never committed. The current carrier supports Standard speed; unavailable
+models, reasoning levels or speeds fail explicitly, without fallback.
 
-```sh
-python3 rigorous-proof/scripts/yui.py case-status /absolute/source-case
-python3 rigorous-proof/scripts/yui.py metrics /absolute/run
-```
+Per-case proof concurrency is `auto|N`. Auto currently discloses a conservative
+fallback of two when the backend maximum is unknown. Independent-case concurrency
+is separate. Preparation and reviews are serial within one case. There is no
+default time/token/call budget. Explicit cancellation is supported; the parent
+chat Stop button is not a verified cancellation of detached CLI processes.
 
-Lean 4.32.2 and mathlib commit
-`905b95818eb32af7874a58b427f50c1711a5e96c` are pinned. Use an existing compatible
-installation, or configure `YUI_LEAN_ROOT`, `YUI_MATHLIB_ROOT`,
-`YUI_CODEX_BINARY`, and `YUI_RG_BINARY`. `YUI_CODEX_HOME` selects the existing
-subscription authentication directory; credentials are never committed.
-See the skill for the staged author/review/translation commands.
+Cleanup previews unless `--apply` is supplied. It targets only explicitly
+selected owned run directories, confirms process exit and preserves original
+inputs, the installed skill and the shared toolchain. See the operator instructions.
 
-For a clean text stage, explicitly stage its inputs and prompt:
+## Repository and evidence
 
-```sh
-python3 rigorous-proof/scripts/yui.py stage /absolute/prompt.txt \
-  --phase nl0-authoring --kind nl0 --case-id selected-case \
-  --inputs /absolute/inputs.json --out /absolute/new-run
-python3 rigorous-proof/scripts/yui.py exposure /absolute/new-run
-python3 rigorous-proof/scripts/yui.py usage /absolute/new-run
-```
+| Path | Contents |
+| --- | --- |
+| `rigorous-proof/` | Complete skill, runtime, shared controllers and software controls |
+| `test/` | Three minimal mathematical examples, with no separate test harness |
+| `benchmark/` | Protocol and schema for future paper-scale comparisons |
 
-The input manifest lists `{id,path,sha256}` documents under its own directory.
-`--kind nl0` checks structural source artifacts; it does not issue Audit A.
-The default JSON stage is suitable for candidate drafts and actual review
-records, which still pass through the dedicated A/B gates. There is no claimed
-universal automatic paper-to-Lean compiler behind this command.
+The NL0/Audit A mathematical rules remain at the frozen
+[`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) baseline.
+Its old paths/hashes describe that historical snapshot; current runs bind their
+actual installed runtime separately. Operational integration does not relabel
+historical reviews or manufacture new mathematical results.
 
-## Test and benchmark status
-
-The three supplied exercises are fixed under `test/`, each in a single
-`problem.md` containing the original statement, approved target interpretation
-and detailed natural-language proof. They cover Hausdorff dimension, arbitrary
-admissible sl2 lattices, and sphere-valued wave-map energy. R24 used
-`gpt-6.1-sol / high / Standard`, with no owner mathematical assistance or
-audit-driven author repair. It produced 85, 13 and 83 verified background notes
-respectively. Recorded author-plus-audit times were approximately 72m42s,
-60m30s and 74m31s. Geometry and Lie review transport faults leave their usage
-and fault-free timing qualification incomplete; PDE's recorded usage is complete.
-These development results establish neither general one-pass reliability nor
-formalization acceleration. The [result summary](test/REFLECTIONS.md#2026-10-25-r24-first-independent-audit-a-passes-and-rule-freeze)
-is tracked; the original proofs, receipts and traces remain local under the
-ignored `test/results/` directory. Supplied proofs alone do not confer acceptance.
-
-Preview or perform a scoped test cleanup without calling a model:
-
-```sh
-python3 -B test/support/cleanup_tests.py
-python3 -B test/support/cleanup_tests.py --apply
-```
-
-The cleanup confirms owned process termination before deleting generated test
-outputs and registered temporary workspaces. It preserves the fixed problem
-files, runtime, test code, benchmarks and shared toolchain. See
-[the test protocol](test/README.md) for ownership checks and the cancellation
-boundary. Generated runs are ignored by Git; curated future results should be
-published deliberately after review.
-
-No paper-scale benchmark has run in this repository. Future results must report
-acceptance, end-to-end and phase time, all-agent token usage, failures, execution
-health, model/prompt/toolchain versions, and requested/observed concurrency.
-Development controls and historical NL2Lean observations are not benchmark scores.
-Review completion, bounded repairs and conservative inherited evidence are
-described in [the execution contract](rigorous-proof/references/review-execution.md).
-The small [source catalog](rigorous-proof/library/foundations.json) contains
-eight natively checked pinned declarations, with complete signatures and original
-query cost. It grants no source/application review or blanket Mathlib permission
-inside NL0/Audit A. Stage-two translation separately allows all pinned Mathlib
-results without a source-M correspondence or use-permission ledger.
+No paper-scale benchmark or speed advantage is claimed. Future comparisons must
+include preparation, audits, repairs, all-agent tokens, actual concurrency and
+execution health. [The benchmark protocol](benchmark/README.md) distinguishes
+original-proof direct baselines from fixed-NL0 continuation experiments.

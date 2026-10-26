@@ -31,7 +31,7 @@ class ModelProfileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             file = Path(root) / 'config.json'
             original = json.loads((runtime_config.CORE / 'config.json').read_text())
-            for field, value in [('reasoning_effort', 'medium'), ('speed', 'priority'),
+            for field, value in [('reasoning_effort', 'unknown'), ('speed', 'priority'),
                                  ('automatic_fallback', True), ('id', '')]:
                 data = json.loads(json.dumps(original))
                 data['phase_models']['nl0_to_lean'][field] = value

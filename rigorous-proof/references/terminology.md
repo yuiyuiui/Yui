@@ -36,7 +36,7 @@ histories, remove review independence or create an additional model agent.
 | Name | Responsibility and completion boundary |
 | --- | --- |
 | **NL0 worker** | Produce NL0 from the supplied proof, execute Audit A, and handle authorized local corrections and review. It completes successfully only with complete actual Audit A acceptance. The author and reviewer use separate sessions; global and packet reviews may require more than one reviewer thread. |
-| **Preprocessing worker** | Enter translation from an accepted NL0; inspect shared derivations; propose bounded extraction and NL0 patches when useful; obtain the required local reviews and freeze the selected source; choose representations and shared Lean interfaces; construct the IR, local plans and task packets; obtain interface review and type elaboration; freeze the proof queue. It is ready only when the accepted source and interfaces/plans are frozen. |
+| **Preprocessing worker** | Enter translation from an accepted NL0; inspect shared derivations; propose bounded extraction and NL0 patches when useful; obtain the required local reviews and freeze the selected source; choose representations and shared Lean interfaces; construct the IR, local plans and task packets; obtain type elaboration and record deferred semantic review by default; freeze the proof queue. It is ready only when the accepted source and interfaces/plans are frozen. |
 | **Formalization workers (N slots)** | Execute the frozen local Lean proof queue with at most N simultaneous proof jobs. A free slot claims the next job. Each model-backed attempt creates a fresh thread; compatible checked reuse may avoid creating one. Shared Lean lemma and representation-conversion proof bodies belong in this queue. Local Lean acceptance does not by itself establish whole-case Audit B acceptance. |
 | **Postprocessing worker** | Assemble actual local proofs and discharge internal dependencies; perform Lean builds; complete the Audit B source/formal mapping and permitted mathlib instantiations; obtain a fresh semantic Audit B review; validate the final receipt and preserve the report and process-exit evidence. It completes successfully only after full Audit B acceptance. |
 
@@ -74,12 +74,11 @@ and process identity distinct in reports. These names are documentation/reportin
 conventions, not new runtime schema fields. Retain existing CLI options, raw
 `worker_id` slot labels, logs and old evidence without renaming or rewriting them.
 
-Naming a phase does not implement its orchestration. The current test adapter
-dispatches interface authoring/review, the proof queue, mapping and Audit B
-review. Shared mathematical extraction and its local source-review dispatch
-still require explicit operator orchestration around the preparation tools.
-Do not describe that missing dispatch as automated merely because it belongs
-to the preprocessing worker.
+The installed single-case controller dispatches authoring/reviews, bounded
+shared-source discovery and actual local revision reviews, interfaces, the
+proof queue, assembly and Audit B. Naming a phase alone never grants acceptance;
+its actual evidence and final gate determine completion. See operation.md for
+the user request/configuration and problem-local output boundary.
 
 ## Two different delegation mechanisms
 

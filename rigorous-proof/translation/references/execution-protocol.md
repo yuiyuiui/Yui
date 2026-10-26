@@ -13,7 +13,7 @@ conversation. The upstream NL0 worker covers NL0 authoring and Audit A.
 ## Scope and queue
 
 Keep concurrent cases separate from `max_concurrency=auto|N` inside one case.
-The test batch starts up to three separate Python case owners, each with its
+The batch starts explicitly requested independent Python case owners, each with its
 own serial preparation/review budget, proof Budget, output and mutable state. Three cases with N=2
 can overlap six proof workers. Python coordinators consume no model slot.
 Unknown CLI limits use the disclosed fallback two, not a claimed maximum.
@@ -63,8 +63,9 @@ are operational controls, not allowances for mathematical work.
 
 ## One execution record
 
-Read `<translation-output>/execution-status.json`. New complete test runs keep
-it in `cases/<job-id>/nl0-to-lean/` with a `workflow/` child for the frozen run.
+Read `<problem-directory>/rigorous-proof/<run-id>/execution-status.json` for
+normal installed runs. Each translation attempt has a `workflow/` child under
+`nl0-to-lean/<attempt>/` for its frozen artifacts.
 Standalone `workflow.py run` records at its workflow root; `run_graph.py` records
 at its own output. One thread-safe recorder writes pretty UTF-8 JSON atomically.
 Volatile state is outside frozen inputs. Existing transcripts remain evidence;
@@ -107,8 +108,8 @@ python3 translation/scripts/workflow.py cancel /absolute/translation-output --ta
 ```
 
 Cancel writes an idempotent scoped request under `control/`, without editing
-mathematical inputs. For a batch use
-`python3 test/support/queue_controller.py --queue /absolute/batch --cancel`.
+mathematical inputs. For one or several complete cases use
+`python3 scripts/yui.py cancel /absolute/run-a /absolute/run-b`.
 
 Stop affected pending claims; cancel waiting slot acquisitions without starting
 a model. Interrupt the exact active model turn, wait boundedly for its event,

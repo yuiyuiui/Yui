@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import re
 from pathlib import Path
 import shutil
 import sys
@@ -110,7 +111,8 @@ def apply_patch(graph, patch):
     for candidate in patch['candidates']:
         ir.need(set(candidate) == {'id','proposition','producer','derivation','expected_avoided_work','consumers'}, 'unknown/missing candidate fields')
         cid = candidate['id']
-        ir.need(isinstance(cid, str) and cid.strip() and cid not in new_ids, 'duplicate/missing candidate id')
+        ir.need(isinstance(cid, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*',cid) is not None
+                and cid not in new_ids, 'duplicate/missing or unsafe candidate id')
         new_ids.add(cid)
         p, producer = candidate['proposition'], candidate['producer']
         ir.need(not any(x['kind'] == 'internal' and x['statement'].strip() == p['statement'].strip() for x in props.values()),

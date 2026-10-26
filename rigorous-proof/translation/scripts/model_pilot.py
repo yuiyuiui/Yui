@@ -328,7 +328,7 @@ class Stage(carrier.Trial):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)
                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
-            ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':'high','speed':'standard',
+            ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
                 'background_note_policy':self.background_note_policy,
                 'model_output_policy':OUTPUT_POLICY,
@@ -337,7 +337,7 @@ class Stage(carrier.Trial):
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
-        result = {'mode':self.mode,'step':self.step,'model':self.model,'model_selection':self.model_selection,'effort':'high',
+        result = {'mode':self.mode,'step':self.step,'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],
                   'background_note_policy':self.background_note_policy,
                   'output_verbosity':getattr(self,'output_verbosity','low'),
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,
@@ -407,6 +407,8 @@ class Stage(carrier.Trial):
         except Exception as e:
             result.update({'status':'UNFINISHED','execution_fault':type(e).__name__+': '+str(e)})
         finally:
+            if getattr(self,'local_protocol_fault',None):
+                result['local_protocol_fault']=self.local_protocol_fault
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
                 result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in

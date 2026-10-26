@@ -11,6 +11,25 @@ invalidation rules; completing stage one does not require stage two.
 
 ## Select a stage
 
+The invoking agent owns request/configuration collection and dispatch. Follow
+[installed operation](references/operation.md) to identify explicit proof inputs,
+ask once for missing active-phase model/reasoning/speed settings, and call
+`scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
+the user; do not call a separate intent-classification model. NL0/Audit A and
+Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
+does not prepare queues, task packets or controller jobs manually.
+For an ordinary foreground request, follow execution through its actual final
+result; `DISPATCHED` is not completion. Use detached execution when requested or
+when continuing to observe its owned run explicitly, and retain working cancel
+instructions. A frozen author/proof/reviewer stage performs only its assigned
+role; it does not redispatch the whole workflow.
+
+Default permanent output is `<problem-directory>/rigorous-proof/<run-id>/`,
+outside the installed skill. Multiple problems own separate outputs, contexts,
+queues and ledgers. Use normal local repair unless a first-pass measurement is
+explicitly requested. Runtime and software controls are fully inside this skill;
+no repository example/support directory or old test result is required.
+
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.
    Read [the NL0 stage](references/nl0-stage.md),
@@ -88,9 +107,10 @@ without Yui planning, strategy or shared-proof guidance. Log actual transmitted
 instructions, complete allowed inputs, tool schemas/results, model identity,
 phase, usage and health. Never execute model-generated Python or shell text.
 
-Use the phase profiles in `config.json`: NL0/Audit A uses
-`gpt-6.1-sol/high/Standard`; NL0-to-Lean (including preparation) and Audit B use
-`gpt-6.1-sol/high/Standard` in the current test configuration. Freeze and record each stage's selected profile;
+Collect the active phase profiles as described above. `config.json` supplies
+defaults only when explicitly selected. The current isolated carrier supports
+Standard speed and checks model/effort availability without fallback. Freeze
+and record each stage's selected profile;
 never silently substitute a stronger model or fallback.
 Resolve default concurrency
 before dispatch and record its basis; do not claim an unknown backend maximum.

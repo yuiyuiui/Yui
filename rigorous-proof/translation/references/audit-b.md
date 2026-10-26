@@ -81,6 +81,47 @@ require returning to the affected source boundary.
 
 ## Mechanical evidence and limits
 
+### Compact review materials
+
+The semantic reviewer reads the separately versioned
+`yui-audit-b-review-view-1` in `review-packet.json`. Start at `/scope` and
+`/mechanical_summary`, then examine each `/endpoints/<ID>` source, actual
+inspected type and author correspondence. P retains the complete original
+target, parameters and hypotheses. The view is a deterministic Python extraction,
+not an LLM summary or mathematical judgment. It never substitutes a declared
+expected type for the actual inspected type.
+
+`/documents` identifies hash-bound `source-context.json`, `source-original.txt`
+and actual `Proof.lean`. Read relevant original and Lean definitions there,
+including hidden structure fields, when needed to interpret an endpoint.
+Complete raw compiler, elaboration and dependency records stay in the machine
+archive; they are not default reviewer inputs. A mechanical summary reports
+actual checks and exceptions, without populating a semantic PASS. The full
+dependency inspection remains a program responsibility.
+
+Use `read_task_input` JSON pointers, not guessed fixed line positions. Large
+containers expose keys and large strings expose `next_offset`. Text reads
+resume with `next_start` and `next_column`. Serialized read results are at most
+32 KiB; follow `has_more` until the needed statement is complete. This pagination
+limit is not a task time/token/call budget. Unknown calls or modified feedback
+remain rejected with a specific local protocol fault, not a retryable HTTP 502.
+
+### Explicit reuse of completed native evidence
+
+`audit_b.py reuse-review <new-directory> --original <old-audit-directory>`
+prepares a new semantic review without rebuilding or changing Lean. It validates
+every original input and snapshot, the original native artifacts/output, source
+and accepted-A authority, environment pins, and the exact historical tool
+snapshots. The new view and current reviewer runtime are separately bound in
+`review-reuse.json`; the normal current-build tool check is not disabled.
+Changed or incomplete evidence blocks reuse. Preserve the original failure.
+
+The new independent reviewer receives no previous B verdict, reviewer history,
+owner reasoning or other-case material. The receipt discloses inherited native
+checks and a new semantic review; it cannot claim fresh compilation, an unaided
+cold whole-workflow success or measured acceleration. Changing proofs or source
+requires the appropriate new checks, rather than this review-only path.
+
 `audit_b.py prepare/build/check` binds the source, accepted A, contract, plan,
 proofs, tool versions and environment hashes. Build compiles standalone
 `Proof.lean` before adding inspection. It checks E/P against their declared

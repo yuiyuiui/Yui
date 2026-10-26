@@ -105,7 +105,7 @@ def synthetic_receipt(directory):
                    locations=mechanical['required_review_locations'][key],evidence=evidence)
     for row in record['checks'].values():
         row.update(verdict='PASS',notes='Synthetic complete receipt; semantic quality is not being certified.',
-                   locations=['/inventory','/actual_elaborated_evidence'],evidence=evidence)
+                   locations=audit.review_materials.locations(ir.load(directory/'review-packet.json')),evidence=evidence)
     path=directory/'test-only-review.json';ir.write(path,record)
     return path
 
@@ -129,6 +129,19 @@ class AuditBTests(unittest.TestCase):
         shutil.copytree(self.directories['identity'],self.copy)
 
     def tearDown(self): shutil.rmtree(self.copy.parent)
+
+    def test_review_only_reuse_preserves_proofs_without_compiling_again(self):
+        from unittest.mock import patch
+        continued=self.copy.parent/'continued'
+        original_hashes={name:ir.digest(self.copy/name) for name in ['compiler.json','elaborated.json','Proof.lean']}
+        with patch.object(ir,'run_lean',side_effect=AssertionError('No native rerun is allowed')):
+            report=audit.prepare_review_reuse(self.copy,continued)
+            self.assertFalse(report['native_checks_rerun'])
+            self.assertEqual(original_hashes,{name:ir.digest(continued/name) for name in original_hashes})
+            result=audit.check(continued,synthetic_receipt(continued))
+            self.assertEqual(result['native_evidence_origin'],'inherited_checked_run')
+        proof=continued/'Proof.lean';proof.write_text(proof.read_text()+'\n-- changed copy\n')
+        with self.assertRaisesRegex(ir.Invalid,'inherited artifact copy'):audit.bound_inputs(continued)
 
     def test_actual_positive_kernel_inspection(self):
         self.assertEqual(self.outcomes['identity']['status'],'AUDIT-B-MECHANICAL-PASSED',self.outcomes)
@@ -158,7 +171,7 @@ class AuditBTests(unittest.TestCase):
         directory=self.directories['equivalent_target']
         report=ir.load(directory/'mechanical.json')
         self.assertTrue(report['passed'])
-        note=ir.load(directory/'review-packet.json')['mapping']['entries']['P']['correspondence']
+        note=ir.load(directory/'review-packet.json')['endpoints']['P']['correspondence']
         self.assertEqual(note['mode'],'equivalent')
         with self.assertRaises(ir.Invalid):
             audit.check(directory,directory/'review-template.json')
@@ -202,7 +215,7 @@ class AuditBTests(unittest.TestCase):
         with self.assertRaisesRegex(ir.Invalid,'explanation is missing'):
             audit.validate_mapping(c,inventory,mapping)
         path=synthetic_receipt(self.copy);record=ir.load(path)
-        record['nodes']['P']['locations'].remove('/mapping/entries/P/correspondence')
+        record['nodes']['P']['locations'].remove('/endpoints/P/correspondence')
         ir.write(path,record)
         with self.assertRaisesRegex(ir.Invalid,'paired source/kernel'): audit.check(self.copy,path)
 

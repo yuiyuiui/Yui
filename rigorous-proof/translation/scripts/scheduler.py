@@ -45,7 +45,10 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
     if execution:
         for group in groups.values():
             sid=group[0]
-            execution.task(sid,role='proof',consumers=group,inputs=nodes[sid]['inputs'],
+            attempt=execution.state['run_id']+':'+shared_lemmas.hashed(str(out.resolve()) if out else str(time.monotonic()))[:12]+':'+sid
+            execution.task(sid,state='PENDING',activity='QUEUED',queued_at_utc=execution_state.now(),
+                attempt_id=attempt,claimed_at_utc=None,worker_id=None,finished_at_utc=None,
+                role='proof',consumers=group,inputs=nodes[sid]['inputs'],
                 contract_sha256=initial_contract,plan_digest=initial_plan,
                 result_path=str(out/'jobs'/f'{sid}.json') if out else None)
         execution.flush(force=True)
@@ -80,6 +83,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
             else:
                 job['model_worker_called'] = True
                 result = worker(sid, packet)
+                job['model_worker_called']=result.get('model_worker_called',True)
                 job['worker'] = {k: v for k, v in result.items() if k != 'proof'}
                 if execution:execution.check(sid)
                 proof = result.get('proof')
@@ -118,7 +122,9 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
                 ir.write(out/'jobs'/f'{sid}.json', job)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        pending = {pool.submit(run, group):group for group in groups.values()}
+        # Case-local profile/recording context must survive the thread boundary.
+        from contextvars import copy_context
+        pending = {pool.submit(copy_context().run, run, group):group for group in groups.values()}
         while pending:
             if execution and execution.cancelled():
                 for future in pending:future.cancel()

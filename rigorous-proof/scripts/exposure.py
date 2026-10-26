@@ -49,7 +49,7 @@ def audit_stage(directory):
         sent = row['sent_payload']
         number = row['request_number']
         checks = {'model':sent.get('model')==requested_model,
-                  'effort':sent.get('reasoning',{}).get('effort')=='high',
+                  'effort':sent.get('reasoning',{}).get('effort')==manifest.get('effort','high'),
                   'standard_requested':sent.get('service_tier')=='default',
                   'exact_output_verbosity':sent.get('text')=={'verbosity':verbosity},
                   'exact_instructions':sent.get('instructions')==system,

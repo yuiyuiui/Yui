@@ -78,7 +78,45 @@ class IsolationTests(unittest.TestCase):
         sent=self.worker.normalize_request(payload)
         self.assertEqual(json.loads(sent['input'][-1]['output']),value)
         payload['input'][-1]['output']=json.dumps(value)[:23524]+'...truncated...'
-        with self.assertRaises(json.JSONDecodeError):self.worker.normalize_request(payload)
+        with self.assertRaisesRegex(carrier.LocalProtocolRejection,'invalid_json_output'):
+            self.worker.normalize_request(payload)
+
+    def test_tool_receipt_is_an_immutable_copy_of_delivered_json(self):
+        value={'rows':[{'state':'original'}]}
+        delivered=self.worker.snapshot_tool_result('own-call',value)
+        value['rows'][0]['state']='mutated'
+        payload=self.payload();payload['input'].append({'type':'function_call_output',
+            'call_id':'own-call','output':delivered})
+        self.worker.normalize_request(payload)
+        self.assertEqual(self.worker.tool_history['own-call']['rows'][0]['state'],'original')
+
+    def test_rejection_details_distinguish_fields_and_content_without_dumping_text(self):
+        self.worker.snapshot_tool_result('own',{'text':'SENSITIVE_PROOF_TEXT'})
+        for extra,reason in [({},'unequal_payload'),({'unexpected':True},'unexpected_fields')]:
+            payload=self.payload();payload['input'].append({'type':'function_call_output',
+                'call_id':'own','output':'{}',**extra})
+            with self.assertRaisesRegex(carrier.LocalProtocolRejection,reason):self.worker.normalize_request(payload)
+        text=(self.worker.logs/'tool-provenance-rejections.jsonl').read_text()
+        self.assertNotIn('SENSITIVE_PROOF_TEXT',text)
+        self.assertIn('received_sha256',text)
+
+    def test_local_provenance_fault_returns_400_once_and_stops_forwarding(self):
+        import http.client
+        self.worker.network_proxy=None
+        port=self.worker.start_relay()
+        try:
+            payload=self.payload();payload['input'].append({'type':'function_call_output','call_id':'foreign','output':'{}'})
+            for _ in range(2):
+                conn=http.client.HTTPConnection('127.0.0.1',port,timeout=5)
+                conn.request('POST','/responses',json.dumps(payload),{'Content-Type':'application/json'})
+                response=conn.getresponse();self.assertEqual(response.status,400);response.read();conn.close()
+            self.assertEqual(self.worker.api_calls,1)
+            with self.assertRaisesRegex(carrier.LocalProtocolRejection,'unknown_call'):self.worker.check_argument_guard()
+            rows=(self.worker.logs/'local-protocol-faults.jsonl').read_text().splitlines()
+            self.assertEqual(len(rows),1)
+            self.assertFalse(json.loads(rows[0])['upstream_transmitted'])
+        finally:
+            self.worker.relay.shutdown();self.worker.relay.server_close()
 
     def test_native_config_preserves_large_tool_history_without_model_call(self):
         import io,tomllib

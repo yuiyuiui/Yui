@@ -136,6 +136,13 @@ def system_https_proxy() -> tuple[str, int] | None:
     return (host[1], int(port[1])) if enabled and enabled[1] == '1' and host and port else None
 
 
+class LocalProtocolRejection(PermissionError):
+    """Deterministic own-history rejection, never a retryable network failure."""
+    def __init__(self, reason, details=None):
+        self.reason, self.details = reason, details or {}
+        super().__init__('LOCAL_TOOL_FEEDBACK_REJECTED: ' + reason)
+
+
 class Trial:
     @property
     def model(self):
@@ -322,8 +329,9 @@ class Trial:
     def normalize_request(self, payload: dict, *, request_number=None) -> dict:
         if payload.get('model') != self.model:
             raise ValueError('禁止替换指定模型：' + str(payload.get('model')))
-        if payload.get('reasoning', {}).get('effort') != 'high':
-            raise ValueError('推理档位不是 high。')
+        effort = getattr(self, 'model_selection', {}).get('reasoning_effort', 'high')
+        if payload.get('reasoning', {}).get('effort') != effort:
+            raise ValueError('Reasoning effort differs from the frozen selection: '+effort)
         # Only these explicit instructions, user messages and within-trial
         # model/tool history are submitted. The pre-normalization request is
         # retained to make every removal auditable.
@@ -356,9 +364,23 @@ class Trial:
                         raise PermissionError('本题只允许冻结的纯文本用户消息。')
                 elif item.get('type') == 'function_call_output':
                     origin = self.tool_history.get(item.get('call_id'))
-                    if (origin is None or set(item) - {'type', 'id', 'call_id', 'output'}
-                            or json.loads(item['output']) != origin):
-                        raise PermissionError('工具反馈不属于本题真实执行结果。')
+                    extra = set(item) - {'type', 'id', 'call_id', 'output'}
+                    reason = 'unknown_call' if origin is None else 'unexpected_fields' if extra else None
+                    try:
+                        actual = json.loads(item['output']) if not reason else None
+                    except (ValueError, TypeError, KeyError):
+                        reason, actual = 'invalid_json_output', None
+                    if reason or actual != origin:
+                        raw = item.get('output')
+                        raw = raw if isinstance(raw, str) else json.dumps(raw,ensure_ascii=False)
+                        expected = json.dumps(origin,ensure_ascii=False,sort_keys=True) if origin is not None else None
+                        details = {'call_id':item.get('call_id'), 'unexpected_fields':sorted(extra),
+                            'received_bytes':len(raw.encode()), 'received_sha256':hashlib.sha256(raw.encode()).hexdigest(),
+                            'expected_bytes':len(expected.encode()) if expected is not None else None,
+                            'expected_sha256':hashlib.sha256(expected.encode()).hexdigest() if expected is not None else None}
+                        error = LocalProtocolRejection(reason or 'unequal_payload',details)
+                        append(self.logs/'tool-provenance-rejections.jsonl',{'reason':error.reason,**details})
+                        raise error
                 else:
                     origin = self.model_history.get(item.get('id'))
                     if origin is None or any(origin.get(k) != v for k, v in item.items() if k != 'status'):
@@ -370,7 +392,7 @@ class Trial:
             # unreviewed provider fields such as client_metadata.
             result = {'model': self.model, 'stream': True, 'input': kept, 'instructions': self.system,
                       'tools': result['tools'], 'tool_choice': 'auto', 'parallel_tool_calls': False,
-                      'reasoning': {'effort': 'high', 'context': 'all_turns'},
+                      'reasoning': {'effort': effort, 'context': 'all_turns'},
                       'include': ['reasoning.encrypted_content'], 'store': False,
                       'text': {'verbosity': getattr(self,'output_verbosity','low')}, 'prompt_cache_key': self.prompt_cache_key,
                       'service_tier': 'default'}
@@ -476,6 +498,13 @@ class Trial:
 
             def do_POST(self):
                 execution=getattr(trial,'execution',None)
+                if getattr(trial,'local_protocol_fault',None):
+                    self.rfile.read(int(self.headers.get('Content-Length','0')))
+                    message=b'{"error":{"message":"LOCAL_PROTOCOL_REJECTED: stage already stopped"}}'
+                    self.send_response(400);self.send_header('Content-Type','application/json')
+                    self.send_header('Content-Length',str(len(message)));self.send_header('Connection','close')
+                    self.end_headers();self.wfile.write(message);self.close_connection=True
+                    return
                 if getattr(trial,'submission_closed',False) or (execution and execution.cancelled(trial.execution_task)):
                     length=int(self.headers.get('Content-Length','0'))
                     self.rfile.read(length)
@@ -561,10 +590,17 @@ class Trial:
                     append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e)})
                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
+                    local = upstream is None and isinstance(e,(PermissionError,ValueError))
+                    if local:
+                        trial.local_protocol_fault={'kind':'LOCAL_PROTOCOL_REJECTED','request_number':request_number,
+                            'reason':getattr(e,'reason',type(e).__name__),'details':getattr(e,'details',{}),
+                            'error':str(e),'upstream_transmitted':False,'at_utc':now()}
+                        append(trial.logs/'local-protocol-faults.jsonl',trial.local_protocol_fault)
                     try:
                         message = json.dumps({'error': {'message': str(e)}}).encode()
-                        self.send_response(502); self.send_header('Content-Type', 'application/json')
-                        self.send_header('Content-Length', str(len(message))); self.end_headers(); self.wfile.write(message)
+                        self.send_response(400 if local else 502); self.send_header('Content-Type', 'application/json')
+                        self.send_header('Content-Length', str(len(message)));self.send_header('Connection','close')
+                        self.end_headers(); self.wfile.write(message);self.close_connection=True
                     except OSError:
                         pass
                 finally:
@@ -630,7 +666,7 @@ class Trial:
                 params = msg['params']
                 self.validate_tool_rpc(params)
                 result = self.dispatch(params['tool'], params['arguments'])
-                self.tool_history[params['callId']] = result
+                delivered = self.snapshot_tool_result(params['callId'],result)
                 if (getattr(self,'stop_on_submission',False) and self.accepted is not None
                         and not getattr(self,'submission_closed',False)):
                     self.submission_closed=True
@@ -639,7 +675,7 @@ class Trial:
                         'scope':'Accepted stage artifact only; later mathematical gates remain required.'}
                     append(self.logs/'controller.jsonl',{'event':'stage_submission_completed',**self.submission_completion})
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
-                    'contentItems': [{'type': 'inputText', 'text': json.dumps(result, ensure_ascii=False)}]}}
+                    'contentItems': [{'type': 'inputText', 'text': delivered}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
                 delivered_at=now()
                 wait_guard=getattr(self,'provider_wait_guard',None)
@@ -660,8 +696,16 @@ class Trial:
             if predicate(msg): return msg
         raise TimeoutError('本轮达到预先设置的时间限制。')
 
+    def snapshot_tool_result(self, call_id, result):
+        """The provenance receipt is the immutable JSON value actually delivered."""
+        delivered=json.dumps(result,ensure_ascii=False)
+        self.tool_history[call_id]=json.loads(delivered)
+        return delivered
+
     def check_argument_guard(self):
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
+        local=getattr(self,'local_protocol_fault',None)
+        if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
         notice = getattr(self, 'output_guard_notice', None)
         if notice:
             from output_guard import ModelOutputStalled
@@ -700,7 +744,7 @@ class Trial:
             (state / 'models_cache.json').write_text(json.dumps(cache))
         config = f'''model = "{self.model}"
 model_provider = "pilot-relay"
-model_reasoning_effort = "high"
+model_reasoning_effort = "{self.model_selection['reasoning_effort']}"
 web_search = "disabled"
 project_doc_max_bytes = 0
 tool_output_token_limit = 262144
@@ -780,7 +824,7 @@ tool_suggest = false
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
         while True:
-            started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': 'high',
+            started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
@@ -847,7 +891,7 @@ tool_suggest = false
             'status': self.last_turn_event.get('params', {}).get('turn', {}).get('status')})
 
     def run(self, *, smoke: bool = False) -> dict:
-        result = {'case': self.case, 'suite': self.suite, 'model': self.model, 'effort': 'high', 'status': 'STARTING',
+        result = {'case': self.case, 'suite': self.suite, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'), 'status': 'STARTING',
                   'harness_version': self.harness_version,
                   'runtime_directory': str(self.work), 'started_at_utc': now(), 'smoke': smoke}
         try:
@@ -907,7 +951,7 @@ tool_suggest = false
             if not smoke and (self.accepted or self.strict):
                 self.phase = 'audit'
                 self.allowed_user_messages.add(AUDIT_QUESTION)
-                self.rpc('turn/start', {'threadId': self.thread_id, 'effort': 'high',
+                self.rpc('turn/start', {'threadId': self.thread_id, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
                     'input': [{'type': 'text', 'text': AUDIT_QUESTION}], 'environments': []})
                 self.receive_until(lambda m: m.get('method') == 'turn/completed',
                     self.started + self.timeout if self.timeout is not None else None)

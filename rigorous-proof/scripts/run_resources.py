@@ -15,15 +15,13 @@ from execution_state import atomic, identity
 MARKER = '.yui-workspace-owner.json'
 SCHEMA = 'yui-workspace-owner-1'
 CORE = Path(__file__).resolve().parents[1]
-REPO = CORE.parent
-GENERATED = (REPO/'test/results', CORE/'tests/results', CORE/'translation/tests/results')
 
 
 def check_cleanup_lock(output):
     output = Path(output).resolve()
-    if any(output.is_relative_to(root.resolve()) for root in GENERATED):
-        if (REPO/'test/.cleanup.lock').exists():
-            raise RuntimeError('Test cleanup is in progress; do not start another test run')
+    for root in (output,*output.parents):
+        if (root/'.yui-run.json').is_file() and (root/'.cleanup.lock').exists():
+            raise RuntimeError('Run cleanup is in progress; no new stage may start')
 
 
 def register_workspace(work, logs):

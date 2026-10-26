@@ -14,6 +14,8 @@ from runtime_config import CORE, verify
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
+    import entrypoint
+    entrypoint.parsers(commands)
     commands.add_parser('doctor')
     commands.add_parser('selftest').add_argument('--verbose',action='store_true')
     stage = commands.add_parser('stage')
@@ -36,7 +38,17 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
-    if args.command == 'doctor':
+    if args.command in {'prepare','run','execute','status','cancel','cleanup'}:
+        try:
+            result=entrypoint.dispatch(args)
+            print(json.dumps(result,indent=2))
+            if result.get('status') in {'BLOCKED','VALIDATION_FAILED'}:return 1
+            if args.command in {'run','execute'} and result.get('outcomes'):
+                return 0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in result['outcomes'].values()) else 1
+            return 0
+        except (OSError,ValueError,KeyError) as error:
+            print(json.dumps({'status':'REQUEST_NOT_STARTED_OR_BLOCKED','error':str(error)},indent=2));return 1
+    elif args.command == 'doctor':
         print(json.dumps({'status': 'ENVIRONMENT-CHECKED', 'resolved_environment': verify()}, indent=2))
     elif args.command == 'selftest':
         for directory in [CORE / 'tests', CORE / 'translation/tests']:

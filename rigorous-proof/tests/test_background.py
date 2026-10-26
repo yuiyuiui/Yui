@@ -171,7 +171,7 @@ class BackgroundTests(unittest.TestCase):
 
     def test_exercise_translation_adapter_keeps_notes_without_promoting_ports(self):
         self.accepted()
-        sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'test/support'))
+        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'translation/scripts'))
         import translation_author as author
         import interface_review
         out=self.base/'translation-adapter'

@@ -25,6 +25,15 @@ require a duplicate Lean representation merely for literal correspondence.
 Actual conversions used by the proof must be checked code. An author's note
 or a compiler pass cannot populate the review automatically.
 
+For compact view version `yui-audit-b-review-view-1`, cite
+`/endpoints/<ID>/source`, `/endpoints/<ID>/actual` and
+`/endpoints/<ID>/correspondence`. P additionally cites `/scope/full_target`,
+`/scope/parameters` and `/scope/hypotheses`. Global checks cite `/scope`,
+`/endpoints` and `/mechanical_summary` plus useful specific pointers. Read
+original/Lean definitions through `/documents`; follow all continuation offsets
+for a required long field. Do not read entire raw compiler/dependency dumps.
+Disclose inherited native evidence separately from the new semantic review.
+
 ## Four global checks
 
 - endpoint_inventory_and_scope:

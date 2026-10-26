@@ -25,6 +25,7 @@ import background_inputs
 import assembly
 import lean_names
 import correspondence
+import review_materials
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
@@ -143,7 +144,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     source_file = (cpath.parent/c['source']['path']).resolve()
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
-             Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),
+             Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'scripts/nl0.py',HERE.parent/'scripts/closure.py',
              ir.ROOT/'scripts/pilot_common.py',ir.ROOT/'scripts/background.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
@@ -163,20 +164,121 @@ def prepare(cpath,ppath,bpath,out,**source):
     return {'status':'AUDIT-B-PREPARED','semantic_review':'UNVERIFIED','directory':str(out)}
 
 
-def bound_inputs(out):
+def _bound_inputs(out, *, historical_tools=False):
     manifest = ir.load(out/'manifest.json')
     ir.need(manifest['version']==VERSION,'unsupported Audit B manifest')
     for item in manifest['inputs']:
         ir.need(ir.digest(item['path'])==item['sha256'],'stale audit input: '+item['path'])
         ir.need(ir.digest(out/item['snapshot'])==item['sha256'],'changed audit snapshot')
     for path,sha in manifest['tool_sha256'].items():
-        ir.need(ir.digest(path)==sha,'changed audit tool; start a new audit run')
+        tool = out/'tool-snapshot'/Path(path).name if historical_tools else Path(path)
+        ir.need(tool.is_file() and ir.digest(tool)==sha,'changed audit tool/snapshot; start a new audit run')
     ir.need(ir.digest(out/'source-inventory.json')==manifest['source_inventory_sha256'],'changed source inventory')
     ir.need(environment()==manifest['environment'],'changed audit environment')
     authority={key:Path(value) if value is not None else None for key,value in manifest['authority'].items()}
     current,_=source_data(Path(manifest['contract']),**authority)
     ir.need(hashed(current)==hashed(ir.load(out/'source-inventory.json')),'changed source/Audit A authority')
     return manifest
+
+
+def bound_inputs(out):
+    out=Path(out)
+    if (out/'review-reuse.json').exists():
+        bound_review_reuse(out)
+        return _bound_inputs(out,historical_tools=True)
+    return _bound_inputs(out)
+
+
+def inherited_machine_evidence(out):
+    """Validate an old completed machine run, using its exact tool snapshots."""
+    out=Path(out).resolve()
+    ir.need(not (out/'review-reuse.json').exists(),'reuse must start from original native evidence, not another continuation')
+    manifest=_bound_inputs(out,historical_tools=True)
+    m=ir.load(out/'mechanical.json')
+    ir.need(m['manifest_sha256']==ir.digest(out/'manifest.json') and m['mapping_sha256']==ir.digest(out/'mapping.json'),'changed original machine bindings')
+    for name,sha in m['artifacts'].items():
+        ir.need(ir.digest(out/name)==sha,'changed original machine artifact: '+name)
+    ir.need(m['passed'] and not m['errors'] and m['compiler_exit_code']==0,'original mechanical gate did not pass')
+    ir.need(m['assembly']['status']=='ASSEMBLY-PASSED' and m['inspection']['status']=='KERNEL_INSPECTION_PASSED','original assembly/inspection incomplete')
+    ir.need(all(v['exit_code']==0 for v in m['local_checks'].values()),'original local check incomplete')
+    native=ir.load(out/'compiler.json');evidence=ir.load(out/'elaborated.json')
+    emitted=re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',native['stdout'])
+    ir.need(native['exit_code']==0 and emitted and json.loads(emitted[-1])==evidence,'native output/elaborated evidence mismatch')
+    ir.need(evidence['dependencies']['truncated'] is False and all(r['definitionally_equal'] for r in evidence['comparisons']),'original inspection/signature check incomplete')
+    for d in evidence['dependencies']['declarations']:
+        ir.need(not (set(d['axioms'])-AXIOMS),'unexpected original axiom')
+        ir.need(d['imported'] or d['kind'] not in {'axiom','opaque'},'unproved original project declaration')
+    c=ir.contract(manifest['contract']);validate_mapping(c,ir.load(out/'source-inventory.json'),ir.load(out/'mapping.json'))
+    proof_bundle(Path(manifest['contract']),Path(manifest['plan']),Path(manifest['proofs']))
+    return manifest,m
+
+
+def prepare_review_reuse(original,out):
+    """New compact review of unchanged old native evidence; no compiler/model run."""
+    original,out=Path(original).resolve(),Path(out).resolve()
+    manifest,m=inherited_machine_evidence(original)
+    out.mkdir(parents=True,exist_ok=False)
+    for folder in ('input-bytes','tool-snapshot'):shutil.copytree(original/folder,out/folder)
+    for name in {'manifest.json','mapping.json','source-inventory.json',*m['artifacts']}:
+        shutil.copyfile(original/name,out/name)
+    runtime={}
+    core=HERE.parent
+    for p in [*(core/'scripts').glob('*.py'),*(HERE/'scripts').glob('*.py'),core/'config.json',
+              core/'SKILL.md',*(HERE/'references').glob('*.md'),*(HERE/'templates').glob('*.md')]:
+        relative=p.relative_to(core);dest=out/'review-runtime'/relative
+        dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dest)
+        runtime[str(p.resolve())]={'sha256':ir.digest(p),'snapshot':str(dest.relative_to(out))}
+    origin={'schema':'yui-audit-b-machine-reuse-1','original':str(original),
+        'original_manifest_sha256':ir.digest(original/'manifest.json'),
+        'original_mechanical_sha256':ir.digest(original/'mechanical.json'),
+        'original_artifacts':m['artifacts'],'review_runtime':runtime,
+        'native_checks_rerun':False,'proofs_changed':False,'semantic_review_inherited':False,
+        'scope':'New independent semantic review only; original R4 native evidence is reused after exact input, snapshot, environment and artifact validation.'}
+    ir.write(out/'review-reuse.json',origin)
+    c=ir.contract(manifest['contract'])
+    m['evidence_origin']={'kind':'inherited_native_evidence','record':'review-reuse.json','native_checks_rerun':False}
+    packet=review_materials.project(out,ir.load(out/'source-inventory.json'),ir.load(out/'mapping.json'),
+        ir.load(out/'elaborated.json'),m,source_file=Path(manifest['contract']).parent/c['source']['path'],foundations=AXIOMS)
+    m['required_review_locations']=review_materials.required_locations(packet)
+    for name in ('review-packet.json','source-context.json','source-original.txt','review-reuse.json'):
+        m['artifacts'][name]=ir.digest(out/name)
+    ir.write(out/'mechanical.json',m)
+    pending=lambda:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]}
+    ir.write(out/'review-template.json',{'version':VERSION,'mapping_sha256':ir.digest(out/'mapping.json'),
+        'mechanical_sha256':ir.digest(out/'mechanical.json'),
+        'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
+        'nodes':{sid:pending() for sid in packet['endpoints']},'checks':{k:pending() for k in REVIEW_CHECKS}})
+    bound_inputs(out)
+    review_materials.verify_projection(out,foundations=AXIOMS)
+    return {'status':'AUDIT-B-REVIEW-REUSE-PREPARED','directory':str(out),'native_checks_rerun':False,
+        'semantic_review':'UNVERIFIED','packet_bytes':(out/'review-packet.json').stat().st_size}
+
+
+def bound_review_reuse(out):
+    origin=ir.load(out/'review-reuse.json')
+    ir.need(origin.get('schema')=='yui-audit-b-machine-reuse-1','unsupported native evidence reuse')
+    original=Path(origin['original']).resolve()
+    ir.need(original!=out.resolve(),'reuse origin cannot refer to itself')
+    _,old=inherited_machine_evidence(original)
+    ir.need(origin['original_manifest_sha256']==ir.digest(original/'manifest.json') and
+        origin['original_mechanical_sha256']==ir.digest(original/'mechanical.json') and
+        origin['original_artifacts']==old['artifacts'],'changed inherited evidence binding')
+    ir.need(origin['native_checks_rerun'] is False and origin['proofs_changed'] is False and
+        origin['semantic_review_inherited'] is False,'invalid inherited-evidence disclosure')
+    ir.need(ir.digest(out/'manifest.json')==origin['original_manifest_sha256'],'changed inherited manifest')
+    for name,sha in old['artifacts'].items():
+        if name!='review-packet.json':ir.need(ir.digest(out/name)==sha,'changed inherited artifact copy: '+name)
+    current=ir.load(out/'mechanical.json')
+    for key,value in old.items():
+        if key not in {'artifacts','required_review_locations'}:
+            ir.need(current[key]==value,'changed inherited mechanical result: '+key)
+    ir.need(current['artifacts']['review-reuse.json']==ir.digest(out/'review-reuse.json'),'changed reuse receipt')
+    for path,row in origin['review_runtime'].items():
+        snapshot=(out/row['snapshot']).resolve()
+        ir.need(snapshot.is_relative_to(out.resolve()) and ir.digest(path)==row['sha256'] and ir.digest(snapshot)==row['sha256'],'changed current review runtime')
+    packet=review_materials.verify_projection(out,foundations=AXIOMS)
+    ir.need(current['required_review_locations']==review_materials.required_locations(packet),'changed endpoint review locations')
+    return origin
 
 
 def validate_mapping(c,inventory,mapping):
@@ -278,25 +380,11 @@ def build(out):
         # Imported theorems in the pinned environment are globally available.
         # No name, count, per-node edge or arithmetic-permission comparison
         # against the NL0 M inventory belongs to endpoint Audit B.
-        packet={'inventory':inventory,'mapping':mapping,'contract':c,'plan':plan,
-            'actual_elaborated_evidence':evidence,'policy':correspondence.POLICY,
-            'original_source_text':(cpath.parent/c['source']['path']).read_text(),'lean_source':source,
-            'source_and_proof_bytes':manifest['inputs'],
-            'assembly':assembled,'inspection':inspected,
-            'warning':'Read actual sources and signatures. A template or compiler pass is not semantic review.'}
-        ir.write(out/'review-packet.json',packet)
-        required_locations={}
-        comparisons=evidence['comparisons'] if evidence else []
-        for i,item in enumerate(inventory['propositions']):
-            sid=item['id']
-            if sid not in mapping['entries']:
-                continue
-            matches=[j for j,q in enumerate(comparisons) if q['id']==sid]
-            required_locations[sid]=['/inventory/propositions/'+str(i),
-                '/mapping/entries/'+sid+'/correspondence']+[
-                '/actual_elaborated_evidence/comparisons/'+str(j) for j in matches]
-            if sid=='P':
-                required_locations[sid] += ['/inventory/full_target','/inventory/parameters']
+        summary_input={'passed':not errors,'errors':sorted(set(errors)), 'compiler_exit_code':result['exit_code'],
+            'assembly':assembled,'inspection':inspected,'local_checks':local}
+        packet=review_materials.project(out,inventory,mapping,evidence,summary_input,
+            source_file=cpath.parent/c['source']['path'],foundations=AXIOMS)
+        required_locations=review_materials.required_locations(packet)
         required_rows=set(required_locations)
         receipts={key:{'verdict':'UNVERIFIED','notes':'Read the complete paired statements and actual elaborated evidence.',
                        'locations':[],'evidence':[]} for key in sorted(required_rows)}
@@ -310,7 +398,7 @@ def build(out):
             'assembly':assembled,'inspection':inspected,
             'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
             'mapping_sha256':ir.digest(out/'mapping.json'),'manifest_sha256':ir.digest(out/'manifest.json'),
-            'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json',
+            'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json','source-context.json','source-original.txt',
                 'AssemblyInputs.lean','assembly-inputs-compiler.json','assembly-compiler.json','assembly.json','inspection.json',
                 *(['Proof.lean'] if (out/'Proof.lean').exists() else []))},
             'semantic_review_performed':False}
@@ -354,7 +442,7 @@ def check(out,review_path):
         ir.need(row['verdict']=='PASS','unperformed/failed semantic review: '+key)
         ir.need(row['notes'].strip() and row['notes'] not in {'Not performed.','Read the complete paired statements and actual elaborated evidence.'},'generic unperformed note')
         ir.need(row['locations'] and row['evidence'],'missing located review evidence: '+key)
-        expected=mechanical['required_review_locations'].get(key,['/inventory','/actual_elaborated_evidence'])
+        expected=mechanical['required_review_locations'].get(key,review_materials.locations(packet))
         ir.need(set(expected)<=set(row['locations']),'missing paired source/kernel review locations: '+key)
         for pointer in row['locations']: resolve(packet,pointer)
         for item in row['evidence']:
@@ -367,23 +455,26 @@ def check(out,review_path):
             'whole_nl0_and_current_audit_a':certified,'reviewer':reviewer,
             'kernel_correct_relative_to_declared_externals':True,
             'external_publications_proved_by_lean':False,'semantic_review_automatically_verified':False,
-            'receipt_sha256':ir.digest(review_path),'mechanical_sha256':ir.digest(out/'mechanical.json')}
+            'receipt_sha256':ir.digest(review_path),'mechanical_sha256':ir.digest(out/'mechanical.json'),
+            'native_evidence_origin':'inherited_checked_run' if (out/'review-reuse.json').exists() else 'current_build'}
 
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('command',choices=['prepare','build','check'])
+    ap.add_argument('command',choices=['prepare','build','check','reuse-review'])
     ap.add_argument('directory',type=Path)
     ap.add_argument('--contract',type=Path);ap.add_argument('--plan',type=Path);ap.add_argument('--proofs',type=Path)
     ap.add_argument('--graph',type=Path);ap.add_argument('--spec',type=Path);ap.add_argument('--audit-a',type=Path)
     ap.add_argument('--incremental',type=Path)
     ap.add_argument('--fragment-inventory',type=Path);ap.add_argument('--review',type=Path)
+    ap.add_argument('--original',type=Path)
     args=ap.parse_args()
     try:
         if args.command=='prepare':
             result=prepare(args.contract,args.plan,args.proofs,args.directory.resolve(),
                 graph=args.graph,spec=args.spec,audit_a=args.audit_a,incremental=args.incremental,fragment=args.fragment_inventory)
         elif args.command=='build':result=build(args.directory.resolve())
+        elif args.command=='reuse-review':result=prepare_review_reuse(args.original,args.directory.resolve())
         else:result=check(args.directory.resolve(),args.review)
         print(json.dumps(result,ensure_ascii=False,indent=2))
         return 1 if result['status']=='AUDIT-B-MECHANICAL-FAILED' else 0

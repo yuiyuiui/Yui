@@ -58,5 +58,18 @@ class PackagingTests(unittest.TestCase):
         self.assertIsNone(state['usage']['confirmed_tokens'])
         self.assertIn('execution_state.py',ir.load(out/'configuration.json')['script_sha256'])
 
+    def test_same_case_exact_bodies_are_natively_rechecked_without_a_model_stage(self):
+        previous=self.temp/'prior-software-fixture'
+        oldc,_=run_graph.package(self.cpath,self.ppath,previous)
+        ir.write(previous/'report.json',{'status':'FRAGMENT_ASSEMBLED','contract_sha256':ir.digest(oldc)})
+        ir.write(previous/'proofs.json',{'contract_sha256':ir.digest(oldc),
+            'plan_sha256':ir.digest(previous/'inputs/plan.json'),'proofs':{'T001':LIFT,'T002':SUP}})
+        out=self.temp/'current-native-recheck'
+        with patch.object(run_graph.pilot,'Stage',side_effect=AssertionError('No model stage for an identical checked program')):
+            result=run_graph.run(self.cpath,self.ppath,out,prior_run=previous)
+        self.assertEqual(result['status'],'FRAGMENT_ASSEMBLED')
+        self.assertEqual(result['worker_calls'],0)
+        self.assertEqual(len(list((out/'reused').glob('*/origin.json'))),2)
+
 
 if __name__ == '__main__': unittest.main()

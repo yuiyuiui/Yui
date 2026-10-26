@@ -10,8 +10,34 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 CORE = Path(__file__).resolve().parents[1]
+_profiles = ContextVar('yui_phase_profiles', default=None)
+
+
+def validate_profile(profile):
+    """Validate explicit carrier choices without substituting model or effort."""
+    if (not isinstance(profile, dict) or set(profile) != {'id', 'reasoning_effort', 'speed', 'automatic_fallback'}
+            or not isinstance(profile['id'], str) or not profile['id'].strip()
+            or any(c in profile['id'] for c in '\n\r"\\')
+            or profile['reasoning_effort'] not in {'none','minimal','low','medium','high','xhigh','max','ultra'}
+            or profile['speed'] != 'standard' or profile['automatic_fallback'] is not False):
+        raise ValueError('Select an explicit model and reasoning effort; this isolated carrier currently supports Standard speed only, without fallback')
+    return dict(profile)
+
+
+@contextmanager
+def use_profiles(profiles):
+    if set(profiles) != {'nl0','lean'}:
+        raise ValueError('Two explicit phase profiles are required: nl0 and lean')
+    value = {key: validate_profile(row) for key,row in profiles.items()}
+    token = _profiles.set(value)
+    try:
+        yield
+    finally:
+        _profiles.reset(token)
 
 
 def time_limit(value):
@@ -35,13 +61,11 @@ def model_profile(phase=None):
     translation = name in {'proof', 'plan', 'interface', 'assembly'} or name.startswith(
         ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-'))
     key = 'nl0_to_lean' if translation else 'model'
-    profile = dict(config['phase_models'][key] if translation else config['model'])
-    if (set(profile) != {'id', 'reasoning_effort', 'speed', 'automatic_fallback'}
-            or not isinstance(profile['id'], str) or not profile['id']
-            or profile['reasoning_effort'] != 'high' or profile['speed'] != 'standard'
-            or profile['automatic_fallback'] is not False):
-        raise ValueError('This carrier requires an explicit model, high, Standard and no fallback')
-    return {**profile, 'profile_key': key, 'config_sha256': hashlib.sha256(raw).hexdigest()}
+    selected = _profiles.get()
+    profile = validate_profile(selected['lean' if translation else 'nl0'] if selected else
+                               config['phase_models'][key] if translation else config['model'])
+    return {**profile, 'profile_key': key, 'config_sha256': hashlib.sha256(raw).hexdigest(),
+            'selection_origin': 'explicit_run' if selected else 'installation_defaults'}
 
 
 def digest(path):

@@ -6,7 +6,7 @@ The comparison arms are direct Lean translation, Yui with a single model stage a
 
 Report success and healthy budget exhaustion separately from execution faults. Record repetitions, wall time, phase costs, all-agent input/cached/output/reasoning/total tokens, failed attempts, measured usage coverage, model/toolchain versions and requested/observed concurrency. Preparation and audits belong to whole-workflow cost. A fixed-NL0 translation-only comparison is an additional separately labelled experiment.
 
-The default selected model is gpt-6-luna / high / Standard. A different model requires an explicit separately recorded configuration; there is no automatic upgrade. See ../rigorous-proof/references/measurement.md.
+Select and record explicit phase model/reasoning/speed profiles for each comparison. Reuse the same selected profiles across arms; there is no automatic upgrade or fallback. See ../rigorous-proof/references/measurement.md.
 
 Use `result.schema.json` for eventual records. Counts must additionally satisfy
 the runtime ledger invariants: total=input+output, cached<=input, reasoning<=output.

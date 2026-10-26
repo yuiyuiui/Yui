@@ -12,22 +12,9 @@ import time
 from runtime_config import CORE
 from acceptance import AcceptanceContract
 import own_state
+from read_views import read_page, read_json
 sys.path.insert(0, str(CORE / 'translation/scripts'))
 import model_pilot as pilot
-
-
-def read_page(text, start, end):
-    """Bounded read-only pagination; never clamp mutation ranges."""
-    lines=text.splitlines();total=len(lines)
-    if type(start) is not int or type(end) is not int or not 1<=start<=end:
-        raise ValueError('Use positive inclusive start/end line numbers')
-    if start>max(total,1):raise ValueError('Read start is outside the document; total_lines='+str(total))
-    stop=min(end,start+249,total)
-    next_start=stop+1 if stop<total else None
-    return {'total_lines':total,'start':start,'end':stop,'requested_end':end,
-            'has_more':next_start is not None,'next_start':next_start,
-            'next_end':min(next_start+249,total) if next_start else None,
-            'text':'\n'.join(f'{i}: {lines[i-1]}' for i in range(start,stop+1))}
 
 
 class ArtifactStage(pilot.Stage):
@@ -50,6 +37,7 @@ class ArtifactStage(pilot.Stage):
         self.acceptance_authority=(AcceptanceContract(self.rule_texts[str((CORE/'references/audit-a.md').resolve())])
             if arm=='yui' and (kind=='nl0' or phase.startswith('audit-a')) else None)
         self.task_inputs = {}
+        self.task_json_inputs = {}
         if inputs:
             manifest = Path(inputs).resolve()
             for row in json.loads(manifest.read_text())['inputs']:
@@ -98,11 +86,16 @@ class ArtifactStage(pilot.Stage):
         if self.background_review and not library:
             self.tools += [dict(t) for t in pilot.carrier.TOOLS[:2]]
         if self.task_inputs:
-            self.tools.append(pilot.carrier.tool('read_task_input', 'Read an explicitly frozen task document by ID; no other local files are accessible.',
-                {'id': {'type':'string'}, 'start':{'type':'integer'}, 'end':{'type':'integer'}}, ['id','start','end']))
+            self.tools.append(pilot.carrier.tool('read_task_input',
+                'Read one declared frozen document. For JSON use pointer (empty string lists the root); large objects return keys, and strings resume with offset=next_offset. '
+                'For text use inclusive start/end lines and column=next_column when continuing a long line. '
+                'Every serialized result is at most 32 KiB. Follow has_more and the returned continuation coordinates; no arbitrary local files are accessible.',
+                {'id': {'type':'string'}, 'start':{'type':'integer'}, 'end':{'type':'integer'},
+                 'column':{'type':'integer'},'pointer':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'}}, ['id']))
         if arm == 'yui':
             self.tools.append(pilot.carrier.tool('read_yui', 'Read declared Yui rules/templates; no tests, historical runs or personal files.',
-                {'path': {'type': 'string'}, 'start': {'type': 'integer'}, 'end': {'type': 'integer'}}, ['path', 'start', 'end']))
+                {'path': {'type': 'string'}, 'start': {'type': 'integer'}, 'end': {'type': 'integer'},
+                 'column':{'type':'integer'}}, ['path', 'start', 'end']))
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
@@ -217,7 +210,7 @@ class ArtifactStage(pilot.Stage):
             destination.write_text(text)
             task_bindings.append({'id':identifier,'path':str(destination.relative_to(self.logs)),
                                   'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
-        (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':'high','speed':'standard',
+        (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
             'model_output_policy':pilot.OUTPUT_POLICY,
             'provider_wait_policy':pilot.PROVIDER_WAIT_POLICY,
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
@@ -458,7 +451,11 @@ class ArtifactStage(pilot.Stage):
                     open_issues=args['open_issues'],resolutions=args.get('resolutions',[]))
             elif name == 'read_task_input':
                 text = self.task_inputs[args['id']]
-                result = {'id':args['id'], **read_page(text, args['start'], args['end'])}
+                if 'pointer' in args:
+                    if args['id'] not in self.task_json_inputs:self.task_json_inputs[args['id']]=json.loads(text)
+                    result=read_json(self.task_json_inputs[args['id']],args['pointer'],offset=args.get('offset',0),limit=args.get('limit',250),metadata={'id':args['id']})
+                else:
+                    result=read_page(text,args['start'],args['end'],column=args.get('column',0),metadata={'id':args['id']})
             elif name == 'read_yui':
                 relative = Path(args['path'])
                 path = (CORE / relative).resolve()
@@ -467,7 +464,7 @@ class ArtifactStage(pilot.Stage):
                     raise PermissionError('Only declared instruction/template roots may be read')
                 if str(path) not in self.rule_texts:
                     raise PermissionError('Expected an existing Markdown rule')
-                result = {'path': str(relative), **read_page(self.rule_texts[str(path)], args['start'], args['end'])}
+                result = read_page(self.rule_texts[str(path)], args['start'], args['end'],column=args.get('column',0),metadata={'path':str(relative)})
             else:
                 value = (deepcopy(args['artifact']) if name in {'check_draft','submit_draft'} else
                          json.loads(args['artifact_json'], object_pairs_hook=pilot.ir.unique))
