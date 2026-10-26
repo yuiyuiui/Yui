@@ -1,0 +1,218 @@
+{
+  "header": "import Mathlib\n\nopen scoped BigOperators Topology ContDiff\nopen MeasureTheory\n\nnamespace WM\nabbrev X (n : ℕ) := Fin n → ℝ\nabbrev Y (m : ℕ) := EuclideanSpace ℝ (Fin m)\ndef dom (n : ℕ) : Set (X n × ℝ) := {p | 0 < p.2}\nnoncomputable def dt {n : ℕ} {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] (f : X n × ℝ → V) (x : X n) (t : ℝ) : V := deriv (fun r => f (x,r)) t\nnoncomputable def dx {n : ℕ} {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] (f : X n × ℝ → V) (j : Fin n) (x : X n) (t : ℝ) : V := fderiv ℝ (fun y => f (y,t)) x (Pi.single j 1)\nnoncomputable def ut {n m : ℕ} (u : X n × ℝ → Y m) : X n × ℝ → Y m := fun p => dt u p.1 p.2\nnoncomputable def utt {n m : ℕ} (u : X n × ℝ → Y m) : X n × ℝ → Y m := fun p => dt (ut u) p.1 p.2\nnoncomputable def xu {n m : ℕ} (u : X n × ℝ → Y m) (j : Fin n) : X n × ℝ → Y m := fun p => dx u j p.1 p.2\nnoncomputable def lap {n m : ℕ} (u : X n × ℝ → Y m) (x : X n) (t : ℝ) : Y m := ∑ j, dx (xu u j) j x t\nnoncomputable def e {n m : ℕ} (u : X n × ℝ → Y m) : X n × ℝ → ℝ := fun p => ‖ut u p‖ ^ 2 + ∑ j, ‖xu u j p‖ ^ 2\nnoncomputable def et {n m : ℕ} (u : X n × ℝ → Y m) : X n × ℝ → ℝ := fun p => dt (e u) p.1 p.2\nnoncomputable def energy {n m : ℕ} (u : X n × ℝ → Y m) (t : ℝ) : ℝ := ∫ x, e u (x,t)\ndef box (n : ℕ) (R : ℝ) : Set (X n) := {x | ∀ j, x j ∈ Set.Icc (-R) R}\ndef openBox (n : ℕ) (R : ℝ) : Set (X n) := {x | ∀ j, x j ∈ Set.Ioo (-R) R}\nnoncomputable def aTerm {n m : ℕ} (u : X n × ℝ → Y m) : X n × ℝ → ℝ := fun p => inner ℝ (ut u p) (utt u p)\nnoncomputable def bTerm {n m : ℕ} (u : X n × ℝ → Y m) (j : Fin n) : X n × ℝ → ℝ := fun p => inner ℝ (xu u j p) (dx (ut u) j p.1 p.2)\nnoncomputable def cTerm {n m : ℕ} (u : X n × ℝ → Y m) (j : Fin n) : X n × ℝ → ℝ := fun p => inner ℝ (ut u p) (dx (xu u j) j p.1 p.2)\nnoncomputable def flux {n m : ℕ} (u : X n × ℝ → Y m) (j : Fin n) : X n × ℝ → ℝ := fun p => inner ℝ (ut u p) (xu u j p)\nnoncomputable def divFlux {n m : ℕ} (u : X n × ℝ → Y m) (j : Fin n) : X n × ℝ → ℝ := fun p => dx (flux u j) j p.1 p.2\ndef regular {n m : ℕ} (u : X n × ℝ → Y m) : Prop :=\n  ContDiffOn ℝ ∞ (ut u) (dom n) ∧ ContDiffOn ℝ ∞ (utt u) (dom n) ∧ (∀ j, ContDiffOn ℝ ∞ (xu u j) (dom n)) ∧ ContDiffOn ℝ ∞ (e u) (dom n) ∧ ContDiffOn ℝ ∞ (et u) (dom n) ∧\n  (∀ x t, 0 < t → et u (x,t) = 2 * aTerm u (x,t) + 2 * ∑ j, bTerm u j (x,t)) ∧\n  (∀ j x t, 0 < t → dt (xu u j) x t = dx (ut u) j x t)\ndef good {n : ℕ} (C : Set (X n)) (R : ℝ) (f : X n → ℝ) : Prop :=\n  Continuous f ∧ (∃ B : ℝ, 0 ≤ B ∧ ∀ x ∈ box n R, |f x| ≤ B) ∧ (∀ x, x ∉ C → f x = 0) ∧ Integrable f\nnoncomputable def quot {n m : ℕ} (u : X n × ℝ → Y m) (t h : ℝ) (x : X n) : ℝ := (e u (x,t+h) - e u (x,t)) / h\nnoncomputable def major {n : ℕ} (R B : ℝ) : X n → ℝ := (box n R).indicator (fun _ => B)\ndef geometry {n m : ℕ} (u : X n × ℝ → Y m) (q : Y m) (τ : ℝ) (C : Set (X n)) (R : ℝ) : Prop :=\n  IsCompact C ∧ 0 < R ∧ C ⊆ openBox n R ∧ (∀ x, x ∉ C → ∀ r ∈ Set.Icc (τ/2) (3*τ/2), u (x,r) = q)\ndef localData {n m : ℕ} (u : X n × ℝ → Y m) (q : Y m) (τ : ℝ) (C : Set (X n)) (R : ℝ) : Prop :=\n  geometry u q τ C R ∧ IsCompact (box n R) ∧ volume (box n R) = ENNReal.ofReal ((2*R)^n) ∧ volume (box n R) < ⊤ ∧\n  (∀ x, x ∉ C → ∀ r ∈ Set.Ioo (τ/2) (3*τ/2), ∀ k : ℕ, 0 < k → iteratedFDeriv ℝ k u (x,r) = 0) ∧\n  (∀ r ∈ Set.Ioo (τ/2) (3*τ/2), good C R (fun x => e u (x,r)) ∧ good C R (fun x => et u (x,r)) ∧ good C R (fun x => aTerm u (x,r)) ∧ ∀ j, good C R (fun x => bTerm u j (x,r)) ∧ good C R (fun x => cTerm u j (x,r)) ∧ good C R (fun x => divFlux u j (x,r)))\ndef supportAndRegularity {n m : ℕ} (u : X n × ℝ → Y m) (q : Y m) : Prop :=\n  regular u ∧ (∀ t : ℝ, 0 < t → Integrable (fun x => e u (x,t))) ∧ ∀ τ : ℝ, 0 < τ → ∃ C R, localData u q τ C R\nnoncomputable def fluxData {n m : ℕ} (u : X n × ℝ → Y m) (q : Y m) (t : ℝ) (j : Fin n) (C : Set (X n)) (R : ℝ) : Prop :=\n  localData u q t C R ∧ ContDiff ℝ ∞ (fun x => flux u j (x,t)) ∧ good C R (fun x => flux u j (x,t)) ∧\n  (∀ x, divFlux u j (x,t) = bTerm u j (x,t) + cTerm u j (x,t))\nend WM\n",
+  "parameters": [
+    {
+      "name": "n",
+      "type": "ℕ"
+    },
+    {
+      "name": "m",
+      "type": "ℕ"
+    },
+    {
+      "name": "u",
+      "type": "WM.X n × ℝ → WM.Y m"
+    },
+    {
+      "name": "q",
+      "type": "WM.Y m"
+    }
+  ],
+  "premise_types": {
+    "H001": "1 ≤ n ∧ 1 ≤ m",
+    "H002": "ContDiffOn ℝ ∞ u (WM.dom n)",
+    "H003": "‖q‖ = 1",
+    "H004": "∀ (x : WM.X n) (t : ℝ), 0 < t → ‖u (x,t)‖ = 1",
+    "H005": "∀ (x : WM.X n) (t : ℝ), 0 < t → ∃ a : ℝ, WM.utt u (x,t) - WM.lap u x t = a • u (x,t)",
+    "H006": "∀ (s t : ℝ), 0 < s → s < t → ∃ C : Set (WM.X n), IsCompact C ∧ ∀ x, x ∉ C → ∀ r ∈ Set.Icc s t, u (x,r) = q"
+  },
+  "conclusion_type": "(∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t))) ∧ DifferentiableOn ℝ (WM.energy u) (Set.Ioi 0) ∧ (∀ t : ℝ, 0 < t → deriv (WM.energy u) t = 0) ∧ (∀ s t : ℝ, 0 < s → 0 < t → WM.energy u s = WM.energy u t)",
+  "representation": "PENDING_AUDIT_B. X n is the real coordinate space Fin n → ℝ, with its standard finite product Lebesgue volume. Its library sup norm is only an auxiliary coordinate topology: it has the same topology and derivative calculus as Euclidean ℝ^n; no spatial-vector norm occurs in the energy. Y m carries the Euclidean inner product and norm. Fin n indexes the original n coordinates with a zero-based relabeling. u is a total extension to all real times; H002 is smoothness only on the open set t>0, and all physical hypotheses and conclusions are restricted to t>0. Any original u extends by q at nonpositive times; conversely restriction recovers the original map. Germ-local derivatives at positive times and energy there are independent of the extension. dx is the spatial Fréchet derivative applied to the standard coordinate vector, dt the ordinary time derivative. On the smooth open domain these are the usual partial derivatives. All norms of derivatives in e are Euclidean target norms, hence its finite sum is precisely the Frobenius square, without a half. lap is the sum of the unmixed second spatial partials. The propositions regular, geometry, good, localData, supportAndRegularity and fluxData are transparent bundles of obligations, not assumptions or proved facts. Bochner Integrable for real sections means absolute Lebesgue integrability; the total integral definition is only used as finite energy after T004. For the one actual coordinate split in Fubini, T010 explicitly checks the insertion map's measure preservation, box image, and integral conversion; this stays in finite product coordinates, including the zero-dimensional remainder.",
+  "objects": [],
+  "steps": [
+    {
+      "id": "T001",
+      "statement": "∀ (x : WM.X n) (t : ℝ), 0 < t → inner ℝ (u (x,t)) (WM.ut u (x,t)) = 0 ∧ inner ℝ (WM.ut u (x,t)) (WM.utt u (x,t) - WM.lap u x t) = 0",
+      "inputs": [
+        "H002",
+        "H004",
+        "H005"
+      ],
+      "source_steps": [
+        "S001",
+        "S002"
+      ],
+      "explanation": "Differentiate the constant squared norm on the positive-time germ using HasDerivAt.inner, then pair the pointwise normality witness with ut. No selected multiplier or derivative of it is used."
+    },
+    {
+      "id": "T002",
+      "statement": "WM.regular u",
+      "inputs": [
+        "H002"
+      ],
+      "source_steps": [
+        "S003"
+      ],
+      "explanation": "Extract smooth partial derivatives from smoothness on the open domain. Symmetry of the second Fréchet derivative in time and spatial coordinate directions gives the mixed-derivative identity. The inner-product product rule and finite sum give et. These are obligations, not properties granted by the definitions."
+    },
+    {
+      "id": "T003",
+      "statement": "∀ τ : ℝ, 0 < τ → ∃ (C : Set (WM.X n)) (R : ℝ), WM.geometry u q τ C R",
+      "inputs": [
+        "H006"
+      ],
+      "source_steps": [
+        "S004",
+        "S005"
+      ],
+      "explanation": "Use the slab [τ/2,3τ/2]. Bound the compact set in the finite coordinate norm and enlarge the bound to a positive R, including the empty-set case."
+    },
+    {
+      "id": "T004",
+      "statement": "WM.supportAndRegularity u q",
+      "inputs": [
+        "H001",
+        "H002",
+        "T002",
+        "T003"
+      ],
+      "source_steps": [
+        "S006"
+      ],
+      "explanation": "The closed box is compact of volume (2R)^n. On the open complement of C in the interior slab, u has constant germ, so every positive iterated derivative vanishes. Smoothness gives continuity of all listed sections; compact support and Continuous.integrable_of_hasCompactSupport give absolute integrability. Compact bounds give good; use τ itself to obtain global section integrability. Bundle exactly the N002 regularity, mixed identities, support, box measure and integrability statements."
+    },
+    {
+      "id": "T005",
+      "statement": "∀ t : ℝ, 0 < t → ∃ (C : Set (WM.X n)) (R B : ℝ), WM.localData u q t C R ∧ 0 ≤ B ∧ ∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t-t/4) (t+t/4), |WM.et u (x,r)| ≤ B",
+      "inputs": [
+        "T004"
+      ],
+      "source_steps": [
+        "S007"
+      ],
+      "explanation": "Set η=t/4. It lies strictly inside the original slab. Bound the continuous et on the compact space-time box, replacing the bound by its maximum with zero."
+    },
+    {
+      "id": "T006",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ (C : Set (WM.X n)) (R B : ℝ), WM.localData u q t C R → 0 ≤ B → (∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t-t/4) (t+t/4), |WM.et u (x,r)| ≤ B) → ((∀ h : ℝ, 0 < |h| → |h| < t/4 → Integrable (WM.quot u t h) ∧ AEStronglyMeasurable (WM.quot u t h) ∧ ∀ x, |WM.quot u t h x| ≤ WM.major R B x) ∧ (∀ x, Filter.Tendsto (fun h => WM.quot u t h x) (nhdsWithin 0 ({0}ᶜ)) (nhds (WM.et u (x,t)))))",
+      "inputs": [
+        "T004"
+      ],
+      "source_steps": [
+        "S008"
+      ],
+      "explanation": "Apply the norm mean-value estimate along the ordered interval between t and t+h, handling either sign of h. Outside Q both densities vanish. Integral linearity gives integrability of each valid quotient. Smoothness gives the pointwise punctured-neighborhood limit."
+    },
+    {
+      "id": "T007",
+      "statement": "∀ t : ℝ, 0 < t → Filter.Tendsto (fun h => ∫ x, WM.quot u t h x) (nhdsWithin 0 ({0}ᶜ)) (nhds (∫ x, WM.et u (x,t)))",
+      "inputs": [
+        "T004",
+        "T005",
+        "T006"
+      ],
+      "source_steps": [
+        "S009"
+      ],
+      "explanation": "Choose the compact box and bound. Its indicator majorant B 1_Q is integrable. Apply tendsto_integral_filter_of_dominated_convergence to the countably generated punctured real neighborhood filter using eventual bounds and measurability from T006."
+    },
+    {
+      "id": "T008",
+      "statement": "∀ t : ℝ, 0 < t → DifferentiableAt ℝ (WM.energy u) t ∧ deriv (WM.energy u) t = ∫ x, WM.et u (x,t)",
+      "inputs": [
+        "T004",
+        "T007"
+      ],
+      "source_steps": [
+        "S010"
+      ],
+      "explanation": "For sufficiently small nonzero h, both density sections are integrable and t+h>0. Integral linearity identifies the integral quotient with the quotient of the actual finite energies. The limit is the derivative criterion; et is integrable."
+    },
+    {
+      "id": "T009",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, ∃ (C : Set (WM.X n)) (R : ℝ), WM.fluxData u q t j C R",
+      "inputs": [
+        "H001",
+        "H002",
+        "T004"
+      ],
+      "source_steps": [
+        "S011"
+      ],
+      "explanation": "Fix time and coordinate, choose the N002 slab data, and prove the spatial product rule divFlux=bTerm+cTerm (using real inner-product symmetry). The flux is smooth and zero outside C, hence good. Its derivative and summands are already good in localData; C⊂int Q gives the required vanishing near the boundary."
+    },
+    {
+      "id": "T010",
+      "statement": "∀ (k : ℕ) (j : Fin (k+1)) (R : ℝ), 0 < R → MeasurePreserving (fun p : ℝ × WM.X k => Fin.insertNth (α := fun _ => ℝ) j p.1 p.2) volume volume ∧ (Set.image (fun p : ℝ × WM.X k => Fin.insertNth (α := fun _ => ℝ) j p.1 p.2) (Set.Icc (-R) R ×ˢ WM.box k R) = WM.box (k+1) R) ∧ (∀ d : WM.X (k+1) → ℝ, Continuous d → (∫ x in WM.box (k+1) R, d x) = ∫ z in WM.box k R, ∫ y in Set.Icc (-R) R, d (Fin.insertNth (α := fun _ => ℝ) j y z))",
+      "inputs": [],
+      "source_steps": [
+        "S012"
+      ],
+      "explanation": "Coordinate-splitting implementation extraction. Fin.insertNth is inverse to MeasurableEquiv.piFinSuccAbove. Use volume_preserving_piFinSuccAbove and its inverse, verify the box image coordinatewise, and apply integral_prod_symm to the continuous function restricted to the compact product box. Only integrability on this finite-measure box is required, not global integrability of arbitrary d. k=0 uses the singleton finite product volume, not a separate convention."
+    },
+    {
+      "id": "T011",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, (∫ x, WM.divFlux u j (x,t)) = 0",
+      "inputs": [
+        "H001",
+        "T009",
+        "T010"
+      ],
+      "source_steps": [
+        "S013"
+      ],
+      "explanation": "Write n=k+1 using H001 and transport the same coordinate lists along that equality. For fixed remaining coordinates, the derivative of flux∘insertNth is divFlux∘insertNth, by the definition of dx and the coordinate chain rule. It is continuous and interval integrable. Apply intervalIntegral.integral_eq_sub_of_hasDerivAt on [-R,R]; endpoints vanish outside C. Convert the oriented interval integral to the closed-interval integral using null endpoints. T010 gives zero over Q, and support gives zero over all space."
+    },
+    {
+      "id": "T012",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, Integrable (fun x => WM.bTerm u j (x,t)) ∧ Integrable (fun x => WM.cTerm u j (x,t)) ∧ (∫ x, WM.bTerm u j (x,t)) = -(∫ x, WM.cTerm u j (x,t))",
+      "inputs": [
+        "T009",
+        "T011"
+      ],
+      "source_steps": [
+        "S014"
+      ],
+      "explanation": "Integrate the product identity of fluxData, using integrability from localData and T011, then rearrange. The bTerm convention already has the symmetric order of the dot product required in N004."
+    },
+    {
+      "id": "T013",
+      "statement": "∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t)) ∧ HasDerivAt (WM.energy u) 0 t ∧ deriv (WM.energy u) t = 0",
+      "inputs": [
+        "T001",
+        "T004",
+        "T008",
+        "T012"
+      ],
+      "source_steps": [
+        "S015"
+      ],
+      "explanation": "Substitute the density derivative formula into N003, distribute integrals over the finite sum using N002 integrability, and substitute N004. The definition of lap collects the terms into 2∫ inner ut (utt-lap), which is pointwise zero by N001. Reconstitute HasDerivAt from differentiability and the derivative value."
+    },
+    {
+      "id": "T014",
+      "statement": "(∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t))) ∧ DifferentiableOn ℝ (WM.energy u) (Set.Ioi 0) ∧ (∀ t : ℝ, 0 < t → deriv (WM.energy u) t = 0) ∧ (∀ s t : ℝ, 0 < s → 0 < t → WM.energy u s = WM.energy u t)",
+      "inputs": [
+        "T013"
+      ],
+      "source_steps": [
+        "S016"
+      ],
+      "explanation": "Collect section integrability, differentiability within the positive open half-line and zero ordinary derivative. Apply the zero-derivative mean-value norm estimate on [s,t] for ordered positive endpoints, then equality and symmetry handle all positive s,t. No assertion at zero."
+    }
+  ],
+  "terminal": "T014",
+  "source_outputs": {
+    "N001": "T001",
+    "N002": "T004",
+    "N003": "T008",
+    "N004": "T012",
+    "P": "T014"
+  },
+  "endpoint_correspondence": {
+    "P": {
+      "mode": "equivalent",
+      "explanation": "n,m are natural dimensions with H001 imposing n,m≥1, the same admissible integer dimensions. X n is ℝ^n in its standard coordinates with product Lebesgue measure; its auxiliary sup norm gives the same finite-dimensional smooth structure as Euclidean coordinates. Y m has exactly the Euclidean norm and dot product. A positive-time u extends to our total parameter by q for t≤0; any total parameter restricts to the original map. H002 is smoothness only on the open positive-time domain, so these operations preserve it in both directions; all partial derivatives and their iterates at positive times depend only on that germ. H003 and H004 are exactly unit-vector and sphere constraints. H005 quantifies a separate real scalar at each point, with no regularity or selection assumption. H006 is precisely one compact spatial set for each positive closed time slab, with the same fixed q. dt, dx and lap are the usual time partial, standard-coordinate spatial partial, and componentwise sum of second partials on that smooth domain. e has the exact sum of Euclidean squared norms and no factor 1/2; energy is its Lebesgue integral. The conclusion asserts absolute integrability at every positive time, differentiability on the positive half-line, zero ordinary derivative at every positive time, and equality at every pair of positive times. Conversely these are exactly the specified conclusions for the restriction; any choice of extension has identical positive-time densities and energy. No hypothesis or conclusion about nonpositive times is added."
+    }
+  }
+}

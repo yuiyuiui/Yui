@@ -1,8 +1,10 @@
 """Attribute observed transport/controller health separately from mathematical outcomes."""
 import json
+import re
 from pathlib import Path
 
 from usage import events
+import remote_retry
 
 
 class StageFailure(ValueError):
@@ -113,8 +115,10 @@ def inspect(directory):
                 error={'code':event.get('code'),'message':event.get('message')}
             if error:
                 code=error.get('code') if isinstance(error,dict) else None
-                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error}
-                if code in {'server_error','internal_error','rate_limit_exceeded','service_unavailable','timeout','request_timeout'}:
+                match=re.fullmatch(r'response-(\d+)\.sse',path.name)
+                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error,
+                     'request_number':int(match.group(1)) if match else None}
+                if remote_retry.classify(error):
                     faults.append(row)
                 else:
                     uncertain.append(row)

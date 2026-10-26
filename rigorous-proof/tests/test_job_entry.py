@@ -1,4 +1,5 @@
 """Standalone installation, profile and repair-wiring controls. No model is invoked."""
+import argparse
 from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor
 import json
@@ -88,6 +89,75 @@ class JobEntryTests(unittest.TestCase):
         self.assertNotEqual(r.returncode,0);self.assertIn('Ask once',r.stdout)
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
 
+    def test_new_proof_runs_require_numeric_worker_confirmation_before_preparation(self):
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        for command in ('prepare','run'):
+            for track in ('full','translate'):
+                for count in (None,'auto','0','-1','2.5'):
+                    argv=[command,str(self.problem),'--track',track,'--use-config-profiles']
+                    if count is not None:argv+=['--max-concurrency',count]
+                    with self.subTest(command=command,track=track,count=count), \
+                         patch.object(jobs,'prepare') as prepare, \
+                         patch.object(entrypoint,'launch') as launch:
+                        with self.assertRaisesRegex(ValueError,'proof-worker count|concurrency'):
+                            entrypoint.dispatch(parser.parse_args(argv))
+                        prepare.assert_not_called();launch.assert_not_called()
+        self.assertFalse((self.problem.parent/'rigorous-proof').exists())
+
+    def test_nl0_public_entry_needs_only_its_profile(self):
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['prepare',str(self.problem),'--track','nl0',
+            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard'])
+        result=entrypoint.dispatch(args)
+        self.assertIsNone(result['proof_concurrency'])
+        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
+        self.assertEqual(job['track'],'nl0')
+        self.assertEqual(job['profiles']['nl0'],PROFILES['nl0'])
+
+    def test_full_public_entry_freezes_both_profiles_and_confirmed_workers(self):
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['prepare',str(self.problem),'--track','full',
+            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
+            '--lean-model','gpt-6-luna','--lean-effort','medium','--lean-speed','standard',
+            '--max-concurrency','5'])
+        result=entrypoint.dispatch(args)
+        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
+        self.assertEqual(job['profiles'],PROFILES)
+        self.assertEqual(job['max_concurrency'],5)
+        self.assertEqual(result['proof_concurrency']['effective'],5)
+        import concurrency
+        budgets=concurrency.CaseBudgets(job['max_concurrency'])
+        self.assertEqual(budgets.proof.configuration['effective'],5)
+        self.assertEqual(budgets.serial.configuration['effective'],1)
+
+    def test_translation_public_entry_needs_only_lean_profile_and_workers(self):
+        source=self.root/'accepted';source.mkdir()
+        from controller_common import bind
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['prepare',str(self.problem),'--track','translate',
+            '--source',str(source),'--lean-model','gpt-6-luna','--lean-effort','medium',
+            '--lean-speed','standard','--max-concurrency','3'])
+        with patch.object(case_runner.source_preparation,'read_source',return_value=([
+            {'current_standard_receipt_valid':True},{},{'inputs':[{'sha256':bind(self.problem)['sha256']}]}],[])):
+            result=entrypoint.dispatch(args)
+        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
+        self.assertEqual(job['track'],'translate')
+        self.assertEqual(job['profiles']['lean'],PROFILES['lean'])
+        self.assertEqual(job['max_concurrency'],3)
+        self.assertEqual(result['proof_concurrency']['effective'],3)
+
+    def test_public_cli_model_defaults_do_not_supply_missing_workers(self):
+        result=subprocess.run([sys.executable,'-B',str(CORE/'scripts/yui.py'),
+            'prepare',str(self.problem),'--track','full','--use-config-profiles'],
+            capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('--max-concurrency N',json.loads(result.stdout)['error'])
+        self.assertFalse((self.problem.parent/'rigorous-proof').exists())
+
     def test_backend_checks_selected_model_and_effort_without_fallback(self):
         job=self.job();home=self.root/'auth';home.mkdir()
         (home/'models_cache.json').write_text(json.dumps({'models':[{'slug':'gpt-6.1-sol','supported_reasoning_levels':[{'effort':'low'}]}]}))
@@ -95,6 +165,24 @@ class JobEntryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'does not advertise'):entrypoint.preflight_profiles(job)
         with self.assertRaisesRegex(ValueError,'Standard speed only'):
             config.validate_profile({**PROFILES['nl0'],'speed':'unsupported'})
+
+    def test_run_and_execute_dispatch_to_the_actual_launcher(self):
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        for command in ('run','execute'):
+            with self.subTest(command=command):
+                if command=='run':
+                    argv=['run',str(self.problem),'--track','nl0',
+                          '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard']
+                else:
+                    argv=['execute',self.job()['root']]
+                args=parser.parse_args(argv+['--detach','--case-concurrency','3'])
+                with patch.object(entrypoint,'launch',return_value={'status':'LAUNCH_CONTROL_ONLY'}) as launcher:
+                    self.assertEqual(entrypoint.dispatch(args),{'status':'LAUNCH_CONTROL_ONLY'})
+                launcher.assert_called_once()
+                self.assertEqual(launcher.call_args.kwargs,{'detached':True,'case_concurrency':3})
+                self.assertEqual(len(launcher.call_args.args[0]),1)
+                jobs.validate(launcher.call_args.args[0][0])
 
     def test_author_and_reviewer_inputs_do_not_include_sibling_or_prior_verdict(self):
         job=self.job();root=Path(job['root']);out=root/'nl0/0001'

@@ -1,0 +1,178 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For sets C⊆D of extended nonnegative real costs, inf D≤inf C, including empty cost sets. Apply this to finite-scale admissible cover costs C and unrestricted-scale cover costs D.",
+    "justification": "The probed sInf_le_sInf applies to the complete lattice [0,∞]. Every finite-scale cover is an infinity-scale cover, with the identical cost; thus C⊆D. This is the routine order step already described in S001, not an added covering theorem or existence assumption.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "Provides the native infimum over covers with diameter bound r, allowing r=∞."
+      },
+      {
+        "location": "/definitions/0/definition",
+        "reason": "Provides the same cover costs and finite-scale admissibility; a bound by δ implies the bound by ∞."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Explicitly compares the two cover classes in this direction."
+      }
+    ],
+    "source": {
+      "declaration": "sInf_le_sInf",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@sInf_le_sInf : ∀ {α : Type u_1} [inst : CompleteSemilatticeInf.{u_1} α] {s t : Set.{u_1} α},\n  s ⊆ t → LE.le.{u_1} (sInf.{u_1} t) (sInf.{u_1} s)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M901-0001/library-sources.json",
+          "sha256": "fa161e48b72cc47162090b3c7ce17b2baaf6ce3c5b01b518810f78409b86d90b"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Each finite positive-scale infimum is at most Hmeasure(s,A), since it belongs to the set whose supremum defines Hmeasure. In particular the positive scale δ=1 is available.",
+    "justification": "Apply the probed le_sSup in the complete lattice [0,∞] to the set of values Hscale(s,δ,A) for real δ>0. The membership witness is the current scale, and 1>0 supplies a scale when bounding the infinity-scale term. No cover witness or attainment of an infimum is used.",
+    "grounds": [
+      {
+        "location": "/definitions/1/definition",
+        "reason": "Hmeasure is exactly the supremum of the finite positive-scale Hscale values."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Identifies each such value with the native finite-scale infimum, and compares the infinity-scale term with every finite-scale term."
+      }
+    ],
+    "source": {
+      "declaration": "le_sSup",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@le_sSup : ∀ {α : Type u_1} [inst : CompleteSemilatticeSup.{u_1} α] {s : Set.{u_1} α} {a : α},\n  Membership.mem.{u_1, u_1} s a → LE.le.{u_1} a (sSup.{u_1} s)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M903-0003/library-sources.json",
+          "sha256": "525af07a5e5c06fb876457207db2912f66995e00c1f4a62caa35df92de4fce0e"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Adjoining the infinity-scale infimum does not change the supremum of the finite positive-scale infima: each term of the enlarged family is ≤ the old supremum, and each old term belongs to the enlarged family.",
+    "justification": "The probed sSup_le bounds the enlarged supremum by the old one using BG001 and BG002; applying it to the old family, whose terms are bounded by the enlarged supremum by BG002's le_sSup, proves the reverse inequality. Antisymmetry yields equality. Finite positive ENNReal scales correspond exactly to positive real scales; the only extra positive extended scale is ∞. This checks the author's displayed supremum argument, with no limit interchange or finiteness assumption on either measure.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "Native formula takes the supremum over all positive extended scales."
+      },
+      {
+        "location": "/definitions/1/definition",
+        "reason": "Hmeasure takes the supremum over finite positive real scales."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Proves finite-scale identification and explicitly bounds the additional infinity-scale infimum."
+      }
+    ],
+    "source": {
+      "declaration": "sSup_le",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@sSup_le : ∀ {α : Type u_1} [inst : CompleteSemilatticeSup.{u_1} α] {s : Set.{u_1} α} {a : α},\n  (∀ (b : α), Membership.mem.{u_1, u_1} s b → LE.le.{u_1} b a) → LE.le.{u_1} (sSup.{u_1} s) a",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M902-0002/library-sources.json",
+          "sha256": "c691ef0393f4c50de5ef0a16713f29cd5c44db8eaa0832c7ae841182a76a8bac"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For a finite nonnegative real diameter d and s>0, (ENNReal.ofReal d)^s=ENNReal.ofReal(d^s). Consequently a nonempty finite-scale cover member has the same cost in the ordinary-diameter and native extended-diameter formulas, including diameter zero.",
+    "justification": "The probed ENNReal.ofReal_rpow_of_nonneg requires d≥0 and s≥0. Diameters are suprema of nonnegative distances with empty diameter zero; at a finite scale the diameter is finite. The arbitrary exponent has s>0. Thus both premises hold, including the nonempty singleton/zero-diameter case. Empty members are separately zero in both supplied conventions. This is routine representation compatibility, not a Hausdorff-measure theorem.",
+    "grounds": [
+      {
+        "location": "/definitions/0/definition",
+        "reason": "Defines nonnegative diameter, the finite diameter bound and the ordinary power cost, with empty members zero."
+      },
+      {
+        "location": "/definitions/3/definition",
+        "reason": "Identifies ediam as the extended-valued supremum of ordinary distances on metric spaces and defines the native costs."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Fixes s>0 and compares costs only at finite positive scales."
+      }
+    ],
+    "source": {
+      "declaration": "ENNReal.ofReal_rpow_of_nonneg",
+      "module": "Mathlib.Analysis.SpecialFunctions.Pow.NNReal",
+      "signature": "@ENNReal.ofReal_rpow_of_nonneg : ∀ {x p : ℝ},\n  LE.le.{0} 0 x →\n    LE.le.{0} 0 p → Eq.{1} (HPow.hPow.{0, 0, 0} (ENNReal.ofReal x) p) (ENNReal.ofReal (HPow.hPow.{0, 0, 0} x p))",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/SpecialFunctions/Pow/NNReal.lean",
+      "source_sha256": "34ca617eac6d3903c15dde5c1c833a0f490de28c10f3f4f8e21f912bb0028687",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M904-0004/library-sources.json",
+          "sha256": "c92e31e7fa1696c64b54f4aa5f7bb78243856fd55cdded522687d93ee937ca16"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG005",
+    "kind": "mathlib",
+    "at": "/inference/argument/1/text",
+    "fact": "If s>0 and Hnative(s,A)=∞, then the embedded exponent s belongs to {a∈[0,∞): Hnative(a,A)=∞}, so s≤hdim(A).",
+    "justification": "Apply the positively probed le_sSup in [0,∞] to the set of embedded finite nonnegative real exponents from D005. Positivity makes s an admissible exponent, and F001 converts the branch antecedent Hmeasure(s,A)=∞ into the required native infinite-measure equality. This is exactly the author's membership-to-supremum step, not an assertion that the supremum is attained or finite.",
+    "grounds": [
+      {
+        "location": "/definitions/2/definition",
+        "reason": "hdim is defined as the supremum of precisely these exponents."
+      },
+      {
+        "location": "/inference/argument/0/produces/0/statement",
+        "reason": "Earlier F001 supplies the native/ordinary measure identity for the current X,A,s."
+      },
+      {
+        "location": "/inference/argument/1/text",
+        "reason": "The last conditional branch assumes infinite Hmeasure; s remains positive from S001."
+      }
+    ],
+    "source": {
+      "declaration": "le_sSup",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@le_sSup : ∀ {α : Type u_1} [inst : CompleteSemilatticeSup.{u_1} α] {s : Set.{u_1} α} {a : α},\n  Membership.mem.{u_1, u_1} s a → LE.le.{u_1} a (sSup.{u_1} s)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M903-0003/library-sources.json",
+          "sha256": "525af07a5e5c06fb876457207db2912f66995e00c1f4a62caa35df92de4fce0e"
+        }
+      ]
+    }
+  }
+]

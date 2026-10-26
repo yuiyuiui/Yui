@@ -1,0 +1,49 @@
+{
+  "id": "ST004",
+  "version": 1,
+  "title": "Expose an algebraic normal form before arithmetic automation",
+  "family": "calculation",
+  "tags": [
+    "algebra",
+    "coercion",
+    "finite_sum",
+    "normalization"
+  ],
+  "preconditions": [
+    "expressions_well_typed"
+  ],
+  "contraindications": [
+    "unproved_denominator_nonzero"
+  ],
+  "obstacle": "Small arithmetic goals are obstructed by function wrappers, casts or quotient forms.",
+  "procedure": [
+    "Establish required nonzero/sign facts separately.",
+    "Unfold only the interface wrappers that prevent matching.",
+    "Normalize casts, finite sums and field expressions before ring/linear arithmetic."
+  ],
+  "verification": "Kernel-check each normal-form equality and retain denominator hypotheses.",
+  "positive_example": "Finite Gauss sums and normalized coefficient calculations share explicit scalar algebra.",
+  "negative_example": "field_simp cannot justify division by a denominator that may vanish.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "version_boundary": "Pattern observed in these pinned sources; exact APIs must be checked at application.",
+  "status": "RETROSPECTIVE_PATTERN",
+  "speedup_evidence": "NOT_MEASURED",
+  "evidence": [
+    {
+      "path": "translation/bank/sources/a4c6594d29734d912dfaacb6c36a0eee2f0be58a1da8096326f135ae03807d11.txt",
+      "sha256": "a4c6594d29734d912dfaacb6c36a0eee2f0be58a1da8096326f135ae03807d11",
+      "start_line": 1,
+      "end_line": 5,
+      "excerpt": "| R-Gauss-representation-bridge | `quadraticGaussSummand_eq_stdAddChar`, `quadraticGaussSum_eq_quadraticGaussSumZMod` | PROJECT-LEAN | compiled |\n| R-Gauss-source-interface | `isUnit_intCast_zmod_of_isCoprime`, `norm_quadraticGaussSum_le_sqrt_two_mul_of_isCoprime` | MATHLIB `ZMod` unit criterion plus PROJECT-LEAN | compiled |\n| R-Gaussian-summability | `summable_complex_exp_neg_quadratic`, `summable_complex_exp_shifted_dual_quadratic` | MATHLIB Gaussian decay plus `Int.tendsto_coe_cofinite` | compiled |\n| R-residue-Poisson | `residueGaussianSeries_eq_centered_dual`, `sum_tsum_fin_comm`, `sum_weightedResidueGaussianDual_eq_gauss_tsum` | MATHLIB Gaussian Poisson plus PROJECT-LEAN finite-sum algebra | compiled |\n| R-full-line-rational-Gaussian | `rationalGaussianTerm_residue_split`, `rationalGaussianTheta_eq_rationalResidueGaussianSeries`, `rationalGaussianTheta_eq_gauss_tsum` | MATHLIB plus PROJECT-LEAN convergent residue decomposition | compiled; native square-root prefactor |",
+      "original_source": {
+        "path": "bench_cases/bench_case_1/reference/proof/INCREMENTAL_FORMALIZATION_LOG_2026-08-19.md",
+        "sha256": "d37102755800c006f5cae2571191a16a222a7a1a5856e730b0852ff9254ef6bb",
+        "start_line": 34,
+        "end_line": 38
+      },
+      "scope": "Located excerpt copied from the audited historical source; not a full source-file copy."
+    }
+  ]
+}

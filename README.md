@@ -23,9 +23,11 @@ example:
 - “Use rigorous-proof on these three supplied problems concurrently.”
 - “Continue from this accepted NL0 into Lean.”
 
-The invoking agent asks once for missing active phase model/reasoning/speed
-settings, retaining already specified choices. NL0/Audit A and Lean/Audit B have
-independent profiles. The harness then stages inputs, schedules independent
+The invoking agent asks once for all missing settings, retaining already
+specified choices. NL0-only needs its model/reasoning/speed profile. Translation
+from accepted NL0 needs the Lean profile and an explicit per-case proof-worker
+count. A full workflow needs both phase profiles and that worker count.
+The harness then stages inputs, schedules independent
 roles, handles located local repairs and records actual results. It does not
 require the user to create task packets or dispatch reviewers manually.
 
@@ -39,9 +41,22 @@ Three supplied examples are ordinary inputs to the same runtime:
 | Lie algebras and representations | [Admissible lattice reduction](test/lie-module-irreducibility/problem.md) |
 | PDE | [Sphere-valued wave-map energy](test/wave-map-energy/problem.md) |
 
-`test/` contains only these three problem directories and their `problem.md`.
-Their supplied proofs do not confer acceptance. Old development run outputs were
-removed at the user's request; they are not shipped as reproducible evidence.
+Each example also includes its archived `rigorous-proof/` results. The completed
+runs below contain the final standalone Lean file, actual Audit A/B reports,
+execution records and the result reported by the workflow:
+
+| Example | Completed run | Standalone Lean file |
+| --- | --- | --- |
+| Geometry and measure | [Result](test/geometry-product-dimension/rigorous-proof/20261026T133531Z-7b8941cddb/case-result.json) | [Proof.lean](test/geometry-product-dimension/rigorous-proof/20261026T133531Z-7b8941cddb/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
+| Lie algebras and representations | [Result](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/case-result.json) | [Proof.lean](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
+| PDE | [Result](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/case-result.json) | [Proof.lean](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
+
+Earlier stopped attempts remain alongside the completed Lie/PDE runs for
+provenance. A directory's presence or a supplied proof does not establish
+acceptance; consult that run's actual result and gate reports. These are
+historical archives with machine-specific paths and runtime bindings, not
+portable run configurations. Preserved dependency copies and relocation notes
+document earlier runtime moves without rewriting the original receipts.
 
 ## Runtime
 
@@ -63,9 +78,11 @@ existing compatible installations are outside the usual locations. Credentials
 are never committed. The current carrier supports Standard speed; unavailable
 models, reasoning levels or speeds fail explicitly, without fallback.
 
-Per-case proof concurrency is `auto|N`. Auto currently discloses a conservative
-fallback of two when the backend maximum is unknown. Independent-case concurrency
-is separate. Preparation and reviews are serial within one case. There is no
+Full and translation requests require an explicitly supplied or confirmed
+positive proof-worker count N (`--max-concurrency N`). Missing counts and
+`auto` cannot silently select a default at the public entry. NL0-only does not
+ask for a proof-worker count. Independent-case concurrency is separate.
+Preparation and reviews are serial within one case. There is no
 default time/token/call budget. Explicit cancellation is supported; the parent
 chat Stop button is not a verified cancellation of detached CLI processes.
 
@@ -78,8 +95,8 @@ inputs, the installed skill and the shared toolchain. See the operator instructi
 | Path | Contents |
 | --- | --- |
 | `rigorous-proof/` | Complete skill, runtime, shared controllers and software controls |
-| `test/` | Three minimal mathematical examples, with no separate test harness |
-| `benchmark/` | Protocol and schema for future paper-scale comparisons |
+| `test/` | Three mathematical examples and their archived proof/audit runs |
+| `benchmark/` | Original paper input; temporary benchmark outputs have been removed |
 
 The NL0/Audit A mathematical rules remain at the frozen
 [`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) baseline.
@@ -89,5 +106,5 @@ historical reviews or manufacture new mathematical results.
 
 No paper-scale benchmark or speed advantage is claimed. Future comparisons must
 include preparation, audits, repairs, all-agent tokens, actual concurrency and
-execution health. [The benchmark protocol](benchmark/README.md) distinguishes
-original-proof direct baselines from fixed-NL0 continuation experiments.
+execution health, and distinguish original-proof direct baselines from
+fixed-NL0 continuation experiments.

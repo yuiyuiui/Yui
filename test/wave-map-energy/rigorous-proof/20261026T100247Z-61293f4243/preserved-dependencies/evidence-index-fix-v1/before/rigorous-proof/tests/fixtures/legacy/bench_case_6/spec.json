@@ -1,0 +1,181 @@
+{
+  "format_version": 1,
+  "case_id": "bench_case_6_structured_nl0_v1",
+  "full_target": "对每个实数 ℓ 满足 1/4<ℓ≤1/2，按每代四等分时间的标准折线极限构造 K^ℓ:[0,1]→ℝ²，则 K^ℓ 连续，且在每个 t∈[0,1] 都没有有限实 Fréchet 导数；端点使用相对于 [0,1] 的单侧导数。平面采用欧氏范数，不改变参数化，不排除 ℓ=1/2。",
+  "conclusion": "A_n 在 U 上一致收敛到 K|U，且 J∘K|U 就是指定四等分时间生成元构造的平面曲线；它在 U 上连续，并且对每个 t∈U 都有 ¬Diff(J∘K,t)，包括 t=0 与 t=1。",
+  "parameters": [
+    {
+      "symbol": "ℓ",
+      "type": "ℝ；原定理对任意这样的实数成立"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H001",
+      "statement": "1/4 < ℓ。",
+      "origin": "input/original-SPEC.md：目标 P 中的下界，建图前冻结。"
+    },
+    {
+      "id": "H002",
+      "statement": "ℓ ≤ 1/2。",
+      "origin": "input/original-SPEC.md：目标 P 中的上界，建图前冻结。"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "D001",
+      "symbol": "U",
+      "definition": "U=[0,1]⊂ℝ，含两个端点。",
+      "type": "紧实区间及其子空间拓扑",
+      "depends_on": [],
+      "requires": []
+    },
+    {
+      "id": "D002",
+      "symbol": "h",
+      "definition": "h=√(ℓ−1/4)，取非负平方根。",
+      "type": "ℝ",
+      "depends_on": [],
+      "requires": []
+    },
+    {
+      "id": "D003",
+      "symbol": "v",
+      "definition": "v_0=0，v_1=ℓ，v_2=1/2+i h，v_3=1−ℓ，v_4=1；实数按标准嵌入写作复数。",
+      "type": "{0,1,2,3,4}→ℂ",
+      "depends_on": [
+        "D002"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D004",
+      "symbol": "S",
+      "definition": "对 j∈{0,1,2,3}，S_j(z)=v_j+(v_{j+1}−v_j)z。",
+      "type": "四个 ℂ→ℂ 仿射映射",
+      "depends_on": [
+        "D003"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D005",
+      "symbol": "X",
+      "definition": "X={f∈C(U,ℂ): f(0)=0 且 f(1)=1}。它的非空性与完备性不作为定义的一部分，将由 N003 证明。",
+      "type": "C(U,ℂ) 的端点约束子集",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D006",
+      "symbol": "d",
+      "definition": "d(f,g) 是固定 mathlib 紧定义域连续映射空间 C(U,ℂ) 的标准一致度量；X 取诱导度量。点值与一致距离的关系由 M006、M007 提供，不把完备性藏进定义。",
+      "type": "C(U,ℂ)×C(U,ℂ)→ℝ",
+      "depends_on": [
+        "D001",
+        "D005"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D007",
+      "symbol": "T",
+      "definition": "对任意 f:U→ℂ，在 j/4≤t<(j+1)/4 的分支令 (Tf)(t)=S_j(f(4t−j))，j=0,1,2；最后分支 3/4≤t≤1 使用 j=3。分支中 4t−j∈U。T 先定义在所有函数上，T 保持 X 是 N004 的结论。",
+      "type": "(U→ℂ)→(U→ℂ)",
+      "depends_on": [
+        "D001",
+        "D004"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D008",
+      "symbol": "f0",
+      "definition": "f0(t)=t，采用 ℝ→ℂ 的标准嵌入。",
+      "type": "U→ℂ",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D009",
+      "symbol": "A",
+      "definition": "A_n=T^n f0，n∈ℕ，包括 A_0=f0。",
+      "type": "ℕ→(U→ℂ)",
+      "depends_on": [
+        "D007",
+        "D008"
+      ],
+      "requires": []
+    },
+    {
+      "id": "D010",
+      "symbol": "K",
+      "definition": "在 N007 已证明的唯一存在性之后，K|U 表示 X 中满足 Tg=g 的唯一 g；为书写相对导数，令 K(t)=0（t<0）、K(t)=1（t>1）。扩展不会改变 U 上的值或相对导数。不得在 N007 之前把 K 当成已存在的曲线。",
+      "type": "ℝ→ℂ，在 N007 后可用",
+      "depends_on": [
+        "D001",
+        "D005",
+        "D007"
+      ],
+      "requires": [
+        "N007"
+      ]
+    },
+    {
+      "id": "D011",
+      "symbol": "J",
+      "definition": "J(z)=(Re z,Im z)，平面 ℝ² 使用欧氏范数；这里只定义坐标，保范数与可微性对应由 N018 证明。",
+      "type": "ℂ→ℝ²",
+      "depends_on": [],
+      "requires": []
+    },
+    {
+      "id": "D012",
+      "symbol": "Diff",
+      "definition": "Diff(F,t) 表示 F 在 t 相对于 U 存在有限实 Fréchet 导数：存在实连续线性映射 L，使 ‖F(s)−F(t)−L(s−t)‖/|s−t| 沿 s∈U、s→t、s≠t 趋于 0。F 可取 ℝ→ℂ 或 ℝ→ℝ²。相对滤子只读取 U 内的值，因此常值扩展不附加任何导数要求。",
+      "type": "关于 F、t 的带绑定变量谓词定义",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": []
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "modus_ponens",
+      "implication_introduction",
+      "negation_introduction",
+      "contradiction_classical",
+      "case_elimination",
+      "forall_introduction",
+      "exists_elimination",
+      "natural_induction"
+    ],
+    "calculations": [
+      "经典命题与谓词逻辑、自然数归纳、有限分情况；临时假设必须正确关闭。",
+      "写出等式步骤的实/复代数、实数序与自然数幂计算；不把分析定理当作基础。",
+      "使用已定义的度量/连续性/收敛/线性/滤子含义展开 ε–δ 论证；所需实质分析定理必须来自 M 或 N。"
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "inputs": [
+    {
+      "path": "input/original-SPEC.md",
+      "sha256": "22f10f72643d01b275ac5c8274c7a8c3aea936e289ab1d6495141685f6cd459a"
+    },
+    {
+      "path": "input/original-NL0.md",
+      "sha256": "e80c69f148c86779698baa7a5207b03315fad91d822fe41b3e177fee6265997b"
+    }
+  ]
+}

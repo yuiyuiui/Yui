@@ -1,0 +1,234 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/1/text",
+    "fact": "For tensors over the commutative ring R, every element of ℚ⊗_R J and of ℚ⊗_R M_R is a finite sum of simple tensors. Consequently additive identities between maps out of these tensor products may be checked on simple tensors.",
+    "justification": "The probed tensor induction principle has zero, simple-tensor and addition cases; induction gives finite-sum generation and equality of additive maps. This supplies only the routine generation fact expressly used in S002 and S003, not the denominator argument, injectivity, or coordinate equivalence.",
+    "grounds": [
+      {
+        "location": "/definitions/5/definition",
+        "reason": "R is the stated commutative rational subring, with its guard H001 directly available."
+      },
+      {
+        "location": "/inputs/0/statement",
+        "reason": "The prime guard for R is a direct premise."
+      },
+      {
+        "location": "/definitions/10/definition",
+        "reason": "J is the R-submodule of ℂ used as the second tensor factor."
+      },
+      {
+        "location": "/inputs/2/statement",
+        "reason": "M_R is the R-module supplied by N002."
+      },
+      {
+        "location": "/inference/argument/1/text",
+        "reason": "The first tensor factor is ℚ with the R-action given by the inclusion R⊂ℚ."
+      }
+    ],
+    "source": {
+      "declaration": "TensorProduct.induction_on",
+      "module": "Mathlib.LinearAlgebra.TensorProduct.Defs",
+      "signature": "@TensorProduct.induction_on : ∀ {R : Type u_1} [inst : CommSemiring.{u_1} R] {M : Type u_7} {N : Type u_8} [inst_1 : AddCommMonoid.{u_7} M]\n  [inst_2 : AddCommMonoid.{u_8} N] [inst_3 : _root_.Module.{u_1, u_7} R M] [inst_4 : _root_.Module.{u_1, u_8} R N]\n  {motive : TensorProduct.{u_1, u_7, u_8} R M N → Prop} (z : TensorProduct.{u_1, u_7, u_8} R M N),\n  motive 0 →\n    (∀ (x : M) (y : N), motive (TensorProduct.tmul.{u_1, u_7, u_8} R x y)) →\n      (∀ (x y : TensorProduct.{u_1, u_7, u_8} R M N),\n          motive x → motive y → motive (HAdd.hAdd.{max u_7 u_8, max u_7 u_8, max u_7 u_8} x y)) →\n        motive z",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/LinearAlgebra/TensorProduct/Defs.lean",
+      "source_sha256": "9dde2d95f3492e97f3b4f02e49dff3b08770f2e17556853c80e974b17e5d08c9",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M101-0001/library-sources.json",
+          "sha256": "a0e08a3e9c6083bfad71707dfe0d215314388e3b0e21382ebf0aa46394b25273"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/1/text",
+    "fact": "The displayed R-bilinear multiplication (q,c)↦qc induces an R-linear map μ:ℚ⊗_R J→ℂ with μ(q⊗c)=qc. It is ℚ-linear for the scalar-extension structure.",
+    "justification": "TensorProduct.lift.tmul verifies the standard tensor lift and its evaluation for a bilinear map. Here multiplication is additive in each argument and satisfies (rq)c=q(rc) for r∈R, so it is R-bilinear into ℂ restricted to R. The extra ℚ-linearity follows on a simple tensor from μ((sq)⊗c)=(sq)c=s(qc), and hence on all tensors by BG001. This is the basic universal construction used by the author, not a replacement for the author's injectivity proof.",
+    "grounds": [
+      {
+        "location": "/definitions/5/definition",
+        "reason": "R⊂ℚ⊂ℂ has the usual compatible scalar multiplications."
+      },
+      {
+        "location": "/definitions/10/definition",
+        "reason": "J is an R-submodule of ℂ, so multiplication by r∈R stays in J."
+      },
+      {
+        "location": "/inference/argument/1/text",
+        "reason": "T and the intended bilinear formula are explicitly introduced before the injectivity argument."
+      },
+      {
+        "location": "/inputs/0/statement",
+        "reason": "H001 supplies the subring definition guard."
+      }
+    ],
+    "source": {
+      "declaration": "TensorProduct.lift.tmul",
+      "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+      "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+      "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M102-0002/library-sources.json",
+          "sha256": "15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/2/text",
+    "fact": "The two displayed bilinear constructions in S003 induce linear maps on the indicated tensor products: the coordinate map on ℚ⊗_R M_R and, for each i∈I, the map ℚ⊗_R J→ℚ⊗_R M_R given by q⊗c↦q⊗(c e_i). They are ℚ-linear.",
+    "justification": "F001 makes coordinate extraction R-linear: coordinates of m+m' and b m are respectively c_i+c'_i and b c_i by uniqueness and the vector-space distributive laws. Thus (q,m)↦(q⊗c_i(m))_i is R-bilinear, as is (q,c)↦q⊗(c e_i), since c e_i belongs to M_R by F001. Apply the probed tensor lift and its evaluation formula to each. Scaling the first tensor factor verifies ℚ-linearity on generators and BG001 extends it. This is routine justification of the author's explicit maps; the inverse identities and finite-coordinate decomposition remain the displayed local proof.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/produces/0/statement",
+        "reason": "F001 provides unique J-valued coordinates for every element of M_R and inclusion c e_i∈M_R."
+      },
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 defines T=ℚ⊗_R J with its vector-space structure."
+      },
+      {
+        "location": "/inference/argument/2/text",
+        "reason": "S003 explicitly specifies both maps, their bilinear origin and their inverse calculations."
+      },
+      {
+        "location": "/definitions/5/definition",
+        "reason": "All R-actions are compatible with the subring inclusion into ℚ and ℂ."
+      }
+    ],
+    "source": {
+      "declaration": "TensorProduct.lift.tmul",
+      "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+      "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+      "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M102-0002/library-sources.json",
+          "sha256": "15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "ℚ satisfies StrongRankCondition, as required for the applications of M002 and M004.",
+    "justification": "The probed declaration supplies StrongRankCondition for every nontrivial commutative ring. The standard rational field ℚ is a nontrivial commutative ring. No condition on R or on a module is required for this instance. This records the ordinary omitted typeclass fact behind the author's assertion.",
+    "grounds": [
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 makes T a vector space over the standard rational field ℚ."
+      },
+      {
+        "location": "/definitions/5/definition",
+        "reason": "The ambient scalar field ℚ here is the standard rationals with usual arithmetic, not an unspecified semiring."
+      }
+    ],
+    "source": {
+      "declaration": "commRing_strongRankCondition",
+      "module": "Mathlib.LinearAlgebra.FreeModule.StrongRankCondition",
+      "signature": "@commRing_strongRankCondition : ∀ (R : Type u_1) [inst : CommRing.{u_1} R] [Nontrivial.{u_1} R], StrongRankCondition.{u_1} R",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/LinearAlgebra/FreeModule/StrongRankCondition.lean",
+      "source_sha256": "5e08e3adccbb7786d9cee448270ccd0e50b0408e4411ac397e81edb1ea694582",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M103-0003/library-sources.json",
+          "sha256": "c6844527d8e545305779316aac817c0e6c0a915c2d4028523149f4ff023710ed"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG005",
+    "kind": "mathlib",
+    "at": "/inference/argument/4/text",
+    "fact": "After M003 gives span_ℚ{1⊗a}=T, membership of 1⊗z in that span yields a rational q with q(1⊗a)=1⊗z.",
+    "justification": "The probed singleton-span characterization states exactly that membership in span{u} is equivalent to being a scalar multiple of u, for any semiring module. Apply it with R=ℚ, module T, u=1⊗a and x=1⊗z. The singleton family's range is {u}, and M003 supplies membership because its span is top. This is the routine interpretation of the author's M003 conclusion, not an additional dimension argument.",
+    "grounds": [
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 gives T as a ℚ-vector space."
+      },
+      {
+        "location": "/inference/argument/3/produces/0/statement",
+        "reason": "F004 supplies dimension 1, used to satisfy M003."
+      },
+      {
+        "location": "/inputs/5/statement",
+        "reason": "M003 is a direct premise with conclusion span of the family is all of T."
+      },
+      {
+        "location": "/inference/argument/4/text",
+        "reason": "The author introduces a,z∈J, proves the nonzero singleton's independence under a≠0 and applies M003 before extracting q."
+      }
+    ],
+    "source": {
+      "declaration": "Submodule.mem_span_singleton",
+      "module": "Mathlib.LinearAlgebra.Span.Defs",
+      "signature": "@Submodule.mem_span_singleton : ∀ {R : Type u_1} {M : Type u_4} [inst : Semiring.{u_1} R] [inst_1 : AddCommMonoid.{u_4} M]\n  [inst_2 : _root_.Module.{u_1, u_4} R M] {x y : M},\n  Membership.mem.{u_4, u_4} (Submodule.span.{u_1, u_4} R (singleton.{u_4, u_4} y)) x ↔\n    ∃ a, Eq.{u_4 + 1} (HSMul.hSMul.{u_1, u_4, u_4} a y) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/LinearAlgebra/Span/Defs.lean",
+      "source_sha256": "1232470fae437db186c8cbd5a8bd94565b5cb80ee4c956cf59b078515170c352",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M104-0004/library-sources.json",
+          "sha256": "84ff35763d340cec505257af0025e34e495dcf9d6753da27d27dec914a74285c"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG006",
+    "kind": "mathlib",
+    "at": "/inference/argument/1/text",
+    "fact": "Under H001, the fractions in D007 form a commutative subring R⊂ℚ containing ℤ. Thus the usual R-actions and inclusions R→ℚ→ℂ used here are legitimate, and integer numerators can act on J.",
+    "justification": "The probed Nat.prime_iff_prime_int transfers H001 to primality of (p:ℤ). Unfolding the checked Prime definition gives the prime-divides-product implication, so p∤b and p∤d imply p∤bd. Also p∤1: a divisor of 1 is a unit, excluded by that definition. Fractions with admissible denominators are closed under addition and multiplication by using denominator bd≠0, and under negation by negating the numerator. Fractions 0/1, 1/1 and k/1 for every integer k are admissible. These elementary fraction calculations establish the subring guard and integer inclusion. This is routine validation of the displayed rational subring, not a localization or tensor exactness theorem.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "H001 states p is a natural prime."
+      },
+      {
+        "location": "/definitions/5/definition",
+        "reason": "D007 defines exactly these fractions and their usual arithmetic and embedding."
+      },
+      {
+        "location": "/definitions/10/definition",
+        "reason": "J is an R-submodule, so closure under these integer scalars justifies balancing numerators into J."
+      }
+    ],
+    "source": {
+      "declaration": "Nat.prime_iff_prime_int",
+      "module": "Mathlib.Data.Nat.Prime.Int",
+      "signature": "@Nat.prime_iff_prime_int : ∀ {p : ℕ}, Nat.Prime p ↔ Prime.{0} ↑p",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Data/Nat/Prime/Int.lean",
+      "source_sha256": "fa9dc861fe780f4e3b98fd83322a81e376dae25a39e2653e418c4bc38f5cc4fe",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M105-0005/library-sources.json",
+          "sha256": "7537e5844b0a933aa3c2bda644a76e86ac4e76b9dbb99fe709451ddb31ffb73f"
+        }
+      ]
+    }
+  }
+]

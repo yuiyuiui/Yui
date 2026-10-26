@@ -1,0 +1,1241 @@
+{
+  "version": 2,
+  "id": "lie_module_irreducibility",
+  "source": {
+    "path": "nl0.json",
+    "sha256": "6bed8bed3113321da69aa8e1d246ff48a81df02108503cce9f481a4968542e24",
+    "background_mode": "node_local_reference",
+    "background_supplement": {
+      "policy": "verified-background-1",
+      "graph_sha256": "6bed8bed3113321da69aa8e1d246ff48a81df02108503cce9f481a4968542e24",
+      "spec_sha256": "0bc877ae19400609114ac8bcd8118f11a0b0aa11ca6f72e69c9b4c2906d4733e",
+      "notes": {
+        "R001": [
+          {
+            "id": "BG001",
+            "kind": "mathlib",
+            "at": "/inference/argument/3/text",
+            "fact": "For natural a,r, the product (a+1)⋯(a+r), with empty product 1, equals r! * Nat.choose (a+r) r. Consequently its complex value divided by r! is the natural integer binom(a+r,r). Apply this with a=λ-i for the X formula (r≤i), and a=i for the Y formula (i+r≤λ).",
+            "justification": "The probed theorem gives exactly (a+1).ascFactorial r = r!*(a+r).choose r; the read definition of ascFactorial is the displayed rising product. Since i∈I implies 0≤i≤λ, both substitutions have nonnegative integer a, and r is nonnegative by the X/Y domains. Factorial r is a product of positive integers, so its complex cast is nonzero and can be cancelled. Nat.choose is natural-valued, hence an integer after casting. This checks the routine product-to-binomial identification and integrality asserted in S004, without replacing the locally proved action recurrences or basis argument.",
+            "grounds": [
+              {
+                "location": "/definitions/1/definition",
+                "reason": "Membership in I gives the required nonnegative integer bounds for i and λ-i."
+              },
+              {
+                "location": "/definitions/2/definition",
+                "reason": "X_r is defined for nonnegative integer r by division by r!."
+              },
+              {
+                "location": "/definitions/3/definition",
+                "reason": "Y_r has the same nonnegative index and factorial normalization."
+              },
+              {
+                "location": "/inference/argument/3/text",
+                "reason": "The argument already displays the two rising products, their zero branches and the claimed binomial identifications."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.ascFactorial_eq_factorial_mul_choose",
+              "module": "Mathlib.Data.Nat.Choose.Basic",
+              "signature": "@Nat.ascFactorial_eq_factorial_mul_choose : ∀ (n k : ℕ),\n  Eq.{1} ((HAdd.hAdd.{0, 0, 0} n 1).ascFactorial k)\n    (HMul.hMul.{0, 0, 0} k.factorial ((HAdd.hAdd.{0, 0, 0} n k).choose k))",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Choose/Basic.lean",
+              "source_sha256": "e364d90ba28b43f131754ff4e27d81fd935a601369a46a218579703ff4e7c705",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/76b0dddaf2417d4162a9711128f13195cb639fc926b3f759d633ec41f0288da6-library-sources.json",
+                  "sha256": "76b0dddaf2417d4162a9711128f13195cb639fc926b3f759d633ec41f0288da6"
+                }
+              ]
+            }
+          }
+        ],
+        "R002": [
+          {
+            "id": "BG001",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "The index type of the complex basis supplied by H006 is finite, because V is finite-dimensional over the nontrivial field ℂ.",
+            "justification": "Apply Module.Finite.finite_basis with R=ℂ, M=V and the H006 complex basis. H004 supplies finite-dimensionality, which is finite generation for a vector space. This is the routine finiteness prerequisite of the author's explicit M002 dimension count, not a new lattice construction.",
+            "grounds": [
+              {
+                "location": "/inputs/2/statement",
+                "reason": "H004 states that V has finite complex dimension λ+1."
+              },
+              {
+                "location": "/inputs/3/statement",
+                "reason": "H006 supplies an integer basis that is also a complex basis of V."
+              }
+            ],
+            "source": {
+              "declaration": "Module.Finite.finite_basis",
+              "module": "Mathlib.RingTheory.Finiteness.Cardinality",
+              "signature": "@Module.Finite.finite_basis : ∀ {R : Type u_1} {M : Type u_2} [inst : Semiring.{u_1} R] [inst_1 : AddCommMonoid.{u_2} M]\n  [inst_2 : _root_.Module.{u_1, u_2} R M] [Nontrivial.{u_1} R] {ι : Type u_3} [Module.Finite.{u_1, u_2} R M]\n  (b : Module.Basis.{u_3, u_1, u_2} ι R M), Finite.{u_3 + 1} ι",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/RingTheory/Finiteness/Cardinality.lean",
+              "source_sha256": "c0e006eb7064864ca13410a03d1b3208f2b5aa17e594e64bbe3404463f2e5f7f",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/dfd40e768d57830f8c0052ec7c288e0c9ca534bf57bafd7cfd7247fde8765681-library-sources.json",
+                  "sha256": "dfd40e768d57830f8c0052ec7c288e0c9ca534bf57bafd7cfd7247fde8765681"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG002",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "ℂ satisfies the strong rank condition; also R, once established as the rational subring containing 1, satisfies it.",
+            "justification": "commRing_strongRankCondition applies to every nontrivial commutative ring. ℂ is a nontrivial field; R inherits commutativity and 0≠1 from its rational embedding. This discharges the native rank-condition premise of M002 in S001 and supports the ordinary rank terminology in S002 without imposing a new assumption.",
+            "grounds": [
+              {
+                "location": "/logic/primitives/7",
+                "reason": "ℂ has its standard field structure."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "R has the stated rational arithmetic and embedding."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "S001 verifies closure of the fraction subring; 0/1 and 1/1 are admitted for prime p."
+              }
+            ],
+            "source": {
+              "declaration": "commRing_strongRankCondition",
+              "module": "Mathlib.LinearAlgebra.FreeModule.StrongRankCondition",
+              "signature": "@commRing_strongRankCondition : ∀ (R : Type u_1) [inst : CommRing.{u_1} R] [Nontrivial.{u_1} R], StrongRankCondition.{u_1} R",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/FreeModule/StrongRankCondition.lean",
+              "source_sha256": "5e08e3adccbb7786d9cee448270ccd0e50b0408e4411ac397e81edb1ea694582",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/174a31ad10c1fdc2d49c3d8b96acaf50c236b97d1e7496757062c15754ad2e9e-library-sources.json",
+                  "sha256": "174a31ad10c1fdc2d49c3d8b96acaf50c236b97d1e7496757062c15754ad2e9e"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG003",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "The finite index set of the H006 basis can be put in bijection with I, because both have cardinality n; reindexing the same vectors gives the integer and complex basis asserted in F001.",
+            "justification": "Fintype.card_eq gives a bijection from the equality of finite cardinalities. The author obtains the first cardinality using M002 and H004 and the second from N001. Relabeling along that bijection preserves exactly the original finite linear combinations, hence both basis properties. This checks the explicitly stated reindexing step, not an unsupported additional witness.",
+            "grounds": [
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "The author explicitly counts the H006 basis using M002 over ℂ."
+              },
+              {
+                "location": "/inputs/4/statement",
+                "reason": "N001 states card(I)=n."
+              },
+              {
+                "location": "/inputs/3/statement",
+                "reason": "The original common integer/complex basis is already provided by H006."
+              }
+            ],
+            "source": {
+              "declaration": "Fintype.card_eq",
+              "module": "Mathlib.Data.Fintype.EquivFin",
+              "signature": "@Fintype.card_eq : ∀ {α : Type u_4} {β : Type u_5} [_F : Fintype.{u_4} α] [_G : Fintype.{u_5} β],\n  Eq.{1} (Fintype.card.{u_4} α) (Fintype.card.{u_5} β) ↔\n    Nonempty.{max (u_5 + 1) (u_4 + 1)} (Equiv.{u_4 + 1, u_5 + 1} α β)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Fintype/EquivFin.lean",
+              "source_sha256": "5a70d92ff1637a57053c8ccddd92752adb7f0938e9fd585b3cd77badee2e248b",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/c95acaf9bb4f4129c617b306fd93166bbdd1f76349f415d7c82e16690edf7a92-library-sources.json",
+                  "sha256": "c95acaf9bb4f4129c617b306fd93166bbdd1f76349f415d7c82e16690edf7a92"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG004",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For integers b,d with p∤b and p∤d, one has p∤bd. Thus the fractions in D007 form a subring with their usual rational operations.",
+            "justification": "Nat.prime_iff_prime_int converts H001 to primality of the integer p. Unfolding integer Prime supplies p|bd implies p|b or p|d, contradicting the two conditions. The product denominator bd is nonzero; a/b+c/d=(ad+bc)/(bd), (a/b)(c/d)=ac/(bd), and -(a/b)=(-a)/b. Zero and one have denominator 1, not divisible by prime p. These are precisely the elementary closure verifications asserted in S001.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "H001 gives primality of the natural number p."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "D007 specifies integer nonzero denominators not divisible by p."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.prime_iff_prime_int",
+              "module": "Mathlib.Data.Nat.Prime.Int",
+              "signature": "@Nat.prime_iff_prime_int : ∀ {p : ℕ}, Nat.Prime p ↔ Prime.{0} ↑p",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Prime/Int.lean",
+              "source_sha256": "fa9dc861fe780f4e3b98fd83322a81e376dae25a39e2653e418c4bc38f5cc4fe",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/f6432bc54f0f9f2848e998a2176e411d1368c8aa8b79373e1c2ed9dd3512ef9d-library-sources.json",
+                  "sha256": "f6432bc54f0f9f2848e998a2176e411d1368c8aa8b79373e1c2ed9dd3512ef9d"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG005",
+            "kind": "mathlib",
+            "at": "/inference/argument/2/text",
+            "fact": "For prime p and 0≤t≤λ<p, the coprimality p.Coprime(t!) delivered by M006 implies p∤t!, so the fraction 1/t! belongs to R.",
+            "justification": "Nat.Prime.coprime_iff_not_dvd applies with n=t!, using the very same H001 primality and the M006 conclusion in S003. The integer/nonnegative-natural indices agree by D002's convention. Since p and t! are positive, integer divisibility would have a nonnegative multiplier and hence imply natural divisibility. Also t! is nonzero as a finite product of positive integers (including 0!=1). D007 therefore admits 1/t!; multiplication verifies its inverse property. This is only a routine bridge from the explicitly registered factorial theorem.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "p is prime."
+              },
+              {
+                "location": "/inputs/1/statement",
+                "reason": "0≤λ<p."
+              },
+              {
+                "location": "/inputs/7/statement",
+                "reason": "M006 supplies coprimality for each nonnegative t<p."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "t is arbitrary in 0≤t≤λ and the source is explicitly applied."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "Membership in R requires a nonzero denominator not divisible by p."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.Prime.coprime_iff_not_dvd",
+              "module": "Mathlib.Data.Nat.Prime.Defs",
+              "signature": "@Nat.Prime.coprime_iff_not_dvd : ∀ {p n : ℕ}, Nat.Prime p → (p.Coprime n ↔ ¬Dvd.dvd.{0} p n)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Prime/Defs.lean",
+              "source_sha256": "617c1a2a927a2a282092f11c8d254036454e7ffa2eab12f8dd16880cf83d0d61",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/cb1bdb38cec7eda24cdcc77cf602f46e7fd3b9ad570cc940b65056098e305c54-library-sources.json",
+                  "sha256": "cb1bdb38cec7eda24cdcc77cf602f46e7fd3b9ad570cc940b65056098e305c54"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG006",
+            "kind": "mathlib",
+            "at": "/inference/argument/2/text",
+            "fact": "For j∈I, binom(λ,j)j!(λ-j)!=λ!. Its inverse in R is j!(λ-j)!/λ!. Comparing this identity for j and λ-j also gives binom(λ,λ-j)=binom(λ,j).",
+            "justification": "Instantiate Nat.choose_mul_factorial_mul_factorial with n=λ and k=j, interpreted as naturals. H003 and j∈I give 0≤j≤λ, so the source premise holds; the analogous premise holds for λ-j. All factorials are positive finite products, and S003 establishes that λ!, j!, (λ-j)! are units of R. Field multiplication verifies the inverse. Comparing the two factorial identities and cancelling their common nonzero factorial factors proves symmetry. These are routine binomial arithmetic, not a replacement of the matrix-unit argument.",
+            "grounds": [
+              {
+                "location": "/inputs/1/statement",
+                "reason": "λ is nonnegative."
+              },
+              {
+                "location": "/definitions/1/definition",
+                "reason": "j∈I means 0≤j≤λ with the stated natural-index convention."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "The author establishes the factorial units before invoking the binomial identity."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.choose_mul_factorial_mul_factorial",
+              "module": "Mathlib.Data.Nat.Choose.Basic",
+              "signature": "@Nat.choose_mul_factorial_mul_factorial : ∀ {n k : ℕ},\n  LE.le.{0} k n →\n    Eq.{1} (HMul.hMul.{0, 0, 0} (HMul.hMul.{0, 0, 0} (n.choose k) k.factorial) (HSub.hSub.{0, 0, 0} n k).factorial)\n      n.factorial",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Choose/Basic.lean",
+              "source_sha256": "e364d90ba28b43f131754ff4e27d81fd935a601369a46a218579703ff4e7c705",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/b0c44a493151ca7fc078cb63e6cf74007e2f86c3579d95bf6f5179dab6d21182-library-sources.json",
+                  "sha256": "b0c44a493151ca7fc078cb63e6cf74007e2f86c3579d95bf6f5179dab6d21182"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG007",
+            "kind": "elementary",
+            "at": "/inference/argument/3/text",
+            "fact": "D010 is legitimate once N001 supplies the finite e-basis: for w=∑_{k∈I}a_k e_k, E_ij(w)=a_j e_i. Moreover two complex linear maps agreeing on every e_k agree on V.",
+            "justification": "A basis means every vector has a unique finite coefficient expansion. The displayed coefficient rule is therefore defined on all V, is additive and homogeneous by uniqueness of coefficients, and has the prescribed basis values. Any linear map with those values has that rule, proving uniqueness. Similarly linearity extends equality on basis vectors to their finite sums. This is the routine definitional completion underlying the author's explicit basis computations, not an imported matrix decomposition theorem.",
+            "grounds": [
+              {
+                "location": "/inputs/4/statement",
+                "reason": "N001 states that (e_k) indexed by finite I is a complex basis of V."
+              },
+              {
+                "location": "/definitions/9/definition",
+                "reason": "D010 specifies precisely these basis values and guards its use by N001."
+              },
+              {
+                "location": "/inference/argument/3/text",
+                "reason": "S004 actually computes all basis images in the three relevant cases."
+              }
+            ]
+          }
+        ],
+        "R003": [
+          {
+            "id": "BG001",
+            "kind": "mathlib",
+            "at": "/inference/argument/1/text",
+            "fact": "For tensors over the commutative ring R, every element of ℚ⊗_R J and of ℚ⊗_R M_R is a finite sum of simple tensors. Consequently additive identities between maps out of these tensor products may be checked on simple tensors.",
+            "justification": "The probed tensor induction principle has zero, simple-tensor and addition cases; induction gives finite-sum generation and equality of additive maps. This supplies only the routine generation fact expressly used in S002 and S003, not the denominator argument, injectivity, or coordinate equivalence.",
+            "grounds": [
+              {
+                "location": "/definitions/5/definition",
+                "reason": "R is the stated commutative rational subring, with its guard H001 directly available."
+              },
+              {
+                "location": "/inputs/0/statement",
+                "reason": "The prime guard for R is a direct premise."
+              },
+              {
+                "location": "/definitions/10/definition",
+                "reason": "J is the R-submodule of ℂ used as the second tensor factor."
+              },
+              {
+                "location": "/inputs/2/statement",
+                "reason": "M_R is the R-module supplied by N002."
+              },
+              {
+                "location": "/inference/argument/1/text",
+                "reason": "The first tensor factor is ℚ with the R-action given by the inclusion R⊂ℚ."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.induction_on",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Defs",
+              "signature": "@TensorProduct.induction_on : ∀ {R : Type u_1} [inst : CommSemiring.{u_1} R] {M : Type u_7} {N : Type u_8} [inst_1 : AddCommMonoid.{u_7} M]\n  [inst_2 : AddCommMonoid.{u_8} N] [inst_3 : _root_.Module.{u_1, u_7} R M] [inst_4 : _root_.Module.{u_1, u_8} R N]\n  {motive : TensorProduct.{u_1, u_7, u_8} R M N → Prop} (z : TensorProduct.{u_1, u_7, u_8} R M N),\n  motive 0 →\n    (∀ (x : M) (y : N), motive (TensorProduct.tmul.{u_1, u_7, u_8} R x y)) →\n      (∀ (x y : TensorProduct.{u_1, u_7, u_8} R M N),\n          motive x → motive y → motive (HAdd.hAdd.{max u_7 u_8, max u_7 u_8, max u_7 u_8} x y)) →\n        motive z",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Defs.lean",
+              "source_sha256": "9dde2d95f3492e97f3b4f02e49dff3b08770f2e17556853c80e974b17e5d08c9",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/a0e08a3e9c6083bfad71707dfe0d215314388e3b0e21382ebf0aa46394b25273-library-sources.json",
+                  "sha256": "a0e08a3e9c6083bfad71707dfe0d215314388e3b0e21382ebf0aa46394b25273"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG002",
+            "kind": "mathlib",
+            "at": "/inference/argument/1/text",
+            "fact": "The displayed R-bilinear multiplication (q,c)↦qc induces an R-linear map μ:ℚ⊗_R J→ℂ with μ(q⊗c)=qc. It is ℚ-linear for the scalar-extension structure.",
+            "justification": "TensorProduct.lift.tmul verifies the standard tensor lift and its evaluation for a bilinear map. Here multiplication is additive in each argument and satisfies (rq)c=q(rc) for r∈R, so it is R-bilinear into ℂ restricted to R. The extra ℚ-linearity follows on a simple tensor from μ((sq)⊗c)=(sq)c=s(qc), and hence on all tensors by BG001. This is the basic universal construction used by the author, not a replacement for the author's injectivity proof.",
+            "grounds": [
+              {
+                "location": "/definitions/5/definition",
+                "reason": "R⊂ℚ⊂ℂ has the usual compatible scalar multiplications."
+              },
+              {
+                "location": "/definitions/10/definition",
+                "reason": "J is an R-submodule of ℂ, so multiplication by r∈R stays in J."
+              },
+              {
+                "location": "/inference/argument/1/text",
+                "reason": "T and the intended bilinear formula are explicitly introduced before the injectivity argument."
+              },
+              {
+                "location": "/inputs/0/statement",
+                "reason": "H001 supplies the subring definition guard."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.lift.tmul",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b-library-sources.json",
+                  "sha256": "15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG003",
+            "kind": "mathlib",
+            "at": "/inference/argument/2/text",
+            "fact": "The two displayed bilinear constructions in S003 induce linear maps on the indicated tensor products: the coordinate map on ℚ⊗_R M_R and, for each i∈I, the map ℚ⊗_R J→ℚ⊗_R M_R given by q⊗c↦q⊗(c e_i). They are ℚ-linear.",
+            "justification": "F001 makes coordinate extraction R-linear: coordinates of m+m' and b m are respectively c_i+c'_i and b c_i by uniqueness and the vector-space distributive laws. Thus (q,m)↦(q⊗c_i(m))_i is R-bilinear, as is (q,c)↦q⊗(c e_i), since c e_i belongs to M_R by F001. Apply the probed tensor lift and its evaluation formula to each. Scaling the first tensor factor verifies ℚ-linearity on generators and BG001 extends it. This is routine justification of the author's explicit maps; the inverse identities and finite-coordinate decomposition remain the displayed local proof.",
+            "grounds": [
+              {
+                "location": "/inference/argument/0/produces/0/statement",
+                "reason": "F001 provides unique J-valued coordinates for every element of M_R and inclusion c e_i∈M_R."
+              },
+              {
+                "location": "/inference/argument/1/produces/0/statement",
+                "reason": "F002 defines T=ℚ⊗_R J with its vector-space structure."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "S003 explicitly specifies both maps, their bilinear origin and their inverse calculations."
+              },
+              {
+                "location": "/definitions/5/definition",
+                "reason": "All R-actions are compatible with the subring inclusion into ℚ and ℂ."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.lift.tmul",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b-library-sources.json",
+                  "sha256": "15d698fc6f1e4fc3298fecc2c464a5a6840f74e6037cd3df35621269ee81763b"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG004",
+            "kind": "mathlib",
+            "at": "/inference/argument/3/text",
+            "fact": "ℚ satisfies StrongRankCondition, as required for the applications of M002 and M004.",
+            "justification": "The probed declaration supplies StrongRankCondition for every nontrivial commutative ring. The standard rational field ℚ is a nontrivial commutative ring. No condition on R or on a module is required for this instance. This records the ordinary omitted typeclass fact behind the author's assertion.",
+            "grounds": [
+              {
+                "location": "/inference/argument/1/produces/0/statement",
+                "reason": "F002 makes T a vector space over the standard rational field ℚ."
+              },
+              {
+                "location": "/definitions/5/definition",
+                "reason": "The ambient scalar field ℚ here is the standard rationals with usual arithmetic, not an unspecified semiring."
+              }
+            ],
+            "source": {
+              "declaration": "commRing_strongRankCondition",
+              "module": "Mathlib.LinearAlgebra.FreeModule.StrongRankCondition",
+              "signature": "@commRing_strongRankCondition : ∀ (R : Type u_1) [inst : CommRing.{u_1} R] [Nontrivial.{u_1} R], StrongRankCondition.{u_1} R",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/FreeModule/StrongRankCondition.lean",
+              "source_sha256": "5e08e3adccbb7786d9cee448270ccd0e50b0408e4411ac397e81edb1ea694582",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/c6844527d8e545305779316aac817c0e6c0a915c2d4028523149f4ff023710ed-library-sources.json",
+                  "sha256": "c6844527d8e545305779316aac817c0e6c0a915c2d4028523149f4ff023710ed"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG005",
+            "kind": "mathlib",
+            "at": "/inference/argument/4/text",
+            "fact": "After M003 gives span_ℚ{1⊗a}=T, membership of 1⊗z in that span yields a rational q with q(1⊗a)=1⊗z.",
+            "justification": "The probed singleton-span characterization states exactly that membership in span{u} is equivalent to being a scalar multiple of u, for any semiring module. Apply it with R=ℚ, module T, u=1⊗a and x=1⊗z. The singleton family's range is {u}, and M003 supplies membership because its span is top. This is the routine interpretation of the author's M003 conclusion, not an additional dimension argument.",
+            "grounds": [
+              {
+                "location": "/inference/argument/1/produces/0/statement",
+                "reason": "F002 gives T as a ℚ-vector space."
+              },
+              {
+                "location": "/inference/argument/3/produces/0/statement",
+                "reason": "F004 supplies dimension 1, used to satisfy M003."
+              },
+              {
+                "location": "/inputs/5/statement",
+                "reason": "M003 is a direct premise with conclusion span of the family is all of T."
+              },
+              {
+                "location": "/inference/argument/4/text",
+                "reason": "The author introduces a,z∈J, proves the nonzero singleton's independence under a≠0 and applies M003 before extracting q."
+              }
+            ],
+            "source": {
+              "declaration": "Submodule.mem_span_singleton",
+              "module": "Mathlib.LinearAlgebra.Span.Defs",
+              "signature": "@Submodule.mem_span_singleton : ∀ {R : Type u_1} {M : Type u_4} [inst : Semiring.{u_1} R] [inst_1 : AddCommMonoid.{u_4} M]\n  [inst_2 : _root_.Module.{u_1, u_4} R M] {x y : M},\n  Membership.mem.{u_4, u_4} (Submodule.span.{u_1, u_4} R (singleton.{u_4, u_4} y)) x ↔\n    ∃ a, Eq.{u_4 + 1} (HSMul.hSMul.{u_1, u_4, u_4} a y) x",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/Span/Defs.lean",
+              "source_sha256": "1232470fae437db186c8cbd5a8bd94565b5cb80ee4c956cf59b078515170c352",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/84ff35763d340cec505257af0025e34e495dcf9d6753da27d27dec914a74285c-library-sources.json",
+                  "sha256": "84ff35763d340cec505257af0025e34e495dcf9d6753da27d27dec914a74285c"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG006",
+            "kind": "mathlib",
+            "at": "/inference/argument/1/text",
+            "fact": "Under H001, the fractions in D007 form a commutative subring R⊂ℚ containing ℤ. Thus the usual R-actions and inclusions R→ℚ→ℂ used here are legitimate, and integer numerators can act on J.",
+            "justification": "The probed Nat.prime_iff_prime_int transfers H001 to primality of (p:ℤ). Unfolding the checked Prime definition gives the prime-divides-product implication, so p∤b and p∤d imply p∤bd. Also p∤1: a divisor of 1 is a unit, excluded by that definition. Fractions with admissible denominators are closed under addition and multiplication by using denominator bd≠0, and under negation by negating the numerator. Fractions 0/1, 1/1 and k/1 for every integer k are admissible. These elementary fraction calculations establish the subring guard and integer inclusion. This is routine validation of the displayed rational subring, not a localization or tensor exactness theorem.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "H001 states p is a natural prime."
+              },
+              {
+                "location": "/definitions/5/definition",
+                "reason": "D007 defines exactly these fractions and their usual arithmetic and embedding."
+              },
+              {
+                "location": "/definitions/10/definition",
+                "reason": "J is an R-submodule, so closure under these integer scalars justifies balancing numerators into J."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.prime_iff_prime_int",
+              "module": "Mathlib.Data.Nat.Prime.Int",
+              "signature": "@Nat.prime_iff_prime_int : ∀ {p : ℕ}, Nat.Prime p ↔ Prime.{0} ↑p",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Prime/Int.lean",
+              "source_sha256": "fa9dc861fe780f4e3b98fd83322a81e376dae25a39e2653e418c4bc38f5cc4fe",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/7537e5844b0a933aa3c2bda644a76e86ac4e76b9dbb99fe709451ddb31ffb73f-library-sources.json",
+                  "sha256": "7537e5844b0a933aa3c2bda644a76e86ac4e76b9dbb99fe709451ddb31ffb73f"
+                }
+              ]
+            }
+          }
+        ],
+        "R004": [
+          {
+            "id": "BG001",
+            "kind": "elementary",
+            "at": "/inference/argument/2/text",
+            "fact": "From n=λ+1>0 with λ∈ℤ and I={i∈ℤ:0≤i≤λ}, I has n elements (with the usual identification of a nonnegative integer and its natural-number cardinality).",
+            "justification": "Here λ≥0. Writing λ=L for its corresponding natural number, enumerate I by 0,1,...,L. Each listed integer lies in I, every integer in I occurs, and different indices give different integers. Counting this list by induction gives L+1=n. This completes only the routine finite count implicit in S003, not a basis or structure theorem.",
+            "grounds": [
+              {
+                "location": "/inputs/1/statement",
+                "reason": "Supplies n>0."
+              },
+              {
+                "location": "/definitions/0/definition",
+                "reason": "Defines n=λ+1."
+              },
+              {
+                "location": "/definitions/1/definition",
+                "reason": "Defines the integer interval I."
+              },
+              {
+                "location": "/parameters/2",
+                "reason": "Specifies that λ is an integer."
+              }
+            ]
+          }
+        ],
+        "R005": [
+          {
+            "id": "BG001",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For every integer a, its image in K is zero iff (p:ℤ) divides a. In particular denominators prime to p have nonzero image; this also justifies the kernel computation in S002.",
+            "justification": "Apply the probed theorem with R=K and characteristic p from H002. K is a field, hence an additive group with one. This is routine characteristic accounting, not a new hypothesis or localization theorem.",
+            "grounds": [
+              {
+                "location": "/parameters/1",
+                "reason": "K is a field."
+              },
+              {
+                "location": "/inputs/1/statement",
+                "reason": "H002 supplies CharP K p."
+              },
+              {
+                "location": "/definitions/5/definition",
+                "reason": "R uses exactly fractions with denominators not divisible by p."
+              }
+            ],
+            "source": {
+              "declaration": "CharP.intCast_eq_zero_iff",
+              "module": "Mathlib.Algebra.CharP.Defs",
+              "signature": "@CharP.intCast_eq_zero_iff : ∀ (R : Type u_1) [inst : AddGroupWithOne.{u_1} R] (p : ℕ) [CharP.{u_1} R p] (a : ℤ),\n  Eq.{u_1 + 1} (↑a) 0 ↔ Dvd.dvd.{0} (↑p) a",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Algebra/CharP/Defs.lean",
+              "source_sha256": "c953ac8b9771faa17533f1511b69610f4d217549e5f6a046b01611384b2c51e0",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/ea6d11a79f850139fed59f57ebed14e30a644f4727a89e2b666dec08513960d0-library-sources.json",
+                  "sha256": "ea6d11a79f850139fed59f57ebed14e30a644f4727a89e2b666dec08513960d0"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG002",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For prime p and every natural m, p.Coprime m iff p does not divide m.",
+            "justification": "This is the exact probed Nat.Prime.coprime_iff_not_dvd with H001. Together with symmetry of coprimality it supplies the routine number-theoretic premise for the residue-unit criterion in BG004.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "H001 states p is prime."
+              }
+            ],
+            "source": {
+              "declaration": "Nat.Prime.coprime_iff_not_dvd",
+              "module": "Mathlib.Data.Nat.Prime.Defs",
+              "signature": "@Nat.Prime.coprime_iff_not_dvd : ∀ {p n : ℕ}, Nat.Prime p → (p.Coprime n ↔ ¬Dvd.dvd.{0} p n)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/Nat/Prime/Defs.lean",
+              "source_sha256": "617c1a2a927a2a282092f11c8d254036454e7ffa2eab12f8dd16880cf83d0d61",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/adddf970ddc1f0bb546a32b9f65701a2880c881ca1ddf26442e977c484944ded-library-sources.json",
+                  "sha256": "adddf970ddc1f0bb546a32b9f65701a2880c881ca1ddf26442e977c484944ded"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG003",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "Every element of ℱ_p=ℤ/pℤ has a natural-number representative.",
+            "justification": "Apply ZMod.natCast_zmod_surjective at n=p. H001 gives p≥2 and hence p≠0. This only supplies ordinary representatives for the prime residue ring, not a project witness.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "p is prime, so nonzero."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "The residue ring ℱ_p is explicitly introduced as ℤ/pℤ."
+              }
+            ],
+            "source": {
+              "declaration": "ZMod.natCast_zmod_surjective",
+              "module": "Mathlib.Data.ZMod.Basic",
+              "signature": "@ZMod.natCast_zmod_surjective : ∀ {n : ℕ} [NeZero.{0} n], Function.Surjective.{1, 1} Nat.cast.{0}",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/ZMod/Basic.lean",
+              "source_sha256": "9a57047615cf4231f3561aef5c75ededf5a6ed6559308f31e241d1d27b2bc00c",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/1fba408ba124b530c1601a59b8c6df0bf866a11814b322c086b46238a20e3213-library-sources.json",
+                  "sha256": "1fba408ba124b530c1601a59b8c6df0bf866a11814b322c086b46238a20e3213"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG004",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For naturals m,n, the residue of m in ℤ/nℤ is a unit iff m.Coprime n. In the packet this implies that every nonzero element of ℱ_p is invertible, so ℱ_p is a field.",
+            "justification": "The first sentence is exactly the probed theorem. For the application, BG003 supplies a natural representative m of a nonzero residue. If p divided m its residue would be zero by the quotient relation, so BG002 and symmetry give m.Coprime p. Thus the theorem supplies its inverse. Since p is prime, 1 is not zero modulo p; the commutative residue ring therefore has the asserted field property. The integer map into K factors through this quotient because p=0 in K (BG001); its factor is injective since a nonzero kernel element would be invertible and force 1=0 in the field K. This verifies the routine prime-field step actually used in S001-S003.",
+            "grounds": [
+              {
+                "location": "/inputs/0/statement",
+                "reason": "H001 supplies primality and p≥2."
+              },
+              {
+                "location": "/inputs/1/statement",
+                "reason": "H002 makes p zero in K."
+              },
+              {
+                "location": "/parameters/1",
+                "reason": "K is a field and in particular nontrivial."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "The proof introduces ℱ_p as the residue ring and uses its unital map into K."
+              }
+            ],
+            "source": {
+              "declaration": "ZMod.isUnit_iff_coprime",
+              "module": "Mathlib.Data.ZMod.Basic",
+              "signature": "@ZMod.isUnit_iff_coprime : ∀ (m n : ℕ), IsUnit.{0} ↑m ↔ m.Coprime n",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/Data/ZMod/Basic.lean",
+              "source_sha256": "9a57047615cf4231f3561aef5c75ededf5a6ed6559308f31e241d1d27b2bc00c",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/949455ff0be1e18788e2440461d55ab5a14754adf809f7c93528cfa673abfffb-library-sources.json",
+                  "sha256": "949455ff0be1e18788e2440461d55ab5a14754adf809f7c93528cfa673abfffb"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG005",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "The additive balanced formulas for A and its inverse in S001 induce maps on the tensor products with exactly their stated simple-tensor values.",
+            "justification": "Apply the checked TensorProduct.lift.tmul universal property, with bases ℤ and R and target scalar actions induced by ρ. All are commutative rings and all factors have their stated module structures. For A, (1⊗zm)⊗c=(1⊗m)⊗bar(z)c. For its inverse, ((rs)⊗m,c) and (r⊗m,ρ(s)c) both give m⊗ρ(r)ρ(s)c; inner ℤ-balancing uses ρ(zr)=bar(z)ρ(r). Additivity follows from the displayed tensor formulas and K-linearity by multiplying c. This accounts for the basic universal property, not a new tensor-identification theorem.",
+            "grounds": [
+              {
+                "location": "/definitions/6/definition",
+                "reason": "M_R is R⊗_ℤ M."
+              },
+              {
+                "location": "/definitions/10/definition",
+                "reason": "V(K) is M⊗_ℤ K."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "ρ and both directions of A are explicitly given; the ring-map identities for ρ are proved before this use."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.lift.tmul",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142-library-sources.json",
+                  "sha256": "10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG006",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "Two linear maps out of a tensor product which agree on every simple tensor are equal. In S001 this verifies the inverse identities for A.",
+            "justification": "Apply TensorProduct.ext, using equality of the two bilinear composites, obtained pointwise on simple tensors. This applies first to M⊗_ℤ K and then to M_R⊗_R K; for the latter use inner ℤ-tensor extensionality as well. The composites are linear by BG005, and the generator computations displayed in S001 give identity: m⊗c returns to itself and (r⊗m)⊗c=(1⊗m)⊗ρ(r)c. Thus this is routine generator accounting for the actual displayed inverse, not an assumed isomorphism.",
+            "grounds": [
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "Both maps and their inverse computations on generating tensors are displayed."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "The inner tensor product defining M_R has base ℤ."
+              },
+              {
+                "location": "/definitions/10/definition",
+                "reason": "The source of A is the stated tensor product."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.ext",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.ext : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {g h : LinearMap.{u_1, u_2, max u_8 u_7, u_17} σ₁₂ (TensorProduct.{u_1, u_7, u_8} R M N) P₂},\n  Eq.{max (max (u_17 + 1) (u_7 + 1)) (u_8 + 1)}\n      (LinearMap.compr₂ₛₗ.{u_1, u_1, u_1, u_2, u_7, u_8, max u_7 u_8, u_17} (TensorProduct.mk.{u_1, u_7, u_8} R M N) g)\n      (LinearMap.compr₂ₛₗ.{u_1, u_1, u_1, u_2, u_7, u_8, max u_7 u_8, u_17} (TensorProduct.mk.{u_1, u_7, u_8} R M N)\n        h) →\n    Eq.{max (max (u_17 + 1) (u_7 + 1)) (u_8 + 1)} g h",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/1397f779dac02e5a9a3e0e4b09e6063fe3b6fc687f929cf8ba145b7dc100e57e-library-sources.json",
+                  "sha256": "1397f779dac02e5a9a3e0e4b09e6063fe3b6fc687f929cf8ba145b7dc100e57e"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG007",
+            "kind": "mathlib",
+            "at": "/inference/argument/1/text",
+            "fact": "The balanced formulas B(u⊗c)=[u]⊗c and B⁻¹([u]⊗c)=u⊗c extend to linear maps on the indicated tensors.",
+            "justification": "Use the same checked tensor universal property. On the forward map the base is R and the target action factors through R/pR=ℱ_p, so [ru]⊗c=[u]⊗ρ(r)c. For the reverse map choose a representative u; changing u by pw changes u⊗c by w⊗pc=0. Lifting a prime-field scalar to r gives exactly the R-balancing equation displayed in S002; changing this lift by pR also gives zero. Additivity and K-linearity follow from those same formulas. The packet's simple-tensor inverse computations, with extensionality BG006, prove the isomorphism. No quotient-tensor isomorphism is being assumed.",
+            "grounds": [
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "ρ and the prime-field embedding into K are established."
+              },
+              {
+                "location": "/inference/argument/1/text",
+                "reason": "ker ρ=pR, its prime-field image, lift independence and scalar balancing are explicitly proved before asserting the inverse."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "M_R is an R-module."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.lift.tmul",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142-library-sources.json",
+                  "sha256": "10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG008",
+            "kind": "mathlib",
+            "at": "/inference/argument/2/text",
+            "fact": "The tensor flip between K⊗_R M_R and M_R⊗_R K is a K-linear isomorphism, by the two simple-tensor formulas explicitly displayed in S003.",
+            "justification": "The basic universal property TensorProduct.lift.tmul applies over the commutative ring R. The rule c,u↦u⊗c is additive in each variable and sends (ρ(r)c,u) and (c,ru) to the same tensor by balancing; the reverse rule has the identical check. Both are K-linear for the scalar action on the K factor. Their composites are identities on simple tensors, hence identities by BG006. This checks the author's explicit flip construction rather than importing a substantial base-change result.",
+            "grounds": [
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "ρ equips K with its R-algebra structure."
+              },
+              {
+                "location": "/definitions/6/definition",
+                "reason": "M_R has the required R-module structure."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "The forward and reverse flip rules and their identity computations are explicitly given."
+              }
+            ],
+            "source": {
+              "declaration": "TensorProduct.lift.tmul",
+              "module": "Mathlib.LinearAlgebra.TensorProduct.Basic",
+              "signature": "@TensorProduct.lift.tmul : ∀ {R : Type u_1} {R₂ : Type u_2} [inst : CommSemiring.{u_1} R] [inst_1 : CommSemiring.{u_2} R₂]\n  {σ₁₂ : RingHom.{u_1, u_2} R R₂} {M : Type u_7} {N : Type u_8} {P₂ : Type u_17} [inst_2 : AddCommMonoid.{u_7} M]\n  [inst_3 : AddCommMonoid.{u_8} N] [inst_4 : AddCommMonoid.{u_17} P₂] [inst_5 : _root_.Module.{u_1, u_7} R M]\n  [inst_6 : _root_.Module.{u_1, u_8} R N] [inst_7 : _root_.Module.{u_2, u_17} R₂ P₂]\n  {f' : LinearMap.{u_1, u_2, u_7, max u_17 u_8} σ₁₂ M (LinearMap.{u_1, u_2, u_8, u_17} σ₁₂ N P₂)} (x : M) (y : N),\n  Eq.{u_17 + 1} ((TensorProduct.lift.{u_1, u_2, u_7, u_8, u_17} f') (TensorProduct.tmul.{u_1, u_7, u_8} R x y))\n    ((f' x) y)",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basic.lean",
+              "source_sha256": "1559ba16bff8a7deb88b310c3a12220577f1c7b821d8db1beb5e183084e438ec",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142-library-sources.json",
+                  "sha256": "10e7506a38a8296641e051ca721836307174b11d9547188f5315e34469b9c142"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG009",
+            "kind": "mathlib",
+            "at": "/inference/argument/2/text",
+            "fact": "K satisfies the strong rank condition, as required for the M002 application.",
+            "justification": "The probed commRing_strongRankCondition applies to every nontrivial commutative ring. K is a field by the packet parameter, hence has both properties. This checks the otherwise omitted basic typeclass premise; the basis itself is obtained from M001 and the displayed transports, not from this note.",
+            "grounds": [
+              {
+                "location": "/parameters/1",
+                "reason": "K is a field."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "S003 applies M002 over K to the basis just constructed."
+              }
+            ],
+            "source": {
+              "declaration": "commRing_strongRankCondition",
+              "module": "Mathlib.LinearAlgebra.FreeModule.StrongRankCondition",
+              "signature": "@commRing_strongRankCondition : ∀ (R : Type u_1) [inst : CommRing.{u_1} R] [Nontrivial.{u_1} R], StrongRankCondition.{u_1} R",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/FreeModule/StrongRankCondition.lean",
+              "source_sha256": "5e08e3adccbb7786d9cee448270ccd0e50b0408e4411ac397e81edb1ea694582",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/39080e0d941aaf5ccf64232ca95b832f87660b446e41d9e063ab0a13d62e3818-library-sources.json",
+                  "sha256": "39080e0d941aaf5ccf64232ca95b832f87660b446e41d9e063ab0a13d62e3818"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG010",
+            "kind": "elementary",
+            "at": "/inference/argument/2/text",
+            "fact": "Transporting the base-changed basis through the displayed flip and A⁻¹ gives a basis β; reducing the R-basis (b e_i) modulo p gives the stated ℱ_p-basis.",
+            "justification": "For transport, expand an arbitrary vector after applying the linear isomorphism in the given basis and apply its inverse; a relation among the transported vectors maps to a relation in that basis, hence all coefficients vanish. For reduction, write u uniquely as the finite sum Σ a_i b e_i. Its class vanishes iff u=pw; expansion of w proves all a_i are multiples of p, and conversely such coefficients give u=pΣ d_i b e_i. Thus residue coordinates exist uniquely, and B takes (b e_i)⊗1 to [b e_i]⊗1. This is an explicit finite-coordinate check of the exact transports in S003; no additional freeness or quotient-basis theorem is assumed.",
+            "grounds": [
+              {
+                "location": "/inputs/4/statement",
+                "reason": "N004 supplies the chosen nonzero b and the R-basis."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "A and its inverse are constructed."
+              },
+              {
+                "location": "/inference/argument/1/text",
+                "reason": "B and the residue-scalar identification are constructed."
+              },
+              {
+                "location": "/inference/argument/2/text",
+                "reason": "M001 supplies the base-changed basis and the flip is constructed before transporting it."
+              }
+            ]
+          },
+          {
+            "id": "BG011",
+            "kind": "elementary",
+            "at": "/inference/argument/3/text",
+            "fact": "The action and tensor compatibility asserted in S004 indeed give [h,x]=2x, [h,y]=−2y, [x,y]=h, with commutator AB−BA, and preserve the divided-power identities.",
+            "justification": "On e_i, the coefficient difference for [h,x] is 2(λ−i+1), for [h,y] it is −2(i+1), and for [x,y] it is (i+1)(λ−i)−i(λ−i+1)=λ−2i, with zero endpoint terms; λ=0 also gives all three identities. These finite checks use exactly N001. They hold on b e_i by complex linearity. The restrictions exist by N002. Tensor extension respects addition and composition by evaluating on m⊗c, then using BG006. A intertwines an operator L because both routes send m⊗c to (1⊗Lm)⊗c; B intertwines because both send u⊗c to [Lu]⊗c. Finally r!X_r=x^r and r!Y_r=y^r are the defining identities restricted to M, so persist on tensors. This is routine expansion of S004's stated route, not an added representation assumption.",
+            "grounds": [
+              {
+                "location": "/inputs/2/statement",
+                "reason": "N001 supplies the complete action matrices and complex basis."
+              },
+              {
+                "location": "/inputs/3/statement",
+                "reason": "N002 supplies preservation of M and M_R and the induced Chevalley action."
+              },
+              {
+                "location": "/definitions/2/definition",
+                "reason": "X_r=x^r/r! on V."
+              },
+              {
+                "location": "/definitions/3/definition",
+                "reason": "Y_r=y^r/r! on V."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "A has the displayed generator formula."
+              },
+              {
+                "location": "/inference/argument/1/text",
+                "reason": "B has the displayed quotient-generator formula."
+              },
+              {
+                "location": "/inference/argument/3/text",
+                "reason": "S004 uses exactly these generator and finite-action checks."
+              }
+            ]
+          }
+        ],
+        "R006": [
+          {
+            "id": "BG001",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For the supplied finite K-basis β indexed by I, every u∈V(K) satisfies u=∑_{i∈I}(β.repr u)_i β_i.",
+            "justification": "This is the routine finite coordinate expansion used explicitly in S001 and in the spanning conclusion of S002, not an additional basis-existence claim. Apply Module.Basis.sum_repr with ι=I, R=K, M=V(K), b=β. K is a field and V(K) is its vector space, so the semiring, additive commutative monoid and module premises hold. D002 supplies a finite index set; choose its finite enumeration classically. No characteristic condition or finite-dimensional existence theorem is needed. Given the nonzero vector already obtained from W≠{0}, all-zero coordinates would make the displayed finite sum zero, as the prose explains.",
+            "grounds": [
+              {
+                "location": "/parameters/1",
+                "reason": "K is a field, hence a semiring."
+              },
+              {
+                "location": "/definitions/9",
+                "reason": "D013 supplies the K-vector space V(K)."
+              },
+              {
+                "location": "/definitions/1",
+                "reason": "D002 specifies I as a finite set of integers."
+              },
+              {
+                "location": "/inputs/0/statement",
+                "reason": "N005 explicitly supplies a K-basis β indexed by I."
+              },
+              {
+                "location": "/inference/argument/0/text",
+                "reason": "S001 chooses this basis and obtains a nonzero vector from the nonzero-subspace branch before discussing its expansion."
+              }
+            ],
+            "hint": "Use β.sum_repr u; reverse the equality for the packet's expansion convention.",
+            "source": {
+              "declaration": "Module.Basis.sum_repr",
+              "module": "Mathlib.LinearAlgebra.Basis.Defs",
+              "signature": "@Module.Basis.sum_repr : ∀ {ι : Type u_1} {R : Type u_3} {M : Type u_6} [inst : Semiring.{u_3} R] [inst_1 : AddCommMonoid.{u_6} M]\n  [inst_2 : _root_.Module.{u_3, u_6} R M] [inst_3 : Fintype.{u_1} ι] (b : Module.Basis.{u_1, u_3, u_6} ι R M) (u : M),\n  Eq.{u_6 + 1} (∑ i, HSMul.hSMul.{u_3, u_6, u_6} (((Module.Basis.repr.{u_1, u_3, u_6} b) u) i) (b i)) u",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/Basis/Defs.lean",
+              "source_sha256": "3cceec3b7ad802f80a65cf4a226522ef1107fbb57ab4e35b830c95d408e7adb3",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/5e1a9f6398b512e3508fd950693c4be279a863a4480df98fcdd287af8505ccff-library-sources.json",
+                  "sha256": "5e1a9f6398b512e3508fd950693c4be279a863a4480df98fcdd287af8505ccff"
+                }
+              ]
+            }
+          },
+          {
+            "id": "BG002",
+            "kind": "mathlib",
+            "at": "/inference/argument/0/text",
+            "fact": "For β supplied by N005 and any i∈I, β_i≠0. In particular β_0≠0, since H003 and D002 give 0∈I.",
+            "justification": "Apply Module.Basis.ne_zero with ι=I, R=K, M=V(K), b=β, i=0. The needed module and additive structure come from D013; the semiring and nontrivial scalar premises come from K being a field. This theorem requires no prior nontriviality of V(K), so there is no circular reasoning in deriving F003. It records the routine consequence of basis independence already invoked in the prose, rather than supplying any new basis or project result.",
+            "grounds": [
+              {
+                "location": "/parameters/1",
+                "reason": "The scalar field K is nontrivial."
+              },
+              {
+                "location": "/definitions/9",
+                "reason": "V(K) is a K-vector space."
+              },
+              {
+                "location": "/inputs/0/statement",
+                "reason": "N005 supplies the basis β."
+              },
+              {
+                "location": "/inputs/1/statement",
+                "reason": "H003 gives 0≤λ."
+              },
+              {
+                "location": "/definitions/1",
+                "reason": "I={i∈ℤ:0≤i≤λ}, so 0∈I."
+              }
+            ],
+            "hint": "Use β.ne_zero (⟨0, by ...⟩ : I).",
+            "source": {
+              "declaration": "Module.Basis.ne_zero",
+              "module": "Mathlib.LinearAlgebra.Basis.Basic",
+              "signature": "@Module.Basis.ne_zero : ∀ {ι : Type u_1} {R : Type u_3} {M : Type u_5} [inst : Semiring.{u_3} R] [inst_1 : AddCommMonoid.{u_5} M]\n  [inst_2 : _root_.Module.{u_3, u_5} R M] (b : Module.Basis.{u_1, u_3, u_5} ι R M) [Nontrivial.{u_3} R] (i : ι),\n  Ne.{u_5 + 1} (b i) 0",
+              "declaration_kind": "theorem",
+              "source_path": "Mathlib/LinearAlgebra/Basis/Basic.lean",
+              "source_sha256": "9f7f63f6af68c2d3a3ab8a9cf24cca5474336256d67aa54f4ab0bdba99f7ed96",
+              "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+              "evidence": [
+                {
+                  "path": "review-evidence/reuse/c24d7bec9148f563a9cc943b8ff792eee74c3fc0e2a2de1024af7ebbdee5fa83-library-sources.json",
+                  "sha256": "c24d7bec9148f563a9cc943b8ff792eee74c3fc0e2a2de1024af7ebbdee5fa83"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "sha256": "49288dfc01b5f0cbb10fe0ab9929bbc06b727a36d00a13a00924063f9247d99f"
+    },
+    "background_supplement_sha256": "49288dfc01b5f0cbb10fe0ab9929bbc06b727a36d00a13a00924063f9247d99f"
+  },
+  "source_steps": [
+    {
+      "id": "S001",
+      "text": "H003 gives n>0 and I has n elements. We prove the two string formulas by induction. At m=0, h v=λv and xv=0 by H005. For the step temporarily assume L1: h y^m v=(λ-2m)y^m v, and, if m≥1, x y^m v=m(λ-m+1)y^{m-1}v (with xy^0v=0 at m=0). From [h,y]=-2y and [x,y]=h in H004, h y^{m+1}v=y h y^m v-2y^{m+1}v=(λ-2m-2)y^{m+1}v, while x y^{m+1}v=y x y^m v+h y^m v=[m(λ-m+1)+λ-2m]y^m v=(m+1)(λ-m)y^m v. This also holds at m=0 using xv=0. Discharge L1; induction proves the asserted formulas for all nonnegative m."
+    },
+    {
+      "id": "S002",
+      "text": "For every i∈I, iteration of F001 gives x^i y^i v=i! λ(λ-1)⋯(λ-i+1)v. For i=0 this is v with empty product 1. For 1≤i≤λ each factor is a positive integer and hence nonzero in ℂ. H005 gives v≠0, so y^iv and e_i are nonzero. Their h-eigenvalues λ-2i are pairwise distinct in ℂ. To check independence, fix arbitrary c:I→ℂ and j∈I, and temporarily assume L2: ∑_{i∈I}c_i e_i=0. Apply ∏_{k∈I,k≠j}(h-(λ-2k)Id). Every term except the j-th is zero; the remaining term is c_j∏_{k≠j}2(k-j)e_j=0. The product and e_j are nonzero, so c_j=0. Since j was arbitrary every coefficient is zero. Discharging L2 and quantifying over c proves that the whole family is linearly independent."
+    },
+    {
+      "id": "S003",
+      "text": "Apply M003 with A=ℂ, T=V, Q=I and f=e. F001 makes I finite and nonempty; F002 supplies independence; H004 and card(I)=n=λ+1 give the required dimension equality. Thus e spans V, so together with independence it is a basis. F001 at m=λ+1 says y^{λ+1}v, if nonzero, is an eigenvector of eigenvalue -λ-2. Expand this vector in the e-basis. Applying h-(-λ-2)Id shows each coefficient times (λ-2i+λ+2)=2(λ+1-i) is zero; these eigenvalue-difference factors are nonzero scalars for i∈I. Hence every coordinate is zero and y^{λ+1}v=0. All higher powers vanish by further application of y."
+    },
+    {
+      "id": "S004",
+      "text": "Divide the string identities F001 by i!: e_0=v, xe_0=0, xe_i=(λ-i+1)e_{i-1} for 1≤i≤λ, he_i=(λ-2i)e_i; directly ye_i=(i+1)e_{i+1} for i<λ, and ye_λ=0 by F003. For r≤i, iteration and division by r! give X_r e_i=[(λ-i+1)⋯(λ-i+r)/r!]e_{i-r}=binom(λ-i+r,r)e_{i-r}; if r>i the iteration passes xe_0=0. Similarly Y_r e_i=[(i+1)⋯(i+r)/r!]e_{i+r}=binom(i+r,r)e_{i+r} when i+r≤λ, and otherwise is zero by F003. These binomial numbers are integers (they count r-element subsets of a set of the indicated nonnegative size). This proves the basis, termination and all the asserted action formulas."
+    },
+    {
+      "id": "S005",
+      "text": "By H006 choose an integer basis of M that is also a complex basis of V. Its index set is finite because V has finite complex dimension (H004). M002 applied to this complex basis over ℂ counts its elements as dim_ℂ V=n. N001 gives card(I)=n, so reindexing gives an integer basis indexed by I. This proves F001. H001 ensures R is a subring: products of integers not divisible by the prime p are again not divisible by p, and addition and multiplication of the stated fractions preserve the denominator condition."
+    },
+    {
+      "id": "S006",
+      "text": "Choose f as in F001. M001 with A=ℤ, B=R and T=M gives the R-basis (1⊗f_i)_{i∈I} of M_R. Under ι_R these vectors go to f_i. If ∑ r_i f_i=0 with r_i∈R, complex independence of f gives every r_i=0. Hence ι_R is injective. Its image contains f and therefore spans V over ℂ. This also proves that M_R is free of rank n. From now on identify M_R with this image."
+    },
+    {
+      "id": "S007",
+      "text": "Admissibility H006 makes every X_r,Y_r preserve M; their complex linearity then preserves the R-span M_R. In particular x=X_1 and y=Y_1 preserve M, and h=[x,y]=xy-yx does too by H004. These integral operators obey the Chevalley brackets on M and therefore induce the stated action after tensoring. For any 0≤t≤λ, H003 gives t<p; applying M006 with ℓ=p to this arbitrary t and H001 gives p coprime to t!, hence p does not divide t!. Thus 1/t!∈R and t! is a unit. In particular λ!, j!, (λ-j)! are units for j∈I. The integer identity binom(λ,j)j!(λ-j)!=λ! shows that binom(λ,j) is a unit of R, with inverse j!(λ-j)!/λ!."
+    },
+    {
+      "id": "S008",
+      "text": "Compute on the complex e-basis of N001. X_λ kills all e_k with k<λ and sends e_λ to e_0 with coefficient binom(λ,λ)=1; Y_λ sends e_0 to e_λ with coefficient 1. Thus Y_λ X_λ=E_{λλ}. Also X_{λ-i}e_λ=e_i with coefficient 1, so X_{λ-i}E_{λλ}=E_{iλ}. For E_{λλ}Y_{λ-j}, an input e_k with k<j is sent below e_λ and killed by the projection; if k>j it is sent beyond the end of the string and is zero. On e_j the coefficient is binom(λ,λ-j)=binom(λ,j). Thus E_{λλ}Y_{λ-j}=binom(λ,j)E_{λj}. Composing gives E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Every factor preserves M_R by F003, and its scalar lies in R. Hence all E_ij preserve M_R. These identities and preservation statements require no distinction of weights modulo p."
+    },
+    {
+      "id": "S009",
+      "text": "Use the embedding of N002. E_ii maps M_R onto Jcoord_i e_i, because it extracts the i-th coordinate on the N001 basis. For i,j∈I and c∈Jcoord_j, E_ij(c e_j)=c e_i belongs to M_R by N002, so c∈Jcoord_i. Interchanging i,j proves equality. N001 gives 0∈I and e_0=v, hence the common module is J. The projection E_00 of a finite R-basis of M_R (N002) gives finitely many generators of J e_0; since e_0≠0, their coefficients generate J. Temporarily assume L1: J={0}. Then every projection E_ii would vanish on M_R, and their sum is Id_V, so M_R would be zero. This contradicts its complex span V and n>0 from N001. Discharge L1 to conclude J≠{0}. Finally, coordinate projections show each element of M_R has coordinates in J; conversely each sum ∑ c_i e_i with c_i∈J belongs to M_R. Uniqueness is complex independence of e. Thus M_R=⊕_{i∈I}J e_i."
+    },
+    {
+      "id": "S010",
+      "text": "Put T=ℚ⊗_R J. The multiplication map μ:T→ℂ is defined on simple tensors by μ(q⊗c)=qc. It is well-defined by additivity and R-balancing. Every tensor is a finite sum of simple tensors. Write its finitely many rational first factors over a common nonzero integer denominator d; balancing integer numerators into J writes the tensor as (1/d)⊗c for one c∈J. If its image in ℂ is zero, c/d=0, so c=0 and the tensor is zero. Thus μ is injective. If c_1,…,c_s is a finite R-generating family of J from F001, then 1⊗c_1,…,1⊗c_s spans T over ℚ by tensor bilinearity. In particular T is finitely generated as a ℚ-module, that is finite dimensional."
+    },
+    {
+      "id": "S011",
+      "text": "The coordinate isomorphism in F001 induces an explicit ℚ-linear equivalence Φ:ℚ⊗_R M_R→∏_{i∈I}T: on q⊗∑c_i e_i it gives (q⊗c_i)_{i∈I}. For clarity, define its inverse by summing the maps T→ℚ⊗_R M_R induced by c↦c e_i: a tuple (q_i⊗c_i)_i maps to ∑_i q_i⊗(c_i e_i), extended additively in each entry. Both maps are defined by balanced bilinear maps. On simple tensors their composites are identities, by uniqueness of the coordinates and finite distributivity; simple tensors generate, so these checks prove both inverse identities. This supplies the rationalized direct-sum identification, not just a count."
+    },
+    {
+      "id": "S012",
+      "text": "Put r=dim_ℚ T. N002 supplies an R-basis of M_R indexed by I. Applying M001 with A=R and B=ℚ to this basis gives a ℚ-basis of ℚ⊗_R M_R indexed by I; M002 over ℚ therefore gives its dimension as card(I)=n, using N001. Apply M007 with A=ℚ to T to obtain freeness. The finite generation in F002 and this freeness verify the module premises of M004. Thus M004 with the constant family T over I gives dim_ℚ(∏_{i∈I}T)=∑_{i∈I}r=nr. M005 applied to Φ from F003 equates these dimensions: n=nr. Because n>0, r=1."
+    },
+    {
+      "id": "S013",
+      "text": "Fix arbitrary a,z∈J and temporarily assume L2: a≠0. Injectivity of μ in F002 gives 1⊗a≠0, since its image is a. The singleton family consisting of 1⊗a is linearly independent over ℚ: a scalar annihilating a nonzero vector in a vector space over a field is zero. Apply M003 with A=ℚ, ambient space T, the singleton index type and this singleton family. F004 gives the required dimension 1, so 1⊗z=q(1⊗a) for some q∈ℚ. Applying μ proves z=qa for that q. Discharge L2 and quantify over a,z: for every nonzero a∈J every element of J is a rational multiple of a. Together with F001–F004 this proves the stated coordinate decomposition, injectivity, and rational rank-one conclusion."
+    },
+    {
+      "id": "S014",
+      "text": "N003 says J is nonzero and finitely generated. Remove all zero members of a finite generating family. The remaining family still generates, and cannot be empty because J≠0. This proves F001, which will allow the finite minimum construction."
+    },
+    {
+      "id": "S015",
+      "text": "Choose a≠0 in J and a family g as in F001. By the rational-line conclusion of N003, every g_j is q_j a for some q_j∈ℚ; because g_j and a are nonzero, q_j≠0. For a nonzero rational q=A/B with nonzero integers A,B, repeatedly remove factors p from A and B. This process terminates since p≥2 by H001 and absolute values strictly decrease at each removal. Thus A=p^s A', B=p^t B' with s,t≥0 and p dividing neither A' nor B'. Consequently q=p^{s-t}(A'/B'), where A'/B' is a unit of R: both A'/B' and its inverse B'/A' satisfy the denominator condition. Apply this to all the finitely many nonzero rational coefficients of g relative to a. For each there is an integer exponent and a unit of R; the nonempty finite list of exponents has a minimum and an index attaining it. These are precisely the existential data in F002."
+    },
+    {
+      "id": "S016",
+      "text": "Choose simultaneously from F002 the exponent family νexp (entries ν_j), the unit family u, the minimum ν and an attaining index j_0. Put b=p^ν a=u_{j_0}^{-1}g_{j_0}. This is a nonzero element of J, since p^ν is a nonzero rational and a≠0. Every generator g_j equals p^{ν_j-ν}u_j b with ν_j-ν≥0, so g_j∈Rb; conversely b∈J gives Rb⊂J. Therefore J=Rb. Substituting into the unique-coordinate decomposition of N003 proves that every element of M_R is a unique R-linear combination of b e_i: if ∑r_i b e_i=0, N003 gives r_i b=0 for each i, hence r_i=0 since b≠0. Thus these vectors are an R-basis indexed by I, of cardinality n>0. The same argument applies to any nonzero b∈J with J=Rb, proving the full principal-generator and basis assertion."
+    },
+    {
+      "id": "S017",
+      "text": "For every integer d not divisible by p its image in K is nonzero, because H002 says the kernel of ℤ→K is pℤ. Thus define ρ(a/d)=bar(a)/bar(d). Equality of fractions is preserved by cross-multiplication, so this is well-defined and preserves sums and products; it extends ℤ→K. The characteristic also factors the integer map through ℱ_p=ℤ/pℤ; primality H001 makes this a field, and its map into K is injective since a unital map from a field has zero kernel. On elementary tensors define A:M⊗_ℤK→M_R⊗_R K by A(m⊗c)=(1⊗m)⊗c. Its inverse sends (r⊗m)⊗c to m⊗ρ(r)c. The balancing relations in the two tensor products verify well-definedness; the inverse identities follow on the displayed generators, since (r⊗m)⊗c=(1⊗m)⊗ρ(r)c. These generators span, so A is a K-linear isomorphism."
+    },
+    {
+      "id": "S018",
+      "text": "The kernel of ρ is pR: for a/d∈R, its image is zero exactly when p divides a, equivalently a/d belongs to pR. Its image is the prime field ℱ_p, because a/d reduces to the quotient of two prime-field elements. Thus R/pR≃ℱ_p. The map M_R⊗_R K→(M_R/pM_R)⊗_{ℱ_p}K sends u⊗c to [u]⊗c. Conversely define [u]⊗c↦u⊗c. A different lift u+pw gives the same tensor since (pw)⊗c=w⊗pc=0. Balancing over ℱ_p is valid: lift a prime-field scalar to r∈R and use (ru)⊗c=u⊗ρ(r)c; changing its lift by pR has no effect. These formulas define inverse K-linear maps on the simple tensors. This proves the second isomorphism as well as its compatibility with the first one."
+    },
+    {
+      "id": "S019",
+      "text": "Choose b as in N004 and define β_i=A^{-1}((b e_i)⊗1). M001 with A=R, B=K and basis (b e_i) gives the K-basis 1⊗b e_i of K⊗_R M_R; the tensor flip sends it to (b e_i)⊗1 in M_R⊗_R K. The flip is an isomorphism because u⊗c↦c⊗u and its reverse are balanced and their composites fix all simple tensors. Transporting along A^{-1} therefore shows that β is a K-basis of V(K). M002 over K counts it: dim_K V(K)=card(I)=n>0 by N001. Also the quotient M_R/pM_R has the basis [b e_i] over R/pR: coordinates in the R-basis of N004 reduce independently, since a combination lies in pM_R exactly when every coefficient lies in pR. Thus β is precisely the reduced basis extended from ℱ_p to K as in the supplied proof."
+    },
+    {
+      "id": "S020",
+      "text": "N001 gives all action formulas on e_i; complex linearity gives the identical formulas on b e_i. N002 says all these operators preserve both M and M_R, and gives the induced Chevalley action after tensoring. In particular the induced x,y,h satisfy [h,x]=2x, [h,y]=-2y and [x,y]=h on V(K), because tensor extension preserves sums and compositions of lattice endomorphisms. The maps A and B above commute with every induced lattice operator: check this on m⊗c and u⊗c using their defining formulas. Therefore the x,y,h formulas on β and the X_r,Y_r formulas are exactly those of N001 with each integer coefficient replaced by its image in K. Explicitly xβ_0=0, xβ_i=bar(λ-i+1)β_{i-1}, yβ_i=bar(i+1)β_{i+1} until yβ_λ=0, and hβ_i=bar(λ-2i)β_i; X_r and Y_r have respectively coefficients bar(binom(λ-i+r,r)) and bar(binom(i+r,r)) in their stated ranges and zero outside. For 0≤r≤λ, N002 makes r! a unit in R, so its image is nonzero in the field K. The integer-operator identities r!X_r=x^r and r!Y_r=y^r hold on M and persist after tensoring. Thus X_r=bar(r!)^{-1}x^r and Y_r=bar(r!)^{-1}y^r."
+    },
+    {
+      "id": "S021",
+      "text": "N002 expresses E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j} with the scalar a unit in R. Since E_ij(b e_k) is b e_i for k=j and zero otherwise, tensoring this identity yields the coordinate matrix unit T_ij on β with formula T_ij=bar(binom(λ,j))^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Its scalar is nonzero after reduction, since a unit maps to a unit. For an arbitrary K-subspace W temporarily assume L1: W is invariant under x,y. It is then invariant under their nonnegative powers, their scalar multiples, and their compositions. Every divided power appearing in this formula has index between 0 and λ, so F004 shows that it preserves W. Consequently every T_ij preserves W. Discharge L1 and quantify over W. This proves the tensor identifications, reduced basis and formulas, and the matrix-unit invariance assertion."
+    },
+    {
+      "id": "S022",
+      "text": "H001 supplies the prime condition for the localized ring occurring in the input N005. N005 supplies β, a K-basis of V(K), of cardinality n>0. H003 gives 0∈I. Its member β_0 is nonzero since basis vectors are independent; hence V(K)≠0. Let W be arbitrary and temporarily assume L1: W is invariant under x,y,h. In particular it is invariant under x,y, and N005 therefore says it is invariant under every coordinate matrix unit on β. If W={0}, the required alternative already holds. For the other case temporarily assume L2: W≠{0}. There is a nonzero vector in W. Its expansion in β has a nonzero coordinate, since an expansion with all coordinates zero would be zero."
+    },
+    {
+      "id": "S023",
+      "text": "Choose w,c,j from F001 within the nonzero branch. For every i∈I, applying the coordinate matrix unit T_ij gives T_ij w=c_j β_i∈W, since it kills all other basis coordinates and preserves W. Because c_j≠0 in the field K and W is K-linear, β_i=c_j^{-1}(c_j β_i) belongs to W. Thus every basis vector belongs to W, so its span, all of V(K), is contained in W. The reverse containment is part of W being a subspace of V(K). Hence W=V(K) in the nonzero case. Discharge L2; together with the zero case this proves W={0} or W=V(K) under L1. Discharge L1 into the antecedent to obtain F002."
+    },
+    {
+      "id": "S024",
+      "text": "Universal introduction over W proves the subspace assertion from F002, and F003 proves V(K)≠0. H004 gives the Chevalley bracket relations and hence closure of the integer span in D014. The action is the induced L(K)-action described in N005 and D014; invariance under its generators x,y,h is exactly invariance under their K-linear span, so this is irreducibility as an L(K)-module. No algebraic closure of K was used. At λ=0 the index set has one element and all relevant factorials and binomial coefficients are 1; all displayed arguments remain valid. At p=2 the allowed λ are 0 and 1 by H003; nothing used distinct reduced h-eigenvalues. These included endpoints satisfy the same conclusion."
+    }
+  ],
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "header": "import Mathlib\nopen scoped TensorProduct\nnoncomputable section\nnamespace LR\nabbrev Idx (l : ℕ) := Fin (l + 1)\ndef R (p : ℕ) : Subring ℚ := Subring.closure {q | ∃ a b : ℤ, ¬ (p : ℤ) ∣ b ∧ q = (a : ℚ) / (b : ℚ)}\ninstance rModule (p : ℕ) (V : Type*) [AddCommGroup V] [Module ℂ V] : Module (R p) V := Module.compHom V (algebraMap (R p) ℂ)\ndef MR (p : ℕ) {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) : Submodule (R p) V := Submodule.span (R p) (M : Set V)\ndef DP {V : Type*} [AddCommGroup V] [Module ℂ V] (f : Module.End ℂ V) (r : ℕ) : Module.End ℂ V := (r.factorial : ℂ)⁻¹ • f^r\ndef e {V : Type*} [AddCommGroup V] [Module ℂ V] (y : Module.End ℂ V) (v : V) (i : ℕ) : V := DP y i v\ndef Inv {F U : Type*} [Field F] [AddCommGroup U] [Module F U] (W : Submodule F U) (f : Module.End F U) : Prop := ∀ u ∈ W, f u ∈ W\ndef Brackets {F U : Type*} [CommRing F] [AddCommGroup U] [Module F U] (x y h : Module.End F U) : Prop := h*x-x*h = (2:F) • x ∧ h*y-y*h = (-2:F) • y ∧ x*y-y*x = h\ndef ext {F U : Type*} [Field F] [AddCommGroup U] [Module F U] {l : ℕ} (B : Module.Basis (Idx l) F U) (i : ℕ) : U := if hi : i < l+1 then B ⟨i,hi⟩ else 0\ndef MU {F U : Type*} [Field F] [AddCommGroup U] [Module F U] {l : ℕ} (B : Module.Basis (Idx l) F U) (i j : Idx l) : Module.End F U := (B.coord j).smulRight (B i)\ndef Actions {F U : Type*} [Field F] [AddCommGroup U] [Module F U] (l : ℕ) (a : ℕ → U) (x y h : Module.End F U) (X Y : ℕ → Module.End F U) : Prop :=\n x (a 0) = 0 ∧ (∀ i, 1 ≤ i → i ≤ l → x (a i) = ((l-i+1 : ℕ):F) • a (i-1)) ∧ (∀ i, i ≤ l → y (a i) = ((i+1:ℕ):F) • a (i+1)) ∧ (∀ i, i ≤ l → h (a i) = (((l:ℤ)-2*(i:ℤ):ℤ):F) • a i) ∧ (∀ r i, i ≤ l → X r (a i) = if r ≤ i then (((l-i+r).choose r : ℕ):F) • a (i-r) else 0) ∧ (∀ r i, i ≤ l → Y r (a i) = if i+r ≤ l then (((i+r).choose r : ℕ):F) • a (i+r) else 0)\ndef IsStringBasis {V : Type*} [AddCommGroup V] [Module ℂ V] (l : ℕ) (y : Module.End ℂ V) (v : V) (B : Module.Basis (Idx l) ℂ V) : Prop := ∀ i, B i = e y v i.val\nstructure IntegralOps {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) (x y h : Module.End ℂ V) where\n xz : Module.End ℤ M\n yz : Module.End ℤ M\n hz : Module.End ℤ M\n Xz : ℕ → Module.End ℤ M\n Yz : ℕ → Module.End ℤ M\n x_agree : ∀ m, (xz m : V) = x m\n y_agree : ∀ m, (yz m : V) = y m\n h_agree : ∀ m, (hz m : V) = h m\n X_agree : ∀ r m, (Xz r m : V) = DP x r m\n Y_agree : ∀ r m, (Yz r m : V) = DP y r m\n brackets : Brackets xz yz hz\nabbrev VK (K : Type*) [Field K] {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) := K ⊗[ℤ] M\ndef Jc (p : ℕ) {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) (w : V) : Submodule (R p) ℂ := Submodule.span (R p) {c | c • w ∈ MR p M}\ndef pMR (p : ℕ) {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) : Submodule (R p) (MR p M) := LinearMap.range ((p : R p) • (LinearMap.id : MR p M →ₗ[R p] MR p M))\nabbrev QMR (p : ℕ) {V : Type*} [AddCommGroup V] [Module ℂ V] (M : Submodule ℤ V) := (MR p M) ⧸ (pMR p M)\nsection Complex\nvariable {V : Type*} [AddCommGroup V] [Module ℂ V]\ndef Strings (lam : ℤ) (x y h : Module.End ℂ V) (v : V) : Prop :=\n (∀ m : ℕ, h ((y^m) v) = ((lam-2*(m:ℤ):ℤ):ℂ) • ((y^m) v)) ∧ (∀ m : ℕ, x ((y^(m+1)) v) = ((((m+1:ℕ):ℤ)*(lam-(m:ℤ)):ℤ):ℂ) • ((y^m) v))\ndef StringResult (lam : ℤ) (x y h : Module.End ℂ V) (v : V) : Prop :=\n 0 < lam.toNat+1 ∧ Fintype.card (Idx lam.toNat) = lam.toNat+1 ∧ Strings lam x y h v ∧ e y v 0 = v ∧ (∃ B : Module.Basis (Idx lam.toNat) ℂ V, IsStringBasis lam.toNat y v B) ∧ (∀ m : ℕ, lam.toNat < m → (y^m) v = 0) ∧ Actions lam.toNat (e y v) x y h (DP x) (DP y)\nstructure LatticeEmbedding (p l : ℕ) (M : Submodule ℤ V) where\n basis : Module.Basis (Idx l) (R p) (MR p M)\n tensorEquiv : (R p ⊗[ℤ] M) ≃ₗ[R p] MR p M\n tensor_value : ∀ r m, (tensorEquiv (r ⊗ₜ[ℤ] m) : V) = (((r : R p) : ℚ) : ℂ) • (m : V)\n complex_span : Submodule.span ℂ (MR p M : Set V) = ⊤\ndef Preserves (p l : ℕ) (M : Submodule ℤ V) (x y h : Module.End ℂ V) : Prop :=\n Nonempty (IntegralOps M x y h) ∧ (∀ r m, m ∈ MR p M → DP x r m ∈ MR p M) ∧ (∀ r m, m ∈ MR p M → DP y r m ∈ MR p M) ∧ (∀ t, t ≤ l → IsUnit (t.factorial : R p)) ∧ (∀ j, j ≤ l → IsUnit (l.choose j : R p))\ndef MatrixControl (p l : ℕ) (M : Submodule ℤ V) (x y : Module.End ℂ V) (B : Module.Basis (Idx l) ℂ V) : Prop :=\n (DP y l * DP x l = MU B ⟨l,Nat.lt_succ_self l⟩ ⟨l,Nat.lt_succ_self l⟩) ∧\n (∀ i : Idx l, DP x (l-i.val) * MU B ⟨l,Nat.lt_succ_self l⟩ ⟨l,Nat.lt_succ_self l⟩ = MU B i ⟨l,Nat.lt_succ_self l⟩) ∧\n (∀ j : Idx l, MU B ⟨l,Nat.lt_succ_self l⟩ ⟨l,Nat.lt_succ_self l⟩ * DP y (l-j.val) = ((l.choose j.val : ℕ):ℂ) • MU B ⟨l,Nat.lt_succ_self l⟩ j) ∧\n (∀ i j : Idx l, MU B i j = (((l.choose j.val : ℕ):ℂ)⁻¹) • (DP x (l-i.val) * DP y l * DP x l * DP y (l-j.val))) ∧\n (∀ i j : Idx l, ∀ m, m ∈ MR p M → MU B i j m ∈ MR p M)\ndef LocalResult (p l : ℕ) (M : Submodule ℤ V) (x y h : Module.End ℂ V) (B : Module.Basis (Idx l) ℂ V) : Prop := Nonempty (LatticeEmbedding p l M) ∧ Preserves p l M x y h ∧ MatrixControl p l M x y B\nstructure Decomposition (p l : ℕ) (M : Submodule ℤ V) (v : V) (B : Module.Basis (Idx l) ℂ V) where\n exact_J : ∀ c : ℂ, c ∈ Jc p M v ↔ c • v ∈ MR p M\n exact_coord : ∀ i : Idx l, ∀ c : ℂ, c ∈ Jc p M (B i) ↔ c • B i ∈ MR p M\n common : ∀ i : Idx l, Jc p M (B i) = Jc p M v\n fg : (Jc p M v).FG\n nonzero : Jc p M v ≠ ⊥\n coordEquiv : (Idx l → Jc p M v) ≃ₗ[R p] MR p M\n coord_value : ∀ c, (coordEquiv c : V) = ∑ i, (c i : ℂ) • B i\nabbrev T (p : ℕ) (M : Submodule ℤ V) (v : V) := ℚ ⊗[R p] Jc p M v\ndef RationalEmbedding (p : ℕ) (M : Submodule ℤ V) (v : V) : Prop :=\n ∃ mu : T p M v →ₗ[ℚ] ℂ, (∀ q c, mu (q ⊗ₜ[R p] c) = (q : ℂ) * (c : ℂ)) ∧ Function.Injective mu ∧ Module.Finite ℚ (T p M v)\ndef CoordinateResult (p l : ℕ) (M : Submodule ℤ V) (v : V) (B : Module.Basis (Idx l) ℂ V) : Prop :=\n 0 < l+1 ∧ Nonempty (Decomposition p l M v B) ∧ RationalEmbedding p M v ∧ Module.finrank ℚ (T p M v) = 1 ∧ (∀ a c : ℂ, a ∈ Jc p M v → a ≠ 0 → c ∈ Jc p M v → ∃ q : ℚ, c = (q : ℂ) * a)\ndef PrincipalResult (p l : ℕ) (M : Submodule ℤ V) (v : V) (B : Module.Basis (Idx l) ℂ V) : Prop :=\n (∃ b : ℂ, b ∈ Jc p M v ∧ b ≠ 0 ∧ Jc p M v = Submodule.span (R p) {b}) ∧ (∀ b : ℂ, b ∈ Jc p M v → b ≠ 0 → Jc p M v = Submodule.span (R p) {b} → ∃ f : Module.Basis (Idx l) (R p) (MR p M), ∀ i, (f i : V) = b • B i) ∧ 0 < l+1 ∧ Fintype.card (Idx l) = l+1\nstructure FirstChange (p : ℕ) (K : Type*) [Field K] (M : Submodule ℤ V) where\n [ak : Algebra (R p) K]\n rho_value : ∀ a b : ℤ, ∀ r : R p, (r : ℚ) = (a : ℚ)/(b : ℚ) → ¬ (p : ℤ) ∣ b → algebraMap (R p) K r = (a : K)/(b : K)\n inc : M →ₗ[ℤ] MR p M\n inc_value : ∀ m, (inc m : V) = (m : V)\n A : VK K M ≃ₗ[K] (K ⊗[R p] MR p M)\n A_value : ∀ c m, A (c ⊗ₜ[ℤ] m) = c ⊗ₜ[R p] inc m\nstructure ScalarData (p : ℕ) (K : Type*) [Field K] (M : Submodule ℤ V) extends FirstChange p K M where\n [af : Algebra (ZMod p) K]\n [mq : Module (ZMod p) (QMR p M)]\n residue : (R p ⧸ Ideal.span {(p : R p)}) ≃+* ZMod p\n residue_value : ∀ a b : ℤ, ∀ r : R p, (r : ℚ) = (a : ℚ)/(b : ℚ) → ¬ (p : ℤ) ∣ b → residue (Ideal.Quotient.mk _ r) = (a : ZMod p) * (b : ZMod p)⁻¹\n C : (K ⊗[R p] MR p M) ≃ₗ[K] (K ⊗[ZMod p] QMR p M)\n C_value : ∀ c u, C (c ⊗ₜ[R p] u) = c ⊗ₜ[ZMod p] (pMR p M).mkQ u\nstructure ReducedBasis (p : ℕ) (K : Type*) [Field K] (l : ℕ) (M : Submodule ℤ V) (v : V) (B : Module.Basis (Idx l) ℂ V) where\n scalars : ScalarData p K M\n b : ℂ\n b_mem : b ∈ Jc p M v\n b_ne : b ≠ 0\n principal : Jc p M v = Submodule.span (R p) {b}\n f : Module.Basis (Idx l) (R p) (MR p M)\n f_value : ∀ i, (f i : V) = b • B i\n beta : Module.Basis (Idx l) K (VK K M)\n transported : letI := scalars.ak; ∀ i, scalars.A (beta i) = (1 : K) ⊗ₜ[R p] f i\n quotient_basis : letI := scalars.mq; ∃ gamma : Module.Basis (Idx l) (ZMod p) (QMR p M), ∀ i, gamma i = (pMR p M).mkQ (f i)\n dimension : Module.finrank K (VK K M) = l+1\n positive : 0 < l+1\n cardinality : Fintype.card (Idx l) = l+1\ndef ReducedAction (K : Type*) [Field K] (l : ℕ) (M : Submodule ℤ V) (x y h : Module.End ℂ V) (o : IntegralOps M x y h) (beta : Module.Basis (Idx l) K (VK K M)) : Prop :=\n Brackets (o.xz.baseChange K) (o.yz.baseChange K) (o.hz.baseChange K) ∧ Actions l (ext beta) (o.xz.baseChange K) (o.yz.baseChange K) (o.hz.baseChange K) (fun r => (o.Xz r).baseChange K) (fun r => (o.Yz r).baseChange K) ∧ (∀ r, r ≤ l → (r.factorial : K) ≠ 0 ∧ (o.Xz r).baseChange K = (r.factorial : K)⁻¹ • (o.xz.baseChange K)^r ∧ (o.Yz r).baseChange K = (r.factorial : K)⁻¹ • (o.yz.baseChange K)^r)\ndef ReducedControl (K : Type*) [Field K] (l : ℕ) (M : Submodule ℤ V) (x y h : Module.End ℂ V) (o : IntegralOps M x y h) (beta : Module.Basis (Idx l) K (VK K M)) : Prop :=\n (∀ i j : Idx l, MU beta i j = (((l.choose j.val : ℕ):K)⁻¹) • ((o.Xz (l-i.val)).baseChange K * (o.Yz l).baseChange K * (o.Xz l).baseChange K * (o.Yz (l-j.val)).baseChange K)) ∧ (∀ W : Submodule K (VK K M), Inv W (o.xz.baseChange K) → Inv W (o.yz.baseChange K) → ∀ i j, Inv W (MU beta i j))\ndef ReductionResult (p : ℕ) (K : Type*) [Field K] (l : ℕ) (M : Submodule ℤ V) (x y h : Module.End ℂ V) (v : V) (B : Module.Basis (Idx l) ℂ V) : Prop :=\n ∃ rb : ReducedBasis p K l M v B, ∃ o : IntegralOps M x y h, ReducedAction K l M x y h o rb.beta ∧ ReducedControl K l M x y h o rb.beta\nend Complex\nend LR",
+  "parameters": [
+    {
+      "name": "p",
+      "type": "ℕ"
+    },
+    {
+      "name": "K",
+      "type": "Type*"
+    },
+    {
+      "name": "instK",
+      "type": "Field K",
+      "binder_kind": "instance"
+    },
+    {
+      "name": "lam",
+      "type": "ℤ"
+    },
+    {
+      "name": "V",
+      "type": "Type*"
+    },
+    {
+      "name": "instV",
+      "type": "AddCommGroup V",
+      "binder_kind": "instance"
+    },
+    {
+      "name": "instCV",
+      "type": "Module ℂ V",
+      "binder_kind": "instance"
+    },
+    {
+      "name": "x",
+      "type": "Module.End ℂ V"
+    },
+    {
+      "name": "y",
+      "type": "Module.End ℂ V"
+    },
+    {
+      "name": "h",
+      "type": "Module.End ℂ V"
+    },
+    {
+      "name": "v",
+      "type": "V"
+    },
+    {
+      "name": "M",
+      "type": "Submodule ℤ V"
+    }
+  ],
+  "premises": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "p is prime.",
+      "type": "Nat.Prime p"
+    },
+    {
+      "id": "H002",
+      "kind": "hypothesis",
+      "statement": "The characteristic of the field K is p.",
+      "type": "CharP K p"
+    },
+    {
+      "id": "H003",
+      "kind": "hypothesis",
+      "statement": "0≤λ<p.",
+      "type": "0 ≤ lam ∧ lam < (p : ℤ)"
+    },
+    {
+      "id": "H004",
+      "kind": "hypothesis",
+      "statement": "V=V(λ) is the complex irreducible highest-weight sl₂(C)-module of highest weight λ, of complex dimension λ+1. The elements x,y,h are its Chevalley generators and satisfy [h,x]=2x, [h,y]=-2y, [x,y]=h.",
+      "type": "Module.Finite ℂ V ∧ Module.finrank ℂ V = lam.toNat+1 ∧ LR.Brackets x y h ∧ Nontrivial V ∧ ∀ W : Submodule ℂ V, LR.Inv W x → LR.Inv W y → LR.Inv W h → W = ⊥ ∨ W = ⊤"
+    },
+    {
+      "id": "H005",
+      "kind": "hypothesis",
+      "statement": "v≠0, xv=0, and hv=λv.",
+      "type": "v ≠ 0 ∧ x v = 0 ∧ h v = (lam : ℂ) • v"
+    },
+    {
+      "id": "H006",
+      "kind": "hypothesis",
+      "statement": "M is an admissible lattice: it is a free abelian subgroup of V with an integer basis that is also a complex basis of V, and is stable under U_Z. It is arbitrary and is not required to be the minimal lattice.",
+      "type": "(∃ f : Module.Basis (LR.Idx lam.toNat) ℤ M, ∃ c : Module.Basis (LR.Idx lam.toNat) ℂ V, ∀ i, (f i : V) = c i) ∧ (∀ r m, m ∈ M → LR.DP x r m ∈ M) ∧ (∀ r m, m ∈ M → LR.DP y r m ∈ M)"
+    }
+  ],
+  "endpoint_correspondence": {
+    "P": {
+      "mode": "equivalent",
+      "explanation": "Parameters range over every prime p, field K of characteristic p, integer lam in [0,p), complex module, highest-weight vector, and arbitrary admissible lattice. The x,y,h endomorphisms are the action of the Chevalley generators: their brackets present sl2(C), so a triple satisfying these relations defines the original action, and conversely any original action gives this triple. Common invariant subspaces express complex irreducibility; H004 retains dimension and H005 the highest weight. A Z-submodule is exactly an additive subgroup. Under H004 its simultaneous integer/complex basis can be reindexed by Fin(l+1), so H006 is equivalent to the original lattice assumption; stability under the divided-power generators is equivalent to U_Z-stability. With 0≤lam, l=lam.toNat equals lam. Tensor flip identifies K tensor_Z M with M tensor_Z K in both directions and intertwines the induced operators. IntegralOps records restrictions agreeing on every lattice element and the inherited brackets: these restrictions are unique, and their existence/brackets follow from admissibility and H004, not extra premises. Thus the existential witness is the actual induced action. Nontrivial means nonzero; bottom/top mean zero/the whole space. Generator invariance is exactly invariance under their K-linear span L(K), also for p=2. The quantifiers include lam=0 and arbitrary, not necessarily algebraically closed, K."
+    }
+  },
+  "conclusion": {
+    "statement": "V(K) is nonzero, and for every K-linear subspace W⊂V(K), if W is invariant under the induced operators x,y,h, then W={0} or W=V(K). Thus V(K) is an irreducible L(K)-module, including λ=0 and p=2, over the given arbitrary field K.",
+    "type": "Nontrivial (LR.VK K M) ∧ ∃ o : LR.IntegralOps M x y h, ∀ W : Submodule K (LR.VK K M), LR.Inv W (o.xz.baseChange K) → LR.Inv W (o.yz.baseChange K) → LR.Inv W (o.hz.baseChange K) → W = ⊥ ∨ W = ⊤"
+  },
+  "representation": "PENDING_AUDIT_B. Use action endomorphisms of the complex sl2 module; the three Chevalley brackets and common invariant subspaces encode its representation and irreducibility. lam remains an integer; l=lam.toNat and Idx l=Fin(l+1), with H003 justifying the identification. M is a Z-submodule of V (equivalently an additive subgroup). R is the subring of Q generated by fractions with p-prime denominators; T005 proves it is exactly Z_(p). MR is its span inside V; T006 constructs the tensor identification, not an assumed embedding. Jc is initially a span, and T009 proves its exact coordinate-set meaning. All tensor spaces are scalar-first: VK=K tensor_Z M is the canonical flip of the source M tensor_Z K. FirstChange/ScalarData record checked natural maps, not assumptions. IntegralOps records restrictions and their inherited brackets, whose existence is proved in T007; baseChange gives the tensor-induced action. All result structures are witness records and their existence is a step obligation. Finite pi types encode the finite direct sums. Integer/natural casts in Actions explicitly encode the integral coefficients; ext extends a finite basis by zero only for writing boundary formulas.",
+  "objects": [],
+  "shared_obligations": [],
+  "review": {
+    "mode": "deferred_semantic_review",
+    "status": "PENDING_AUDIT_B",
+    "disclosure": "Candidate generated in a clean selected-model context; only syntax/types and source boundaries are checked by this adapter."
+  }
+}

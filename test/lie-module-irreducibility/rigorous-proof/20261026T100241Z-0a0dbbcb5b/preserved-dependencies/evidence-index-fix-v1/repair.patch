@@ -1,0 +1,576 @@
+--- a/rigorous-proof/references/operation.md
++++ b/rigorous-proof/references/operation.md
+@@ -117,6 +117,31 @@
+ do not supply missing mathematical judgments or force every ordinary paper to
+ run a development exercise campaign first. Calibration status, when measured,
+ is reported separately; it is not fabricated as a prerequisite receipt.
++
++## Recoverable controller faults
++
++Normal policy repairs ordinary mathematical feedback in its assigned author or
++proof stage; an Audit A/B nonpass is not by itself a first-pass stop. Classify
++execution failures separately. A verified bookkeeping defect must not force
++the proof and all completed independent reviews to be repeated.
++
++Inherited evidence is checked before any remaining review model is called.
++If a legacy path-to-key index is wrong but the original judgment and matching
++source bytes are intact and hash-bound, collection reconstructs a new index,
++validates it with the unchanged full checks, and proceeds. It records the old
++and new bindings in bookkeeping-repairs.json. This operation changes no theorem,
++judgment, source content or acceptance rule and makes no model/native calls.
++Missing/tampered evidence, changed context, unqualified execution or a nonpassing
++judgment cannot be repaired into a PASS by this route.
++
++After repairing this known defect in an already stopped run, use
++`yui.py resume OLD_RUN --repair-evidence --detach`. The guarded entry requires
++the recorded index error to be reproducible and all required actual reviews
++to be complete and qualified. It restores the unchanged released source through
++its bound lineage and inherits completed scopes instead of asking models again.
++An unknown program defect preserves the current phase/artifact checkpoint and
++requires a verified software fix; it is not a mathematical rejection, permission
++to rewrite proof rules, or a reason to replay the whole problem from scratch.
+ 
+ ## Remote-service recovery
+ 
+--- a/rigorous-proof/scripts/audit_a_campaign.py
++++ b/rigorous-proof/scripts/audit_a_campaign.py
+@@ -399,6 +399,8 @@
+         manifest(directory);(directory/'prompt.txt').write_text(PACKET)
+         jobs.append({'id':rid,'library':False})
+     inherited={scope:audit_reuse.materialize(hit,case) for scope,hit in hits.items()}
++    # Validate transported evidence before spending model calls on remaining work.
++    for scope,binding in inherited.items():audit_reuse.validate(case,binding,data,scope)
+     plan={'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
+           'global_overview':bind(g/'global-overview.json'),
+           'jobs':jobs,'inherited':inherited,'status':'PREPARED_NOT_REVIEWED',
+@@ -469,13 +471,26 @@
+         if bind(plan[name]['path']) != plan[name]: raise ValueError('Source changed after review preparation')
+     data=nl0.validate(case/'nl0.json',case/'spec.json')
+     reports={};evidence={};qualifications=[]
++    index_repairs=[]
++    def inherited_review(scope):
++        binding=plan['inherited'][scope]
++        try:cached=audit_reuse.validate(case,binding,data,scope)
++        except audit_reuse.EvidenceIndexError:
++            binding,repair=audit_reuse.repair_evidence_index(case,binding,data,scope)
++            index_repairs.append(repair);plan['inherited'][scope]=binding
++            write(out/'bookkeeping-repairs.json',{'kind':'VALIDATED_EVIDENCE_INDEX_RECOVERY','repairs':index_repairs,
++                'new_model_calls':0,'new_native_checks':0,'source_and_judgments_changed':False})
++            cached=audit_reuse.validate(case,binding,data,scope)
++        return binding,cached
++    def inherited_evidence(binding,cached):
++        original=cached['record'].get('index_repair',{}).get('original')
++        return [binding,*([original] if original else []),*cached['record']['previous'].values()]
+     for job in plan['jobs']:
+         directory=out/job['id']/'stage'
+         if 'packet:'+job['id'] in plan.get('inherited',{}):
+-            inherited=plan['inherited']['packet:'+job['id']]
+-            cached=audit_reuse.validate(case,inherited,data,'packet:'+job['id'])
++            inherited,cached=inherited_review('packet:'+job['id'])
+             reports[job['id']]=cached['raw']
+-            evidence[job['id']]=[inherited,*cached['record']['previous'].values()]
++            evidence[job['id']]=inherited_evidence(inherited,cached)
+             qualifications.append(cached['record']['qualification'])
+             continue
+         if job['library'] and not job.get('required_scopes',['legacy-full']):
+@@ -501,11 +516,11 @@
+     global_=reports['global'];global_evidence={}
+     for scope,inherited in plan.get('inherited',{}).items():
+         if scope.startswith('packet:'):continue
+-        cached=audit_reuse.validate(case,inherited,data,scope)
++        inherited,cached=inherited_review(scope)
+         pointer={'target':'/target_review','structure':'/structure_review'}.get(scope,
+             '/definition_reviews/'+scope.split(':')[-1] if scope.startswith('definition:') else '/source_reviews/'+scope.split(':')[-1])
+         put(global_,pointer,cached['raw'])
+-        global_evidence[scope]=[inherited,*cached['record']['previous'].values()]
++        global_evidence[scope]=inherited_evidence(inherited,cached)
+         qualifications.append(cached['record']['qualification'])
+     if set(global_['definition_reviews'])!=set(data[5]) or set(global_['source_reviews'])!={k for k,p in data[3].items() if p['kind'] in {'mathlib','external'}}:
+         raise ValueError('Incomplete global definition/source review coverage')
+@@ -571,11 +586,11 @@
+         actual['replay']={'packet_sha256':packet['packet_sha256'],'mode':background.MODE,
+             'carrier':str(out/rid/'stage'),'prior_exposure':[],
+             'library_evidence':library_evidence,
+-            'read_materials':['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]}
++            'read_materials':list(dict.fromkeys(['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]))}
+         if inherited:
+             actual['inheritance']=inherited
+             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
+-                                    read_materials=['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])
++                                    read_materials=list(dict.fromkeys(['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])))
+         receipt['inference_reviews'][rid]=actual
+     blocking_global = global_['structure_review']['verdict'] != 'PASS' or any(
+         blocking_finding(f) for f in global_.get('findings', []))
+@@ -594,6 +609,7 @@
+     inspection['calibration_qualification']='NOT_RUN' if controls is None else 'PASSED'
+     inspection['experiment_qualified']=bool(controls and inspection['full_acceptance'])
+     inspection['inherited_items']=sorted(plan.get('inherited',{}))
++    inspection['bookkeeping_repairs']=index_repairs
+     inspection['measurement_complete']=bool(qualifications) and all(q['measurement_complete'] for q in qualifications)
+     inspection['execution_qualifications']=qualifications
+     inspection['benchmark_timing_qualified']=bool(qualifications) and all(q['measurement_valid'] for q in qualifications)
+--- a/rigorous-proof/scripts/audit_reuse.py
++++ b/rigorous-proof/scripts/audit_reuse.py
+@@ -15,6 +15,10 @@
+ SEMANTIC_RULES=('references/nl0-format.md','references/self-containment.md',
+                 'references/audit-a.md','references/external-theorems.md','references/logical-rules.md',
+                 'references/background-notes.md')
++
++
++class EvidenceIndexError(ValueError):
++    """Intact source evidence is associated with the wrong cached key."""
+ 
+ 
+ def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+@@ -143,8 +147,12 @@
+     background_sources={}
+     for note in hit['row'].get('background_notes', []):
+         for ev in note.get('source',{}).get('evidence',[]):
++            source=directory/'stage'/ev['path']
++            if sha(source)!=ev['sha256']:raise ValueError('Original background evidence changed')
++            if ev['path'] in background_sources:
++                continue
+             key='background_'+str(len(background_sources))
+-            files[key]=directory/'stage'/ev['path'];background_sources[ev['path']]=key
++            files[key]=source;background_sources[ev['path']]=key
+     if hit['scope'].startswith('packet:') and (directory/'stage/tools.jsonl').is_file():
+         files['tools']=directory/'stage/tools.jsonl'
+     for name,path in files.items():
+@@ -171,6 +179,11 @@
+     record=load(checked(binding))
+     if record['version']!=VERSION:raise ValueError('Unsupported review inheritance')
+     paths={key:checked(row) for key,row in record['previous'].items()}
++    if 'index_repair' in record:
++        original=load(checked(record['index_repair']['original']))
++        fields=set(record)-{'background_sources','index_repair'}
++        if fields!=set(original)-{'background_sources','index_repair'} or any(record[k]!=original[k] for k in fields):
++            raise ValueError('An index repair changed non-index review evidence')
+     return record,paths
+ 
+ 
+@@ -215,10 +228,51 @@
+     for note in notes:
+         for ev in note.get('source',{}).get('evidence',[]):
+             key=record.get('background_sources',{}).get(ev['path'])
+-            if key not in record['previous']:raise ValueError('Inherited background evidence was not preserved')
++            if key not in record['previous'] or record['previous'][key]['sha256']!=ev['sha256']:
++                raise EvidenceIndexError('Inherited background index does not match the original evidence hash')
+             ev.update(record['previous'][key])
+     if scope.startswith('packet:'):background.validate(notes, nl0.packet(data,scope.split(':')[1]), case)
+     return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw,'background_notes':notes}
++
++
++def checked_reindex(case,binding,data,scope):
++    """Reconstruct metadata from bound original hashes; no file or judgment edit."""
++    import nl0
++    try:validate(case,binding,data,scope)
++    except EvidenceIndexError:pass
++    else:raise ValueError('No verified inherited evidence-index mismatch to repair')
++    record,paths=read_binding(case,binding);raw=raw_from_binding(case,binding)
++    updated=deepcopy(record);notes=deepcopy(raw.get('background_notes',[]));changes=[]
++    expected={}
++    for note in notes:
++        for ev in note.get('source',{}).get('evidence',[]):
++            path,digest=ev['path'],ev['sha256']
++            if path in expected and expected[path]!=digest:
++                raise ValueError('One original evidence path has conflicting hashes')
++            expected[path]=digest
++            matches=sorted(key for key,row in record['previous'].items()
++                           if key.startswith('background_') and row['sha256']==digest)
++            if not matches:raise ValueError('No intact bound original evidence for index repair')
++            current=record['background_sources'].get(path)
++            selected=current if current in matches else matches[0]
++            updated['background_sources'][path]=selected
++            if current!=selected:changes.append({'original_path':path,'before':current,'after':selected,'sha256':digest})
++            ev.update(record['previous'][selected])
++    if not changes:raise ValueError('No verified index change')
++    background.validate(notes,nl0.packet(data,scope.split(':',1)[1]),case)
++    updated['index_repair']={'original':deepcopy(binding),'kind':'RESTORED_ORIGINAL_EVIDENCE_ASSOCIATION',
++                             'changes':changes,'mathematical_content_changed':False}
++    return updated,changes
++
++
++def repair_evidence_index(case,binding,data,scope):
++    """Publish a new checked index while retaining the original failed binding."""
++    updated,changes=checked_reindex(case,binding,data,scope)
++    case=Path(case).resolve();path=case/'review-evidence/reuse'/(hashed(updated)+'.json')
++    atomic(path,updated);new={'path':str(path.relative_to(case)),'sha256':sha(path)}
++    validate(case,new,data,scope)
++    return new,{'scope':scope,'original':deepcopy(binding),'repaired':new,'changes':changes,
++        'new_model_calls':0,'new_native_checks':0,'mathematical_content_changed':False}
+ 
+ 
+ def match_judgment(entry,raw):
+--- a/rigorous-proof/scripts/case_runner.py
++++ b/rigorous-proof/scripts/case_runner.py
+@@ -191,7 +191,10 @@
+                 'task_outcome':'UNFINISHED_WITH_EXECUTION_FAULT' if fault else 'MODEL_BUDGET_EXHAUSTED' if healthy else 'UNFINISHED_ATTRIBUTION_UNVERIFIED'}
+         except StageFailure as error:result=error.result
+         except Exception as error:
+-            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
++            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc(),
++                'recoverability':'VERIFIED_SOFTWARE_REPAIR_REQUIRED',
++                'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
++                    'preserve_completed_work':True,'restart_whole_workflow':False}}
+         finally:
+             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
+             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
+--- a/rigorous-proof/scripts/entrypoint.py
++++ b/rigorous-proof/scripts/entrypoint.py
+@@ -29,6 +29,8 @@
+     p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
+     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
+     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
++    p.add_argument('--repair-evidence',action='store_true',
++        help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
+     for name in ('status','cancel','cleanup'):
+         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
+         p.add_argument('runs',nargs='+',type=Path)
+@@ -89,7 +91,8 @@
+ def dispatch(args):
+     if args.command=='resume':
+         import interrupted
+-        prepared=[interrupted.prepare(path) for path in args.runs]
++        prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
++                  interrupted.prepare(path) for path in args.runs]
+         if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
+         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+     if args.command in {'prepare','run'}:
+--- a/rigorous-proof/scripts/interrupted.py
++++ b/rigorous-proof/scripts/interrupted.py
+@@ -35,9 +35,12 @@
+             or value['version']!=VERSION or value['mode'] not in {'author','audit-a'}
+             or job['track'] not in {'nl0','full'}):raise ValueError('Unsupported service-resume contract')
+     prior=Path(value['prior_run']).resolve();author=Path(value['author_directory']).resolve()
+-    if prior==Path(job['root']).resolve() or not author.is_relative_to(prior/'nl0'):
++    if prior==Path(job['root']).resolve():
+         raise ValueError('Resume authority must belong to the explicitly named prior run')
+     previous=json.loads((prior/'job.json').read_text())
++    inherited=previous.get('resume',{})
++    if not author.is_relative_to(prior/'nl0') and str(author)!=inherited.get('author_directory'):
++        raise ValueError('Resume author is outside its bound authority lineage')
+     if previous['case']!=job['case'] or previous['profiles']!=job['profiles']:
+         raise ValueError('Resume cannot change the case identity or model profiles')
+     if previous['documents'][0]['sha256']!=job['documents'][0]['sha256']:
+@@ -45,13 +48,62 @@
+     required={str(prior/'job.json'),str(prior/'case-result.json'),str(author/'stage/result.json')}
+     for campaign in value['campaigns']:
+         path=Path(campaign).resolve()
+-        if not path.is_relative_to(prior/'audit-a'):raise ValueError('Resume campaign escapes its prior case')
++        if not path.is_relative_to(prior/'audit-a') and str(path) not in inherited.get('campaigns',[]):
++            raise ValueError('Resume campaign escapes its bound case lineage')
+         required.add(str(path/'campaign.json'))
+     if not required<={row['path'] for row in job['authority_bindings']}:
+         raise ValueError('Missing prior-run authority binding')
+ 
+ 
+-def prepare(prior_run):
++def audit_boundary(prior,old,campaign):
++    """Resolve the original released author through an existing bound lineage."""
++    import full_workflow
++    campaign=Path(campaign).resolve()
++    if not campaign.is_relative_to(prior/'audit-a'):raise ValueError('Audit campaign escapes its run')
++    plan=json.loads((campaign/'campaign.json').read_text());source=Path(plan['case']).resolve()
++    if source.is_relative_to(prior/'nl0'):
++        author=source.parent.parent
++    elif source==prior/'resumed-source' and old.get('resume',{}).get('mode')=='audit-a':
++        author=Path(old['resume']['author_directory']).resolve()
++        for name in ['nl0.json','spec.json']:
++            if (source/name).read_bytes()!=(author/'stage/case'/name).read_bytes():
++                raise ValueError('Restored source changed from its bound released author')
++    else:raise ValueError('No bound released author for this audit campaign')
++    full_workflow.nl0_artifact_for_audit(author)
++    campaigns=list(dict.fromkeys([*old.get('resume',{}).get('campaigns',[]),
++        *[str(p.parent) for p in sorted((prior/'audit-a').glob('*/campaign.json'))]]))
++    return author,source,campaigns
++
++
++def bookkeeping_boundary(prior,old,result):
++    """Recognize only the recorded index fault with intact complete review scopes."""
++    import audit_reuse
++    import nl0
++    if (result.get('status')!='EXECUTION_FAULT' or
++            result.get('error')!='ValueError: BACKGROUND: no matching successful native/catalog probe' or
++            'audit_reuse.py' not in result.get('traceback','')):
++        raise ValueError('Not a known recoverable evidence-index fault')
++    state=json.loads((prior/'execution-status.json').read_text())
++    campaign=Path(state.get('stage_artifacts',{}).get('directory','')).resolve()
++    author,source,campaigns=audit_boundary(prior,old,campaign)
++    plan=json.loads((campaign/'campaign.json').read_text());data=nl0.validate(source/'nl0.json',source/'spec.json')
++    faults=[]
++    for scope,binding in plan.get('inherited',{}).items():
++        try:audit_reuse.validate(source,binding,data,scope)
++        except audit_reuse.EvidenceIndexError:
++            _,changes=audit_reuse.checked_reindex(source,binding,data,scope)
++            faults.append({'scope':scope,'changes':changes})
++    if not faults:raise ValueError('The recorded index fault is not reproducible from bound evidence')
++    hits=audit_reuse.select(data,campaigns)
++    required={'target','structure',*['definition:'+key for key in data[5]],
++        *['source:'+key for key,p in data[3].items() if p['kind'] in {'external','mathlib'}],
++        *['packet:'+key for key in data[4]]}
++    if not required<=set(hits):
++        raise ValueError('Evidence recovery requires complete qualified retained reviews: '+str(sorted(required-set(hits))))
++    return author,source,campaigns,faults
++
++
++def prepare(prior_run, *, repair_evidence=False):
+     """No model calls; reuse only explicit, unchanged, completed review scopes."""
+     import full_workflow
+     import source_preparation
+@@ -65,32 +117,32 @@
+     result=json.loads(result_path.read_text());result=result.get('result',result)
+     if old['track'] not in {'nl0','full'} or result.get('completion',{}).get('acceptance_target_satisfied'):
+         raise ValueError('Use this recovery only for interrupted NL0/Audit A work')
+-    evidence=Path(result.get('evidence') or '').resolve()
+-    if not evidence.is_relative_to(prior) or evidence.name!='result.json':
+-        raise ValueError('No exact interrupted model-stage evidence; do not restart an unknown failure')
+-    failure=json.loads(evidence.read_text())
+-    rows=(failure.get('transport_health') or {})
+-    remote=[row for key in ['faults','uncertainty'] for row in rows.get(key,[])
+-            if row.get('kind')=='PROVIDER_ERROR' and remote_retry.classify(row.get('details'))]
+-    if (failure.get('isolation_violation') or failure.get('status')=='CANCELLED'
+-            or (evidence.parent/'tool-provenance-rejections.jsonl').exists()
+-            or (evidence.parent/'isolation-violations.jsonl').exists()
+-            or not remote or not remote_stop(evidence.parent)):
+-        raise ValueError('Prior failure is not a positively identified remote provider fault')
+-    relative=evidence.relative_to(prior).parts
+-    campaigns=[];mode='author'
+-    if relative[0]=='audit-a' and len(relative)>=5:
+-        plan=json.loads((prior/relative[0]/relative[1]/'campaign.json').read_text())
+-        source=Path(plan['case']).resolve();author=source.parent.parent
+-        full_workflow.nl0_artifact_for_audit(author)
+-        campaigns=[str(p.parent) for p in sorted((prior/'audit-a').glob('*/campaign.json'))]
+-        mode='audit-a'
+-    elif relative[0]=='nl0' and len(relative)>=4:
+-        author=prior/relative[0]/relative[1]
+-        if failure.get('status')=='ACCEPTED':
+-            raise ValueError('A released author requires its exact subsequent audit recovery boundary')
+-    else:raise ValueError('This explicit resume supports authoring/Audit A; later-stage recovery is not inferred')
+-    if not author.is_relative_to(prior/'nl0'):raise ValueError('Author authority escaped its prior run')
++    campaigns=[];mode='author';index_faults=[]
++    if repair_evidence:
++        author,source,campaigns,index_faults=bookkeeping_boundary(prior,old,result)
++        evidence=result_path;mode='audit-a'
++    else:
++        evidence=Path(result.get('evidence') or '').resolve()
++        if not evidence.is_relative_to(prior) or evidence.name!='result.json':
++            raise ValueError('No exact interrupted model-stage evidence; do not restart an unknown failure')
++        failure=json.loads(evidence.read_text())
++        rows=(failure.get('transport_health') or {})
++        remote=[row for key in ['faults','uncertainty'] for row in rows.get(key,[])
++                if row.get('kind')=='PROVIDER_ERROR' and remote_retry.classify(row.get('details'))]
++        if (failure.get('isolation_violation') or failure.get('status')=='CANCELLED'
++                or (evidence.parent/'tool-provenance-rejections.jsonl').exists()
++                or (evidence.parent/'isolation-violations.jsonl').exists()
++                or not remote or not remote_stop(evidence.parent)):
++            raise ValueError('Prior failure is not a positively identified remote provider fault')
++        relative=evidence.relative_to(prior).parts
++        if relative[0]=='audit-a' and len(relative)>=5:
++            author,source,campaigns=audit_boundary(prior,old,prior/relative[0]/relative[1])
++            mode='audit-a'
++        elif relative[0]=='nl0' and len(relative)>=4:
++            author=prior/relative[0]/relative[1]
++            if failure.get('status')=='ACCEPTED':
++                raise ValueError('A released author requires its exact subsequent audit recovery boundary')
++        else:raise ValueError('This explicit resume supports authoring/Audit A; later-stage recovery is not inferred')
+     remaining=old['time_budget_seconds']
+     if remaining is not None:
+         from datetime import datetime,timezone
+@@ -99,7 +151,9 @@
+         if not deadline:raise ValueError('Original explicit deadline is unavailable; resume cannot reset its budget')
+         remaining=(datetime.fromisoformat(deadline.replace('Z','+00:00'))-datetime.now(timezone.utc)).total_seconds()
+         if remaining<=0:raise ValueError('The explicit case deadline is exhausted; resume cannot reset it')
+-    paths={prior/'job.json',result_path,evidence,evidence.parent/'events.jsonl',author/'stage/result.json'}
++    paths={prior/'job.json',result_path,evidence,author/'stage/result.json'}
++    if repair_evidence:paths.add(prior/'execution-status.json')
++    else:paths.add(evidence.parent/'events.jsonl')
+     if mode=='audit-a':
+         source=author/'stage/case'
+         _,files=source_preparation.read_source(source/'nl0.json',source/'spec.json')
+@@ -111,6 +165,12 @@
+                 'execution-manifest.json','exposure-audit.json','tools.jsonl'})
+             for raw in Path(campaign).glob('*/stage/accepted.json'):
+                 paths.update(source_preparation.evidence_paths(json.loads(raw.read_text()),raw.parent))
++            plan=json.loads((Path(campaign)/'campaign.json').read_text())
++            previous_case=Path(plan['case'])
++            for binding in plan.get('inherited',{}).values():
++                import audit_reuse
++                record,stored=audit_reuse.read_binding(previous_case,binding)
++                paths.add(previous_case/binding['path']);paths.update(stored.values())
+     descriptor={'version':VERSION,'prior_run':str(prior),'mode':mode,
+                 'author_directory':str(author),'campaigns':campaigns}
+     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
+@@ -121,7 +181,8 @@
+     write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
+         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,
+         'new_runtime_bound':True,'partial_reviews_are_not_inherited':True,
+-        'prior_judgments_visible_to_fresh_reviewers':False,'old_usage_included_in_new_usage':False})
++        'prior_judgments_visible_to_fresh_reviewers':False,'old_usage_included_in_new_usage':False,
++        'evidence_index_recovery':index_faults,'recovery_requires_new_model_reviews':not repair_evidence})
+     jobs.validate(job)
+     return job
+ 
+--- a/rigorous-proof/scripts/nl0.py
++++ b/rigorous-proof/scripts/nl0.py
+@@ -426,7 +426,7 @@
+                         if replay['mode'] == background.MODE:
+                             require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
+                             if refs:evidence(base, refs)
+-                            materials = ['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]
++                            materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
+                             require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
+                                     'REPLAY-BOUNDARY', 'background source not in reviewed material list')
+                         else:
+--- a/rigorous-proof/tests/test_evidence_index.py
++++ b/rigorous-proof/tests/test_evidence_index.py
+@@ -0,0 +1,118 @@
++"""Real pinned-source checks with synthetic review judgments, not proof audits."""
++from copy import deepcopy
++import json
++from pathlib import Path
++import shutil
++import sys
++import tempfile
++import unittest
++from unittest.mock import patch
++
++CORE=Path(__file__).resolve().parents[1]
++sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts'),str(CORE/'tests')]
++import audit_a_campaign as campaign
++import audit_reuse as reuse
++import background
++import test_audit_reuse as fixtures
++from artifact_validation import signature_probe
++
++
++class EvidenceIndexTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.probes=tempfile.TemporaryDirectory(prefix='yui-index-probes-')
++        for identifier,declaration in [('M901','Continuous.add'),('M902','Continuous.mul')]:
++            signature_probe(Path(cls.probes.name),identifier,declaration,None,1)
++
++    @classmethod
++    def tearDownClass(cls):cls.probes.cleanup()
++    def setUp(self):fixtures.AuditReuseTests.setUp(self)
++    def tearDown(self):fixtures.AuditReuseTests.tearDown(self)
++
++    def add_notes(self,order=('A','B','B','C')):
++        stage=self.campaign/'R001/stage';sources={}
++        for letter,identifier in [('A','M901'),('B','M902'),('C','M901')]:
++            source=background.source_from_probe(Path(self.probes.name),identifier)
++            original=Path(self.probes.name)/source['evidence'][0]['path']
++            target=stage/'library'/('source-'+letter+'.json');target.parent.mkdir(exist_ok=True)
++            shutil.copyfile(original,target)
++            source['evidence']=[{'path':str(target.relative_to(stage)),'sha256':reuse.sha(target)}]
++            sources[letter]=source
++        raw=campaign.nl0.load(stage/'accepted.json')
++        raw['background_notes']=[{'id':'BG'+str(i+1).zfill(3),'kind':'mathlib',
++            'at':'/inference/argument/0/text','fact':'Synthetic evidence-index control only.',
++            'grounds':[{'location':'/inputs','reason':'Synthetic context-location control.'}],
++            'justification':'Synthetic receipt fixture; no mathematical audit is claimed.',
++            'source':deepcopy(sources[letter])} for i,letter in enumerate(order)]
++        campaign.write(stage/'accepted.json',raw)
++        return reuse.select(self.data,[self.campaign])['packet:R001'],sources
++
++    def legacy_bad(self,binding,sources):
++        record,_=reuse.read_binding(self.new,binding)
++        record['background_sources'][sources['B']['evidence'][0]['path']]=record['background_sources'][sources['C']['evidence'][0]['path']]
++        path=self.new/'review-evidence/reuse'/(reuse.hashed(record)+'.json')
++        campaign.write(path,record)
++        return {'path':str(path.relative_to(self.new)),'sha256':reuse.sha(path)}
++
++    def test_repeated_sources_keep_correct_identity_and_unique_allocation(self):
++        for order in [('A','B','B','C'),('B','B','B','A','C','A'),('A','B','C','B','C')]:
++            hit,sources=self.add_notes(order)
++            binding=reuse.materialize(hit,self.new);record,_=reuse.read_binding(self.new,binding)
++            self.assertEqual(len(record['background_sources']),3)
++            for source in sources.values():
++                ev=source['evidence'][0];key=record['background_sources'][ev['path']]
++                self.assertEqual(record['previous'][key]['sha256'],ev['sha256'])
++            reuse.validate(self.new,binding,self.data,'packet:R001')
++
++    def test_legacy_index_repairs_without_changing_old_files_or_judgments(self):
++        hit,sources=self.add_notes();good=reuse.materialize(hit,self.new);bad=self.legacy_bad(good,sources)
++        original=(self.new/bad['path']).read_bytes();record,paths=reuse.read_binding(self.new,bad)
++        old_raw=paths['raw'].read_bytes()
++        with self.assertRaises(reuse.EvidenceIndexError):reuse.validate(self.new,bad,self.data,'packet:R001')
++        fixed,report=reuse.repair_evidence_index(self.new,bad,self.data,'packet:R001')
++        self.assertEqual((self.new/bad['path']).read_bytes(),original)
++        self.assertEqual(reuse.read_binding(self.new,fixed)[1]['raw'].read_bytes(),old_raw)
++        self.assertEqual(report['new_model_calls'],0);self.assertEqual(report['new_native_checks'],0)
++        self.assertFalse(report['mathematical_content_changed'])
++        reuse.validate(self.new,fixed,self.data,'packet:R001')
++
++    def test_missing_or_tampered_source_is_not_repaired_from_unbound_files(self):
++        hit,sources=self.add_notes();bad=self.legacy_bad(reuse.materialize(hit,self.new),sources)
++        record,paths=reuse.read_binding(self.new,bad);digest=sources['B']['evidence'][0]['sha256']
++        correct=next(k for k,v in record['previous'].items() if k.startswith('background_') and v['sha256']==digest)
++        paths[correct].write_text('{}')
++        with self.assertRaisesRegex(ValueError,'Stale'):
++            reuse.repair_evidence_index(self.new,bad,self.data,'packet:R001')
++
++    def test_source_context_change_is_not_treated_as_an_index_repair(self):
++        hit,sources=self.add_notes();bad=self.legacy_bad(reuse.materialize(hit,self.new),sources)
++        changed=deepcopy(self.data);changed[2]['parameters'][0]['type']='a different mathematical domain'
++        with self.assertRaisesRegex(ValueError,'context changed'):
++            reuse.repair_evidence_index(self.new,bad,changed,'packet:R001')
++
++    def test_actual_collection_recovers_bad_index_without_model_execution(self):
++        hit,sources=self.add_notes();out=self.root/'recovery-campaign'
++        (self.new/'audit-a.json').unlink(missing_ok=True)  # Discard only the synthetic fixture's old receipt.
++        plan=campaign.prepare(self.new,self.problem,out,reuse_from=[self.campaign])
++        bad=self.legacy_bad(plan['inherited']['packet:R001'],sources)
++        plan['inherited']['packet:R001']=bad;campaign.write(out/'campaign.json',plan)
++        with patch.object(campaign,'ArtifactStage') as model:
++            result=campaign.collect(out,None)
++        model.assert_not_called()
++        self.assertTrue(result['full_acceptance']);self.assertEqual(len(result['bookkeeping_repairs']),1)
++        self.assertTrue((self.new/bad['path']).exists())
++        receipt=campaign.nl0.load(self.new/'audit-a.json')
++        inherited=receipt['inference_reviews']['R001']['inheritance']
++        self.assertNotEqual(inherited,bad)
++        self.assertIn(bad,receipt['inference_reviews']['R001']['evidence'])
++        campaign.nl0.validate(self.new/'nl0.json',self.new/'spec.json',self.new/'audit-a.json')
++        import source_preparation
++        _,files=source_preparation.read_source(self.new/'nl0.json',self.new/'spec.json',self.new/'audit-a.json')
++        portable=self.root/'portable';portable.mkdir()
++        for source in files:
++            target=portable/source.relative_to(self.new.resolve());target.parent.mkdir(parents=True,exist_ok=True)
++            shutil.copyfile(source,target)
++        campaign.nl0.validate(portable/'nl0.json',portable/'spec.json',portable/'audit-a.json')
++
++
++if __name__=='__main__':unittest.main()
+--- a/rigorous-proof/tests/test_interrupted_resume.py
++++ b/rigorous-proof/tests/test_interrupted_resume.py
+@@ -124,6 +124,29 @@
+         self.assertEqual(prepared['status'],'PREPARED_NOT_STARTED')
+         self.assertNotEqual(Path(prepared['runs'][0]),self.run)
+ 
++    def test_evidence_repair_is_an_explicit_guarded_resume_mode(self):
++        parser=argparse.ArgumentParser();entrypoint.parsers(parser.add_subparsers(dest='command'))
++        args=parser.parse_args(['resume',str(self.run),'--repair-evidence','--prepare-only'])
++        with patch.object(interrupted,'prepare',return_value=self.old) as prepare:
++            result=entrypoint.dispatch(args)
++        prepare.assert_called_once_with(self.run,repair_evidence=True)
++        self.assertEqual(result['status'],'PREPARED_NOT_STARTED')
++        with self.assertRaisesRegex(ValueError,'known recoverable evidence-index'):
++            with patch.object(interrupted,'inspect',return_value=EXITED):
++                interrupted.prepare(self.run,repair_evidence=True)
++
++    def test_author_lineage_remains_exact_across_multiple_continuations(self):
++        first=self.prepare()
++        outcome=Path(first['root'])/'case-result.json';self.write(outcome,{'result':{'status':'EXECUTION_FAULT'}})
++        new=jobs.prepare(self.problem,track='full',profiles=PROFILES,
++            resume={**first['resume'],'prior_run':first['root']},
++            resume_bindings=[__import__('controller_common').bind(Path(first['root'])/'job.json'),
++                __import__('controller_common').bind(outcome),
++                __import__('controller_common').bind(self.stage/'result.json')])
++        jobs.validate(new)
++        new['resume']['author_directory']=str(self.root/'unrelated-author')
++        with self.assertRaisesRegex(ValueError,'bound authority lineage'):interrupted.validate_descriptor(new)
++
+     def test_released_source_resumes_only_its_same_case_audit_without_author_replay(self):
+         source,campaign=self.audit_boundary();before=(source/'nl0.json').read_bytes()
+         with patch.object(full_workflow,'nl0_artifact_for_audit',return_value={'synthetic_control_only':True}) as release:

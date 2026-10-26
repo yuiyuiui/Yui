@@ -62,7 +62,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         self.assertFalse(result['author_timing_qualified'])
         self.assertFalse(result['execution']['execution_qualified'])
         self.assertEqual(result['transport_recovery_disclosure'],row['transport_health'])
-        with self.assertRaises(StageFailure):f.accepted(directory)
+        self.assertEqual(f.accepted(directory),row)
         self.assertEqual(a.json.loads((directory/'stage/result.json').read_text()),row)
 
     def test_incomplete_or_faulted_sources_cannot_bypass_first_a_eligibility(self):
@@ -81,6 +81,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         for row in variants:
             a.write(directory/'stage/result.json',row)
             with self.assertRaises((StageFailure,e.Cancelled)):f.nl0_artifact_for_audit(directory)
+            with self.assertRaises((StageFailure,e.Cancelled)):f.accepted(directory)
 
     def test_source_must_match_real_submit_and_current_release_binding(self):
         directory,row=self.submitted_fixture()

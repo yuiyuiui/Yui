@@ -100,6 +100,21 @@ class AuditReuseTests(unittest.TestCase):
         manifest['rule_documents']['references/audit-a.md']='changed';a.write(path,manifest)
         self.assertNotIn('packet:R002',reuse.select(self.data,[self.campaign]))
 
+    def test_complete_recovered_review_is_reused_with_fault_measurement_preserved(self):
+        path=self.campaign/'R001/stage/result.json';result=a.nl0.load(path)
+        result.update(execution_health='FAULT',temporary_workspace_removed=True,
+            transport_health={'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR','request_number':1,
+                'code':'server_is_overloaded'}],'uncertainty':[]})
+        a.write(path,result)
+        hit=reuse.select(self.data,[self.campaign])['packet:R001']
+        self.assertFalse(hit['measurement']['execution_qualified'])
+        self.assertFalse(hit['measurement']['measurement_valid'])
+        inherited=reuse.materialize(hit,self.new)
+        reuse.validate(self.new,inherited,self.data,'packet:R001')
+        for field,value in [('execution_fault','Local controller failure'),('isolation_violation',True)]:
+            changed={**result,field:value};a.write(path,changed)
+            self.assertNotIn('packet:R001',reuse.select(self.data,[self.campaign]))
+
     def test_reused_packet_receipt_is_accepted_only_with_checked_inheritance(self):
         hits=reuse.select(self.data,[self.campaign]);inheritance=reuse.materialize(hits['packet:R001'],self.new)
         receipt=a.nl0.closure.audit_template(self.data,a.nl0.CHECKS,a.nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')

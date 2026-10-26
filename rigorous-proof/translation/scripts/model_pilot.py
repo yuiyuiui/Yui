@@ -34,6 +34,8 @@ from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, P
                           ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
 from pilot_common import sha256, load_lock as runtime_lock
 
+REMOTE_RETRY_POLICY = carrier.REMOTE_RETRY_POLICY
+
 
 def load_lock():
     return runtime_lock()
@@ -43,6 +45,7 @@ carrier.load_lock = load_lock
 
 HARNESS = 'yui-0.1.3'
 BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
+LEAN_WRITING_PATH = ir.HERE/'references/lean-writing.md'
 STAGE_LIMITER = None
 carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission. '
                           'Continue with the same inputs and tools; preserve the fixed specification.')
@@ -80,6 +83,10 @@ class Stage(carrier.Trial):
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
         self.instruction_arm = instruction_arm
+        self.lean_writing_rules = None
+        if mode == 'proof' and instruction_arm == 'yui':
+            self.lean_writing_rules = LEAN_WRITING_PATH.read_text(encoding='utf-8')
+            self.system += '\n\n'+self.lean_writing_rules
         if instruction_arm == 'direct':
             if bank_enabled:
                 raise ValueError('The direct arm cannot use the Yui strategy bank')
@@ -328,11 +335,18 @@ class Stage(carrier.Trial):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)
                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
+            if self.lean_writing_rules is not None:
+                relative = 'translation/references/lean-writing.md'
+                target = self.logs/'harness-snapshot'/relative
+                target.parent.mkdir(parents=True,exist_ok=True)
+                target.write_text(self.lean_writing_rules,encoding='utf-8')
+                files.append({'path':relative,'sha256':sha256(target)})
             ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
                 'background_note_policy':self.background_note_policy,
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
+                'remote_retry_policy':REMOTE_RETRY_POLICY,
                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
@@ -418,7 +432,9 @@ class Stage(carrier.Trial):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
-                           'continuations':self.continuation_count,'finished_at_utc':carrier.now()})
+                           'continuations':self.continuation_count,'finished_at_utc':carrier.now(),
+                           'remote_retry_policy':REMOTE_RETRY_POLICY,
+                           'remote_retries':getattr(self,'remote_retry_count',0)})
             if self.proc:
                 if getattr(self,'execution',None):
                     if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'

@@ -1,0 +1,21 @@
+{
+  "proof": "intro t ht\nobtain ⟨C, R, B, hdata, hB, hbound⟩ := h_T005 t ht\nobtain ⟨hquot, hlim⟩ := h_T006 t ht C R B hdata hB hbound\nhave hmajor : Integrable (WM.major (n := n) R B) := by\n  exact (integrableOn_const (C := B) hdata.2.2.2.1.ne).integrable_indicator hdata.2.1.measurableSet\nhave hev : ∀ᶠ h : ℝ in nhdsWithin 0 ({0}ᶜ), 0 < |h| ∧ |h| < t / 4 := by\n  have hsmall : ∀ᶠ h : ℝ in nhdsWithin 0 ({0}ᶜ), h ∈ Metric.ball 0 (t / 4) :=\n    nhdsWithin_le_nhds (Metric.ball_mem_nhds 0 (by positivity))\n  filter_upwards [hsmall, self_mem_nhdsWithin] with h hs hn\n  have hne : h ≠ 0 := by simpa using hn\n  exact ⟨abs_pos.mpr hne, by simpa [Real.dist_eq] using hs⟩\napply tendsto_integral_filter_of_dominated_convergence (WM.major R B)\n· filter_upwards [hev] with h hh\n  exact (hquot h hh.1 hh.2).2.1\n· filter_upwards [hev] with h hh\n  exact Filter.Eventually.of_forall (fun x => by simpa only [Real.norm_eq_abs] using (hquot h hh.1 hh.2).2.2 x)\n· exact hmajor\n· exact Filter.Eventually.of_forall hlim",
+  "statement": "∀ t : ℝ, 0 < t → Filter.Tendsto (fun h => ∫ x, WM.quot u t h x) (nhdsWithin 0 ({0}ᶜ)) (nhds (∫ x, WM.et u (x,t)))",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-lao6xgi1/output/Check.lean:50:69: warning: Variable name `h_T004` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nT007 : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  WM.supportAndRegularity u q →\n    (∀ (t : ℝ),\n        0 < t →\n          ∃ C R B,\n            WM.localData u q t C R ∧\n              0 ≤ B ∧ ∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t - t / 4) (t + t / 4), |WM.et u (x, r)| ≤ B) →\n      (∀ (t : ℝ),\n          0 < t →\n            ∀ (C : Set (WM.X n)) (R B : ℝ),\n              WM.localData u q t C R →\n                0 ≤ B →\n                  (∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t - t / 4) (t + t / 4), |WM.et u (x, r)| ≤ B) →\n                    (∀ (h : ℝ),\n                        0 < |h| →\n                          |h| < t / 4 →\n                            Integrable (WM.quot u t h) volume ∧\n                              AEStronglyMeasurable (WM.quot u t h) volume ∧\n                                ∀ (x : WM.X n), |WM.quot u t h x| ≤ WM.major R B x) ∧\n                      ∀ (x : WM.X n), Filter.Tendsto (fun h => WM.quot u t h x) (𝓝[≠] 0) (𝓝 (WM.et u (x, t)))) →\n        ∀ (t : ℝ),\n          0 < t →\n            Filter.Tendsto (fun h => ∫ (x : WM.X n), WM.quot u t h x) (𝓝[≠] 0) (𝓝 (∫ (x : WM.X n), WM.et u (x, t)))\n'Translation.T007' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.168705791933462,
+    "status": "LOCAL-PROOF-CHECKED",
+    "contract_sha256": "8ae9dc883dfbcb3b7eb394f1aaac4de567f9b55c2b7f6a07d3bf79784568524f",
+    "lean_sha256": "4e9cfebe6ab8e379dba11ada72ac5e03e3d9e828fdfd64b64b6767cc2bbf166b",
+    "scope": "T007",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "accepted": true,
+    "stage_complete": true
+  }
+}

@@ -8,13 +8,17 @@ from pathlib import Path
 import shutil
 import background
 
-from execution_health import qualification
+from execution_health import qualification, record_qualification
 from execution_state import atomic
 
 VERSION='yui-review-reuse-1'
 SEMANTIC_RULES=('references/nl0-format.md','references/self-containment.md',
                 'references/audit-a.md','references/external-theorems.md','references/logical-rules.md',
                 'references/background-notes.md')
+
+
+class EvidenceIndexError(ValueError):
+    """Intact source evidence is associated with the wrong cached key."""
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -98,7 +102,7 @@ def select(data,campaigns):
             directory=campaign/job['id'];stage=directory/'stage'
             if not (stage/'accepted.json').is_file():continue
             result=load(stage/'result.json')
-            if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified']:continue
+            if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified']:continue
             manifest=load(stage/'execution-manifest.json')
             if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():continue
             raw=load(stage/'accepted.json');items=[]
@@ -143,8 +147,12 @@ def materialize(hit,case):
     background_sources={}
     for note in hit['row'].get('background_notes', []):
         for ev in note.get('source',{}).get('evidence',[]):
+            source=directory/'stage'/ev['path']
+            if sha(source)!=ev['sha256']:raise ValueError('Original background evidence changed')
+            if ev['path'] in background_sources:
+                continue
             key='background_'+str(len(background_sources))
-            files[key]=directory/'stage'/ev['path'];background_sources[ev['path']]=key
+            files[key]=source;background_sources[ev['path']]=key
     if hit['scope'].startswith('packet:') and (directory/'stage/tools.jsonl').is_file():
         files['tools']=directory/'stage/tools.jsonl'
     for name,path in files.items():
@@ -171,6 +179,11 @@ def read_binding(case,binding):
     record=load(checked(binding))
     if record['version']!=VERSION:raise ValueError('Unsupported review inheritance')
     paths={key:checked(row) for key,row in record['previous'].items()}
+    if 'index_repair' in record:
+        original=load(checked(record['index_repair']['original']))
+        fields=set(record)-{'background_sources','index_repair'}
+        if fields!=set(original)-{'background_sources','index_repair'} or any(record[k]!=original[k] for k in fields):
+            raise ValueError('An index repair changed non-index review evidence')
     return record,paths
 
 
@@ -194,7 +207,7 @@ def validate(case,binding,data,scope,entry=None):
     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
         raise ValueError('Inherited review mathematical context changed')
     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
-    if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified'] or exposure!=result['exposure']:
+    if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified'] or exposure!=result['exposure']:
         raise ValueError('Inherited review execution is unqualified')
     if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():
         raise ValueError('Inherited review semantic rules changed')
@@ -215,10 +228,51 @@ def validate(case,binding,data,scope,entry=None):
     for note in notes:
         for ev in note.get('source',{}).get('evidence',[]):
             key=record.get('background_sources',{}).get(ev['path'])
-            if key not in record['previous']:raise ValueError('Inherited background evidence was not preserved')
+            if key not in record['previous'] or record['previous'][key]['sha256']!=ev['sha256']:
+                raise EvidenceIndexError('Inherited background index does not match the original evidence hash')
             ev.update(record['previous'][key])
     if scope.startswith('packet:'):background.validate(notes, nl0.packet(data,scope.split(':')[1]), case)
     return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw,'background_notes':notes}
+
+
+def checked_reindex(case,binding,data,scope):
+    """Reconstruct metadata from bound original hashes; no file or judgment edit."""
+    import nl0
+    try:validate(case,binding,data,scope)
+    except EvidenceIndexError:pass
+    else:raise ValueError('No verified inherited evidence-index mismatch to repair')
+    record,paths=read_binding(case,binding);raw=raw_from_binding(case,binding)
+    updated=deepcopy(record);notes=deepcopy(raw.get('background_notes',[]));changes=[]
+    expected={}
+    for note in notes:
+        for ev in note.get('source',{}).get('evidence',[]):
+            path,digest=ev['path'],ev['sha256']
+            if path in expected and expected[path]!=digest:
+                raise ValueError('One original evidence path has conflicting hashes')
+            expected[path]=digest
+            matches=sorted(key for key,row in record['previous'].items()
+                           if key.startswith('background_') and row['sha256']==digest)
+            if not matches:raise ValueError('No intact bound original evidence for index repair')
+            current=record['background_sources'].get(path)
+            selected=current if current in matches else matches[0]
+            updated['background_sources'][path]=selected
+            if current!=selected:changes.append({'original_path':path,'before':current,'after':selected,'sha256':digest})
+            ev.update(record['previous'][selected])
+    if not changes:raise ValueError('No verified index change')
+    background.validate(notes,nl0.packet(data,scope.split(':',1)[1]),case)
+    updated['index_repair']={'original':deepcopy(binding),'kind':'RESTORED_ORIGINAL_EVIDENCE_ASSOCIATION',
+                             'changes':changes,'mathematical_content_changed':False}
+    return updated,changes
+
+
+def repair_evidence_index(case,binding,data,scope):
+    """Publish a new checked index while retaining the original failed binding."""
+    updated,changes=checked_reindex(case,binding,data,scope)
+    case=Path(case).resolve();path=case/'review-evidence/reuse'/(hashed(updated)+'.json')
+    atomic(path,updated);new={'path':str(path.relative_to(case)),'sha256':sha(path)}
+    validate(case,new,data,scope)
+    return new,{'scope':scope,'original':deepcopy(binding),'repaired':new,'changes':changes,
+        'new_model_calls':0,'new_native_checks':0,'mathematical_content_changed':False}
 
 
 def match_judgment(entry,raw):

@@ -25,6 +25,9 @@ there is no requirement to preload the entire skill or all note bodies.
    input statements, matched source paragraphs and own compact note index.
    Read a full note only if useful. No sibling proof bodies, other cases,
    developer history or additional personal skills are supplied.
+   Use [Lean implementation safeguards](lean-writing.md) for library
+   applications and conversions, including small type checks in preparation.
+   Yui proof workers receive these requirements in their stage instructions.
 5. Start the serial [postprocessing author](assembly.md) to connect actual
    proofs, discharge any retained M ports and compile standalone `Proof.lean`.
    Inspect signatures/dependencies separately, then start the fresh independent

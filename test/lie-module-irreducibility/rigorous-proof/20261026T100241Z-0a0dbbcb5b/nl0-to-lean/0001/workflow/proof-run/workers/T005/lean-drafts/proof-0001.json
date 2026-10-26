@@ -1,0 +1,16 @@
+{
+  "proof": "have hp : Prime (p : ℤ) := Nat.prime_iff_prime_int.mp h_H001\nlet S : Subring ℚ :=\n  { carrier := {q | ∃ a b : ℤ, b ≠ 0 ∧ ¬ (p : ℤ) ∣ b ∧ q = (a : ℚ) / (b : ℚ)}\n    zero_mem' := by\n      exact ⟨0, 1, one_ne_zero, hp.not_dvd_one, by norm_num⟩\n    one_mem' := by\n      exact ⟨1, 1, one_ne_zero, hp.not_dvd_one, by norm_num⟩\n    add_mem' := by\n      rintro u w ⟨a, b, hb, hpb, rfl⟩ ⟨c, d, hd, hpd, rfl⟩\n      refine ⟨a*d+c*b, b*d, mul_ne_zero hb hd, hp.not_dvd_mul hpb hpd, ?_⟩\n      push_cast\n      exact div_add_div _ _ (by exact_mod_cast hb) (by exact_mod_cast hd)\n    mul_mem' := by\n      rintro u w ⟨a, b, hb, hpb, rfl⟩ ⟨c, d, hd, hpd, rfl⟩\n      refine ⟨a*c, b*d, mul_ne_zero hb hd, hp.not_dvd_mul hpb hpd, ?_⟩\n      push_cast\n      exact div_mul_div_comm _ _ _ _\n    neg_mem' := by\n      rintro u ⟨a, b, hb, hpb, rfl⟩\n      refine ⟨-a, b, hb, hpb, ?_⟩\n      simp }\nhave hRS : LR.R p ≤ S := by\n  apply Subring.closure_le.mpr\n  rintro q ⟨a, b, hpb, hq⟩\n  exact ⟨a, b, fun hb => hpb (hb ▸ dvd_zero _), hpb, hq⟩\nintro q\nconstructor\n· exact fun hq => hRS hq\n· rintro ⟨a, b, hb, hpb, hq⟩\n  exact Subring.subset_closure ⟨a, b, hpb, hq⟩",
+  "statement": "∀ q : ℚ, q ∈ LR.R p ↔ ∃ a b : ℤ, b ≠ 0 ∧ ¬ (p : ℤ) ∣ b ∧ q = (a : ℚ)/(b : ℚ)",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-yo3agzp0/output/Check.lean:122:34: error: mod_cast has type\n  ¬b = @OfNat.ofNat ℤ 0 (@Zero.toOfNat0 ℤ Int.instRing.toAddGroupWithOne.toAddZeroClass.toZero)\nbut is expected to have type\n  ¬?m.308 = @OfNat.ofNat ?m.306 0 (@Zero.toOfNat0 ?m.306 instMulZeroClassOfSemiring.toZero)\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-yo3agzp0/output/Check.lean:122:57: error: mod_cast has type\n  ¬d = @OfNat.ofNat ℤ 0 (@Zero.toOfNat0 ℤ Int.instRing.toAddGroupWithOne.toAddZeroClass.toZero)\nbut is expected to have type\n  ¬?m.309 = @OfNat.ofNat ?m.306 0 (@Zero.toOfNat0 ?m.306 instMulZeroClassOfSemiring.toZero)\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-yo3agzp0/output/Check.lean:128:18: error: unsolved goals\np : ℕ\nK : Type u_1\ninstK : Field K\nlam : ℤ\nV : Type u_2\ninstV : AddCommGroup V\ninstCV : Module ℂ V\nx y h : Module.End ℂ V\nv : V\nM : Submodule ℤ V\nh_H001 : Nat.Prime p\nhp : Prime ↑p\na b : ℤ\nhb : b ≠ 0\nhpb : ¬↑p ∣ b\n⊢ -(↑a / ↑b) = -↑a / ↑b\nT005 : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  Nat.Prime p → ∀ (q : ℚ), q ∈ LR.R p ↔ ∃ a b, b ≠ 0 ∧ ¬↑p ∣ b ∧ q = ↑a / ↑b\n'Translation.T005' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 7.225860208040103,
+    "status": "LEAN-CHECK-FAILED",
+    "contract_sha256": "b299da5107dcd0034d543f4871dbd75306b577a18d61d88f7edd7b8fbae5d545",
+    "lean_sha256": "0eb0f299c20633f819b81468a26fc0a758d00d198896cd9fc172c63f771a7937",
+    "scope": "T005",
+    "accepted": false,
+    "stage_complete": false
+  }
+}

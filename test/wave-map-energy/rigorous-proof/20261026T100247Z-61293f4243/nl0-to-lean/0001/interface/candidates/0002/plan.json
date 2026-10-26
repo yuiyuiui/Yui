@@ -1,0 +1,306 @@
+{
+  "version": 2,
+  "contract_sha256": "8ae9dc883dfbcb3b7eb394f1aaac4de567f9b55c2b7f6a07d3bf79784568524f",
+  "representation_notes": "PENDING_AUDIT_B. X n is the real coordinate space Fin n → ℝ, with its standard finite product Lebesgue volume. Its library sup norm is only an auxiliary coordinate topology: it has the same topology and derivative calculus as Euclidean ℝ^n; no spatial-vector norm occurs in the energy. Y m carries the Euclidean inner product and norm. Fin n indexes the original n coordinates with a zero-based relabeling. u is a total extension to all real times; H002 is smoothness only on the open set t>0, and all physical hypotheses and conclusions are restricted to t>0. Any original u extends by q at nonpositive times; conversely restriction recovers the original map. Germ-local derivatives at positive times and energy there are independent of the extension. dx is the spatial Fréchet derivative applied to the standard coordinate vector, dt the ordinary time derivative. On the smooth open domain these are the usual partial derivatives. All norms of derivatives in e are Euclidean target norms, hence its finite sum is precisely the Frobenius square, without a half. lap is the sum of the unmixed second spatial partials. The propositions regular, geometry, good, localData, supportAndRegularity and fluxData are transparent bundles of obligations, not assumptions or proved facts. Bochner Integrable for real sections means absolute Lebesgue integrability; the total integral definition is only used as finite energy after T004. For the one actual coordinate split in Fubini, T010 explicitly checks the insertion map's measure preservation, box image, and integral conversion; this stays in finite product coordinates, including the zero-dimensional remainder.",
+  "steps": [
+    {
+      "id": "T001",
+      "statement": "∀ (x : WM.X n) (t : ℝ), 0 < t → inner ℝ (u (x,t)) (WM.ut u (x,t)) = 0 ∧ inner ℝ (WM.ut u (x,t)) (WM.utt u (x,t) - WM.lap u x t) = 0",
+      "inputs": [
+        "H002",
+        "H004",
+        "H005"
+      ],
+      "source_steps": [
+        "S001",
+        "S002"
+      ],
+      "explanation": "Differentiate the constant squared norm on the positive-time germ using HasDerivAt.inner, then pair the pointwise normality witness with ut. No selected multiplier or derivative of it is used.",
+      "background_notes": [
+        "R001.BG001",
+        "R001.BG002",
+        "R001.BG003",
+        "R001.BG004",
+        "R001.BG005",
+        "R001.BG006",
+        "R001.BG007",
+        "R001.BG008",
+        "R001.BG009",
+        "R001.BG010",
+        "R001.BG011"
+      ]
+    },
+    {
+      "id": "T002",
+      "statement": "WM.regular u",
+      "inputs": [
+        "H002"
+      ],
+      "source_steps": [
+        "S003"
+      ],
+      "explanation": "Extract smooth partial derivatives from smoothness on the open domain. Symmetry of the second Fréchet derivative in time and spatial coordinate directions gives the mixed-derivative identity. The inner-product product rule and finite sum give et. These are obligations, not properties granted by the definitions.",
+      "background_notes": [
+        "R002.BG001",
+        "R002.BG002",
+        "R002.BG003",
+        "R002.BG004",
+        "R002.BG005",
+        "R002.BG006",
+        "R002.BG007",
+        "R002.BG021"
+      ]
+    },
+    {
+      "id": "T003",
+      "statement": "∀ τ : ℝ, 0 < τ → ∃ (C : Set (WM.X n)) (R : ℝ), WM.geometry u q τ C R",
+      "inputs": [
+        "H006"
+      ],
+      "source_steps": [
+        "S004",
+        "S005"
+      ],
+      "explanation": "Use the slab [τ/2,3τ/2]. Bound the compact set in the finite coordinate norm and enlarge the bound to a positive R, including the empty-set case.",
+      "background_notes": [
+        "R002.BG009"
+      ]
+    },
+    {
+      "id": "T004",
+      "statement": "WM.supportAndRegularity u q",
+      "inputs": [
+        "H001",
+        "H002",
+        "T002",
+        "T003"
+      ],
+      "source_steps": [
+        "S006"
+      ],
+      "explanation": "The closed box is compact of volume (2R)^n. On the open complement of C in the interior slab, u has constant germ, so every positive iterated derivative vanishes. Smoothness gives continuity of all listed sections; compact support and Continuous.integrable_of_hasCompactSupport give absolute integrability. Compact bounds give good; use τ itself to obtain global section integrability. Bundle exactly the N002 regularity, mixed identities, support, box measure and integrability statements.",
+      "background_notes": [
+        "R002.BG008",
+        "R002.BG010",
+        "R002.BG011",
+        "R002.BG012",
+        "R002.BG013",
+        "R002.BG014",
+        "R002.BG015",
+        "R002.BG016",
+        "R002.BG017",
+        "R002.BG018",
+        "R002.BG019",
+        "R002.BG020",
+        "R002.BG022"
+      ]
+    },
+    {
+      "id": "T005",
+      "statement": "∀ t : ℝ, 0 < t → ∃ (C : Set (WM.X n)) (R B : ℝ), WM.localData u q t C R ∧ 0 ≤ B ∧ ∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t-t/4) (t+t/4), |WM.et u (x,r)| ≤ B",
+      "inputs": [
+        "T004"
+      ],
+      "source_steps": [
+        "S007"
+      ],
+      "explanation": "Set η=t/4. It lies strictly inside the original slab. Bound the continuous et on the compact space-time box, replacing the bound by its maximum with zero.",
+      "background_notes": [
+        "R003.BG001",
+        "R003.BG002",
+        "R003.BG003",
+        "R003.BG004"
+      ]
+    },
+    {
+      "id": "T006",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ (C : Set (WM.X n)) (R B : ℝ), WM.localData u q t C R → 0 ≤ B → (∀ x ∈ WM.box n R, ∀ r ∈ Set.Icc (t-t/4) (t+t/4), |WM.et u (x,r)| ≤ B) → ((∀ h : ℝ, 0 < |h| → |h| < t/4 → Integrable (WM.quot u t h) ∧ AEStronglyMeasurable (WM.quot u t h) ∧ ∀ x, |WM.quot u t h x| ≤ WM.major R B x) ∧ (∀ x, Filter.Tendsto (fun h => WM.quot u t h x) (nhdsWithin 0 ({0}ᶜ)) (nhds (WM.et u (x,t)))))",
+      "inputs": [
+        "T004"
+      ],
+      "source_steps": [
+        "S008"
+      ],
+      "explanation": "Apply the norm mean-value estimate along the ordered interval between t and t+h, handling either sign of h. Outside Q both densities vanish. Integral linearity gives integrability of each valid quotient. Smoothness gives the pointwise punctured-neighborhood limit.",
+      "background_notes": [
+        "R003.BG005",
+        "R003.BG006",
+        "R003.BG007",
+        "R003.BG008",
+        "R003.BG009",
+        "R003.BG010",
+        "R003.BG011",
+        "R003.BG012",
+        "R003.BG013",
+        "R003.BG014",
+        "R003.BG015",
+        "R003.BG016"
+      ]
+    },
+    {
+      "id": "T007",
+      "statement": "∀ t : ℝ, 0 < t → Filter.Tendsto (fun h => ∫ x, WM.quot u t h x) (nhdsWithin 0 ({0}ᶜ)) (nhds (∫ x, WM.et u (x,t)))",
+      "inputs": [
+        "T004",
+        "T005",
+        "T006"
+      ],
+      "source_steps": [
+        "S009"
+      ],
+      "explanation": "Choose the compact box and bound. Its indicator majorant B 1_Q is integrable. Apply tendsto_integral_filter_of_dominated_convergence to the countably generated punctured real neighborhood filter using eventual bounds and measurability from T006.",
+      "background_notes": [
+        "R003.BG017",
+        "R003.BG018",
+        "R003.BG019",
+        "R003.BG020",
+        "R003.BG021",
+        "R003.BG022",
+        "R003.BG023",
+        "R003.BG024"
+      ]
+    },
+    {
+      "id": "T008",
+      "statement": "∀ t : ℝ, 0 < t → DifferentiableAt ℝ (WM.energy u) t ∧ deriv (WM.energy u) t = ∫ x, WM.et u (x,t)",
+      "inputs": [
+        "T004",
+        "T007"
+      ],
+      "source_steps": [
+        "S010"
+      ],
+      "explanation": "For sufficiently small nonzero h, both density sections are integrable and t+h>0. Integral linearity identifies the integral quotient with the quotient of the actual finite energies. The limit is the derivative criterion; et is integrable.",
+      "background_notes": [
+        "R003.BG025",
+        "R003.BG026",
+        "R003.BG027",
+        "R003.BG028"
+      ]
+    },
+    {
+      "id": "T009",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, ∃ (C : Set (WM.X n)) (R : ℝ), WM.fluxData u q t j C R",
+      "inputs": [
+        "H001",
+        "H002",
+        "T004"
+      ],
+      "source_steps": [
+        "S011"
+      ],
+      "explanation": "Fix time and coordinate, choose the N002 slab data, and prove the spatial product rule divFlux=bTerm+cTerm (using real inner-product symmetry). The flux is smooth and zero outside C, hence good. Its derivative and summands are already good in localData; C⊂int Q gives the required vanishing near the boundary.",
+      "background_notes": [
+        "R004.BG001",
+        "R004.BG007",
+        "R004.BG015",
+        "R004.BG016",
+        "R004.BG017",
+        "R004.BG018",
+        "R004.BG019",
+        "R004.BG022",
+        "R004.BG023",
+        "R004.BG024",
+        "R004.BG025",
+        "R004.BG026",
+        "R004.BG027"
+      ]
+    },
+    {
+      "id": "T010",
+      "statement": "∀ (k : ℕ) (j : Fin (k+1)) (R : ℝ), 0 < R → MeasurePreserving (fun p : ℝ × WM.X k => Fin.insertNth j p.1 p.2) volume volume ∧ (Set.image (fun p : ℝ × WM.X k => Fin.insertNth j p.1 p.2) (Set.Icc (-R) R ×ˢ WM.box k R) = WM.box (k+1) R) ∧ (∀ d : WM.X (k+1) → ℝ, Continuous d → (∫ x in WM.box (k+1) R, d x) = ∫ z in WM.box k R, ∫ y in Set.Icc (-R) R, d (Fin.insertNth j y z))",
+      "inputs": [],
+      "source_steps": [
+        "S012"
+      ],
+      "explanation": "Coordinate-splitting implementation extraction. Fin.insertNth is inverse to MeasurableEquiv.piFinSuccAbove. Use volume_preserving_piFinSuccAbove and its inverse, verify the box image coordinatewise, and apply integral_prod_symm to the continuous function restricted to the compact product box. Only integrability on this finite-measure box is required, not global integrability of arbitrary d. k=0 uses the singleton finite product volume, not a separate convention.",
+      "background_notes": [
+        "R004.BG002",
+        "R004.BG003",
+        "R004.BG004",
+        "R004.BG005",
+        "R004.BG006",
+        "R004.BG008",
+        "R004.BG020",
+        "R004.BG021",
+        "R004.BG028",
+        "R004.BG029",
+        "R004.BG030"
+      ]
+    },
+    {
+      "id": "T011",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, (∫ x, WM.divFlux u j (x,t)) = 0",
+      "inputs": [
+        "H001",
+        "T009",
+        "T010"
+      ],
+      "source_steps": [
+        "S013"
+      ],
+      "explanation": "Write n=k+1 using H001 and transport the same coordinate lists along that equality. For fixed remaining coordinates, the derivative of flux∘insertNth is divFlux∘insertNth, by the definition of dx and the coordinate chain rule. It is continuous and interval integrable. Apply intervalIntegral.integral_eq_sub_of_hasDerivAt on [-R,R]; endpoints vanish outside C. Convert the oriented interval integral to the closed-interval integral using null endpoints. T010 gives zero over Q, and support gives zero over all space.",
+      "background_notes": [
+        "R004.BG009",
+        "R004.BG010",
+        "R004.BG011",
+        "R004.BG012",
+        "R004.BG013",
+        "R004.BG031",
+        "R004.BG032"
+      ]
+    },
+    {
+      "id": "T012",
+      "statement": "∀ (t : ℝ), 0 < t → ∀ j : Fin n, Integrable (fun x => WM.bTerm u j (x,t)) ∧ Integrable (fun x => WM.cTerm u j (x,t)) ∧ (∫ x, WM.bTerm u j (x,t)) = -(∫ x, WM.cTerm u j (x,t))",
+      "inputs": [
+        "T009",
+        "T011"
+      ],
+      "source_steps": [
+        "S014"
+      ],
+      "explanation": "Integrate the product identity of fluxData, using integrability from localData and T011, then rearrange. The bTerm convention already has the symmetric order of the dot product required in N004.",
+      "background_notes": [
+        "R004.BG014"
+      ]
+    },
+    {
+      "id": "T013",
+      "statement": "∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t)) ∧ HasDerivAt (WM.energy u) 0 t ∧ deriv (WM.energy u) t = 0",
+      "inputs": [
+        "T001",
+        "T004",
+        "T008",
+        "T012"
+      ],
+      "source_steps": [
+        "S015"
+      ],
+      "explanation": "Substitute the density derivative formula into N003, distribute integrals over the finite sum using N002 integrability, and substitute N004. The definition of lap collects the terms into 2∫ inner ut (utt-lap), which is pointwise zero by N001. Reconstitute HasDerivAt from differentiability and the derivative value.",
+      "background_notes": [
+        "R005.BG001",
+        "R005.BG002",
+        "R005.BG003",
+        "R005.BG004",
+        "R005.BG005"
+      ]
+    },
+    {
+      "id": "T014",
+      "statement": "(∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t))) ∧ DifferentiableOn ℝ (WM.energy u) (Set.Ioi 0) ∧ (∀ t : ℝ, 0 < t → deriv (WM.energy u) t = 0) ∧ (∀ s t : ℝ, 0 < s → 0 < t → WM.energy u s = WM.energy u t)",
+      "inputs": [
+        "T013"
+      ],
+      "source_steps": [
+        "S016"
+      ],
+      "explanation": "Collect section integrability, differentiability within the positive open half-line and zero ordinary derivative. Apply the zero-derivative mean-value norm estimate on [s,t] for ordered positive endpoints, then equality and symmetry handle all positive s,t. No assertion at zero.",
+      "background_notes": [
+        "R005.BG006",
+        "R005.BG007"
+      ]
+    }
+  ],
+  "terminal": "T014"
+}

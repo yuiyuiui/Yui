@@ -1,0 +1,21 @@
+{
+  "proof": "classical\nletI : Module.Finite ℂ V := h_H004.1\nlet B : Module.Basis (LR.Idx lam.toNat) ℂ V :=\n  basisOfLinearIndependentOfCardEqFinrank h_T002.2 (by simpa [LR.Idx] using h_H004.2.1.symm)\nhave hB : ∀ i, B i = LR.e y v i.val := by\n  intro i\n  exact congrFun (coe_basisOfLinearIndependentOfCardEqFinrank _ _) i\nhave heig : ∀ i, h (B i) = (((lam - 2 * (i.val : ℤ) : ℤ) : ℂ)) • B i := by\n  intro i\n  rw [hB]\n  simp only [LR.e, LR.DP, LinearMap.smul_apply, map_smul]\n  rw [h_T001.1]\n  exact smul_comm _ _ _\nhave hc : ∀ (u : V) (i : LR.Idx lam.toNat),\n    B.repr (h u) i = (((lam - 2 * (i.val : ℤ) : ℤ) : ℂ)) * B.repr u i := by\n  intro u i\n  change B.coord i (h u) = _\n  calc\n    B.coord i (h u) = B.coord i (h (∑ j, B.repr u j • B j)) := by rw [B.sum_repr]\n    _ = _ := by\n      simp only [map_sum, map_smul, heig]\n      simp [Module.Basis.coord_apply, Finsupp.single_apply, mul_comm]\nconstructor\n· exact ⟨B, hB⟩\n· intro m hm\n  have hz : (y ^ (lam.toNat + 1)) v = 0 := by\n    apply B.repr.injective\n    ext i\n    have hh := congrArg (fun u => B.repr u i) (h_T001.1 (lam.toNat + 1))\n    rw [hc] at hh\n    simp only [map_smul, Finsupp.smul_apply, smul_eq_mul] at hh\n    have hn : (((lam - 2 * (i.val : ℤ) : ℤ) : ℂ)) ≠\n        (((lam - 2 * ((lam.toNat + 1 : ℕ) : ℤ) : ℤ) : ℂ)) := by\n      intro he\n      have he' : lam - 2 * (i.val : ℤ) = lam - 2 * ((lam.toNat + 1 : ℕ) : ℤ) := by exact_mod_cast he\n      have hi := i.isLt\n      omega\n    have hz' := (mul_eq_mul_right_iff).mp hh\n    simp only [map_zero, Finsupp.zero_apply]\n    exact hz'.resolve_left hn\n  obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (show lam.toNat + 1 ≤ m by omega)\n  rw [hk, Nat.add_comm (lam.toNat + 1) k, pow_add, Module.End.mul_apply, hz, map_zero]",
+  "statement": "(∃ B : Module.Basis (LR.Idx lam.toNat) ℂ V, LR.IsStringBasis lam.toNat y v B) ∧ (∀ m : ℕ, lam.toNat < m → (y^m) v = 0)",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-e169wnsf/output/Check.lean:109:34: warning: Variable name `instK` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-e169wnsf/output/Check.lean:109:192: warning: Variable name `M` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-e169wnsf/output/Check.lean:109:212: warning: Variable name `h_H003` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nT003 : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  0 ≤ lam ∧ lam < ↑p →\n    (Module.Finite ℂ V ∧\n        Module.finrank ℂ V = lam.toNat + 1 ∧\n          LR.Brackets x y h ∧\n            Nontrivial V ∧ ∀ (W : Submodule ℂ V), LR.Inv W x → LR.Inv W y → LR.Inv W h → W = ⊥ ∨ W = ⊤) →\n      LR.Strings lam x y h v →\n        ((∀ (i : LR.Idx lam.toNat), LR.e y v ↑i ≠ 0) ∧ LinearIndependent ℂ fun i => LR.e y v ↑i) →\n          (∃ B, LR.IsStringBasis lam.toNat y v B) ∧ ∀ (m : ℕ), lam.toNat < m → (y ^ m) v = 0\n'Translation.T003' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 7.501698541920632,
+    "status": "LOCAL-PROOF-CHECKED",
+    "contract_sha256": "b299da5107dcd0034d543f4871dbd75306b577a18d61d88f7edd7b8fbae5d545",
+    "lean_sha256": "484dbb11d2a79dfb4b972e4b8e04a1cff6fa3f1d5fdad6e7adade7298662fcfc",
+    "scope": "T003",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "accepted": true,
+    "stage_complete": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "statement": "∀ (q r ε : ℝ), 0 < q → dimH E < ENNReal.ofReal q → 0 < r → 0 < ε → ∃ U : ℕ → Set (V n), IsCover r E U ∧ coverCost q U < ENNReal.ofReal ε",
+  "proof": "intro q r ε hq hdim hr hε\nhave hh := h_T002 (ULift (V n)) (ULift.up '' E) q hq\nhave hi : Isometry (ULift.up : V n → ULift (V n)) := fun _ _ => rfl\nhave hm : Hmeasure q (ULift.up '' E : Set (ULift (V n))) = 0 := hh.2.1 (by rw [hi.dimH_image]; exact hdim)\nhave hz : Hscale q r (ULift.up '' E : Set (ULift (V n))) = 0 := by\n  apply le_antisymm _ bot_le\n  calc Hscale q r (ULift.up '' E : Set (ULift (V n))) ≤ Hmeasure q (ULift.up '' E : Set (ULift (V n))) := le_iSup_of_le r (le_iSup_of_le hr le_rfl)\n       _ = 0 := hm\nhave hsmall : Hscale q r (ULift.up '' E : Set (ULift (V n))) < ENNReal.ofReal ε := by rw [hz]; exact ENNReal.ofReal_pos.mpr hε\nobtain ⟨C, hC, hcost⟩ : ∃ C : ℕ → Set (ULift (V n)), IsCover r (ULift.up '' E) C ∧ coverCost q C < ENNReal.ofReal ε := by\n  simpa only [Hscale, iInf_lt_iff, exists_prop] using hsmall\nlet U : ℕ → Set (V n) := fun i => ULift.up ⁻¹' C i\nhave hed (i : ℕ) : Metric.ediam (U i) ≤ Metric.ediam (C i) := by\n  simpa using hi.antilipschitz.ediam_preimage_le (C i)\nrefine ⟨U, ⟨?_, fun i => (hed i).trans (hC.2 i)⟩, lt_of_le_of_lt ?_ hcost⟩\n· intro x hx\n  obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hC.1 (Set.mem_image_of_mem ULift.up hx))\n  exact Set.mem_iUnion.mpr ⟨i, hi⟩\n· apply ENNReal.tsum_le_tsum\n  intro i\n  apply iSup_le\n  intro hne\n  have hneC : (C i).Nonempty := hne.image ULift.up |>.mono (Set.image_preimage_subset _ _)\n  exact (ENNReal.rpow_le_rpow (hed i) hq.le).trans (le_iSup_of_le hneC le_rfl)",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-xp0rk1zd/output/Auxiliary.lean:23:334: warning: Variable name `h_T005` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n      0 < s →\n        Hmeasure s A = Hnative s A ∧\n          (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n            (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n              (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)) →\n    Bornology.IsBounded E ∧\n        (∀ (s δ : ℝ),\n            0 < s →\n              0 < δ →\n                ∃ k U,\n                  E ⊆ ⋃ i, U i ∧\n                    (∀ (i : Fin k), Metric.ediam (U i) ≤ ENNReal.ofReal δ) ∧ ∑ i, Metric.ediam (U i) ^ s < ∞) ∧\n          (∀ (s δ : ℝ), 0 < s → 0 < δ → Hscale s δ E < ∞) ∧\n            0 ≤ dimH E ∧ dimH E ≤ ↑n ∧ dimH E < ∞ ∧ (n = 0 → E = Set.univ ∧ dimH E = 0) →\n      ∀ (q r ε : ℝ),\n        0 < q → dimH E < ENNReal.ofReal q → 0 < r → 0 < ε → ∃ U, IsCover r E U ∧ coverCost q U < ENNReal.ofReal ε\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.4194176248274744,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T007",
+    "candidate": 4,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

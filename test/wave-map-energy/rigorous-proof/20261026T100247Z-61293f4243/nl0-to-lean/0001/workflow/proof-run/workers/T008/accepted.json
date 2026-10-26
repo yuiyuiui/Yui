@@ -1,0 +1,3 @@
+{
+  "proof": "intro t ht\nhave hi := h_T004.2.1\nhave hp : ∀ᶠ h : ℝ in nhds 0, 0 < t + h := by\n  exact (isOpen_lt continuous_const (continuous_const.add continuous_id)).mem_nhds (by simpa using ht)\nhave heq : (fun h : ℝ => ∫ x, WM.quot u t h x) =ᶠ[nhdsWithin 0 ({0}ᶜ)]\n    (fun h => h⁻¹ • (WM.energy u (t+h) - WM.energy u t)) := by\n  filter_upwards [hp.filter_mono nhdsWithin_le_nhds] with h hh\n  change (∫ x, (WM.e u (x,t+h) - WM.e u (x,t)) / h) = _\n  rw [integral_div, integral_sub (hi (t+h) hh) (hi t ht)]\n  simp only [WM.energy, smul_eq_mul, div_eq_mul_inv, mul_comm]\nhave hd : HasDerivAt (WM.energy u) (∫ x, WM.et u (x,t)) t := by\n  apply hasDerivAt_iff_tendsto_slope_zero.mpr\n  exact (h_T007 t ht).congr' heq\nexact ⟨hd.differentiableAt, hd.deriv⟩"
+}

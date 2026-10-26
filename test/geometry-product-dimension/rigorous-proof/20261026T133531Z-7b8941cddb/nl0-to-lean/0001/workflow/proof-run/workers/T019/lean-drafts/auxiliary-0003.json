@@ -1,0 +1,21 @@
+{
+  "statement": "∀ a : ℝ, Hmeasure a (cyl n E) ≤ Hmeasure a (ULift.down ⁻¹' cyl n E : Set (ULift.{u_1} (W n)))",
+  "proof": "intro a\nhave hi : Isometry (ULift.down : ULift.{u_1} (W n) → W n) := by intro x y; rfl\nhave hs : ∀ δ : ℝ, Hscale a δ (cyl n E) ≤ Hscale a δ (ULift.down ⁻¹' cyl n E : Set (ULift.{u_1} (W n))) := by\n  intro δ\n  refine le_iInf fun U => le_iInf fun hU => ?_\n  let Q : ℕ → Set (W n) := fun i => ULift.down '' U i\n  have hQ : IsCover δ (cyl n E) Q := by\n    constructor\n    · intro x hx\n      have hx' : (ULift.up x : ULift.{u_1} (W n)) ∈ ⋃ i, U i := hU.1 hx\n      obtain ⟨i, hi⟩ := Set.mem_iUnion.mp hx'\n      exact Set.mem_iUnion.mpr ⟨i, ⟨ULift.up x, hi, rfl⟩⟩\n    · intro i\n      exact (hi.ediam_image (U i)).le.trans (hU.2 i)\n  have hc : coverCost a Q = coverCost a U := by\n    simp only [coverCost, Q, hi.ediam_image, Set.image_nonempty]\n  exact iInf_le_of_le Q (iInf_le_of_le hQ hc.le)\nunfold Hmeasure\nexact iSup_mono fun δ => iSup_mono fun _ => hs δ",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-mrquucfk/output/Auxiliary.lean:23:41: warning: Variable name `h_T002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-mrquucfk/output/Auxiliary.lean:23:334: warning: Variable name `h_T017` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-mrquucfk/output/Auxiliary.lean:23:408: warning: Variable name `h_T018` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n      0 < s →\n        Hmeasure s A = Hnative s A ∧\n          (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n            (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n              (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)) →\n    (dimH unitI = 1 ∧ ∀ (s : ℝ), 0 < s → s < 1 → Hmeasure s unitI = ∞) →\n      (∀ (b δ : ℝ), 0 < b → 0 < δ → Hscale b δ unitI ≤ Hscale b δ (cyl n E)) →\n        ∀ (a : ℝ), Hmeasure a (cyl n E) ≤ Hmeasure a (ULift.down ⁻¹' cyl n E)\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.6173046671319753,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T019",
+    "candidate": 3,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

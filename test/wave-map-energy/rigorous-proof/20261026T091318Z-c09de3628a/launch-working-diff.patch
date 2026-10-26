@@ -1,0 +1,1140 @@
+diff --git a/rigorous-proof/SKILL.md b/rigorous-proof/SKILL.md
+index ee875f7..1f8cee2 100644
+--- a/rigorous-proof/SKILL.md
++++ b/rigorous-proof/SKILL.md
+@@ -29,6 +29,10 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
+ queues and ledgers. Use normal local repair unless a first-pass measurement is
+ explicitly requested. Runtime and software controls are fully inside this skill;
+ no repository example/support directory or old test result is required.
++Positively identified temporary remote-service failures retry within the same
++isolated thread, preserving its drafts and tool receipts. Keep the selected
++profile and record every fault/wait; use [operational recovery](references/operation.md#remote-service-recovery)
++for backoff, cancellation and explicit continuation of an already exited run.
+ 
+ 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](references/audit-a.md#shared-mathematical-acceptance-requirements)
+    as the single mathematical standard for both author and auditor.
+diff --git a/rigorous-proof/references/operation.md b/rigorous-proof/references/operation.md
+index e53e71f..20adb52 100644
+--- a/rigorous-proof/references/operation.md
++++ b/rigorous-proof/references/operation.md
+@@ -118,6 +118,51 @@ do not supply missing mathematical judgments or force every ordinary paper to
+ run a development exercise campaign first. Calibration status, when measured,
+ is reported separately; it is not fabricated as a prerequisite receipt.
+ 
++## Remote-service recovery
++
++The common model carrier retries positively identified temporary remote errors
++(capacity, service availability, transient rate limiting or connection failures)
++inside the same isolated thread. It retains actual drafts, source probes and
++immutable tool receipts and uses the stage's existing short continuation input.
++It does not repeat the initial task or execute a repeated completed tool-call ID
++twice. The selected model, reasoning effort, speed, inputs and acceptance gates
++remain fixed. A mathematical nonpass continues through normal located repair;
++it is not a remote error. Authentication, billing/quota, unsupported settings,
++context/output limits, cancellation and local/provenance faults are not remote
++retries. An unclassified failure remains visible rather than guessed transient.
++
++Retry waits start near 15 seconds and increase exponentially to 300 seconds,
++with small jitter; a recorded valid `Retry-After` is a lower bound. There is no
++fixed retry-count cutoff. Waiting makes no model call, remains cancellable, and
++respects an explicit user deadline. Status reports `REMOTE_RETRY_WAIT` on the
++affected task. `remote-retries.jsonl` preserves each reason, delay and original
++failed turn; stage results record the policy and retry count. Original transport
++faults and missing usage remain visible after recovery. A complete qualified
++submission can proceed through actual mathematical gates; recovered execution
++is never relabeled fault-free timing or a cold first-pass success.
++
++For a run that already exited before this in-session recovery was available,
++the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
++
++```sh
++python3 -B /path/to/rigorous-proof/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
++```
++
++This prepares a new owned run, checks that the old processes exited, and binds
++the exact original inputs/profiles, actual last remote failure and selected old
++evidence. The old run is preserved. `--prepare-only` inspects this boundary before
++`execute`. A definitive release-ready NL0 is restored byte-for-byte; only exact
++qualified complete Audit A scopes are inherited. Incomplete reviews get fresh
++isolated contexts without prior judgments. An interrupted unreleased author
++uses its original declared inputs, including an own draft only if that draft
++was already an explicit input. This is a disclosed warm continuation, not a
++resurrected carrier or a new cold attempt. Previous usage stays in the old run.
++This entry supports authoring/Audit A recovery only and rejects unknown faults,
++live old owners, changed inputs, completed workflows or unsupported later phases.
++A former explicit deadline cannot be reset: a finite-budget old run without a
++retained absolute deadline is rejected. New stages then use the common carrier's
++in-session remote retry throughout the remaining workflow.
++
+ ## Observe, stop and clean
+ 
+ ```sh
+diff --git a/rigorous-proof/scripts/audit_reuse.py b/rigorous-proof/scripts/audit_reuse.py
+index 8da96ff..d16e2a1 100644
+--- a/rigorous-proof/scripts/audit_reuse.py
++++ b/rigorous-proof/scripts/audit_reuse.py
+@@ -8,7 +8,7 @@ from pathlib import Path
+ import shutil
+ import background
+ 
+-from execution_health import qualification
++from execution_health import qualification, record_qualification
+ from execution_state import atomic
+ 
+ VERSION='yui-review-reuse-1'
+@@ -98,7 +98,7 @@ def select(data,campaigns):
+             directory=campaign/job['id'];stage=directory/'stage'
+             if not (stage/'accepted.json').is_file():continue
+             result=load(stage/'result.json')
+-            if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified']:continue
++            if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified']:continue
+             manifest=load(stage/'execution-manifest.json')
+             if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():continue
+             raw=load(stage/'accepted.json');items=[]
+@@ -194,7 +194,7 @@ def validate(case,binding,data,scope,entry=None):
+     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
+         raise ValueError('Inherited review mathematical context changed')
+     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
+-    if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified'] or exposure!=result['exposure']:
++    if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified'] or exposure!=result['exposure']:
+         raise ValueError('Inherited review execution is unqualified')
+     if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():
+         raise ValueError('Inherited review semantic rules changed')
+diff --git a/rigorous-proof/scripts/case_runner.py b/rigorous-proof/scripts/case_runner.py
+index b46c989..3fed776 100644
+--- a/rigorous-proof/scripts/case_runner.py
++++ b/rigorous-proof/scripts/case_runner.py
+@@ -102,10 +102,18 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
+ 
+ def nl0_work(job, recorder, budget, progress):
+     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
++    restored=None
++    if (job.get('resume') or {}).get('mode')=='audit-a':
++        import interrupted
++        restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
++        progress(job['case'],'NL0_RELEASED_SOURCE_RESTORED',directory=str(restored),new_author_model_called=False)
+     while True:
+         revision+=1;author=root/'nl0'/f'{revision:04d}';audit=root/'audit-a'/f'{revision:04d}'
+-        progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
+-        source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
++        if restored is not None:
++            source=restored;restored=None
++        else:
++            progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
++            source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
+         key=source_key(source)
+         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
+         seen.add(key)
+diff --git a/rigorous-proof/scripts/clean_stage.py b/rigorous-proof/scripts/clean_stage.py
+index 7bb110a..70bc8eb 100644
+--- a/rigorous-proof/scripts/clean_stage.py
++++ b/rigorous-proof/scripts/clean_stage.py
+@@ -213,6 +213,7 @@ class ArtifactStage(pilot.Stage):
+         (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
+             'model_output_policy':pilot.OUTPUT_POLICY,
+             'provider_wait_policy':pilot.PROVIDER_WAIT_POLICY,
++            'remote_retry_policy':pilot.REMOTE_RETRY_POLICY,
+             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
+             'output_verbosity':self.output_verbosity,
+             'arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,'resolved_environment':pilot.load_lock(),'task_documents':
+diff --git a/rigorous-proof/scripts/entrypoint.py b/rigorous-proof/scripts/entrypoint.py
+index 6355c45..82629da 100644
+--- a/rigorous-proof/scripts/entrypoint.py
++++ b/rigorous-proof/scripts/entrypoint.py
+@@ -26,6 +26,9 @@ def parsers(commands):
+         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
+     p=commands.add_parser('execute',help='Execute already prepared, unchanged run jobs')
+     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
++    p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
++    p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
++    p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
+     for name in ('status','cancel','cleanup'):
+         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
+         p.add_argument('runs',nargs='+',type=Path)
+@@ -84,6 +87,11 @@ def launch(prepared, *, detached=False, case_concurrency=None):
+ 
+ 
+ def dispatch(args):
++    if args.command=='resume':
++        import interrupted
++        prepared=[interrupted.prepare(path) for path in args.runs]
++        if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
++        return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+     if args.command in {'prepare','run'}:
+         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
+             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
+@@ -108,8 +116,8 @@ def dispatch(args):
+             elif (p/'case-result.json').exists():value=json.loads((p/'case-result.json').read_text())
+             else:
+                 launch_file=p/'batch.json' if (p/'batch.json').exists() else p/'launch.json'
+-                launch=json.loads(launch_file.read_text()) if launch_file.exists() else {}
+-                who=launch.get('controller')
++                launch_record=json.loads(launch_file.read_text()) if launch_file.exists() else {}
++                who=launch_record.get('controller')
+                 live=bool(who and same_process(who))
+                 value={'phase':'CANCEL_REQUESTED_NOT_STARTED' if (p/'cancel-request.json').exists() else
+                        'QUEUED' if live else 'CONTROLLER_EXITED_BEFORE_CASE_START' if who else 'PREPARED_NOT_STARTED',
+diff --git a/rigorous-proof/scripts/execution_health.py b/rigorous-proof/scripts/execution_health.py
+index d01013d..89bf822 100644
+--- a/rigorous-proof/scripts/execution_health.py
++++ b/rigorous-proof/scripts/execution_health.py
+@@ -1,8 +1,10 @@
+ """Attribute observed transport/controller health separately from mathematical outcomes."""
+ import json
++import re
+ from pathlib import Path
+ 
+ from usage import events
++import remote_retry
+ 
+ 
+ class StageFailure(ValueError):
+@@ -113,8 +115,10 @@ def inspect(directory):
+                 error={'code':event.get('code'),'message':event.get('message')}
+             if error:
+                 code=error.get('code') if isinstance(error,dict) else None
+-                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error}
+-                if code in {'server_error','internal_error','rate_limit_exceeded','service_unavailable','timeout','request_timeout'}:
++                match=re.fullmatch(r'response-(\d+)\.sse',path.name)
++                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error,
++                     'request_number':int(match.group(1)) if match else None}
++                if remote_retry.classify(error):
+                     faults.append(row)
+                 else:
+                     uncertain.append(row)
+diff --git a/rigorous-proof/scripts/full_workflow.py b/rigorous-proof/scripts/full_workflow.py
+index 955360f..cfb7e7d 100644
+--- a/rigorous-proof/scripts/full_workflow.py
++++ b/rigorous-proof/scripts/full_workflow.py
+@@ -16,12 +16,12 @@ from execution_health import StageFailure, qualification, review_outcome, record
+ def accepted(directory):
+     directory=Path(directory);row=ir.load(directory/'stage/result.json')
+     if row['status']=='CANCELLED':raise execution_state.Cancelled('Stage cancelled externally')
+-    checked=qualification(row)
++    checked=record_qualification(row)
+     if not checked['identity_and_input_boundary_verified']:
+         raise StageFailure('EXECUTION_UNQUALIFIED','Model identity or input boundary is unverified',evidence=directory/'stage/result.json',details=checked)
+-    if row['status']!='ACCEPTED' or checked['execution_health']!='NO_RECORDED_FAULT':
++    if row['status']!='ACCEPTED' or not checked['submitted_record_qualified']:
+         raise StageFailure(row.get('task_outcome') or 'EXECUTION_UNQUALIFIED',
+-            'Stage did not deliver a healthy submitted artifact; preserve actual candidates for explicit qualified recovery',
++            'Stage did not deliver a qualified submitted artifact; preserve actual faults and candidates',
+             evidence=directory/'stage/result.json',details=checked)
+     return row
+ 
+diff --git a/rigorous-proof/scripts/jobs.py b/rigorous-proof/scripts/jobs.py
+index 6944e7d..a3801b8 100644
+--- a/rigorous-proof/scripts/jobs.py
++++ b/rigorous-proof/scripts/jobs.py
+@@ -59,7 +59,8 @@ def stage_document(source, destination):
+ 
+ 
+ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
+-            materials=(), source=None, audit=None, output=None, time_budget_seconds=None):
++            materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
++            resume=None, resume_bindings=()):
+     import concurrency
+     from runtime_config import time_limit
+     if track not in TRACKS or policy not in {'normal','first-pass'}:
+@@ -116,6 +117,9 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
+              'audit':str(Path(audit).resolve()) if audit else None,
+              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
+              'time_budget_seconds':time_budget_seconds,'runtime':runtime_bindings()}
++        if resume:
++            job['resume']=resume
++            job['authority_bindings'].extend(resume_bindings)
+         write(root/'job.json',job)
+         write(root/MARKER,{'version':VERSION,'run_id':run_id,'root':str(root),
+                           'job':bind(root/'job.json'),'original_inputs':[row['original'] for row in documents]})
+@@ -131,6 +135,7 @@ def validate(job, *, verify_runtime=True):
+         raise ValueError('Unsupported explicit case job')
+     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
+               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
++    if 'resume' in job:expected.add('resume')
+     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
+         raise ValueError('Unsupported explicit job fields/policy')
+     from runtime_config import time_limit
+@@ -156,5 +161,8 @@ def validate(job, *, verify_runtime=True):
+             raise ValueError('Frozen task input changed or escaped its directory')
+         verify_bindings([row['original']])
+     verify_bindings(job['authority_bindings'])
++    if 'resume' in job:
++        from interrupted import validate_descriptor
++        validate_descriptor(job)
+     if verify_runtime:verify_bindings(job['runtime'])
+     return job
+diff --git a/rigorous-proof/scripts/run_pilot.py b/rigorous-proof/scripts/run_pilot.py
+index 5afaf77..8e7ba3a 100644
+--- a/rigorous-proof/scripts/run_pilot.py
++++ b/rigorous-proof/scripts/run_pilot.py
+@@ -30,6 +30,9 @@ from pathlib import Path
+ from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
+ from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
+ from runtime_config import model_profile
++import remote_retry
++
++REMOTE_RETRY_POLICY = remote_retry.POLICY
+ 
+ MODEL = model_profile()['id']
+ PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
+@@ -444,6 +447,11 @@ class Trial:
+             execution.model_event(self.execution_task,str(self.logs),request_number,event)
+         if event.get('type') == 'response.output_item.done':
+             item = event['item']
++            if item.get('type') == 'function_call' and item['call_id'] in self.tool_history:
++                previous=self.model_calls.get(item['call_id'])
++                if (previous is None or previous.get('name')!=item.get('name')
++                        or json.loads(previous['arguments'])!=json.loads(item['arguments'])):
++                    raise PermissionError('A completed tool-call ID was reused with a different origin')
+             self.model_history[item['id']] = item
+             if item.get('type') == 'function_call':
+                 self.model_calls[item['call_id']] = item
+@@ -498,7 +506,7 @@ class Trial:
+ 
+             def do_POST(self):
+                 execution=getattr(trial,'execution',None)
+-                if getattr(trial,'local_protocol_fault',None):
++                if getattr(trial,'local_protocol_fault',None) or getattr(trial,'non_remote_relay_fault',False):
+                     self.rfile.read(int(self.headers.get('Content-Length','0')))
+                     message=b'{"error":{"message":"LOCAL_PROTOCOL_REJECTED: stage already stopped"}}'
+                     self.send_response(400);self.send_header('Content-Type','application/json')
+@@ -553,7 +561,9 @@ class Trial:
+                     response = upstream.getresponse()
+                     append(trial.logs / 'http.jsonl', {'status': response.status,
+                         'request_id': response.getheader('x-request-id'), 'path': self.path,
+-                        'request_number': request_number})
++                        'request_number': request_number,
++                        'retry_after': response.getheader('Retry-After')})
++                    trial.last_retry_after = remote_retry.retry_after(response.getheader('Retry-After'))
+                     append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
+                         'status':response.status,'at_utc':now()})
+                     self.send_response(response.status)
+@@ -587,7 +597,10 @@ class Trial:
+                                 return
+                     self.close_connection = True
+                 except Exception as e:
+-                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e)})
++                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
++                        'error_type':type(e).__name__,'upstream_opened':upstream is not None})
++                    if not isinstance(e,(OSError,http.client.HTTPException)):
++                        trial.non_remote_relay_fault=True
+                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
+                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
+                     local = upstream is None and isinstance(e,(PermissionError,ValueError))
+@@ -665,7 +678,13 @@ class Trial:
+                     continue
+                 params = msg['params']
+                 self.validate_tool_rpc(params)
+-                result = self.dispatch(params['tool'], params['arguments'])
++                call_id=params['callId']
++                if call_id in self.tool_history:
++                    result=json.loads(json.dumps(self.tool_history[call_id]))
++                    append(self.logs/'controller.jsonl',{'event':'exact_tool_result_redelivered',
++                        'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
++                else:
++                    result = self.dispatch(params['tool'], params['arguments'])
+                 delivered = self.snapshot_tool_result(params['callId'],result)
+                 if (getattr(self,'stop_on_submission',False) and self.accepted is not None
+                         and not getattr(self,'submission_closed',False)):
+@@ -706,6 +725,8 @@ class Trial:
+         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
+         local=getattr(self,'local_protocol_fault',None)
+         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
++        if getattr(self,'non_remote_relay_fault',False):
++            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled')
+         notice = getattr(self, 'output_guard_notice', None)
+         if notice:
+             from output_guard import ModelOutputStalled
+@@ -823,12 +844,14 @@ tool_suggest = false
+         deadline = self.started + self.timeout if self.timeout is not None else None
+         message = user
+         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
++        self.remote_retry_count=0
+         while True:
+             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
+                 'input': [{'type': 'text', 'text': message}], 'environments': []},
+                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
+             self.active_turn_id = started.get('turn', {}).get('id')
+-            done = self.receive_until(lambda m: m.get('method') == 'turn/completed'
++            done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
++                and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
+                 or getattr(self,'submission_closed',False), deadline)
+             if getattr(self,'submission_closed',False):
+                 try:
+@@ -845,6 +868,17 @@ tool_suggest = false
+                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
+                     from output_guard import ModelOutputLimit
+                     raise ModelOutputLimit(limit)
++                reason=remote_retry.classify(turn.get('error'))
++                if (reason and not getattr(self,'local_protocol_fault',None)
++                        and not getattr(self,'non_remote_relay_fault',False)
++                        and not (self.logs/'isolation-violations.jsonl').exists()):
++                    self.remote_retry_count+=1
++                    wait=remote_retry.delay(self.remote_retry_count,
++                        retry_after_seconds=getattr(self,'last_retry_after',None))
++                    self.wait_remote_retry(wait,reason,turn,deadline)
++                    self.allowed_user_messages.add(continuation_prompt)
++                    message=continuation_prompt
++                    continue
+                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
+             if smoke or self.accepted or not self.strict:
+                 return done
+@@ -858,6 +892,35 @@ tool_suggest = false
+             self.allowed_user_messages.add(continuation_prompt)
+             message = continuation_prompt
+ 
++    def wait_remote_retry(self, seconds, reason, turn, deadline):
++        """Wait without model calls, retaining this exact thread and candidates."""
++        record={'event':'remote_service_retry_wait','retry_number':self.remote_retry_count,
++            'thread_id':self.thread_id,'previous_turn_id':turn.get('id'),
++            'request_number':self.api_calls,'delay_seconds':seconds,'reason':reason,
++            'original_error':turn.get('error'),'policy':REMOTE_RETRY_POLICY['version']}
++        append(self.logs/'remote-retries.jsonl',record)
++        execution=getattr(self,'execution',None)
++        if execution:execution.task(self.execution_task,activity='REMOTE_RETRY_WAIT',
++            remote_retry_number=self.remote_retry_count,remote_retry_delay_seconds=seconds,
++            remote_retry_reason=reason,last_activity_at_utc=now())
++        end=time.monotonic()+seconds
++        sleeper=threading.Event()
++        while time.monotonic()<end:
++            self.check_argument_guard()
++            if execution:execution.check(self.execution_task)
++            if deadline is not None and time.monotonic()>=deadline:
++                raise TimeoutError('Explicit stage deadline reached during remote retry wait')
++            if self.proc is not None and self.proc.poll() is not None:
++                raise RuntimeError('Carrier exited during remote retry wait; not a remote-server retry')
++            sleeper.wait(min(.25,max(0,end-time.monotonic())))
++        if execution:execution.check(self.execution_task)
++        if deadline is not None and time.monotonic()>=deadline:
++            raise TimeoutError('Explicit stage deadline reached during remote retry wait')
++        if execution:execution.task(self.execution_task,activity='MODEL_RUNNING',last_activity_at_utc=now())
++        append(self.logs/'remote-retries.jsonl',{'event':'remote_service_retry_started',
++            'retry_number':self.remote_retry_count,'thread_id':self.thread_id,
++            'previous_turn_id':turn.get('id')})
++
+     def interrupt_active_turn(self, reason='DEADLINE') -> None:
+         prior=getattr(self,'_stopping',False);self._stopping=True
+         try:return self._interrupt_active_turn(reason)
+@@ -967,6 +1030,8 @@ tool_suggest = false
+             result['failure_phase'] = self.phase
+         finally:
+             result['continuation_count'] = self.continuation_count
++            result['remote_retries'] = getattr(self,'remote_retry_count',0)
++            result['remote_retry_policy'] = REMOTE_RETRY_POLICY
+             result['proof_turns'] = self.turn_results
+             result.update({'finished_at_utc': now(), 'api_calls': self.api_calls, 'lean_calls': self.lean_calls})
+             if self.started: result['total_elapsed_seconds'] = time.monotonic() - self.started
+diff --git a/rigorous-proof/scripts/yui.py b/rigorous-proof/scripts/yui.py
+index 2f6e3c5..a1fdd92 100644
+--- a/rigorous-proof/scripts/yui.py
++++ b/rigorous-proof/scripts/yui.py
+@@ -38,12 +38,12 @@ def main():
+     status.add_argument('source',type=Path)
+     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
+     args = parser.parse_args()
+-    if args.command in {'prepare','run','execute','status','cancel','cleanup'}:
++    if args.command in {'prepare','run','execute','resume','status','cancel','cleanup'}:
+         try:
+             result=entrypoint.dispatch(args)
+             print(json.dumps(result,indent=2))
+             if result.get('status') in {'BLOCKED','VALIDATION_FAILED'}:return 1
+-            if args.command in {'run','execute'} and result.get('outcomes'):
++            if args.command in {'run','execute','resume'} and result.get('outcomes'):
+                 return 0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in result['outcomes'].values()) else 1
+             return 0
+         except (OSError,ValueError,KeyError) as error:
+diff --git a/rigorous-proof/tests/test_audit_reuse.py b/rigorous-proof/tests/test_audit_reuse.py
+index b8d1073..f4c1437 100644
+--- a/rigorous-proof/tests/test_audit_reuse.py
++++ b/rigorous-proof/tests/test_audit_reuse.py
+@@ -100,6 +100,21 @@ class AuditReuseTests(unittest.TestCase):
+         manifest['rule_documents']['references/audit-a.md']='changed';a.write(path,manifest)
+         self.assertNotIn('packet:R002',reuse.select(self.data,[self.campaign]))
+ 
++    def test_complete_recovered_review_is_reused_with_fault_measurement_preserved(self):
++        path=self.campaign/'R001/stage/result.json';result=a.nl0.load(path)
++        result.update(execution_health='FAULT',temporary_workspace_removed=True,
++            transport_health={'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR','request_number':1,
++                'code':'server_is_overloaded'}],'uncertainty':[]})
++        a.write(path,result)
++        hit=reuse.select(self.data,[self.campaign])['packet:R001']
++        self.assertFalse(hit['measurement']['execution_qualified'])
++        self.assertFalse(hit['measurement']['measurement_valid'])
++        inherited=reuse.materialize(hit,self.new)
++        reuse.validate(self.new,inherited,self.data,'packet:R001')
++        for field,value in [('execution_fault','Local controller failure'),('isolation_violation',True)]:
++            changed={**result,field:value};a.write(path,changed)
++            self.assertNotIn('packet:R001',reuse.select(self.data,[self.campaign]))
++
+     def test_reused_packet_receipt_is_accepted_only_with_checked_inheritance(self):
+         hits=reuse.select(self.data,[self.campaign]);inheritance=reuse.materialize(hits['packet:R001'],self.new)
+         receipt=a.nl0.closure.audit_template(self.data,a.nl0.CHECKS,a.nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
+diff --git a/rigorous-proof/tests/test_job_entry.py b/rigorous-proof/tests/test_job_entry.py
+index d2ba0cc..bee2470 100644
+--- a/rigorous-proof/tests/test_job_entry.py
++++ b/rigorous-proof/tests/test_job_entry.py
+@@ -1,4 +1,5 @@
+ """Standalone installation, profile and repair-wiring controls. No model is invoked."""
++import argparse
+ from contextvars import copy_context
+ from concurrent.futures import ThreadPoolExecutor
+ import json
+@@ -96,6 +97,24 @@ class JobEntryTests(unittest.TestCase):
+         with self.assertRaisesRegex(ValueError,'Standard speed only'):
+             config.validate_profile({**PROFILES['nl0'],'speed':'unsupported'})
+ 
++    def test_run_and_execute_dispatch_to_the_actual_launcher(self):
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        for command in ('run','execute'):
++            with self.subTest(command=command):
++                if command=='run':
++                    argv=['run',str(self.problem),'--track','nl0',
++                          '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard']
++                else:
++                    argv=['execute',self.job()['root']]
++                args=parser.parse_args(argv+['--detach','--case-concurrency','3'])
++                with patch.object(entrypoint,'launch',return_value={'status':'LAUNCH_CONTROL_ONLY'}) as launcher:
++                    self.assertEqual(entrypoint.dispatch(args),{'status':'LAUNCH_CONTROL_ONLY'})
++                launcher.assert_called_once()
++                self.assertEqual(launcher.call_args.kwargs,{'detached':True,'case_concurrency':3})
++                self.assertEqual(len(launcher.call_args.args[0]),1)
++                jobs.validate(launcher.call_args.args[0][0])
++
+     def test_author_and_reviewer_inputs_do_not_include_sibling_or_prior_verdict(self):
+         job=self.job();root=Path(job['root']);out=root/'nl0/0001'
+         (self.problem.parent/'old-verdict.json').write_text('{"verdict":"PASS"}')
+diff --git a/rigorous-proof/tests/test_workflow_policy.py b/rigorous-proof/tests/test_workflow_policy.py
+index 1d9eba8..670d6e6 100644
+--- a/rigorous-proof/tests/test_workflow_policy.py
++++ b/rigorous-proof/tests/test_workflow_policy.py
+@@ -62,7 +62,7 @@ class WorkflowPolicyTests(unittest.TestCase):
+         self.assertFalse(result['author_timing_qualified'])
+         self.assertFalse(result['execution']['execution_qualified'])
+         self.assertEqual(result['transport_recovery_disclosure'],row['transport_health'])
+-        with self.assertRaises(StageFailure):f.accepted(directory)
++        self.assertEqual(f.accepted(directory),row)
+         self.assertEqual(a.json.loads((directory/'stage/result.json').read_text()),row)
+ 
+     def test_incomplete_or_faulted_sources_cannot_bypass_first_a_eligibility(self):
+@@ -81,6 +81,7 @@ class WorkflowPolicyTests(unittest.TestCase):
+         for row in variants:
+             a.write(directory/'stage/result.json',row)
+             with self.assertRaises((StageFailure,e.Cancelled)):f.nl0_artifact_for_audit(directory)
++            with self.assertRaises((StageFailure,e.Cancelled)):f.accepted(directory)
+ 
+     def test_source_must_match_real_submit_and_current_release_binding(self):
+         directory,row=self.submitted_fixture()
+diff --git a/rigorous-proof/translation/scripts/model_pilot.py b/rigorous-proof/translation/scripts/model_pilot.py
+index acca001..7d3b66d 100644
+--- a/rigorous-proof/translation/scripts/model_pilot.py
++++ b/rigorous-proof/translation/scripts/model_pilot.py
+@@ -34,6 +34,8 @@ from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, P
+                           ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
+ from pilot_common import sha256, load_lock as runtime_lock
+ 
++REMOTE_RETRY_POLICY = carrier.REMOTE_RETRY_POLICY
++
+ 
+ def load_lock():
+     return runtime_lock()
+@@ -333,6 +335,7 @@ class Stage(carrier.Trial):
+                 'background_note_policy':self.background_note_policy,
+                 'model_output_policy':OUTPUT_POLICY,
+                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
++                'remote_retry_policy':REMOTE_RETRY_POLICY,
+                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
+         (self.logs/'prompt.txt').write_text(user+'\n')
+         (self.logs/'system.txt').write_text(self.system+'\n')
+@@ -418,7 +421,9 @@ class Stage(carrier.Trial):
+                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
+             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
+                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
+-                           'continuations':self.continuation_count,'finished_at_utc':carrier.now()})
++                           'continuations':self.continuation_count,'finished_at_utc':carrier.now(),
++                           'remote_retry_policy':REMOTE_RETRY_POLICY,
++                           'remote_retries':getattr(self,'remote_retry_count',0)})
+             if self.proc:
+                 if getattr(self,'execution',None):
+                     if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'
+diff --git a/rigorous-proof/scripts/interrupted.py b/rigorous-proof/scripts/interrupted.py
+new file mode 100644
+index 0000000..6688ff0
+--- /dev/null
++++ b/rigorous-proof/scripts/interrupted.py
+@@ -0,0 +1,144 @@
++"""Explicit new-run recovery from interrupted NL0/Audit A, retaining old evidence."""
++from pathlib import Path
++import json
++import shutil
++
++from controller_common import bind,write
++import jobs
++from execution_state import inspect
++import remote_retry
++
++VERSION='yui-service-resume-1'
++
++
++def remote_stop(stage):
++    """Require the actual last failed turn, not an earlier recovered fault."""
++    path=Path(stage)/'events.jsonl'
++    if not path.is_file():return None
++    with path.open('rb') as stream:
++        size=stream.seek(0,2);offset=max(0,size-131072);stream.seek(offset)
++        if offset:stream.readline()
++        lines=stream.read().splitlines()
++    for line in reversed(lines):
++        try:event=json.loads(line)
++        except (ValueError,UnicodeError):continue
++        if event.get('method')!='turn/completed':continue
++        turn=event.get('params',{}).get('turn',{})
++        if turn.get('status')!='failed':return None
++        return remote_retry.classify(turn.get('error'))
++    return None
++
++
++def validate_descriptor(job):
++    value=job['resume']
++    if (set(value)!={'version','prior_run','mode','author_directory','campaigns'}
++            or value['version']!=VERSION or value['mode'] not in {'author','audit-a'}
++            or job['track'] not in {'nl0','full'}):raise ValueError('Unsupported service-resume contract')
++    prior=Path(value['prior_run']).resolve();author=Path(value['author_directory']).resolve()
++    if prior==Path(job['root']).resolve() or not author.is_relative_to(prior/'nl0'):
++        raise ValueError('Resume authority must belong to the explicitly named prior run')
++    previous=json.loads((prior/'job.json').read_text())
++    if previous['case']!=job['case'] or previous['profiles']!=job['profiles']:
++        raise ValueError('Resume cannot change the case identity or model profiles')
++    if previous['documents'][0]['sha256']!=job['documents'][0]['sha256']:
++        raise ValueError('Resume cannot change the original problem')
++    required={str(prior/'job.json'),str(prior/'case-result.json'),str(author/'stage/result.json')}
++    for campaign in value['campaigns']:
++        path=Path(campaign).resolve()
++        if not path.is_relative_to(prior/'audit-a'):raise ValueError('Resume campaign escapes its prior case')
++        required.add(str(path/'campaign.json'))
++    if not required<={row['path'] for row in job['authority_bindings']}:
++        raise ValueError('Missing prior-run authority binding')
++
++
++def prepare(prior_run):
++    """No model calls; reuse only explicit, unchanged, completed review scopes."""
++    import full_workflow
++    import source_preparation
++    prior=Path(prior_run).resolve()
++    old=jobs.validate(json.loads((prior/'job.json').read_text()),verify_runtime=False)
++    result_path=prior/'case-result.json'
++    if not result_path.is_file():raise ValueError('Resume requires a terminated run with an actual result')
++    owner=inspect(prior).get('inspection',{})
++    if owner.get('controller_identity_matches') or owner.get('residual_owned_processes'):
++        raise ValueError('Prior run or its owned processes are still active')
++    result=json.loads(result_path.read_text());result=result.get('result',result)
++    if old['track'] not in {'nl0','full'} or result.get('completion',{}).get('acceptance_target_satisfied'):
++        raise ValueError('Use this recovery only for interrupted NL0/Audit A work')
++    evidence=Path(result.get('evidence') or '').resolve()
++    if not evidence.is_relative_to(prior) or evidence.name!='result.json':
++        raise ValueError('No exact interrupted model-stage evidence; do not restart an unknown failure')
++    failure=json.loads(evidence.read_text())
++    rows=(failure.get('transport_health') or {})
++    remote=[row for key in ['faults','uncertainty'] for row in rows.get(key,[])
++            if row.get('kind')=='PROVIDER_ERROR' and remote_retry.classify(row.get('details'))]
++    if (failure.get('isolation_violation') or failure.get('status')=='CANCELLED'
++            or (evidence.parent/'tool-provenance-rejections.jsonl').exists()
++            or (evidence.parent/'isolation-violations.jsonl').exists()
++            or not remote or not remote_stop(evidence.parent)):
++        raise ValueError('Prior failure is not a positively identified remote provider fault')
++    relative=evidence.relative_to(prior).parts
++    campaigns=[];mode='author'
++    if relative[0]=='audit-a' and len(relative)>=5:
++        plan=json.loads((prior/relative[0]/relative[1]/'campaign.json').read_text())
++        source=Path(plan['case']).resolve();author=source.parent.parent
++        full_workflow.nl0_artifact_for_audit(author)
++        campaigns=[str(p.parent) for p in sorted((prior/'audit-a').glob('*/campaign.json'))]
++        mode='audit-a'
++    elif relative[0]=='nl0' and len(relative)>=4:
++        author=prior/relative[0]/relative[1]
++        if failure.get('status')=='ACCEPTED':
++            raise ValueError('A released author requires its exact subsequent audit recovery boundary')
++    else:raise ValueError('This explicit resume supports authoring/Audit A; later-stage recovery is not inferred')
++    if not author.is_relative_to(prior/'nl0'):raise ValueError('Author authority escaped its prior run')
++    remaining=old['time_budget_seconds']
++    if remaining is not None:
++        from datetime import datetime,timezone
++        state=json.loads((prior/'execution-status.json').read_text())
++        deadline=(state.get('time_budget') or {}).get('deadline_at_utc')
++        if not deadline:raise ValueError('Original explicit deadline is unavailable; resume cannot reset its budget')
++        remaining=(datetime.fromisoformat(deadline.replace('Z','+00:00'))-datetime.now(timezone.utc)).total_seconds()
++        if remaining<=0:raise ValueError('The explicit case deadline is exhausted; resume cannot reset it')
++    paths={prior/'job.json',result_path,evidence,evidence.parent/'events.jsonl',author/'stage/result.json'}
++    if mode=='audit-a':
++        source=author/'stage/case'
++        _,files=source_preparation.read_source(source/'nl0.json',source/'spec.json')
++        paths.update(files)
++        paths.update([source/'author-check-progress.json',author/'stage/accepted.json',author/'stage/tools.jsonl'])
++        for campaign in campaigns:
++            paths.update(p for p in Path(campaign).rglob('*') if p.is_file() and p.name in {
++                'campaign.json','spec.json','nl0.json','packet.json','accepted.json','result.json',
++                'execution-manifest.json','exposure-audit.json','tools.jsonl'})
++            for raw in Path(campaign).glob('*/stage/accepted.json'):
++                paths.update(source_preparation.evidence_paths(json.loads(raw.read_text()),raw.parent))
++    descriptor={'version':VERSION,'prior_run':str(prior),'mode':mode,
++                'author_directory':str(author),'campaigns':campaigns}
++    job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
++        max_concurrency=old['max_concurrency'],policy=old['policy'],
++        materials=[row['original']['path'] for row in old['documents'][1:]],
++        time_budget_seconds=remaining,resume=descriptor,
++        resume_bindings=[bind(p) for p in sorted(paths)])
++    write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
++        'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,
++        'new_runtime_bound':True,'partial_reviews_are_not_inherited':True,
++        'prior_judgments_visible_to_fresh_reviewers':False,'old_usage_included_in_new_usage':False})
++    jobs.validate(job)
++    return job
++
++
++def restore_source(job):
++    """Restore exact released source bytes; this creates no new author verdict."""
++    import full_workflow
++    import source_preparation
++    value=job['resume'];author=Path(value['author_directory'])
++    full_workflow.nl0_artifact_for_audit(author)
++    source=author/'stage/case';_,files=source_preparation.read_source(source/'nl0.json',source/'spec.json')
++    destination=Path(job['root'])/'resumed-source';destination.mkdir(exist_ok=False)
++    for path in files:
++        target=destination/path.relative_to(source);target.parent.mkdir(parents=True,exist_ok=True)
++        shutil.copyfile(path,target)
++    source_preparation.read_source(destination/'nl0.json',destination/'spec.json')
++    write(destination/'source-origin.json',{'original_author_directory':str(author),
++        'original_graph':bind(source/'nl0.json'),'original_spec':bind(source/'spec.json'),
++        'mathematical_fields_changed':False,'new_author_model_called':False})
++    return destination
+diff --git a/rigorous-proof/scripts/remote_retry.py b/rigorous-proof/scripts/remote_retry.py
+new file mode 100644
+index 0000000..414d5c6
+--- /dev/null
++++ b/rigorous-proof/scripts/remote_retry.py
+@@ -0,0 +1,74 @@
++"""Positive classification and backoff for temporary remote service failures."""
++from datetime import datetime, timezone
++from email.utils import parsedate_to_datetime
++import math
++import random
++import re
++
++
++POLICY = {'version':'remote-service-retry-1','initial_delay_seconds':15,
++          'maximum_backoff_seconds':300,'jitter_fraction':0.2,
++          'maximum_attempts':None,'preserve_thread_and_tools':True,
++          'model_fallback':False,'cancellable_wait':True}
++
++TRANSIENT = {'serveroverloaded','serverisoverloaded','servererror','internalerror',
++             'serviceunavailable','serviceunavailableerror','requesttimeout','timeout',
++             'responsestreamdisconnected','responsestreamconnectionfailed',
++             'httpconnectionfailed','connectionerror','networkerror',
++             'ratelimitexceeded','slowdown'}
++PERMANENT = {'invalidrequest','invalidrequesterror','authenticationerror','invalidapikey',
++             'unauthorized','permissiondenied','modelnotfound','invalidmodel',
++             'contextlengthexceeded','maxoutputtokens','outputtokenlimit',
++             'insufficientquota','quotaexceeded','usagelimitexceeded','usagelimitreached',
++             'creditbalanceexhausted','projectspendlimitexceeded',
++             'organizationspendlimitexceeded','organizationusagelimitexceeded',
++             'sessionbudgetexceeded','billinghardlimitreached','cancelled','interrupted',
++             'localprotocolrejected','localprovenancerejection'}
++
++
++def normalized(value):return re.sub('[^a-z0-9]','',value.lower())
++
++
++def retry_after(value, *, at=None):
++    """Parse a real Retry-After header; malformed values grant no delay."""
++    if isinstance(value,bool) or value is None:return None
++    try:
++        seconds=float(value)
++    except (ValueError,TypeError):
++        try:
++            date=parsedate_to_datetime(str(value))
++            if date.tzinfo is None:date=date.replace(tzinfo=timezone.utc)
++            seconds=(date-(at or datetime.now(timezone.utc))).total_seconds()
++        except (ValueError,TypeError,OverflowError):return None
++    return max(0,seconds) if math.isfinite(seconds) else None
++
++
++def classify(error):
++    """Use structured codes, never a free-text guess about mathematical work."""
++    if not isinstance(error,dict):return None
++    codes=set();statuses=[]
++    def visit(value):
++        if isinstance(value,dict):
++            for key,item in value.items():
++                token=normalized(key)
++                if token in TRANSIENT|PERMANENT:codes.add(token)
++                if key in {'code','type','codexErrorInfo','reason'} and isinstance(item,str):
++                    codes.add(normalized(item))
++                if key in {'httpStatusCode','http_status','status_code'} and type(item) is int:
++                    statuses.append(item)
++                if isinstance(item,(dict,list)):visit(item)
++        elif isinstance(value,list):
++            for item in value:visit(item)
++    visit(error)
++    if codes & PERMANENT or any(status in {400,401,403,404,413,422} for status in statuses):return None
++    if not codes & TRANSIENT and not any(status in {408,429} or 500<=status<600 for status in statuses):return None
++    return {'kind':'REMOTE_SERVICE_TRANSIENT','codes':sorted(codes & TRANSIENT),
++            'http_statuses':sorted(set(statuses))}
++
++
++def delay(attempt, *, retry_after_seconds=None):
++    if type(attempt) is not int or attempt<1:raise ValueError('Retry attempt must be positive')
++    cap=POLICY['maximum_backoff_seconds']
++    base=min(cap,POLICY['initial_delay_seconds']*2**min(attempt-1,10))
++    seconds=min(cap,base*random.uniform(1-POLICY['jitter_fraction'],1+POLICY['jitter_fraction']))
++    return max(seconds,retry_after_seconds or 0)
+diff --git a/rigorous-proof/tests/test_interrupted_resume.py b/rigorous-proof/tests/test_interrupted_resume.py
+new file mode 100644
+index 0000000..b00098c
+--- /dev/null
++++ b/rigorous-proof/tests/test_interrupted_resume.py
+@@ -0,0 +1,157 @@
++"""New-run service recovery controls; synthetic fixtures are not audits."""
++import argparse
++import json
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest.mock import patch
++
++CORE=Path(__file__).resolve().parents[1]
++sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts')]
++import jobs
++import interrupted
++import case_runner
++import full_workflow
++import audit_a_campaign
++import entrypoint
++
++PROFILES={phase:{'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard',
++                  'automatic_fallback':False} for phase in ['nl0','lean']}
++EXITED={'inspection':{'controller_identity_matches':False,'residual_owned_processes':[]}}
++
++
++class InterruptedResumeTests(unittest.TestCase):
++    def setUp(self):
++        self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
++        self.problem=self.root/'arbitrary-problem/problem.md';self.problem.parent.mkdir()
++        self.problem.write_text('SYNTHETIC continuation fixture, not a mathematical result.\n')
++        self.old=jobs.prepare(self.problem,track='full',profiles=PROFILES)
++        self.run=Path(self.old['root']);self.author=self.run/'nl0/0001';self.stage=self.author/'stage'
++        self.stage.mkdir(parents=True)
++        self.failure={'status':'UNFINISHED','execution_health':'FAULT','isolation_violation':False,
++            'execution_fault':'SYNTHETIC provider interruption',
++            'transport_health':{'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR',
++                'details':{'code':'server_is_overloaded'}}],'uncertainty':[]}}
++        self.write(self.stage/'result.json',self.failure)
++        self.failed_turn(self.stage)
++        self.write(self.run/'case-result.json',{'result':{'status':'AUTHOR_ARTIFACT_INELIGIBLE',
++            'evidence':str(self.stage/'result.json'),'completion':{'acceptance_target_satisfied':False}}})
++    def tearDown(self):self.temp.cleanup()
++    def write(self,path,value):path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value))
++    def failed_turn(self,stage,*,status='failed',error=None):
++        self.write(stage/'events.jsonl',{'method':'turn/completed','params':{'turn':{
++            'id':'synthetic-failed-turn','status':status,
++            'error':{'codexErrorInfo':'serverOverloaded'} if error is None else error}}})
++    def prepare(self):
++        with patch.object(interrupted,'inspect',return_value=EXITED):return interrupted.prepare(self.run)
++
++    def test_new_job_preserves_input_profiles_and_old_fault_without_mutation(self):
++        before=(self.run/'job.json').read_bytes();job=self.prepare();jobs.validate(job)
++        self.assertNotEqual(job['root'],self.old['root']);self.assertEqual(job['profiles'],PROFILES)
++        self.assertEqual(job['documents'][0]['sha256'],self.old['documents'][0]['sha256'])
++        self.assertEqual(job['resume']['mode'],'author');self.assertEqual((self.run/'job.json').read_bytes(),before)
++        self.assertEqual(json.loads((self.stage/'result.json').read_text()),self.failure)
++        self.assertIsNone(job['time_budget_seconds'])
++
++    def test_active_owner_or_residual_child_blocks_resumption(self):
++        for inspection in [{'controller_identity_matches':True,'residual_owned_processes':[]},
++                           {'controller_identity_matches':False,'residual_owned_processes':[{'pid':123}]}]:
++            with patch.object(interrupted,'inspect',return_value={'inspection':inspection}):
++                with self.assertRaisesRegex(ValueError,'still active'):interrupted.prepare(self.run)
++
++    def test_original_input_drift_and_permanent_failures_are_not_silently_retried(self):
++        self.problem.write_text('Changed problem')
++        with self.assertRaisesRegex(ValueError,'changed'):self.prepare()
++        self.problem.write_text('SYNTHETIC continuation fixture, not a mathematical result.\n')
++        self.failure['transport_health']['faults'][0]['details']['code']='insufficient_quota'
++        self.write(self.stage/'result.json',self.failure)
++        with self.assertRaisesRegex(ValueError,'not a positively identified'):self.prepare()
++
++    def test_isolation_fault_cannot_be_reclassified_as_remote(self):
++        self.failure['isolation_violation']=True;self.write(self.stage/'result.json',self.failure)
++        with self.assertRaisesRegex(ValueError,'not a positively identified'):self.prepare()
++
++    def test_earlier_remote_error_does_not_bless_a_later_local_or_permanent_stop(self):
++        for status,error in [('completed',{}),('failed',{'code':'insufficient_quota'}),
++                             ('failed',{'code':'local_protocol_rejected'})]:
++            self.failed_turn(self.stage,status=status,error=error)
++            with self.assertRaisesRegex(ValueError,'not a positively identified'):self.prepare()
++
++    def test_new_job_binds_the_prior_result_and_cannot_hide_later_changes(self):
++        job=self.prepare();self.write(self.stage/'result.json',{})
++        with self.assertRaisesRegex(ValueError,'changed'):jobs.validate(job)
++
++    def audit_boundary(self):
++        source=self.stage/'case';shutil.copytree(CORE/'tests/fixtures/closed-addition',source)
++        self.write(source/'author-check-progress.json',{'synthetic_fixture_only':True})
++        self.write(self.stage/'accepted.json',{'synthetic_fixture_only':True})
++        (self.stage/'tools.jsonl').write_text('')
++        campaign=self.run/'audit-a/0001'
++        audit_a_campaign.prepare(source,self.run/'inputs',campaign)
++        failed=campaign/'R001/stage/result.json';self.write(failed,self.failure)
++        self.failed_turn(failed.parent)
++        self.write(self.run/'case-result.json',{'result':{'status':'EXECUTION_UNQUALIFIED',
++            'phase':'audit-a','evidence':str(failed),'completion':{'acceptance_target_satisfied':False}}})
++        return source,campaign
++
++    def test_resume_dispatch_and_prepare_only_use_the_unified_entry(self):
++        parser=argparse.ArgumentParser();entrypoint.parsers(parser.add_subparsers(dest='command'))
++        new=self.prepare()
++        for prepare_only in [False,True]:
++            argv=['resume',str(self.run),'--detach','--case-concurrency','3']
++            if prepare_only:argv+=['--prepare-only']
++            with patch.object(interrupted,'prepare',return_value=new) as prepare, \
++                 patch.object(entrypoint,'launch',return_value={'status':'DISPATCH_CONTROL_ONLY'}) as launch:
++                result=entrypoint.dispatch(parser.parse_args(argv))
++            prepare.assert_called_once_with(self.run)
++            if prepare_only:
++                launch.assert_not_called();self.assertEqual(result['runs'],[new['root']])
++            else:
++                launch.assert_called_once_with([new],detached=True,case_concurrency=3)
++                self.assertEqual(result['status'],'DISPATCH_CONTROL_ONLY')
++
++    def test_public_cli_routes_resume_before_the_generic_stage_branch(self):
++        self.write(self.run/'execution-status.json',{'controller':{
++            'pid':2147483647,'pgid':2147483647,'started':'SYNTHETIC exited owner','state':'EXITED'},
++            'processes':{}})
++        result=subprocess.run([sys.executable,'-B',str(CORE/'scripts/yui.py'),'resume',
++            str(self.run),'--prepare-only'],capture_output=True,text=True)
++        self.assertEqual(result.returncode,0,result.stderr+result.stdout)
++        prepared=json.loads(result.stdout)
++        self.assertEqual(prepared['status'],'PREPARED_NOT_STARTED')
++        self.assertNotEqual(Path(prepared['runs'][0]),self.run)
++
++    def test_released_source_resumes_only_its_same_case_audit_without_author_replay(self):
++        source,campaign=self.audit_boundary();before=(source/'nl0.json').read_bytes()
++        with patch.object(full_workflow,'nl0_artifact_for_audit',return_value={'synthetic_control_only':True}) as release:
++            job=self.prepare()
++            self.assertEqual(job['resume']['mode'],'audit-a')
++            with patch.object(case_runner,'author_stage') as author, \
++                 patch.object(full_workflow,'audit_source',return_value={'full_acceptance':True}) as audit:
++                authority=case_runner.nl0_work(job,None,None,lambda *args,**kwargs:None)
++            author.assert_not_called();self.assertEqual(release.call_count,2)
++        self.assertEqual(audit.call_args.kwargs['reuse_from'],[str(campaign)])
++        self.assertEqual(Path(authority['graph']).read_bytes(),before)
++        self.assertEqual((source/'nl0.json').read_bytes(),before)
++        origin=json.loads((Path(job['root'])/'resumed-source/source-origin.json').read_text())
++        self.assertFalse(origin['new_author_model_called'])
++
++    def test_unreleased_author_cannot_be_promoted_to_audit_recovery(self):
++        self.audit_boundary()
++        with self.assertRaises(Exception) as result:self.prepare()
++        self.assertNotIsInstance(result.exception,FileNotFoundError)
++
++    def test_explicit_time_budget_is_never_reset_by_resume(self):
++        bounded=jobs.prepare(self.problem,track='full',profiles=PROFILES,time_budget_seconds=10)
++        run=Path(bounded['root']);stage=run/'nl0/0001/stage/result.json';self.write(stage,self.failure)
++        self.failed_turn(stage.parent)
++        self.write(run/'case-result.json',{'result':{'evidence':str(stage)}})
++        self.write(run/'execution-status.json',{'time_budget':{'seconds':10}})
++        with patch.object(interrupted,'inspect',return_value=EXITED):
++            with self.assertRaisesRegex(ValueError,'cannot reset'):interrupted.prepare(run)
++
++
++if __name__=='__main__':unittest.main()
+diff --git a/rigorous-proof/tests/test_remote_retry.py b/rigorous-proof/tests/test_remote_retry.py
+new file mode 100644
+index 0000000..0c47a86
+--- /dev/null
++++ b/rigorous-proof/tests/test_remote_retry.py
+@@ -0,0 +1,182 @@
++"""Remote-failure continuation and cancellation controls; no provider calls."""
++from datetime import datetime, timezone
++import io
++import json
++from pathlib import Path
++import queue
++import sys
++import tempfile
++import time
++import unittest
++from unittest.mock import Mock, patch
++
++CORE=Path(__file__).resolve().parents[1]
++sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts')]
++import remote_retry as retry
++import run_pilot
++import execution_state
++import execution_health
++import full_workflow
++
++
++def terminal(number, error=None):
++    return {'method':'turn/completed','params':{'turn':{
++        'id':'turn-'+str(number),'status':'failed' if error else 'completed','error':error}}}
++
++
++class RemoteRetryTests(unittest.TestCase):
++    def setUp(self):
++        self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
++    def tearDown(self):self.temp.cleanup()
++
++    def trial(self):
++        t=run_pilot.Trial.__new__(run_pilot.Trial)
++        t.logs=self.root;t.thread_id='same-isolated-thread';t.timeout=None;t.strict=True
++        t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
++        t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
++        t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None
++        t.tool_history={};t.model_calls={};t.inbox=queue.Queue();t.pending_turn_start_id=None
++        t.last_turn_event=None;t.check_argument_guard=Mock();t.execution=None
++        t.execution_task='neutral-task'
++        return t
++
++    def turns(self, errors):
++        t=self.trial();events=[terminal(i+1,error) for i,error in enumerate(errors)]+[terminal(len(errors)+1)]
++        def start(*args,**kwargs):return {'turn':{'id':'turn-'+str(t.rpc.call_count)}}
++        t.rpc=Mock(side_effect=start)
++        def receive(predicate, deadline):
++            event=events.pop(0);self.assertTrue(predicate(event));return event
++        t.receive_until=Mock(side_effect=receive);t.wait_remote_retry=Mock()
++        return t
++
++    def test_real_overload_code_continues_same_thread_profile_and_existing_history(self):
++        error={'message':'Selected model is at capacity.','codexErrorInfo':'serverOverloaded'}
++        t=self.turns([error]);t.tool_history['old-call']={'actual_result':'retained'}
++        result=t.solve_turns('Original frozen task.',smoke=True)
++        self.assertEqual(result,terminal(2));self.assertEqual(t.remote_retry_count,1)
++        self.assertEqual(t.turn_results[0]['params']['turn']['error'],error)
++        self.assertEqual(t.tool_history['old-call'],{'actual_result':'retained'})
++        for call in t.rpc.call_args_list:
++            self.assertEqual(call.args[1]['threadId'],'same-isolated-thread')
++            self.assertEqual(call.args[1]['model'],'gpt-6.1-sol')
++            self.assertEqual(call.args[1]['effort'],'high')
++        self.assertEqual(t.rpc.call_args_list[1].args[1]['input'][0]['text'],run_pilot.CONTINUE_PROMPT)
++        self.assertEqual(t.continuation_count,0);t.wait_remote_retry.assert_called_once()
++
++    def test_transient_retries_have_no_fixed_attempt_cutoff(self):
++        t=self.turns([{'code':'server_is_overloaded'}]*16)
++        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(17))
++        self.assertEqual(t.remote_retry_count,16)
++
++    def test_permanent_unknown_and_local_failures_do_not_retry(self):
++        errors=[{'code':code} for code in ['invalid_request','insufficient_quota','usage_limit_exceeded',
++            'context_length_exceeded','max_output_tokens','authentication_error','proof_invalid']]
++        errors.append({'message':'server is overloaded','codexErrorInfo':'unrecognized'})
++        for error in errors:
++            with self.subTest(error=error):
++                t=self.turns([error])
++                with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
++                t.wait_remote_retry.assert_not_called()
++        for flag in ['local_protocol_fault','non_remote_relay_fault']:
++            t=self.turns([{'codexErrorInfo':'serverOverloaded'}]);setattr(t,flag,True)
++            with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
++            t.wait_remote_retry.assert_not_called()
++
++    def test_retry_classification_vetoes_auth_and_quota_even_with_server_status(self):
++        for error in [
++            {'code':'insufficient_quota','httpStatusCode':503},
++            {'codexErrorInfo':{'httpConnectionFailed':{'httpStatusCode':401}}},
++            {'code':'server_error','error':{'code':'organization_usage_limit_exceeded'}}]:
++            self.assertIsNone(retry.classify(error))
++        for error in [{'code':'server_is_overloaded'},
++                      {'codexErrorInfo':{'responseStreamDisconnected':{'httpStatusCode':None}}},
++                      {'codexErrorInfo':{'httpConnectionFailed':{'httpStatusCode':502}}}]:
++            self.assertIsNotNone(retry.classify(error))
++
++    def test_delay_is_bounded_jittered_and_honors_retry_after(self):
++        with patch.object(retry.random,'uniform',return_value=1):
++            self.assertEqual(retry.delay(1),15);self.assertEqual(retry.delay(2),30)
++            self.assertEqual(retry.delay(999),300)
++            self.assertEqual(retry.delay(1,retry_after_seconds=600),600)
++        self.assertEqual(retry.retry_after('30'),30)
++        self.assertEqual(retry.retry_after('Wed, 21 Oct 2026 07:01:00 GMT',
++            at=datetime(2026,10,21,7,tzinfo=timezone.utc)),60)
++        for value in ['invalid','nan','inf',True]:self.assertIsNone(retry.retry_after(value))
++
++    def test_cancellation_and_explicit_deadline_interrupt_the_wait(self):
++        reason={'kind':'REMOTE_SERVICE_TRANSIENT'}
++        t=self.trial();t.remote_retry_count=1;t.execution=Mock()
++        t.execution.check.side_effect=execution_state.Cancelled('User stopped this case')
++        started=time.monotonic()
++        with self.assertRaises(execution_state.Cancelled):
++            t.wait_remote_retry(300,reason,{'id':'failed-turn'},None)
++        self.assertLess(time.monotonic()-started,1)
++        t=self.trial();t.remote_retry_count=1
++        with self.assertRaises(TimeoutError):
++            t.wait_remote_retry(300,reason,{'id':'failed-turn'},time.monotonic()-1)
++
++    def test_stale_terminal_event_does_not_finish_the_new_turn(self):
++        t=self.trial();t.rpc=Mock(return_value={'turn':{'id':'turn-2'}})
++        t.receive_until=run_pilot.Trial.receive_until.__get__(t)
++        t.inbox.put(terminal(1,{'codexErrorInfo':'serverOverloaded'}));t.inbox.put(terminal(2))
++        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(2))
++        self.assertEqual(t.remote_retry_count,0)
++
++    def test_duplicate_tool_delivery_keeps_exact_receipt_without_reexecuting(self):
++        t=self.trial();t.proc.stdin=io.StringIO();t.dispatch=Mock(return_value={'actual':{'value':1}})
++        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
++        for number in [1,2]:t.inbox.put({'method':'item/tool/call','id':number,
++            'params':{'callId':'call','tool':'neutral','arguments':{'x':1}}})
++        t.inbox.put(terminal(1));t.receive_until=run_pilot.Trial.receive_until.__get__(t)
++        t.receive_until(lambda m:m.get('method')=='turn/completed',None)
++        self.assertEqual(t.dispatch.call_count,1)
++        replies=[json.loads(line) for line in t.proc.stdin.getvalue().splitlines()]
++        self.assertEqual(replies[0]['result'],replies[1]['result'])
++        self.assertEqual(t.tool_history['call'],{'actual':{'value':1}})
++
++    def test_duplicate_tool_id_still_rejects_changed_arguments(self):
++        t=self.trial();t.proc.stdin=io.StringIO();t.dispatch=Mock()
++        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
++        t.tool_history={'call':{'actual_result':'retained'}}
++        t.inbox.put({'method':'item/tool/call','id':2,
++            'params':{'callId':'call','tool':'neutral','arguments':{'x':2}}})
++        with self.assertRaises(PermissionError):
++            run_pilot.Trial.receive_until(t,lambda m:False,None)
++        t.dispatch.assert_not_called();self.assertEqual(t.proc.stdin.getvalue(),'')
++
++    def test_a_new_model_event_cannot_reassign_an_already_completed_tool_id(self):
++        t=self.trial();t.tool_names={'neutral'};t.model_history={}
++        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
++        t.tool_history={'call':{'actual_result':'retained'}}
++        with self.assertRaises(PermissionError):
++            t.observe_model_event({'type':'response.output_item.done','item':{
++                'type':'function_call','id':'new-item','call_id':'call','name':'neutral','arguments':'{"x":2}'}})
++        self.assertEqual(t.model_calls['call']['arguments'],'{"x":1}')
++
++    def test_structured_remote_error_type_is_also_recognized_by_execution_health(self):
++        (self.root/'requests.jsonl').write_text('{"request_number":1}\n')
++        (self.root/'http.jsonl').write_text('{"path":"/responses","request_number":1,"status":200}\n')
++        (self.root/'response-0001.sse').write_text('data: '+json.dumps({'type':'response.failed',
++            'response':{'error':{'type':'service_unavailable_error','message':'capacity'}}})+'\n\n')
++        health=execution_health.inspect(self.root)
++        self.assertEqual(health['status'],'FAULT');self.assertFalse(health['uncertainty'])
++
++    def test_recovered_overload_is_disclosed_and_never_a_healthy_measurement(self):
++        (self.root/'requests.jsonl').write_text('{"request_number":1}\n')
++        (self.root/'http.jsonl').write_text('{"path":"/responses","request_number":1,"status":200}\n')
++        (self.root/'response-0001.sse').write_text('data: '+json.dumps({'type':'response.failed',
++            'response':{'error':{'code':'server_is_overloaded','message':'capacity'}}})+'\n\n')
++        health=execution_health.inspect(self.root)
++        self.assertEqual(health['status'],'FAULT');self.assertEqual(health['faults'][0]['request_number'],1)
++        row={'model':'gpt-6.1-sol','status':'ACCEPTED','execution_health':'FAULT',
++            'transport_health':health,'temporary_workspace_removed':True,'usage':{'complete':False},
++            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
++                'actual_model_ids':['gpt-6.1-sol'],'standard_tier_verified':True}}
++        (self.root/'stage').mkdir();(self.root/'stage/result.json').write_text(json.dumps(row))
++        self.assertEqual(full_workflow.accepted(self.root),row)
++        checked=execution_health.require_review_execution(row,self.root/'stage/result.json')
++        self.assertTrue(checked['submitted_record_qualified'])
++        self.assertFalse(checked['measurement_valid']);self.assertFalse(checked['execution_qualified'])
++
++
++if __name__=='__main__':unittest.main()

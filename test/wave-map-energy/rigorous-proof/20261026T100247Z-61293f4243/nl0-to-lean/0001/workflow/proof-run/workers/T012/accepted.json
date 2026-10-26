@@ -1,0 +1,3 @@
+{
+  "proof": "intro t ht j\nobtain ⟨C, R, hdata⟩ := h_T009 t ht j\nrcases hdata with ⟨hlocal, hsmooth, hgood, hprod⟩\nhave htI : t ∈ Set.Ioo (t / 2) (3 * t / 2) := by constructor <;> linarith\nhave hsections := hlocal.2.2.2.2.2 t htI\nhave hb : Integrable (fun x => WM.bTerm u j (x,t)) := (hsections.2.2.2 j).1.2.2.2\nhave hc : Integrable (fun x => WM.cTerm u j (x,t)) := (hsections.2.2.2 j).2.1.2.2.2\nrefine ⟨hb, hc, ?_⟩\nhave heq : (∫ x, WM.divFlux u j (x,t)) = (∫ x, WM.bTerm u j (x,t)) + (∫ x, WM.cTerm u j (x,t)) := by\n  simp_rw [hprod]\n  exact integral_add hb hc\nhave hz := h_T011 t ht j\nlinarith"
+}

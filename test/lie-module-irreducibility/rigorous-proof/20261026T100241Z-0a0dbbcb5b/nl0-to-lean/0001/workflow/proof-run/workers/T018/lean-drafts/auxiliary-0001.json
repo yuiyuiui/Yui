@@ -1,0 +1,22 @@
+{
+  "statement": "∃ res : (LR.R p ⧸ Ideal.span {(p : LR.R p)}) ≃+* ZMod p, ∀ a b : ℤ, ∀ r : LR.R p, (r : ℚ) = (a : ℚ)/(b : ℚ) → ¬ (p : ℤ) ∣ b → res (Ideal.Quotient.mk _ r) = (a : ZMod p) * (b : ZMod p)⁻¹",
+  "proof": "classical\nletI : Fact p.Prime := ⟨h_H001⟩\nletI : CharP K p := h_H002\nobtain ⟨fc⟩ := h_T017\nletI := fc.ak\nlet I : Ideal (LR.R p) := Ideal.span {(p : LR.R p)}\nhave hI : I ≤ RingHom.ker (algebraMap (LR.R p) K) := by\n  rw [Ideal.span_le]\n  intro a ha\n  rcases Set.mem_singleton_iff.mp ha with rfl\n  simp [RingHom.mem_ker, CharP.cast_eq_zero K p]\nlet g : (LR.R p ⧸ I) →+* K := Ideal.Quotient.lift I (algebraMap (LR.R p) K) hI\nletI : Nontrivial (LR.R p ⧸ I) := g.domain_nontrivial\nhave hp0 : (p : LR.R p ⧸ I) = 0 := by\n  rw [← map_natCast (Ideal.Quotient.mk I), Ideal.Quotient.eq_zero_iff_mem]\n  exact Ideal.subset_span (Set.mem_singleton _)\nletI : CharP (LR.R p ⧸ I) p := (CharP.charP_iff_prime_eq_zero h_H001).mpr hp0\nlet f : ZMod p →+* (LR.R p ⧸ I) := ZMod.castHom (dvd_refl p) _\nhave frac : ∀ a b : ℤ, ∀ r : LR.R p, (r : ℚ) = (a : ℚ)/(b : ℚ) → ¬ (p : ℤ) ∣ b → Ideal.Quotient.mk I r = f ((a : ZMod p) * (b : ZMod p)⁻¹) := by\n  intro a b r hr hb\n  have hb0 : b ≠ 0 := by intro he; apply hb; simp [he]\n  have he : (b : LR.R p) * r = a := by\n    apply Subtype.ext\n    change (b : ℚ) * (r : ℚ) = (a : ℚ)\n    rw [hr]\n    field_simp\n  have hbz : (b : ZMod p) ≠ 0 := by simpa [CharP.intCast_eq_zero_iff] using hb\n  have he' := congrArg (Ideal.Quotient.mk I) he\n  have hu : f (b : ZMod p) * f ((b : ZMod p)⁻¹) = 1 := by rw [← map_mul, mul_inv_cancel₀ hbz, map_one]\n  have hfint (z : ℤ) : f (z : ZMod p) = (z : LR.R p ⧸ I) := map_intCast f z\n  simp only [map_mul, map_intCast] at he'\n  rw [map_mul]\n  calc\n    Ideal.Quotient.mk I r = (f (b : ZMod p) * f ((b : ZMod p)⁻¹)) * Ideal.Quotient.mk I r := by rw [hu, one_mul]\n    _ = f (a : ZMod p) * f ((b : ZMod p)⁻¹) := by rw [mul_right_comm, hfint, he', hfint]\nhave hsurj : Function.Surjective f := by\n  intro q\n  obtain ⟨r, rfl⟩ := Ideal.Quotient.mk_surjective q\n  obtain ⟨a,b,hb,hpb,hr⟩ := (h_T005 r).mp r.property\n  exact ⟨_, (frac a b r hr hpb).symm⟩\nlet e := RingEquiv.ofBijective f ⟨f.injective, hsurj⟩\nrefine ⟨e.symm, ?_⟩\nintro a b r hr hb\napply e.injective\nsimpa [e] using (frac a b r hr hb).symm",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-et9nb8dr/output/Auxiliary.lean:158:2: error: Type mismatch: After simplification, term\n  Eq.symm (frac a b r hr hb)\n has type\n  ↑a * f (↑b)⁻¹ = (Ideal.Quotient.mk I) r\nbut is expected to have type\n  (Ideal.Quotient.mk (Ideal.span {↑p})) r = ↑a * f (↑b)⁻¹\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-et9nb8dr/output/Auxiliary.lean:124:27: warning: This simp argument is unused:\n  CharP.cast_eq_zero K p\n\nHint: Omit it from the simp argument list.\n  simp [RingHom.mem_ker,̵ ̵C̵h̵a̵r̵P̵.̵c̵a̵s̵t̵_̵e̵q̵_̵z̵e̵r̵o̵ ̵K̵ ̵p̵]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\nchecked : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : _root_.Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  Nat.Prime p →\n    CharP K p →\n      (∀ (q : ℚ), q ∈ LR.R p ↔ ∃ a b, b ≠ 0 ∧ ¬↑p ∣ b ∧ q = ↑a / ↑b) →\n        Nonempty (LR.FirstChange p K M) →\n          ∃ res,\n            ∀ (a b : ℤ) (r : ↥(LR.R p)),\n              ↑r = ↑a / ↑b → ¬↑p ∣ b → res ((Ideal.Quotient.mk (Ideal.span {↑p})) r) = ↑a * (↑b)⁻¹\n'YuiAuxiliary.checked' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 8.653759832959622,
+    "auxiliary_valid": false,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext",
+      "sorryAx"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T018",
+    "candidate": 1,
+    "accepted": false,
+    "stage_complete": false
+  }
+}

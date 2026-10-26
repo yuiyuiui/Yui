@@ -1,0 +1,747 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "On the open set Ω=ℝ^n×(0,∞), the Fréchet derivative of a smooth map is smooth; this can be iterated for every finite derivative order.",
+    "justification": "Apply the checked theorem over ℝ on Ω with both smoothness indices ∞ (∞+1=∞). H002 supplies smoothness and Ω is open. Repeat for the derivative map. This is routine differentiation regularity, not an additional project result or a replacement for the mixed-derivative input.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "H002 gives joint smoothness on Ω."
+      },
+      {
+        "location": "/parameters",
+        "reason": "The domain and codomain are finite-dimensional real Euclidean spaces."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The proof works only at positive times and explicitly uses extensions whose germs agree there."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.fderiv_of_isOpen",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiffOn.fderiv_of_isOpen : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {s : Set.{uE} E} {f : E → F} {m n : WithTop.{0} ℕ∞},\n  ContDiffOn.{u, uE, uF} 𝕜 n f s →\n    IsOpen.{uE} s → LE.le.{0} (HAdd.hAdd.{0, 0, 0} m 1) n → ContDiffOn.{u, uE, max uF uE} 𝕜 m (fderiv.{u, uE, uF} 𝕜 f) s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M101-0001/library-sources.json",
+          "sha256": "fd12f5b075b84ee32bcb3ee83a4805a5477109e8e9860d29f8c5ba9c5b706175"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Evaluating a smooth continuous-linear-map-valued function on a fixed coordinate/time direction is smooth. Thus the derivative maps from BG001 give smooth coordinate partials, with iteration giving utt and higher partials.",
+    "justification": "Use the checked smooth evaluation theorem on Ω over ℝ, with f a Fréchet derivative map and g a constant direction. Constant maps are smooth. All spaces are real normed spaces; no global smoothness of the arbitrary extension at time zero is needed. This supplies only routine smoothness closure.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "The original map is jointly smooth."
+      },
+      {
+        "location": "/definitions/0",
+        "reason": "ut is the time partial."
+      },
+      {
+        "location": "/definitions/1",
+        "reason": "utt is the iterated time partial."
+      },
+      {
+        "location": "/definitions/2",
+        "reason": "dxu is the spatial-coordinate partial family."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The proof explicitly takes time and coordinate directions at points of Ω."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.clm_apply",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Comp",
+      "signature": "@ContDiffOn.clm_apply : ∀ {𝕜 : Type u_1} {E : Type u_2} {F : Type u_3} {G : Type u_4} [inst : NontriviallyNormedField.{u_1} 𝕜]\n  [inst_1 : NormedAddCommGroup.{u_2} E] [inst_2 : NormedSpace.{u_1, u_2} 𝕜 E] [inst_3 : NormedAddCommGroup.{u_3} F]\n  [inst_4 : NormedSpace.{u_1, u_3} 𝕜 F] [inst_5 : NormedAddCommGroup.{u_4} G] [inst_6 : NormedSpace.{u_1, u_4} 𝕜 G]\n  {s : Set.{u_2} E} {n : WithTop.{0} ℕ∞} {f : E → ContinuousLinearMap.{u_1, u_1, u_3, u_4} (RingHom.id.{u_1} 𝕜) F G}\n  {g : E → F},\n  ContDiffOn.{u_1, u_2, max u_3 u_4} 𝕜 n f s →\n    ContDiffOn.{u_1, u_2, u_3} 𝕜 n g s → ContDiffOn.{u_1, u_2, u_4} 𝕜 n (fun x => (f x) (g x)) s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Comp.lean",
+      "source_sha256": "26495369d99d4815f99e8319623231a5fe25f0fdd1756c31162216323e27ed0f",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M102-0002/library-sources.json",
+          "sha256": "76e42b4f5b79649e2fb4f9e271ed88926801025b75c7fd1f658a72cfdaf4c067"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For differentiable real maps, the derivative along a line in direction v is Df(p)v. In particular the time and spatial partials of u, and those of its smooth derivative maps, are their directional Fréchet derivatives.",
+    "justification": "Apply the verified identity at p=(x,r), r>0, to the smooth maps in H002/BG001/BG002. The standard coordinate lines change exactly the coordinate specified in D001–D003 (translation of the line parameter does not change the derivative). This is the routine representation bridge used when evaluating M009, not an independent mixed-partials theorem.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "Joint smoothness supplies differentiability at each p in Ω."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "M009 is evaluated on the time and standard spatial coordinate directions."
+      },
+      {
+        "location": "/definitions",
+        "reason": "All partials are defined by the corresponding one-variable derivatives."
+      }
+    ],
+    "source": {
+      "declaration": "DifferentiableAt.lineDeriv_eq_fderiv",
+      "module": "Mathlib.Analysis.Calculus.LineDeriv.Basic",
+      "signature": "@DifferentiableAt.lineDeriv_eq_fderiv : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {F : Type u_2} [inst_1 : NormedAddCommGroup.{u_2} F]\n  [inst_2 : NormedSpace.{u_1, u_2} 𝕜 F] {E : Type u_3} [inst_3 : NormedAddCommGroup.{u_3} E]\n  [inst_4 : NormedSpace.{u_1, u_3} 𝕜 E] {f : E → F} {x v : E},\n  DifferentiableAt.{u_1, u_3, u_2} 𝕜 f x →\n    Eq.{u_2 + 1} (lineDeriv.{u_1, u_2, u_3} 𝕜 f x v) ((fderiv.{u_1, u_3, u_2} 𝕜 f x) v)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/LineDeriv/Basic.lean",
+      "source_sha256": "ae5b01291d04435936d3b0da26b78066e65bf00e2ed07f635e23a9e73d10cd09",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M103-0003/library-sources.json",
+          "sha256": "858c330cb79c84e83e1122ed47f622fc69622c078d0bd473dc60f52825e0a0ef"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For fixed directions v,w and smooth f, D(p↦Df(p)v)(p)w=(D(Df)(p)w)v.",
+    "justification": "In the verified derivative-of-evaluation formula set c=Df and the second function to the constant v, whose derivative is zero. The first summand is zero and the second is the flipped second derivative evaluated at v. Together with BG003 this identifies the two mixed partials with the two evaluations equated by M009. All derivatives exist by H002; this is a routine representation bridge and does not prove symmetry itself.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "f=u has all required derivatives near every positive-time point."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The proof chooses the time and jth spatial coordinate directions for the directly supplied symmetry theorem M009."
+      }
+    ],
+    "source": {
+      "declaration": "HasFDerivAt.clm_apply",
+      "module": "Mathlib.Analysis.Calculus.FDeriv.CompCLM",
+      "signature": "@HasFDerivAt.clm_apply : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : NormedSpace.{u_1, u_2} 𝕜 E] {G : Type u_4} [inst_3 : NormedAddCommGroup.{u_4} G]\n  [inst_4 : NormedSpace.{u_1, u_4} 𝕜 G] {x : E} {H : Type u_5} [inst_5 : NormedAddCommGroup.{u_5} H]\n  [inst_6 : NormedSpace.{u_1, u_5} 𝕜 H] {c : E → ContinuousLinearMap.{u_1, u_1, u_4, u_5} (RingHom.id.{u_1} 𝕜) G H}\n  {c' :\n    ContinuousLinearMap.{u_1, u_1, u_2, max u_5 u_4} (RingHom.id.{u_1} 𝕜) E\n      (ContinuousLinearMap.{u_1, u_1, u_4, u_5} (RingHom.id.{u_1} 𝕜) G H)}\n  {u : E → G} {u' : ContinuousLinearMap.{u_1, u_1, u_2, u_4} (RingHom.id.{u_1} 𝕜) E G},\n  HasFDerivAt.{u_1, u_2, max u_4 u_5} c c' x →\n    HasFDerivAt.{u_1, u_2, u_4} u u' x →\n      HasFDerivAt.{u_1, u_2, u_5} (fun y => (c y) (u y))\n        (HAdd.hAdd.{max u_2 u_5, max u_2 u_5, max u_2 u_5}\n          (ContinuousLinearMap.comp.{u_1, u_1, u_1, u_2, u_4, u_5} (c x) u')\n          ((ContinuousLinearMap.flip.{u_1, u_1, u_1, u_2, u_4, u_5} c') (u x)))\n        x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/FDeriv/CompCLM.lean",
+      "source_sha256": "b2247b2964fc7508b785d65ee0f33f23478e586c16faa99757f8c126bb182ff9",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M104-0005/library-sources.json",
+          "sha256": "f3c66c42f100374c67b9506cccd90aa8a0e1ec4be183e9ba5dbc2c01bbcdbe8a"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG005",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Real Euclidean dot products of smooth maps on Ω are smooth. In particular every squared norm and every derivative-component dot product used here is smooth.",
+    "justification": "Apply ContDiffOn.inner with scalar field ℝ to each pair of derivative maps already smooth by H002 and BG001–BG002. In this space |v|²=v·v by the Euclidean norm definition. This supplies routine algebraic smoothness closure, including the dot products used in S004.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "u is smooth."
+      },
+      {
+        "location": "/definitions/3",
+        "reason": "e is the finite sum of squared Euclidean norms."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Smoothness of all derivative factors has been obtained before their dot products are used."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.inner",
+      "module": "Mathlib.Analysis.InnerProductSpace.Calculus",
+      "signature": "@ContDiffOn.inner : ∀ (𝕜 : Type u_1) {E : Type u_2} [inst : RCLike.{u_1} 𝕜] [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : InnerProductSpace.{u_1, u_2} 𝕜 E] [inst_3 : NormedSpace.{0, u_2} ℝ E] {G : Type u_4}\n  [inst_4 : NormedAddCommGroup.{u_4} G] [inst_5 : NormedSpace.{0, u_4} ℝ G] {f g : G → E} {s : Set.{u_4} G}\n  {n : WithTop.{0} ℕ∞},\n  ContDiffOn.{0, u_4, u_2} ℝ n f s →\n    ContDiffOn.{0, u_4, u_2} ℝ n g s → ContDiffOn.{0, u_4, u_1} ℝ n (fun x => inner.{u_1, u_2} 𝕜 (f x) (g x)) s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/InnerProductSpace/Calculus.lean",
+      "source_sha256": "902f118cce8ed2a8d385b11e29d95a20424361ca8e47d9bf94fbf954057a7f05",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M105-0006/library-sources.json",
+          "sha256": "afefcfce4c6826130f0bf21f8cdc6f4adbd12996f79db0cb478abb8fe23891c4"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG006",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Finite sums of smooth real-valued maps are smooth; in particular e is smooth, and its time derivative et is smooth by smooth derivative regularity.",
+    "justification": "Index e's summands by one time term and n spatial terms, a finite family. Each term is smooth by BG005. Apply the checked finite-sum closure on Ω; then BG001–BG003 give smoothness of its time partial. The coefficient 2 and finite additions in the displayed et formula also preserve smoothness. No infinite sum or limit interchange is used.",
+    "grounds": [
+      {
+        "location": "/definitions/3",
+        "reason": "The definition of e has exactly one time term and n spatial terms."
+      },
+      {
+        "location": "/definitions/4",
+        "reason": "et is the time partial of e."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "All summands were shown smooth before taking this finite sum."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.sum",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Operations",
+      "signature": "@ContDiffOn.sum : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u_1, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u_1, uF} 𝕜 F] {n : WithTop.{0} ℕ∞} {ι : Type u_3} {f : ι → E → F} {s : Finset.{u_3} ι}\n  {t : Set.{uE} E},\n  (∀ (i : ι), Membership.mem.{u_3, u_3} s i → ContDiffOn.{u_1, uE, uF} 𝕜 n (fun x => f i x) t) →\n    ContDiffOn.{u_1, uE, uF} 𝕜 n (fun x => ∑ i ∈ s, f i x) t",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Operations.lean",
+      "source_sha256": "3ba61e517d6162ed2fd043f1deb48d80567c2470991d9b3ae99e7be1176eb1c2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M106-0007/library-sources.json",
+          "sha256": "5d3a43dd8005d41ab83f0400bbe788d0e04f049babd871812818e61143e55bfe"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG007",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The derivative of the finite sum defining e(x,·) is the sum of the derivatives supplied by M001 for the time and spatial squared-norm summands.",
+    "justification": "Use the checked finite-sum derivative rule on the finite n+1 family at each r>0. Each derivative premise is furnished by the explicit M001 applications and the squared-norm/dot-product identification. M009 converts ∂r dxu to ∂xj ut; dot-product symmetry and distributivity give exactly the factor 2. This completes routine calculus accounting without any differentiation under an integral.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The proof gives the two kinds of M001 application and the mixed-derivative identity before summing."
+      },
+      {
+        "location": "/definitions/3",
+        "reason": "The definition is a finite sum of the indicated squared norms."
+      },
+      {
+        "location": "/inputs/3/statement",
+        "reason": "M001 supplies the derivative of each self inner product."
+      }
+    ],
+    "source": {
+      "declaration": "HasDerivAt.sum",
+      "module": "Mathlib.Analysis.Calculus.Deriv.Add",
+      "signature": "@HasDerivAt.sum : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {x : 𝕜} {ι : Type u_1} {u : Finset.{u_1} ι} {A : ι → 𝕜 → F} {A' : ι → F},\n  (∀ (i : ι), Membership.mem.{u_1, u_1} u i → HasDerivAt.{u, v} (A i) (A' i) x) →\n    HasDerivAt.{u, v} (∑ i ∈ u, A i) (∑ i ∈ u, A' i) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/Deriv/Add.lean",
+      "source_sha256": "9208b59d49bcd81d464de04591c4dbd43bf0d244e6a484b1bad8b4c9d26897b8",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M107-0008/library-sources.json",
+          "sha256": "ee55e363590776e145513b3700bbbecd154f3b863b82c2b65751756e0c2a81e1"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG008",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Every smooth scalar field listed in S004 is continuous on Ω; restricting to a fixed time r>0 gives a continuous spatial section on all ℝ^n.",
+    "justification": "Apply smooth-implies-continuous on Ω to the fields furnished by F001 and the smooth derivative/evaluation/inner-product closures in BG001–BG006. The section inclusion x↦(x,r) is continuous and has image in Ω. Therefore the compositions are continuous everywhere spatially, including on C's boundary. This is routine continuity restriction; no uniform-in-time bound is claimed.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/produces/0/statement",
+        "reason": "F001 exports smoothness of ut,utt,dxu,e,et."
+      },
+      {
+        "location": "/inputs/1/statement",
+        "reason": "H002 also supplies smooth higher spatial derivative factors."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "r is fixed in int J, which is contained in positive times."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.continuousOn",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiffOn.continuousOn : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {s : Set.{uE} E} {f : E → F} {n : WithTop.{0} ℕ∞},\n  ContDiffOn.{u, uE, uF} 𝕜 n f s → ContinuousOn.{uE, uF} f s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M108-0009/library-sources.json",
+          "sha256": "506c6f00bbd8161ab134412582a2f949f7204097ba7d4550b6fbfcfdb1a84b82"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG009",
+    "kind": "elementary",
+    "at": "/inference/argument/2/text",
+    "fact": "If |x|≤L on C then R=1+max(L,0)>0 satisfies C⊂(-R,R)^n, including C=∅.",
+    "justification": "For Euclidean coordinates, x_j²≤Σ_i x_i²=|x|² and both |x_j| and |x| are nonnegative; ordered-field reasoning gives |x_j|≤|x|. Thus |x_j|≤L<R for x∈C, so -R<x_j<R. If C is empty all containments are vacuous and the same R is positive. This checks the displayed construction, without importing a separate boundedness witness theorem.",
+    "grounds": [
+      {
+        "location": "/inputs/6/statement",
+        "reason": "M010 applied to the identity gives a real L bounding |x| on compact C."
+      },
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 supplies compact C."
+      },
+      {
+        "location": "/inference/argument/2/text",
+        "reason": "The argument explicitly chooses a number exceeding max(L,0)."
+      }
+    ]
+  },
+  {
+    "id": "BG010",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "The compact C chosen from F002 is closed in Euclidean ℝ^n; consequently its complement is open.",
+    "justification": "Apply the checked compact-implies-closed theorem in the Hausdorff Euclidean space. Complement openness is exactly closedness. Combined with the open interval int J, this gives the open region on which the proof uses constant germs. Compactness comes from F002, not from the name C.",
+    "grounds": [
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 supplies a compact support set."
+      },
+      {
+        "location": "/inference/argument/2/text",
+        "reason": "The witness C is chosen from F002."
+      },
+      {
+        "location": "/parameters/0",
+        "reason": "The spatial domain is finite-dimensional Euclidean ℝ^n."
+      }
+    ],
+    "source": {
+      "declaration": "IsCompact.isClosed",
+      "module": "Mathlib.Topology.Separation.Hausdorff",
+      "signature": "@IsCompact.isClosed : ∀ {X : Type u_1} [inst : TopologicalSpace.{u_1} X] [T2Space.{u_1} X] {s : Set.{u_1} X},\n  IsCompact.{u_1} s → IsClosed.{u_1} s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Separation/Hausdorff.lean",
+      "source_sha256": "6e914b44923f4bef81025c0e4da56a8ed076a0d841c9d30a3e9d225fac8d1882",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M109-0010/library-sources.json",
+          "sha256": "b6865939affe4e508730b2c96e1dd02be1cabb594afe17afa27dbfc7089c8731"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG011",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Q=[-R,R]^n is compact for the finite real R chosen in S004.",
+    "justification": "The probed compact-interval theorem applies to the coordinatewise interval in ℝ^n. Its CompactIccSpace premise holds: ℝ is a conditionally complete linear order with its order topology, and the pinned source lines 76–87 explicitly furnish the real and product instances. The coordinate topology is the usual Euclidean topology, independent of choosing its Euclidean norm. This checks box compactness, not the witness R (already constructed by F003).",
+    "grounds": [
+      {
+        "location": "/inference/argument/2/produces/0/statement",
+        "reason": "F003 supplies a finite real R>0."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The chosen Q is exactly the product closed interval."
+      },
+      {
+        "location": "/parameters/0",
+        "reason": "n is a natural number, so the coordinate family is finite."
+      }
+    ],
+    "source": {
+      "declaration": "CompactIccSpace.isCompact_Icc",
+      "module": "Mathlib.Topology.Order.Compact",
+      "signature": "@CompactIccSpace.isCompact_Icc : ∀ {α : Type u_1} {inst : TopologicalSpace.{u_1} α} {inst_1 : Preorder.{u_1} α} [self : CompactIccSpace.{u_1} α]\n  {a b : α}, IsCompact.{u_1} (Set.Icc.{u_1} a b)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Order/Compact.lean",
+      "source_sha256": "d12ecd4db713ddd5a8a1725ee1d55eed1b4408453c1dd9a7a42c833c35d2a15a",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M110-0011/library-sources.json",
+          "sha256": "06fe12561f9862369b020ca730902544fc265464863ea196cd0e2e386d65568c"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG012",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "The coordinate box Q has Lebesgue measure (2R)^n, a finite nonnegative real.",
+    "justification": "Apply the checked box-volume formula with n coordinates, a_j=-R and b_j=R. Each side length is 2R>0 by F003; the finite product equals (2R)^n and is finite. The packet uses ordinary Lebesgue measure in standard coordinates, so its real measure notation corresponds to this finite ENNReal value. No estimate of an arbitrary compact set's volume is being substituted for the exact box formula.",
+    "grounds": [
+      {
+        "location": "/inference/argument/2/produces/0/statement",
+        "reason": "R is a positive real."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "Q is defined as [-R,R]^n and Lebesgue measure is the specified measure."
+      },
+      {
+        "location": "/parameters/0",
+        "reason": "The coordinate index set has finite size n."
+      }
+    ],
+    "source": {
+      "declaration": "Real.volume_Icc_pi",
+      "module": "Mathlib.MeasureTheory.Measure.Lebesgue.Basic",
+      "signature": "@Real.volume_Icc_pi : ∀ {ι : Type u_1} [inst : Fintype.{u_1} ι] {a b : ι → ℝ},\n  Eq.{1} (MeasureTheory.volume.{u_1} (Set.Icc.{u_1} a b)) (∏ i, ENNReal.ofReal (HSub.hSub.{0, 0, 0} (b i) (a i)))",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Lebesgue/Basic.lean",
+      "source_sha256": "72101050c59e99875b25c8cde0cebbcac53c99f569a4c5ab2d43a533d1f5fb8b",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M111-0012/library-sources.json",
+          "sha256": "5cc1790c6671221d3577ccc55274c9b0f032379a33d0d22df6437b9eeab9b09b"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG013",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Each listed scalar spatial section has compact support because it vanishes outside the compact set C.",
+    "justification": "For any fixed r∈int J and each relevant j, S004's constant-germ argument gives zero off C, so the nonzero set is contained in C. The checked theorem applies in Euclidean ℝ^n, which is Hausdorff and hence R1. Equivalently, closedness of C implies the support closure lies in C and is a closed subset of a compact set. This supplies the routine topological support step in the displayed route.",
+    "grounds": [
+      {
+        "location": "/inference/argument/1/produces/0/statement",
+        "reason": "F002 provides compactness and the common support property for u-q."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The proof derives vanishing of every listed section off C from constant germs on the open complement-time region."
+      }
+    ],
+    "source": {
+      "declaration": "HasCompactSupport.of_support_subset_isCompact",
+      "module": "Mathlib.Topology.Algebra.Support",
+      "signature": "@HasCompactSupport.of_support_subset_isCompact : ∀ {α : Type u_2} {β : Type u_4} [inst : TopologicalSpace.{u_2} α] [inst_1 : Zero.{u_4} β] {f : α → β} {K : Set.{u_2} α}\n  [R1Space.{u_2} α], IsCompact.{u_2} K → Function.support.{u_2, u_4} f ⊆ K → HasCompactSupport.{u_2, u_4} f",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Algebra/Support.lean",
+      "source_sha256": "84a9e491db8e8c489dad7799305acea394a05f1263a72efe3591c6cd516d1ac5",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M112-0013/library-sources.json",
+          "sha256": "7b1e560cb3f570b117dc451d4d66bd8e35155ee43e6eb316ec749f0c65e1ad07"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG014",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "One-dimensional Lebesgue measure is locally finite.",
+    "justification": "This is the checked native instance for real Lebesgue measure, not an assumption on a general measure. Its displayed source gives each point an interval of finite length. It supplies the real-factor measure condition used for M003 on finite coordinate space.",
+    "grounds": [
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The measure in use is Lebesgue measure in real Euclidean coordinates."
+      },
+      {
+        "location": "/parameters/0",
+        "reason": "The domain has n real coordinates."
+      }
+    ],
+    "source": {
+      "declaration": "Real.locallyFinite_volume",
+      "module": "Mathlib.MeasureTheory.Measure.Lebesgue.Basic",
+      "signature": "@Real.locallyFinite_volume : MeasureTheory.IsLocallyFiniteMeasure.{0} MeasureTheory.volume.{0}",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Lebesgue/Basic.lean",
+      "source_sha256": "72101050c59e99875b25c8cde0cebbcac53c99f569a4c5ab2d43a533d1f5fb8b",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M114-0015/library-sources.json",
+          "sha256": "0d9747ff5be55eb7c019749640974eda28b09953f9ad96df1b1c598d80af2297"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG015",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Real Lebesgue measure is finite on compact subsets.",
+    "justification": "Apply the verified locally-finite-implies-finite-on-compacts instance to ℝ with its usual topology and Lebesgue measure. Its only additional premise is the real local finiteness positively checked in BG014. This is routine discharge of a native measure premise.",
+    "grounds": [
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "Lebesgue measure is used in real coordinates, so BG014 concerns exactly the real factor measure."
+      }
+    ],
+    "source": {
+      "declaration": "isFiniteMeasureOnCompacts_of_isLocallyFiniteMeasure",
+      "module": "Mathlib.MeasureTheory.Measure.Typeclasses.Finite",
+      "signature": "@isFiniteMeasureOnCompacts_of_isLocallyFiniteMeasure : ∀ {α : Type u_1} [inst : TopologicalSpace.{u_1} α] {x : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α}\n  [MeasureTheory.IsLocallyFiniteMeasure.{u_1} μ], MeasureTheory.IsFiniteMeasureOnCompacts.{u_1} μ",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Typeclasses/Finite.lean",
+      "source_sha256": "4feeb1ff010d88c80bb733284547b9306cab5c5f90e5b8b7a2dbee696c1e58ff",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M115-0017/library-sources.json",
+          "sha256": "930404aa78c6c0b3f521f24108d6b0e997b0a1e2de7e181653c2ac75498c755f"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG016",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Real Lebesgue measure is σ-finite.",
+    "justification": "Use the checked theorem with ℝ. BG015 supplies finiteness on compacts. The sigma-compact premise is witnessed by the closed intervals [-k,k], k∈ℕ, each compact by BG011's compact-interval source; these cover ℝ by the Archimedean property. This is an explicit routine instance check for the finite-product measure theorem, not a new integrability argument.",
+    "grounds": [
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The measure being instantiated is Lebesgue measure."
+      },
+      {
+        "location": "/parameters/0",
+        "reason": "The spatial coordinates are real."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.SigmaFinite.of_isFiniteMeasureOnCompacts",
+      "module": "Mathlib.MeasureTheory.Measure.Typeclasses.SFinite",
+      "signature": "@MeasureTheory.SigmaFinite.of_isFiniteMeasureOnCompacts : ∀ {α : Type u_1} {m0 : MeasurableSpace.{u_1} α} [inst : TopologicalSpace.{u_1} α] [SigmaCompactSpace.{u_1} α]\n  (μ : MeasureTheory.Measure.{u_1} α) [MeasureTheory.IsFiniteMeasureOnCompacts.{u_1} μ],\n  MeasureTheory.SigmaFinite.{u_1} μ",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Typeclasses/SFinite.lean",
+      "source_sha256": "53f2bee51c13fc29bb0952ae7961c7f528d54e45361b637171f27b00f6bbe380",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M116-0018/library-sources.json",
+          "sha256": "030409b26a0ff7d6a8edb4b8d9385f692d0cb806a03914383e9426f6bd783322"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG017",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Lebesgue measure on finite coordinate space ℝ^n is finite on compact sets, as required by M003.",
+    "justification": "Apply the verified finite-product instance with n factors, all real Lebesgue measure. Each factor is σ-finite (BG016) and finite on compacts (BG015); n is finite. Coordinate-product Lebesgue measure is the usual Lebesgue measure used in the packet. The Borel measurable structure makes all opens measurable. This checks M003's measure premise; continuity and compact support are separately established in S004/BG008/BG013.",
+    "grounds": [
+      {
+        "location": "/parameters/0",
+        "reason": "n is a natural number, giving a finite coordinate family."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "S004 specifies Euclidean Lebesgue measure for its spatial sections."
+      },
+      {
+        "location": "/inputs/4/statement",
+        "reason": "M003 explicitly requires a measure finite on compact subsets."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.Measure.pi.isFiniteMeasureOnCompacts",
+      "module": "Mathlib.MeasureTheory.Constructions.Pi",
+      "signature": "@MeasureTheory.Measure.pi.isFiniteMeasureOnCompacts : ∀ {ι : Type u_1} {α : ι → Type u_3} [inst : Fintype.{u_1} ι] [inst_1 : (i : ι) → MeasurableSpace.{u_3} (α i)]\n  (μ : (i : ι) → MeasureTheory.Measure.{u_3} (α i)) [∀ (i : ι), MeasureTheory.SigmaFinite.{u_3} (μ i)]\n  [inst_3 : (i : ι) → TopologicalSpace.{u_3} (α i)] [∀ (i : ι), MeasureTheory.IsFiniteMeasureOnCompacts.{u_3} (μ i)],\n  MeasureTheory.IsFiniteMeasureOnCompacts.{max u_3 u_1} (MeasureTheory.Measure.pi.{u_1, u_3} μ)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Constructions/Pi.lean",
+      "source_sha256": "56cfeee42d092b72fcc531b1932ec6cf09b2e95394a4f013c1e4ce8c2772e472",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M113-0014/library-sources.json",
+          "sha256": "94e5723f77d0a3b04aa74e7312a0bdd421529a9228cb8244fa9963a8c20b5fbb"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG018",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "Each real-valued section proved integrable by M003 is absolutely integrable: x↦|f(x)| is integrable as well.",
+    "justification": "Apply the checked norm-integrability theorem with β=ℝ to the M003 conclusion for each section. On ℝ the norm is absolute value. This is precisely the absolute-integrability wording in N002 and does not require a second support or boundedness argument.",
+    "grounds": [
+      {
+        "location": "/inputs/4/statement",
+        "reason": "M003 concludes Bochner integrability after continuity and compact support."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The proof applies M003 to each listed real scalar section after proving those conditions."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.Integrable.norm",
+      "module": "Mathlib.MeasureTheory.Function.L1Space.Integrable",
+      "signature": "@MeasureTheory.Integrable.norm : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α}\n  [inst : NormedAddCommGroup.{u_2} β] {f : α → β},\n  MeasureTheory.Integrable.{u_2, u_1} f μ → MeasureTheory.Integrable.{0, u_1} (fun a => norm.{u_2} (f a)) μ",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Function/L1Space/Integrable.lean",
+      "source_sha256": "1eb43b0c29afe46be67da796537cad31a702da7e2f9dd364f1f9dd5b344d7b9c",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M117-0019/library-sources.json",
+          "sha256": "f70cb193bb4b07099f3c08d3cc80d51b5cfe528b2e8b17eeac441245699de4de"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG019",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "If a listed section f has |f|≤B on Q, then |∫_Q |f||≤B·|Q|, and hence ∫_Q |f|≤B·|Q|.",
+    "justification": "Apply the verified set-integral norm bound to the real-valued function |f|, whose norm is itself. M010 on compact Q supplies a finite B bounding |f| there; BG012 supplies μ(Q)<∞. The resulting absolute value bound implies the one-sided bound by elementary ordered-field reasoning. This is only the elementary integral estimate explicitly asserted after M003, not a new convergence or integration-by-parts tool.",
+    "grounds": [
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The proof first applies M010 to each continuous section on Q."
+      },
+      {
+        "location": "/inference/argument/2/produces/0/statement",
+        "reason": "R>0 is finite, so the box-volume calculation in S004/BG012 is finite."
+      },
+      {
+        "location": "/inputs/6/statement",
+        "reason": "M010 supplies a real norm bound on compact sets for continuous functions."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.norm_setIntegral_le_of_norm_le_const",
+      "module": "Mathlib.MeasureTheory.Integral.Bochner.Set",
+      "signature": "@MeasureTheory.norm_setIntegral_le_of_norm_le_const : ∀ {X : Type u_1} {E : Type u_3} {mX : MeasurableSpace.{u_1} X} [inst : NormedAddCommGroup.{u_3} E]\n  [inst_1 : NormedSpace.{0, u_3} ℝ E] {f : X → E} {s : Set.{u_1} X} {μ : MeasureTheory.Measure.{u_1} X} {C : ℝ},\n  LT.lt.{0} (μ s) Top.top.{0} →\n    (∀ (x : X), Membership.mem.{u_1, u_1} s x → LE.le.{0} (norm.{u_3} (f x)) C) →\n      LE.le.{0} (norm.{u_3} (∫ (x : X) in s, f x ∂μ)) (HMul.hMul.{0, 0, 0} C (MeasureTheory.Measure.real.{u_1} μ s))",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Integral/Bochner/Set.lean",
+      "source_sha256": "9a3455831e22674e72fe8f56a6e5ec6280b94fb707b8b8a40e838ac8fb1a6e31",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M118-0020/library-sources.json",
+          "sha256": "5fec011730948d4d0312d13c1950629bacb355f3b54ced1f1baaf0fc1c7e0895"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG020",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "For each section f, ∫ℝ^n |f|=∫_Q |f|, so BG019 is also its full-space absolute-integral bound.",
+    "justification": "S004 proves f=0 off C and F003 gives C⊂(-R,R)^n⊂Q; hence |f|=0 off Q. Substitute |f| and s=Q in the checked zero-extension integral theorem. Its only premise is the displayed pointwise vanishing. Thus the incidental full absolute-integral estimate in the proof is justified without adding assumptions.",
+    "grounds": [
+      {
+        "location": "/inference/argument/2/produces/0/statement",
+        "reason": "The support set C lies inside the open box, hence inside Q."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "Every listed section is shown to vanish outside C."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.setIntegral_eq_integral_of_forall_compl_eq_zero",
+      "module": "Mathlib.MeasureTheory.Integral.Bochner.Set",
+      "signature": "@MeasureTheory.setIntegral_eq_integral_of_forall_compl_eq_zero : ∀ {X : Type u_1} {E : Type u_3} {mX : MeasurableSpace.{u_1} X} [inst : NormedAddCommGroup.{u_3} E]\n  [inst_1 : NormedSpace.{0, u_3} ℝ E] {f : X → E} {s : Set.{u_1} X} {μ : MeasureTheory.Measure.{u_1} X},\n  (∀ x ∉ s, Eq.{u_3 + 1} (f x) 0) → Eq.{u_3 + 1} (∫ (x : X) in s, f x ∂μ) (∫ (x : X), f x ∂μ)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Integral/Bochner/Set.lean",
+      "source_sha256": "9a3455831e22674e72fe8f56a6e5ec6280b94fb707b8b8a40e838ac8fb1a6e31",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M119-0021/library-sources.json",
+          "sha256": "cf09d997263b0469bec841865049b0c2b856630afed6249bab49d282cb79ed9d"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG021",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Extending u arbitrarily outside positive times does not alter its C² germ at (x,r), r>0.",
+    "justification": "Choose a time neighborhood of radius less than r, which lies in positive times. The extension equals u there. Apply the checked local congruence theorem to the C²-at-point regularity supplied by H002. Thus M009's total-domain formulation is legitimately applied, with no regularity asserted at time zero. The same locality principle is consistent with the proof's local difference-quotient treatment of sections.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "Joint smoothness gives a C² germ at each point in the open domain."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The extension is specified to agree with u at all positive times and is used only at r>0."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffAt.congr_of_eventuallyEq",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiffAt.congr_of_eventuallyEq : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {f f₁ : E → F} {x : E} {n : WithTop.{0} ℕ∞},\n  ContDiffAt.{u, uE, uF} 𝕜 n f x → Filter.EventuallyEq.{uE, uF} (nhds.{uE} x) f₁ f → ContDiffAt.{u, uE, uF} 𝕜 n f₁ x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M120-0022/library-sources.json",
+          "sha256": "006c5416bcdcc7950066c79b29dee39878423c3f81253129a78950a10a443e15"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG022",
+    "kind": "mathlib",
+    "at": "/inference/argument/3/text",
+    "fact": "The compact intervals [-k,k], k∈ℕ, cover ℝ, providing the sigma-compact condition used in BG016.",
+    "justification": "For any x∈ℝ apply the checked Archimedean theorem to |x| to obtain k with |x|≤k, whence -k≤x≤k by elementary order reasoning. The standard real ordered field is Archimedean. Each interval is compact by the previously probed compact-interval theorem. This checks the auxiliary real-factor sigma-compact premise without assuming an unproved project property.",
+    "grounds": [
+      {
+        "location": "/parameters/0",
+        "reason": "The ambient coordinate field is ℝ."
+      },
+      {
+        "location": "/inference/argument/3/text",
+        "reason": "The only application is the ordinary real-coordinate Lebesgue measure premise."
+      }
+    ],
+    "source": {
+      "declaration": "exists_nat_ge",
+      "module": "Mathlib.Algebra.Order.Archimedean.Defs",
+      "signature": "@exists_nat_ge : ∀ {R : Type u_1} [inst : Semiring.{u_1} R] [inst_1 : PartialOrder.{u_1} R] [IsOrderedRing.{u_1} R] [Archimedean.{u_1} R]\n  (x : R), ∃ n, LE.le.{u_1} x ↑n",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Algebra/Order/Archimedean/Defs.lean",
+      "source_sha256": "38ec00704f20f98a4ef3f410d2bf656ed7749c77d430777e1210c741dd88dbb3",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M121-0023/library-sources.json",
+          "sha256": "c892e3c305e4fd820743baaa84607f1c0cc27b2692ae96904746c54031df50fe"
+        }
+      ]
+    }
+  }
+]

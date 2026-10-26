@@ -1,0 +1,526 @@
+{
+  "background_mode": "node_local_reference",
+  "source_steps": [
+    {
+      "id": "S001",
+      "text": "H003 gives n>0 and I has n elements. We prove the two string formulas by induction. At m=0, h v=λv and xv=0 by H005. For the step temporarily assume L1: h y^m v=(λ-2m)y^m v, and, if m≥1, x y^m v=m(λ-m+1)y^{m-1}v (with xy^0v=0 at m=0). From [h,y]=-2y and [x,y]=h in H004, h y^{m+1}v=y h y^m v-2y^{m+1}v=(λ-2m-2)y^{m+1}v, while x y^{m+1}v=y x y^m v+h y^m v=[m(λ-m+1)+λ-2m]y^m v=(m+1)(λ-m)y^m v. This also holds at m=0 using xv=0. Discharge L1; induction proves the asserted formulas for all nonnegative m."
+    },
+    {
+      "id": "S002",
+      "text": "For every i∈I, iteration of F001 gives x^i y^i v=i! λ(λ-1)⋯(λ-i+1)v. For i=0 this is v with empty product 1. For 1≤i≤λ each factor is a positive integer and hence nonzero in ℂ. H005 gives v≠0, so y^iv and e_i are nonzero. Their h-eigenvalues λ-2i are pairwise distinct in ℂ. To check independence, fix arbitrary c:I→ℂ and j∈I, and temporarily assume L2: ∑_{i∈I}c_i e_i=0. Apply ∏_{k∈I,k≠j}(h-(λ-2k)Id). Every term except the j-th is zero; the remaining term is c_j∏_{k≠j}2(k-j)e_j=0. The product and e_j are nonzero, so c_j=0. Since j was arbitrary every coefficient is zero. Discharging L2 and quantifying over c proves that the whole family is linearly independent."
+    },
+    {
+      "id": "S003",
+      "text": "Apply M003 with A=ℂ, T=V, Q=I and f=e. F001 makes I finite and nonempty; F002 supplies independence; H004 and card(I)=n=λ+1 give the required dimension equality. Thus e spans V, so together with independence it is a basis. F001 at m=λ+1 says y^{λ+1}v, if nonzero, is an eigenvector of eigenvalue -λ-2. Expand this vector in the e-basis. Applying h-(-λ-2)Id shows each coefficient times (λ-2i+λ+2)=2(λ+1-i) is zero; these eigenvalue-difference factors are nonzero scalars for i∈I. Hence every coordinate is zero and y^{λ+1}v=0. All higher powers vanish by further application of y."
+    },
+    {
+      "id": "S004",
+      "text": "Divide the string identities F001 by i!: e_0=v, xe_0=0, xe_i=(λ-i+1)e_{i-1} for 1≤i≤λ, he_i=(λ-2i)e_i; directly ye_i=(i+1)e_{i+1} for i<λ, and ye_λ=0 by F003. For r≤i, iteration and division by r! give X_r e_i=[(λ-i+1)⋯(λ-i+r)/r!]e_{i-r}=binom(λ-i+r,r)e_{i-r}; if r>i the iteration passes xe_0=0. Similarly Y_r e_i=[(i+1)⋯(i+r)/r!]e_{i+r}=binom(i+r,r)e_{i+r} when i+r≤λ, and otherwise is zero by F003. These binomial numbers are integers (they count r-element subsets of a set of the indicated nonnegative size). This proves the basis, termination and all the asserted action formulas."
+    },
+    {
+      "id": "S005",
+      "text": "By H006 choose an integer basis of M that is also a complex basis of V. Its index set is finite because V has finite complex dimension (H004). M002 applied to this complex basis over ℂ counts its elements as dim_ℂ V=n. N001 gives card(I)=n, so reindexing gives an integer basis indexed by I. This proves F001. H001 ensures R is a subring: products of integers not divisible by the prime p are again not divisible by p, and addition and multiplication of the stated fractions preserve the denominator condition."
+    },
+    {
+      "id": "S006",
+      "text": "Choose f as in F001. M001 with A=ℤ, B=R and T=M gives the R-basis (1⊗f_i)_{i∈I} of M_R. Under ι_R these vectors go to f_i. If ∑ r_i f_i=0 with r_i∈R, complex independence of f gives every r_i=0. Hence ι_R is injective. Its image contains f and therefore spans V over ℂ. This also proves that M_R is free of rank n. From now on identify M_R with this image."
+    },
+    {
+      "id": "S007",
+      "text": "Admissibility H006 makes every X_r,Y_r preserve M; their complex linearity then preserves the R-span M_R. In particular x=X_1 and y=Y_1 preserve M, and h=[x,y]=xy-yx does too by H004. These integral operators obey the Chevalley brackets on M and therefore induce the stated action after tensoring. For any 0≤t≤λ, H003 gives t<p; applying M006 with ℓ=p to this arbitrary t and H001 gives p coprime to t!, hence p does not divide t!. Thus 1/t!∈R and t! is a unit. In particular λ!, j!, (λ-j)! are units for j∈I. The integer identity binom(λ,j)j!(λ-j)!=λ! shows that binom(λ,j) is a unit of R, with inverse j!(λ-j)!/λ!."
+    },
+    {
+      "id": "S008",
+      "text": "Compute on the complex e-basis of N001. X_λ kills all e_k with k<λ and sends e_λ to e_0 with coefficient binom(λ,λ)=1; Y_λ sends e_0 to e_λ with coefficient 1. Thus Y_λ X_λ=E_{λλ}. Also X_{λ-i}e_λ=e_i with coefficient 1, so X_{λ-i}E_{λλ}=E_{iλ}. For E_{λλ}Y_{λ-j}, an input e_k with k<j is sent below e_λ and killed by the projection; if k>j it is sent beyond the end of the string and is zero. On e_j the coefficient is binom(λ,λ-j)=binom(λ,j). Thus E_{λλ}Y_{λ-j}=binom(λ,j)E_{λj}. Composing gives E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Every factor preserves M_R by F003, and its scalar lies in R. Hence all E_ij preserve M_R. These identities and preservation statements require no distinction of weights modulo p."
+    },
+    {
+      "id": "S009",
+      "text": "Use the embedding of N002. E_ii maps M_R onto Jcoord_i e_i, because it extracts the i-th coordinate on the N001 basis. For i,j∈I and c∈Jcoord_j, E_ij(c e_j)=c e_i belongs to M_R by N002, so c∈Jcoord_i. Interchanging i,j proves equality. N001 gives 0∈I and e_0=v, hence the common module is J. The projection E_00 of a finite R-basis of M_R (N002) gives finitely many generators of J e_0; since e_0≠0, their coefficients generate J. Temporarily assume L1: J={0}. Then every projection E_ii would vanish on M_R, and their sum is Id_V, so M_R would be zero. This contradicts its complex span V and n>0 from N001. Discharge L1 to conclude J≠{0}. Finally, coordinate projections show each element of M_R has coordinates in J; conversely each sum ∑ c_i e_i with c_i∈J belongs to M_R. Uniqueness is complex independence of e. Thus M_R=⊕_{i∈I}J e_i."
+    },
+    {
+      "id": "S010",
+      "text": "Put T=ℚ⊗_R J. The multiplication map μ:T→ℂ is defined on simple tensors by μ(q⊗c)=qc. It is well-defined by additivity and R-balancing. Every tensor is a finite sum of simple tensors. Write its finitely many rational first factors over a common nonzero integer denominator d; balancing integer numerators into J writes the tensor as (1/d)⊗c for one c∈J. If its image in ℂ is zero, c/d=0, so c=0 and the tensor is zero. Thus μ is injective. If c_1,…,c_s is a finite R-generating family of J from F001, then 1⊗c_1,…,1⊗c_s spans T over ℚ by tensor bilinearity. In particular T is finitely generated as a ℚ-module, that is finite dimensional."
+    },
+    {
+      "id": "S011",
+      "text": "The coordinate isomorphism in F001 induces an explicit ℚ-linear equivalence Φ:ℚ⊗_R M_R→∏_{i∈I}T: on q⊗∑c_i e_i it gives (q⊗c_i)_{i∈I}. For clarity, define its inverse by summing the maps T→ℚ⊗_R M_R induced by c↦c e_i: a tuple (q_i⊗c_i)_i maps to ∑_i q_i⊗(c_i e_i), extended additively in each entry. Both maps are defined by balanced bilinear maps. On simple tensors their composites are identities, by uniqueness of the coordinates and finite distributivity; simple tensors generate, so these checks prove both inverse identities. This supplies the rationalized direct-sum identification, not just a count."
+    },
+    {
+      "id": "S012",
+      "text": "Put r=dim_ℚ T. N002 supplies an R-basis of M_R indexed by I. Applying M001 with A=R and B=ℚ to this basis gives a ℚ-basis of ℚ⊗_R M_R indexed by I; M002 over ℚ therefore gives its dimension as card(I)=n, using N001. Apply M007 with A=ℚ to T to obtain freeness. The finite generation in F002 and this freeness verify the module premises of M004. Thus M004 with the constant family T over I gives dim_ℚ(∏_{i∈I}T)=∑_{i∈I}r=nr. M005 applied to Φ from F003 equates these dimensions: n=nr. Because n>0, r=1."
+    },
+    {
+      "id": "S013",
+      "text": "Fix arbitrary a,z∈J and temporarily assume L2: a≠0. Injectivity of μ in F002 gives 1⊗a≠0, since its image is a. The singleton family consisting of 1⊗a is linearly independent over ℚ: a scalar annihilating a nonzero vector in a vector space over a field is zero. Apply M003 with A=ℚ, ambient space T, the singleton index type and this singleton family. F004 gives the required dimension 1, so 1⊗z=q(1⊗a) for some q∈ℚ. Applying μ proves z=qa for that q. Discharge L2 and quantify over a,z: for every nonzero a∈J every element of J is a rational multiple of a. Together with F001–F004 this proves the stated coordinate decomposition, injectivity, and rational rank-one conclusion."
+    },
+    {
+      "id": "S014",
+      "text": "N003 says J is nonzero and finitely generated. Remove all zero members of a finite generating family. The remaining family still generates, and cannot be empty because J≠0. This proves F001, which will allow the finite minimum construction."
+    },
+    {
+      "id": "S015",
+      "text": "Choose a≠0 in J and a family g as in F001. By the rational-line conclusion of N003, every g_j is q_j a for some q_j∈ℚ; because g_j and a are nonzero, q_j≠0. For a nonzero rational q=A/B with nonzero integers A,B, repeatedly remove factors p from A and B. This process terminates since p≥2 by H001 and absolute values strictly decrease at each removal. Thus A=p^s A', B=p^t B' with s,t≥0 and p dividing neither A' nor B'. Consequently q=p^{s-t}(A'/B'), where A'/B' is a unit of R: both A'/B' and its inverse B'/A' satisfy the denominator condition. Apply this to all the finitely many nonzero rational coefficients of g relative to a. For each there is an integer exponent and a unit of R; the nonempty finite list of exponents has a minimum and an index attaining it. These are precisely the existential data in F002."
+    },
+    {
+      "id": "S016",
+      "text": "Choose simultaneously from F002 the exponent family νexp (entries ν_j), the unit family u, the minimum ν and an attaining index j_0. Put b=p^ν a=u_{j_0}^{-1}g_{j_0}. This is a nonzero element of J, since p^ν is a nonzero rational and a≠0. Every generator g_j equals p^{ν_j-ν}u_j b with ν_j-ν≥0, so g_j∈Rb; conversely b∈J gives Rb⊂J. Therefore J=Rb. Substituting into the unique-coordinate decomposition of N003 proves that every element of M_R is a unique R-linear combination of b e_i: if ∑r_i b e_i=0, N003 gives r_i b=0 for each i, hence r_i=0 since b≠0. Thus these vectors are an R-basis indexed by I, of cardinality n>0. The same argument applies to any nonzero b∈J with J=Rb, proving the full principal-generator and basis assertion."
+    },
+    {
+      "id": "S017",
+      "text": "For every integer d not divisible by p its image in K is nonzero, because H002 says the kernel of ℤ→K is pℤ. Thus define ρ(a/d)=bar(a)/bar(d). Equality of fractions is preserved by cross-multiplication, so this is well-defined and preserves sums and products; it extends ℤ→K. The characteristic also factors the integer map through ℱ_p=ℤ/pℤ; primality H001 makes this a field, and its map into K is injective since a unital map from a field has zero kernel. On elementary tensors define A:M⊗_ℤK→M_R⊗_R K by A(m⊗c)=(1⊗m)⊗c. Its inverse sends (r⊗m)⊗c to m⊗ρ(r)c. The balancing relations in the two tensor products verify well-definedness; the inverse identities follow on the displayed generators, since (r⊗m)⊗c=(1⊗m)⊗ρ(r)c. These generators span, so A is a K-linear isomorphism."
+    },
+    {
+      "id": "S018",
+      "text": "The kernel of ρ is pR: for a/d∈R, its image is zero exactly when p divides a, equivalently a/d belongs to pR. Its image is the prime field ℱ_p, because a/d reduces to the quotient of two prime-field elements. Thus R/pR≃ℱ_p. The map M_R⊗_R K→(M_R/pM_R)⊗_{ℱ_p}K sends u⊗c to [u]⊗c. Conversely define [u]⊗c↦u⊗c. A different lift u+pw gives the same tensor since (pw)⊗c=w⊗pc=0. Balancing over ℱ_p is valid: lift a prime-field scalar to r∈R and use (ru)⊗c=u⊗ρ(r)c; changing its lift by pR has no effect. These formulas define inverse K-linear maps on the simple tensors. This proves the second isomorphism as well as its compatibility with the first one."
+    },
+    {
+      "id": "S019",
+      "text": "Choose b as in N004 and define β_i=A^{-1}((b e_i)⊗1). M001 with A=R, B=K and basis (b e_i) gives the K-basis 1⊗b e_i of K⊗_R M_R; the tensor flip sends it to (b e_i)⊗1 in M_R⊗_R K. The flip is an isomorphism because u⊗c↦c⊗u and its reverse are balanced and their composites fix all simple tensors. Transporting along A^{-1} therefore shows that β is a K-basis of V(K). M002 over K counts it: dim_K V(K)=card(I)=n>0 by N001. Also the quotient M_R/pM_R has the basis [b e_i] over R/pR: coordinates in the R-basis of N004 reduce independently, since a combination lies in pM_R exactly when every coefficient lies in pR. Thus β is precisely the reduced basis extended from ℱ_p to K as in the supplied proof."
+    },
+    {
+      "id": "S020",
+      "text": "N001 gives all action formulas on e_i; complex linearity gives the identical formulas on b e_i. N002 says all these operators preserve both M and M_R, and gives the induced Chevalley action after tensoring. In particular the induced x,y,h satisfy [h,x]=2x, [h,y]=-2y and [x,y]=h on V(K), because tensor extension preserves sums and compositions of lattice endomorphisms. The maps A and B above commute with every induced lattice operator: check this on m⊗c and u⊗c using their defining formulas. Therefore the x,y,h formulas on β and the X_r,Y_r formulas are exactly those of N001 with each integer coefficient replaced by its image in K. Explicitly xβ_0=0, xβ_i=bar(λ-i+1)β_{i-1}, yβ_i=bar(i+1)β_{i+1} until yβ_λ=0, and hβ_i=bar(λ-2i)β_i; X_r and Y_r have respectively coefficients bar(binom(λ-i+r,r)) and bar(binom(i+r,r)) in their stated ranges and zero outside. For 0≤r≤λ, N002 makes r! a unit in R, so its image is nonzero in the field K. The integer-operator identities r!X_r=x^r and r!Y_r=y^r hold on M and persist after tensoring. Thus X_r=bar(r!)^{-1}x^r and Y_r=bar(r!)^{-1}y^r."
+    },
+    {
+      "id": "S021",
+      "text": "N002 expresses E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j} with the scalar a unit in R. Since E_ij(b e_k) is b e_i for k=j and zero otherwise, tensoring this identity yields the coordinate matrix unit T_ij on β with formula T_ij=bar(binom(λ,j))^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Its scalar is nonzero after reduction, since a unit maps to a unit. For an arbitrary K-subspace W temporarily assume L1: W is invariant under x,y. It is then invariant under their nonnegative powers, their scalar multiples, and their compositions. Every divided power appearing in this formula has index between 0 and λ, so F004 shows that it preserves W. Consequently every T_ij preserves W. Discharge L1 and quantify over W. This proves the tensor identifications, reduced basis and formulas, and the matrix-unit invariance assertion."
+    },
+    {
+      "id": "S022",
+      "text": "H001 supplies the prime condition for the localized ring occurring in the input N005. N005 supplies β, a K-basis of V(K), of cardinality n>0. H003 gives 0∈I. Its member β_0 is nonzero since basis vectors are independent; hence V(K)≠0. Let W be arbitrary and temporarily assume L1: W is invariant under x,y,h. In particular it is invariant under x,y, and N005 therefore says it is invariant under every coordinate matrix unit on β. If W={0}, the required alternative already holds. For the other case temporarily assume L2: W≠{0}. There is a nonzero vector in W. Its expansion in β has a nonzero coordinate, since an expansion with all coordinates zero would be zero."
+    },
+    {
+      "id": "S023",
+      "text": "Choose w,c,j from F001 within the nonzero branch. For every i∈I, applying the coordinate matrix unit T_ij gives T_ij w=c_j β_i∈W, since it kills all other basis coordinates and preserves W. Because c_j≠0 in the field K and W is K-linear, β_i=c_j^{-1}(c_j β_i) belongs to W. Thus every basis vector belongs to W, so its span, all of V(K), is contained in W. The reverse containment is part of W being a subspace of V(K). Hence W=V(K) in the nonzero case. Discharge L2; together with the zero case this proves W={0} or W=V(K) under L1. Discharge L1 into the antecedent to obtain F002."
+    },
+    {
+      "id": "S024",
+      "text": "Universal introduction over W proves the subspace assertion from F002, and F003 proves V(K)≠0. H004 gives the Chevalley bracket relations and hence closure of the integer span in D014. The action is the induced L(K)-action described in N005 and D014; invariance under its generators x,y,h is exactly invariance under their K-linear span, so this is irreducibility as an L(K)-module. No algebraic closure of K was used. At λ=0 the index set has one element and all relevant factorials and binomial coefficients are 1; all displayed arguments remain valid. At p=2 the allowed λ are 0 and 1 by H003; nothing used distinct reduced h-eigenvalues. These included endpoints satisfy the same conclusion."
+    }
+  ],
+  "paragraph_mapping": {
+    "S001": {
+      "inference": "R001",
+      "paragraph": "S001"
+    },
+    "S002": {
+      "inference": "R001",
+      "paragraph": "S002"
+    },
+    "S003": {
+      "inference": "R001",
+      "paragraph": "S003"
+    },
+    "S004": {
+      "inference": "R001",
+      "paragraph": "S004"
+    },
+    "S005": {
+      "inference": "R002",
+      "paragraph": "S001"
+    },
+    "S006": {
+      "inference": "R002",
+      "paragraph": "S002"
+    },
+    "S007": {
+      "inference": "R002",
+      "paragraph": "S003"
+    },
+    "S008": {
+      "inference": "R002",
+      "paragraph": "S004"
+    },
+    "S009": {
+      "inference": "R003",
+      "paragraph": "S001"
+    },
+    "S010": {
+      "inference": "R003",
+      "paragraph": "S002"
+    },
+    "S011": {
+      "inference": "R003",
+      "paragraph": "S003"
+    },
+    "S012": {
+      "inference": "R003",
+      "paragraph": "S004"
+    },
+    "S013": {
+      "inference": "R003",
+      "paragraph": "S005"
+    },
+    "S014": {
+      "inference": "R004",
+      "paragraph": "S001"
+    },
+    "S015": {
+      "inference": "R004",
+      "paragraph": "S002"
+    },
+    "S016": {
+      "inference": "R004",
+      "paragraph": "S003"
+    },
+    "S017": {
+      "inference": "R005",
+      "paragraph": "S001"
+    },
+    "S018": {
+      "inference": "R005",
+      "paragraph": "S002"
+    },
+    "S019": {
+      "inference": "R005",
+      "paragraph": "S003"
+    },
+    "S020": {
+      "inference": "R005",
+      "paragraph": "S004"
+    },
+    "S021": {
+      "inference": "R005",
+      "paragraph": "S005"
+    },
+    "S022": {
+      "inference": "R006",
+      "paragraph": "S001"
+    },
+    "S023": {
+      "inference": "R006",
+      "paragraph": "S002"
+    },
+    "S024": {
+      "inference": "R006",
+      "paragraph": "S003"
+    }
+  },
+  "roots": [
+    {
+      "id": "H001",
+      "kind": "hypothesis",
+      "statement": "p is prime."
+    },
+    {
+      "id": "H002",
+      "kind": "hypothesis",
+      "statement": "The characteristic of the field K is p."
+    },
+    {
+      "id": "H003",
+      "kind": "hypothesis",
+      "statement": "0≤λ<p."
+    },
+    {
+      "id": "H004",
+      "kind": "hypothesis",
+      "statement": "V=V(λ) is the complex irreducible highest-weight sl₂(C)-module of highest weight λ, of complex dimension λ+1. The elements x,y,h are its Chevalley generators and satisfy [h,x]=2x, [h,y]=-2y, [x,y]=h."
+    },
+    {
+      "id": "H005",
+      "kind": "hypothesis",
+      "statement": "v≠0, xv=0, and hv=λv."
+    },
+    {
+      "id": "H006",
+      "kind": "hypothesis",
+      "statement": "M is an admissible lattice: it is a free abelian subgroup of V with an integer basis that is also a complex basis of V, and is stable under U_Z. It is arbitrary and is not required to be the minimal lattice."
+    },
+    {
+      "id": "M001",
+      "kind": "mathlib",
+      "statement": "Let A be a commutative semiring, B a semiring with an A-algebra structure, T an additive commutative monoid with an A-module structure, and f an A-basis of T indexed by a type Q. The canonical base-changed basis f.baseChange B is a B-basis of B⊗_A T, and for each q∈Q its q-th vector is 1⊗f_q.",
+      "source": {
+        "declaration": "Module.Basis.baseChange_apply",
+        "hypotheses": [
+          "A is a commutative semiring; B is a semiring with an A-algebra structure.",
+          "T is an additive commutative monoid with an A-module structure.",
+          "f is an A-basis of T indexed by Q; q is in Q."
+        ],
+        "statement": "Let A be a commutative semiring, B a semiring with an A-algebra structure, T an additive commutative monoid with an A-module structure, and f an A-basis of T indexed by a type Q. The canonical base-changed basis f.baseChange B is a B-basis of B⊗_A T, and for each q∈Q its q-th vector is 1⊗f_q.",
+        "module": "Mathlib.LinearAlgebra.TensorProduct.Basis",
+        "signature": "@Module.Basis.baseChange_apply : ∀ {R : Type u_1} {M : Type u_3} {ι : Type u_5} [inst : CommSemiring.{u_1} R] [inst_1 : AddCommMonoid.{u_3} M]\n  [inst_2 : _root_.Module.{u_1, u_3} R M] (S : Type u_7) [inst_3 : Semiring.{u_7} S] [inst_4 : Algebra.{u_1, u_7} R S]\n  (b : Module.Basis.{u_5, u_1, u_3} ι R M) (i : ι),\n  Eq.{max (u_3 + 1) (u_7 + 1)} ((Module.Basis.baseChange.{u_1, u_3, u_5, u_7} S b) i)\n    (TensorProduct.tmul.{u_1, u_7, u_3} R 1 (b i))",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/TensorProduct/Basis.lean",
+        "source_sha256": "ce068c65f80addfbf4d9d9e2849249f0811ccf5d04119beca1b111455401edc5",
+        "evidence": [
+          {
+            "path": "library/M001-0001/library-sources.json",
+            "sha256": "6945b24e3278ce754f82ca048ff732911e760f6304295164240106218438b6b7"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M002",
+      "kind": "mathlib",
+      "statement": "For a semiring A satisfying the strong rank condition, an additive commutative monoid T with an A-module structure, a finite index type Q and an A-basis f of T indexed by Q, Module.finrank_A(T)=card(Q).",
+      "source": {
+        "declaration": "Module.finrank_eq_card_basis",
+        "hypotheses": [
+          "A is a semiring satisfying the strong rank condition.",
+          "T is an additive commutative monoid with an A-module structure.",
+          "Q is a finite index type and f is an A-basis of T indexed by Q."
+        ],
+        "statement": "For a semiring A satisfying the strong rank condition, an additive commutative monoid T with an A-module structure, a finite index type Q and an A-basis f of T indexed by Q, Module.finrank_A(T)=card(Q).",
+        "module": "Mathlib.LinearAlgebra.Dimension.StrongRankCondition",
+        "signature": "@Module.finrank_eq_card_basis : ∀ {R : Type u} {M : Type v} [inst : Semiring.{u} R] [inst_1 : AddCommMonoid.{v} M] [inst_2 : _root_.Module.{u, v} R M]\n  [StrongRankCondition.{u} R] {ι : Type w} [inst_4 : Fintype.{w} ι] (h : Module.Basis.{w, u, v} ι R M),\n  Eq.{1} (Module.finrank.{u, v} R M) (Fintype.card.{w} ι)",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/Dimension/StrongRankCondition.lean",
+        "source_sha256": "203821ca53dfd3aa7160b1c36fe2719275e7b0aac78a87e5aa9d87f0dd16fdc7",
+        "evidence": [
+          {
+            "path": "library/M002-0002/library-sources.json",
+            "sha256": "27c7e666001922a50ee5991c0524352b294c430385c107fa684d45c401cbd6ae"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M003",
+      "kind": "mathlib",
+      "statement": "Let A be a division ring, T an additive commutative group and A-module, Q a finite nonempty type, and f:Q→T a linearly independent family over A. If card(Q)=Module.finrank_A(T), then the A-linear span of range(f) is all of T.",
+      "source": {
+        "declaration": "LinearIndependent.span_eq_top_of_card_eq_finrank",
+        "hypotheses": [
+          "A is a division ring and T is an additive commutative group with an A-module structure.",
+          "Q is finite and nonempty.",
+          "f is linearly independent over A.",
+          "card(Q)=Module.finrank_A(T)."
+        ],
+        "statement": "Let A be a division ring, T an additive commutative group and A-module, Q a finite nonempty type, and f:Q→T a linearly independent family over A. If card(Q)=Module.finrank_A(T), then the A-linear span of range(f) is all of T.",
+        "module": "Mathlib.LinearAlgebra.FiniteDimensional.Lemmas",
+        "signature": "@LinearIndependent.span_eq_top_of_card_eq_finrank : ∀ {K : Type u} {V : Type v} [inst : DivisionRing.{u} K] [inst_1 : AddCommGroup.{v} V]\n  [inst_2 : _root_.Module.{u, v} K V] {ι : Type u_1} [inst_3 : Fintype.{u_1} ι] [Nonempty.{u_1 + 1} ι] {b : ι → V},\n  LinearIndependent.{u_1, u, v} K b →\n    Eq.{1} (Fintype.card.{u_1} ι) (Module.finrank.{u, v} K V) →\n      Eq.{v + 1} (Submodule.span.{u, v} K (Set.range.{v, u_1 + 1} b)) Top.top.{v}",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/FiniteDimensional/Lemmas.lean",
+        "source_sha256": "890800923ea50abc857f0ce470b4c689cc922d90259ef82fba0f39fa57681529",
+        "evidence": [
+          {
+            "path": "library/M003-0004/library-sources.json",
+            "sha256": "b7c6d61ef8510e561e4d283b326df2fed94dfd2cebff5802ea62ab343a805c5a"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M004",
+      "kind": "mathlib",
+      "statement": "Let A be a semiring satisfying the strong rank condition, Q a finite type, and T_q for q∈Q a family of additive commutative monoids with A-module structures. If each T_q is free and finitely generated over A, then Module.finrank_A(∏_{q∈Q}T_q)=∑_{q∈Q}Module.finrank_A(T_q).",
+      "source": {
+        "declaration": "Module.finrank_pi_fintype",
+        "hypotheses": [
+          "A is a semiring satisfying the strong rank condition.",
+          "Q is finite and each T_q is an additive commutative monoid with an A-module structure.",
+          "Each T_q is free over A.",
+          "Each T_q is finitely generated over A."
+        ],
+        "statement": "Let A be a semiring satisfying the strong rank condition, Q a finite type, and T_q for q∈Q a family of additive commutative monoids with A-module structures. If each T_q is free and finitely generated over A, then Module.finrank_A(∏_{q∈Q}T_q)=∑_{q∈Q}Module.finrank_A(T_q).",
+        "module": "Mathlib.LinearAlgebra.Dimension.Constructions",
+        "signature": "@Module.finrank_pi_fintype : ∀ (R : Type u) [inst : Semiring.{u} R] [StrongRankCondition.{u} R] {ι : Type v} [inst_2 : Fintype.{v} ι]\n  {M : ι → Type w} [inst_3 : (i : ι) → AddCommMonoid.{w} (M i)] [inst_4 : (i : ι) → _root_.Module.{u, w} R (M i)]\n  [∀ (i : ι), Module.Free.{u, w} R (M i)] [∀ (i : ι), Module.Finite.{u, w} R (M i)],\n  Eq.{1} (Module.finrank.{u, max v w} R ((i : ι) → M i)) (∑ i, Module.finrank.{u, w} R (M i))",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/Dimension/Constructions.lean",
+        "source_sha256": "395f49a423c4c46bb246eb11c785cbc350b3f938b1fa8b7e840635b208953e10",
+        "evidence": [
+          {
+            "path": "library/M004-0006/library-sources.json",
+            "sha256": "ca6e36ce60385d3656402292744eedc25cbbb947eb996b050a14a0fb9fc8be58"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M005",
+      "kind": "mathlib",
+      "statement": "For any semiring A, additive commutative monoids T and U with A-module structures, and A-linear equivalence f:T≃U, Module.finrank_A(T)=Module.finrank_A(U).",
+      "source": {
+        "declaration": "LinearEquiv.finrank_eq",
+        "hypotheses": [
+          "A is a semiring; T and U are additive commutative monoids with A-module structures.",
+          "f is an A-linear equivalence."
+        ],
+        "statement": "For any semiring A, additive commutative monoids T and U with A-module structures, and A-linear equivalence f:T≃U, Module.finrank_A(T)=Module.finrank_A(U).",
+        "module": "Mathlib.LinearAlgebra.Dimension.Finrank",
+        "signature": "@LinearEquiv.finrank_eq : ∀ {R : Type u} {M : Type v} {N : Type w} [inst : Semiring.{u} R] [inst_1 : AddCommMonoid.{v} M]\n  [inst_2 : _root_.Module.{u, v} R M] [inst_3 : AddCommMonoid.{w} N] [inst_4 : _root_.Module.{u, w} R N]\n  (f : LinearEquiv.{u, u, v, w} (RingHom.id.{u} R) M N), Eq.{1} (Module.finrank.{u, v} R M) (Module.finrank.{u, w} R N)",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/Dimension/Finrank.lean",
+        "source_sha256": "4ab91c2b2e2d56f24c0260f25d55a31042cac8112a943a7c877594528c363e21",
+        "evidence": [
+          {
+            "path": "library/M005-0007/library-sources.json",
+            "sha256": "cb9af23e9a63920c51b1534277a1773cae07ba79f9e3967655a5ae7c00e2ab73"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M006",
+      "kind": "mathlib",
+      "statement": "For natural numbers ℓ and t, if ℓ is prime and t<ℓ, then ℓ is coprime to t!.",
+      "source": {
+        "declaration": "Nat.Prime.coprime_factorial_of_lt",
+        "hypotheses": [
+          "ℓ is prime.",
+          "t<ℓ."
+        ],
+        "statement": "For natural numbers ℓ and t, if ℓ is prime and t<ℓ, then ℓ is coprime to t!.",
+        "module": "Mathlib.Data.Nat.Prime.Factorial",
+        "signature": "@Nat.Prime.coprime_factorial_of_lt : ∀ {p n : ℕ}, Nat.Prime p → LT.lt.{0} n p → p.Coprime n.factorial",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/Data/Nat/Prime/Factorial.lean",
+        "source_sha256": "caa753877be8d9ab5a656e6b95f9819dd590bda428e472749d6103423edf4993",
+        "evidence": [
+          {
+            "path": "library/M006-0008/library-sources.json",
+            "sha256": "8d382f7cbdee9569b5203db2d8621995137ac8aabe48ae6e66b8b81b0772679b"
+          }
+        ]
+      }
+    },
+    {
+      "id": "M007",
+      "kind": "mathlib",
+      "statement": "For every division ring A and every additive commutative group T with an A-module structure, T is a free A-module.",
+      "source": {
+        "declaration": "Module.Free.of_divisionRing",
+        "hypotheses": [
+          "A is a division ring.",
+          "T is an additive commutative group with an A-module structure."
+        ],
+        "statement": "For every division ring A and every additive commutative group T with an A-module structure, T is a free A-module.",
+        "module": "Mathlib.LinearAlgebra.Basis.VectorSpace",
+        "signature": "@Module.Free.of_divisionRing : ∀ (K : Type u_3) (V : Type u_4) [inst : DivisionRing.{u_3} K] [inst_1 : AddCommGroup.{u_4} V]\n  [inst_2 : _root_.Module.{u_3, u_4} K V], Module.Free.{u_3, u_4} K V",
+        "declaration_kind": "theorem",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "source_path": "Mathlib/LinearAlgebra/Basis/VectorSpace.lean",
+        "source_sha256": "8b2038b742bd28f967eb78123489978d59aba4bf01400954de507aef9fee431e",
+        "evidence": [
+          {
+            "path": "library/M007-0009/library-sources.json",
+            "sha256": "b8c3fc5fb3213b4a96acf77134b3bf38e6c4fb29ee99956343e2c417b831cc3b"
+          }
+        ]
+      }
+    }
+  ],
+  "source_outputs": {
+    "N001": "n=λ+1>0 and card(I)=n. The vectors (e_i)_{i∈I} form a complex basis of V; e_0=v. For every integer m≥0, h y^m v=(λ-2m)y^m v; for m≥1, x y^m v=m(λ-m+1)y^{m-1}v. The vectors y^m v vanish for m>λ. The action matrices are xe_0=0, xe_i=(λ-i+1)e_{i-1} for 1≤i≤λ, ye_i=(i+1)e_{i+1} for 0≤i<λ, ye_λ=0, and he_i=(λ-2i)e_i. For all r≥0 and i∈I, X_r e_i=binom(λ-i+r,r)e_{i-r} if r≤i and is zero otherwise; Y_r e_i=binom(i+r,r)e_{i+r} if i+r≤λ and is zero otherwise. All these divided-power matrix coefficients are integers.",
+    "N002": "ι_R:M_R→V is injective, its image spans V over ℂ, and M_R has an R-basis indexed by I, of rank n. Every X_r,Y_r (r≥0) preserves M and, under this embedding, also preserves M_R. For every integer t with 0≤t≤λ, t! is a unit in R. For all i,j∈I, binom(λ,j) is a unit in R, Y_λ X_λ=E_{λλ}, X_{λ-i}E_{λλ}=E_{iλ}, E_{λλ}Y_{λ-j}=binom(λ,j)E_{λj}, and E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. In particular every E_ij preserves M_R. The operators x,y,h preserve M and give its induced Chevalley action after tensoring.",
+    "N003": "n>0. All the R-submodules Jcoord_i (i∈I) equal J. J is nonzero and finitely generated over R. Inside V one has M_R=⊕_{i∈I}J e_i: explicitly every element of M_R has a unique expression ∑_{i∈I}c_i e_i with c_i∈J, and every such finite sum belongs to M_R. Put T=ℚ⊗_R J. The multiplication map T→ℂ, q⊗c↦qc, is injective, T is finite dimensional over ℚ and dim_ℚ T=1. For every nonzero a∈J and every c∈J there exists q∈ℚ with c=qa.",
+    "N004": "There exists b∈J with b≠0 such that J=Rb. For any such b, the vectors (b e_i)_{i∈I} form an R-basis of M_R (identified with its image under ι_R), of cardinality n>0.",
+    "N005": "The integer map ℤ→K extends to ρ:R→K, ρ(a/d)=bar(a)/bar(d). There are natural K-linear isomorphisms V(K)=M⊗_ℤK ≃ M_R⊗_R K ≃ (M_R/pM_R)⊗_{ℱ_p}K, where ℱ_p=ℤ/pℤ acts on K by the prime-field embedding. V(K) has a K-basis β=(β_i)_{i∈I} of cardinality n>0, obtained from b e_i for a nonzero b∈J with J=Rb, and hence dim_K V(K)=n. The operators x,y,h and X_r,Y_r here are the tensor-induced lattice operators. The actions of x,y,h give the induced representation of the Chevalley ℤ-form tensored with K, and satisfy [h,x]=2x, [h,y]=-2y, [x,y]=h on V(K). On β they and all the divided powers have the following integer matrices reduced to K: xβ_0=0, xβ_i=bar(λ-i+1)β_{i-1} for 1≤i≤λ; yβ_i=bar(i+1)β_{i+1} for i<λ, yβ_λ=0, hβ_i=bar(λ-2i)β_i; X_rβ_i=bar(binom(λ-i+r,r))β_{i-r} for r≤i and zero otherwise, Y_rβ_i=bar(binom(i+r,r))β_{i+r} for i+r≤λ and zero otherwise. For 0≤r≤λ, bar(r!)≠0, X_r=bar(r!)^{-1}x^r and Y_r=bar(r!)^{-1}y^r. For all i,j∈I the K-linear coordinate matrix unit T_ij relative to β is bar(binom(λ,j))^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Consequently every K-linear subspace of V(K) invariant under x,y is invariant under every T_ij.",
+    "P": "V(K) is nonzero, and for every K-linear subspace W⊂V(K), if W is invariant under the induced operators x,y,h, then W={0} or W=V(K). Thus V(K) is an irreducible L(K)-module, including λ=0 and p=2, over the given arbitrary field K."
+  },
+  "direct_boundaries": {
+    "R001": {
+      "inputs": [
+        "H003",
+        "H004",
+        "H005",
+        "M003"
+      ],
+      "output": "N001",
+      "background_notes": [
+        "R001.BG001"
+      ]
+    },
+    "R002": {
+      "inputs": [
+        "H001",
+        "H003",
+        "H004",
+        "H006",
+        "N001",
+        "M001",
+        "M002",
+        "M006"
+      ],
+      "output": "N002",
+      "background_notes": [
+        "R002.BG001",
+        "R002.BG002",
+        "R002.BG003",
+        "R002.BG004",
+        "R002.BG005",
+        "R002.BG006",
+        "R002.BG007"
+      ]
+    },
+    "R003": {
+      "inputs": [
+        "H001",
+        "N001",
+        "N002",
+        "M001",
+        "M002",
+        "M003",
+        "M004",
+        "M005",
+        "M007"
+      ],
+      "output": "N003",
+      "background_notes": [
+        "R003.BG001",
+        "R003.BG002",
+        "R003.BG003",
+        "R003.BG004",
+        "R003.BG005",
+        "R003.BG006"
+      ]
+    },
+    "R004": {
+      "inputs": [
+        "H001",
+        "N003"
+      ],
+      "output": "N004",
+      "background_notes": [
+        "R004.BG001"
+      ]
+    },
+    "R005": {
+      "inputs": [
+        "H001",
+        "H002",
+        "N001",
+        "N002",
+        "N004",
+        "M001",
+        "M002"
+      ],
+      "output": "N005",
+      "background_notes": [
+        "R005.BG001",
+        "R005.BG002",
+        "R005.BG003",
+        "R005.BG004",
+        "R005.BG005",
+        "R005.BG006",
+        "R005.BG007",
+        "R005.BG008",
+        "R005.BG009",
+        "R005.BG010",
+        "R005.BG011"
+      ]
+    },
+    "R006": {
+      "inputs": [
+        "N005",
+        "H003",
+        "H004",
+        "H001"
+      ],
+      "output": "P",
+      "background_notes": [
+        "R006.BG001",
+        "R006.BG002"
+      ]
+    }
+  }
+}

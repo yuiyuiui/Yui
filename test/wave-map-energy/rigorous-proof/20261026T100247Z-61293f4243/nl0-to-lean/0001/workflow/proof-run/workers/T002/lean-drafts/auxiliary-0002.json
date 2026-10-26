@@ -1,0 +1,21 @@
+{
+  "statement": "∀ {V : Type} [NormedAddCommGroup V] [NormedSpace ℝ V] (f : WM.X n × ℝ → V) (p : WM.X n × ℝ), DifferentiableAt ℝ f p → WM.dt f p.1 p.2 = fderiv ℝ f p (0,1) ∧ ∀ j, WM.dx f j p.1 p.2 = fderiv ℝ f p (Pi.single j 1,0)",
+  "proof": "intro V _ _ f p hf\nconstructor\n· exact ((hf.hasFDerivAt.comp p.2 (hasFDerivAt_prodMk_right p.1 p.2)).hasDerivAt).deriv\n· intro j\n  have H : HasFDerivAt (fun y => f (y,p.2)) ((fderiv ℝ f p).comp (ContinuousLinearMap.inl ℝ (WM.X n) ℝ)) p.1 := hf.hasFDerivAt.comp p.1 (hasFDerivAt_prodMk_left p.1 p.2)\n  dsimp [WM.dx]\n  rw [H.fderiv]\n  simp",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-d8s_ruik/output/Auxiliary.lean:54:59: warning: Variable name `q` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-d8s_ruik/output/Auxiliary.lean:54:72: warning: Variable name `h_H002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  ContDiffOn ℝ ∞ u (WM.dom n) →\n    ∀ {V : Type} [inst : NormedAddCommGroup V] [inst_1 : NormedSpace ℝ V] (f : WM.X n × ℝ → V) (p : WM.X n × ℝ),\n      DifferentiableAt ℝ f p →\n        WM.dt f p.1 p.2 = (fderiv ℝ f p) (0, 1) ∧ ∀ (j : Fin n), WM.dx f j p.1 p.2 = (fderiv ℝ f p) (Pi.single j 1, 0)\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.1897798338904977,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T002",
+    "candidate": 2,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

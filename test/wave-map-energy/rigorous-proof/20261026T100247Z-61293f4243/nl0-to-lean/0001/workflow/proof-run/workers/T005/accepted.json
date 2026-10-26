@@ -1,0 +1,3 @@
+{
+  "proof": "intro t ht\nobtain ⟨C, R, hlocal⟩ := h_T004.2.2 t ht\nhave hcompact : IsCompact (WM.box n R ×ˢ Set.Icc (t - t / 4) (t + t / 4)) :=\n  hlocal.2.1.prod isCompact_Icc\nhave hsub : WM.box n R ×ˢ Set.Icc (t - t / 4) (t + t / 4) ⊆ WM.dom n := by\n  intro p hp\n  change 0 < p.2\n  have hp' := hp.2.1\n  linarith\nhave hcont : ContinuousOn (WM.et u) (WM.box n R ×ˢ Set.Icc (t - t / 4) (t + t / 4)) :=\n  h_T004.1.2.2.2.2.1.continuousOn.mono hsub\nobtain ⟨B, hB⟩ := hcompact.exists_bound_of_continuousOn hcont\nrefine ⟨C, R, max B 0, hlocal, le_max_right _ _, ?_⟩\nintro x hx r hr\nhave hb := hB (x, r) ⟨hx, hr⟩\nexact le_trans (by simpa only [Real.norm_eq_abs] using hb) (le_max_left _ _)"
+}

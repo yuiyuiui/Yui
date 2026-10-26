@@ -1,0 +1,21 @@
+{
+  "statement": "∀ (s δ : ℝ), 0 < s → 0 < δ → ∃ (k : ℕ) (U : Fin k → Set (V n)), E ⊆ ⋃ i, U i ∧ (∀ i, Metric.ediam (U i) ≤ ENNReal.ofReal δ) ∧ (∑ i, (Metric.ediam (U i)) ^ s) < ⊤",
+  "proof": "classical\nintro s δ hs hδ\nhave hc : E ⊆ ⋃ x : E, Metric.ball (x : V n) (δ / 2) := by\n  intro x hx\n  exact Set.mem_iUnion.mpr ⟨⟨x, hx⟩, Metric.mem_ball_self (half_pos hδ)⟩\nobtain ⟨t, ht⟩ := h_H002.elim_finite_subcover (fun x : E => Metric.ball (x : V n) (δ / 2)) (fun _ => Metric.isOpen_ball) hc\nlet e := Fintype.equivFin t\nlet U : Fin (Fintype.card t) → Set (V n) := fun i => Metric.ball ((e.symm i).val : V n) (δ / 2)\nhave hcov : E ⊆ ⋃ i, U i := by\n  intro x hx\n  obtain ⟨y, hyt, hxy⟩ := Set.mem_iUnion₂.mp (ht hx)\n  refine Set.mem_iUnion.mpr ⟨e ⟨y, hyt⟩, ?_⟩\n  simpa [U] using hxy\nhave hd : ∀ i, Metric.ediam (U i) ≤ ENNReal.ofReal δ := by\n  intro i\n  apply Metric.ediam_le_of_forall_dist_le\n  intro x hx y hy\n  have hx' : dist x ((e.symm i).val : V n) < δ / 2 := hx\n  have hy' : dist y ((e.symm i).val : V n) < δ / 2 := hy\n  have ht := dist_triangle x ((e.symm i).val : V n) y\n  rw [dist_comm ((e.symm i).val : V n) y] at ht\n  linarith\nrefine ⟨Fintype.card t, U, hcov, hd, ?_⟩\napply ENNReal.sum_lt_top.mpr\nintro i hi\nexact ENNReal.rpow_lt_top_of_nonneg hs.le (ne_of_lt ((hd i).trans_lt ENNReal.ofReal_lt_top))",
+  "check": {
+    "exit_code": 0,
+    "stdout": "checked : ∀ (n : ℕ) (E : Set (V n)),\n  IsCompact E →\n    ∀ (s δ : ℝ),\n      0 < s →\n        0 < δ →\n          ∃ k U, E ⊆ ⋃ i, U i ∧ (∀ (i : Fin k), Metric.ediam (U i) ≤ ENNReal.ofReal δ) ∧ ∑ i, Metric.ediam (U i) ^ s < ∞\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.74339395808056,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T003",
+    "candidate": 3,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

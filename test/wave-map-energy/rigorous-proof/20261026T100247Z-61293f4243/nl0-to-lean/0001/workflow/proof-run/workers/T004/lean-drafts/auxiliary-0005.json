@@ -1,0 +1,22 @@
+{
+  "statement": "∀ R : ℝ, 0 < R → IsCompact (WM.box n R) ∧ volume (WM.box n R) = ENNReal.ofReal ((2*R)^n) ∧ volume (WM.box n R) < ⊤",
+  "proof": "intro R hR\nhave heq : WM.box n R = Set.Icc (fun _ : Fin n => -R) (fun _ : Fin n => R) := by ext x; rfl\nhave hv : volume (WM.box n R) = ENNReal.ofReal ((2*R)^n) := by\n  rw [heq, Real.volume_Icc_pi]\n  simp [sub_neg_eq_add, ← two_mul, ENNReal.ofReal_pow, le_of_lt hR]\nexact ⟨heq ▸ isCompact_Icc, hv, hv ▸ ENNReal.ofReal_lt_top⟩",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-_c314vbl/output/Auxiliary.lean:56:90: error: Tactic `rfl` failed: The left-hand side\n  x ∈ WM.box n R\nis not definitionally equal to the right-hand side\n  x ∈ Set.Icc (fun x => -R) fun x => R\n\nn m : ℕ\nu : WM.X n × ℝ → WM.Y m\nq : WM.Y m\nh_H001 : 1 ≤ n ∧ 1 ≤ m\nh_H002 : ContDiffOn ℝ ∞ u (WM.dom n)\nh_T002 : WM.regular u\nh_T003 : ∀ (τ : ℝ), 0 < τ → ∃ C R, WM.geometry u q τ C R\nR : ℝ\nhR : 0 < R\nx : WM.X n\n⊢ x ∈ WM.box n R ↔ x ∈ Set.Icc (fun x => -R) fun x => R\nchecked : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  1 ≤ n ∧ 1 ≤ m →\n    ContDiffOn ℝ ∞ u (WM.dom n) →\n      WM.regular u →\n        (∀ (τ : ℝ), 0 < τ → ∃ C R, WM.geometry u q τ C R) →\n          ∀ (R : ℝ),\n            0 < R →\n              IsCompact (WM.box n R) ∧ volume (WM.box n R) = ENNReal.ofReal ((2 * R) ^ n) ∧ volume (WM.box n R) < ⊤\n'YuiAuxiliary.checked' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.391449750168249,
+    "auxiliary_valid": false,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext",
+      "sorryAx"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T004",
+    "candidate": 5,
+    "accepted": false,
+    "stage_complete": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "proof": "intro t ht\nhave hi := h_T004.2.1\nhave hp : ∀ᶠ h : ℝ in nhds 0, 0 < t + h := by\n  exact (isOpen_lt continuous_const (continuous_const.add continuous_id)).mem_nhds (by simpa using ht)\nhave heq : (fun h : ℝ => ∫ x, WM.quot u t h x) =ᶠ[nhdsWithin 0 ({0}ᶜ)]\n    (fun h => h⁻¹ • (WM.energy u (t+h) - WM.energy u t)) := by\n  filter_upwards [hp.filter_mono nhdsWithin_le_nhds] with h hh\n  simp only [WM.quot, integral_div, integral_sub (hi (t+h) hh) (hi t ht), WM.energy,\n    smul_eq_mul, div_eq_mul_inv, mul_comm]\nhave hd : HasDerivAt (WM.energy u) (∫ x, WM.et u (x,t)) t := by\n  apply hasDerivAt_iff_tendsto_slope_zero.mpr\n  exact (h_T007 t ht).congr' heq\nexact ⟨hd.differentiableAt, hd.deriv⟩",
+  "statement": "∀ t : ℝ, 0 < t → DifferentiableAt ℝ (WM.energy u) t ∧ deriv (WM.energy u) t = ∫ x, WM.et u (x,t)",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-kgi5l50k/output/Check.lean:57:62: error: unsolved goals\nn m : ℕ\nu : WM.X n × ℝ → WM.Y m\nq : WM.Y m\nh_T004 : WM.supportAndRegularity u q\nh_T007 :\n  ∀ (t : ℝ),\n    0 < t → Filter.Tendsto (fun h => ∫ (x : WM.X n), WM.quot u t h x) (𝓝[≠] 0) (𝓝 (∫ (x : WM.X n), WM.et u (x, t)))\nt : ℝ\nht : 0 < t\nhi : ∀ (t : ℝ), 0 < t → Integrable (fun x => WM.e u (x, t)) volume\nhp : ∀ᶠ (h : ℝ) in 𝓝 0, 0 < t + h\nh : ℝ\nhh : 0 < t + h\n⊢ ∫ (x : WM.X n), h⁻¹ * (WM.e u (x, t + h) - WM.e u (x, t)) =\n    h⁻¹ * ((∫ (x : WM.X n), WM.e u (x, t + h)) - ∫ (x : WM.X n), WM.e u (x, t))\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-kgi5l50k/output/Check.lean:59:24: warning: This simp argument is unused:\n  integral_div\n\nHint: Omit it from the simp argument list.\n  simp only [WM.quot, i̵n̵t̵e̵g̵r̵a̵l̵_̵d̵i̵v̵,̵ ̵integral_sub (hi (̵t̵+̵h̵)̵(̲t̲ ̲+̲ ̲h̲)̲ hh) (hi t ht), WM.energy, smul_eq_mul,\n  ̲  ̲ ̲ ̲ ̲ ̲div_eq_mul_inv, mul_comm]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-kgi5l50k/output/Check.lean:59:38: warning: This simp argument is unused:\n  integral_sub (hi (t + h) hh) (hi t ht)\n\nHint: Omit it from the simp argument list.\n  simp only [WM.quot, integral_div, i̵n̵t̵e̵g̵r̵a̵l̵_̵s̵u̵b̵ ̵(̵h̵i̵ ̵(̵t̵+̵h̵)̵ ̵h̵h̵)̵ ̵(̵h̵i̵ ̵t̵ ̵h̵t̵)̵,̵ ̵WM.energy, smul_eq_mul, div_eq_mul_inv, mul_comm]\n\nNote: This linter can be disabled with `set_option linter.unusedSimpArgs false`\nT008 : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  WM.supportAndRegularity u q →\n    (∀ (t : ℝ),\n        0 < t →\n          Filter.Tendsto (fun h => ∫ (x : WM.X n), WM.quot u t h x) (𝓝[≠] 0) (𝓝 (∫ (x : WM.X n), WM.et u (x, t)))) →\n      ∀ (t : ℝ), 0 < t → DifferentiableAt ℝ (WM.energy u) t ∧ deriv (WM.energy u) t = ∫ (x : WM.X n), WM.et u (x, t)\n'Translation.T008' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.9956960410345346,
+    "status": "LEAN-CHECK-FAILED",
+    "contract_sha256": "8ae9dc883dfbcb3b7eb394f1aaac4de567f9b55c2b7f6a07d3bf79784568524f",
+    "lean_sha256": "bffa0af147977d37907caa317bd2b43979c3b9ac2ff8a51113eab7988b91c02a",
+    "scope": "T008",
+    "accepted": false,
+    "stage_complete": false
+  }
+}

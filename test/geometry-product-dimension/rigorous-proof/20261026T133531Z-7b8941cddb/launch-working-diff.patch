@@ -1,0 +1,1249 @@
+diff --git a/README.md b/README.md
+index 533fc73..3cd9189 100644
+--- a/README.md
++++ b/README.md
+@@ -23,9 +23,11 @@ example:
+ - “Use rigorous-proof on these three supplied problems concurrently.”
+ - “Continue from this accepted NL0 into Lean.”
+ 
+-The invoking agent asks once for missing active phase model/reasoning/speed
+-settings, retaining already specified choices. NL0/Audit A and Lean/Audit B have
+-independent profiles. The harness then stages inputs, schedules independent
++The invoking agent asks once for all missing settings, retaining already
++specified choices. NL0-only needs its model/reasoning/speed profile. Translation
++from accepted NL0 needs the Lean profile and an explicit per-case proof-worker
++count. A full workflow needs both phase profiles and that worker count.
++The harness then stages inputs, schedules independent
+ roles, handles located local repairs and records actual results. It does not
+ require the user to create task packets or dispatch reviewers manually.
+ 
+@@ -63,9 +65,11 @@ existing compatible installations are outside the usual locations. Credentials
+ are never committed. The current carrier supports Standard speed; unavailable
+ models, reasoning levels or speeds fail explicitly, without fallback.
+ 
+-Per-case proof concurrency is `auto|N`. Auto currently discloses a conservative
+-fallback of two when the backend maximum is unknown. Independent-case concurrency
+-is separate. Preparation and reviews are serial within one case. There is no
++Full and translation requests require an explicitly supplied or confirmed
++positive proof-worker count N (`--max-concurrency N`). Missing counts and
++`auto` cannot silently select a default at the public entry. NL0-only does not
++ask for a proof-worker count. Independent-case concurrency is separate.
++Preparation and reviews are serial within one case. There is no
+ default time/token/call budget. Explicit cancellation is supported; the parent
+ chat Stop button is not a verified cancellation of detached CLI processes.
+ 
+diff --git a/benchmark/README.md b/benchmark/README.md
+deleted file mode 100644
+index ed051a3..0000000
+--- a/benchmark/README.md
++++ /dev/null
+@@ -1,22 +0,0 @@
+-# Paper-scale benchmark
+-
+-No papers have been selected and no benchmark scores are available.
+-
+-The comparison arms are direct Lean translation, Yui with a single model stage at a time, and Yui with default resolved parallelism. All arms must use the same frozen original proof, mathematical inputs, permitted external results, model profile, tools and final acceptance standard.
+-
+-Report success and healthy budget exhaustion separately from execution faults. Record repetitions, wall time, phase costs, all-agent input/cached/output/reasoning/total tokens, failed attempts, measured usage coverage, model/toolchain versions and requested/observed concurrency. Preparation and audits belong to whole-workflow cost. A fixed-NL0 translation-only comparison is an additional separately labelled experiment.
+-
+-Select and record explicit phase model/reasoning/speed profiles for each comparison. Reuse the same selected profiles across arms; there is no automatic upgrade or fallback. See ../rigorous-proof/references/measurement.md.
+-
+-Use `result.schema.json` for eventual records. Counts must additionally satisfy
+-the runtime ledger invariants: total=input+output, cached<=input, reasoning<=output.
+-The schema does not authenticate semantic acceptance or measurements. Preserve
+-failed attempts and their raw ledgers beside successful ones.
+-
+-The current `run_graph.py --arm direct` is a control on an already supplied
+-frozen Lean obligation. It is not an original-paper direct baseline: reusing
+-Yui's decomposition or typed preparation there would change the comparison.
+-The eventual original-proof direct arm must author its own implementation from
+-the same source material, with the same final acceptance review. Its preparation
+-is counted. No full three-arm paper campaign runner or benchmark result is
+-claimed by the present configuration file.
+diff --git a/benchmark/config.json b/benchmark/config.json
+deleted file mode 100644
+index d8661b3..0000000
+--- a/benchmark/config.json
++++ /dev/null
+@@ -1,38 +0,0 @@
+-{
+-  "version": 1,
+-  "model": {
+-    "id": "gpt-6-luna",
+-    "reasoning_effort": "high",
+-    "speed": "standard",
+-    "automatic_fallback": false
+-  },
+-  "papers": [],
+-  "arms": {
+-    "direct": {
+-      "max_concurrency": 1,
+-      "yui_instructions": false
+-    },
+-    "yui-sequential": {
+-      "max_concurrency": 1,
+-      "yui_instructions": true
+-    },
+-    "yui-parallel": {
+-      "max_concurrency": "auto",
+-      "yui_instructions": true
+-    }
+-  },
+-  "status": "NOT_RUN",
+-  "required_metrics": [
+-    "acceptance",
+-    "execution_health",
+-    "wall_seconds",
+-    "phase_usage",
+-    "input_tokens",
+-    "cached_input_tokens",
+-    "output_tokens",
+-    "reasoning_tokens",
+-    "total_tokens",
+-    "usage_coverage",
+-    "actual_concurrency"
+-  ]
+-}
+diff --git a/benchmark/result.schema.json b/benchmark/result.schema.json
+deleted file mode 100644
+index bc91b5d..0000000
+--- a/benchmark/result.schema.json
++++ /dev/null
+@@ -1,82 +0,0 @@
+-{
+-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+-  "title": "Yui paper-scale comparison record",
+-  "type": "object",
+-  "required": ["version", "case_id", "arm", "repetition", "model", "inputs", "configuration", "outcome", "execution_health", "wall_seconds", "phases", "usage", "evidence"],
+-  "properties": {
+-    "version": {"const": 1},
+-    "case_id": {"type": "string", "minLength": 1},
+-    "arm": {"enum": ["direct", "yui-sequential", "yui-parallel"]},
+-    "repetition": {"type": "integer", "minimum": 1},
+-    "model": {
+-      "type": "object",
+-      "required": ["requested", "actual", "reasoning_effort", "speed_requested", "service_tier_observed"],
+-      "properties": {
+-        "requested": {"const": "gpt-6-luna"},
+-        "actual": {"type": ["string", "null"]},
+-        "reasoning_effort": {"const": "high"},
+-        "speed_requested": {"const": "standard"},
+-        "service_tier_observed": {"type": ["string", "null"]}
+-      }
+-    },
+-    "inputs": {"type": "array", "items": {"$ref": "#/$defs/binding"}, "minItems": 1},
+-    "configuration": {
+-      "type": "object",
+-      "required": ["harness_commit", "carrier_version", "toolchain", "prompts", "stage_budget_seconds", "case_budget_seconds", "concurrency_requested", "concurrency_resolved", "concurrency_observed", "initial_reuse_state", "comparison_scope"],
+-      "properties": {
+-        "harness_commit": {"type": "string"},
+-        "carrier_version": {"type": "string"},
+-        "toolchain": {"type": "object"},
+-        "prompts": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
+-        "stage_budget_seconds": {"type": "number", "exclusiveMinimum": 0},
+-        "case_budget_seconds": {"type": ["number", "null"]},
+-        "concurrency_requested": {"type": ["string", "integer"]},
+-        "concurrency_resolved": {"type": "integer", "minimum": 1},
+-        "concurrency_observed": {"type": "integer", "minimum": 0},
+-        "initial_reuse_state": {"type": "object"},
+-        "comparison_scope": {"enum": ["original-proof-end-to-end", "fixed-NL0-translation-only"]}
+-      }
+-    },
+-    "outcome": {"enum": ["NOT_RUN", "PASSED", "MATHEMATICAL_REJECTION", "MODEL_BUDGET_EXHAUSTED", "UNFINISHED_WITH_EXECUTION_FAULT", "EXTERNAL_EARLY_STOP", "UNVERIFIED"]},
+-    "execution_health": {"enum": ["NO_RECORDED_FAULT", "FAULT", "UNVERIFIED", "NOT_RUN"]},
+-    "wall_seconds": {"type": ["number", "null"], "minimum": 0},
+-    "phases": {
+-      "type": "array",
+-      "items": {
+-        "type": "object",
+-        "required": ["name", "wall_seconds", "model_work_seconds", "queue_seconds", "tool_seconds", "usage"],
+-        "properties": {
+-          "name": {"type": "string"},
+-          "wall_seconds": {"type": ["number", "null"]},
+-          "model_work_seconds": {"type": ["number", "null"]},
+-          "queue_seconds": {"type": ["number", "null"]},
+-          "tool_seconds": {"type": ["number", "null"]},
+-          "usage": {"$ref": "#/$defs/usage"}
+-        }
+-      }
+-    },
+-    "usage": {"$ref": "#/$defs/usage"},
+-    "evidence": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
+-    "acceptance": {"type": "object"},
+-    "qualifications": {"type": "array", "items": {"type": "string"}}
+-  },
+-  "$defs": {
+-    "binding": {
+-      "type": "object", "required": ["path", "sha256"],
+-      "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+-    },
+-    "usage": {
+-      "type": "object",
+-      "required": ["status", "coverage", "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_tokens", "total_tokens"],
+-      "properties": {
+-        "status": {"enum": ["COMPLETE", "PARTIAL", "NOT_RECORDED"]},
+-        "coverage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+-        "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+-        "cached_input_tokens": {"type": ["integer", "null"], "minimum": 0},
+-        "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+-        "reasoning_tokens": {"type": ["integer", "null"], "minimum": 0},
+-        "total_tokens": {"type": ["integer", "null"], "minimum": 0}
+-      }
+-    }
+-  }
+-}
+diff --git a/rigorous-proof/SKILL.md b/rigorous-proof/SKILL.md
+index ee875f7..5e3a714 100644
+--- a/rigorous-proof/SKILL.md
++++ b/rigorous-proof/SKILL.md
+@@ -13,9 +13,13 @@ invalidation rules; completing stage one does not require stage two.
+ 
+ The invoking agent owns request/configuration collection and dispatch. Follow
+ [installed operation](references/operation.md) to identify explicit proof inputs,
+-ask once for missing active-phase model/reasoning/speed settings, and call
++ask once for missing active-phase model/reasoning/speed settings and, for a
++full or translation request, an explicit per-case proof-worker count, then call
+ `scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
+-the user; do not call a separate intent-classification model. NL0/Audit A and
++the user; do not call a separate intent-classification model. Do not silently
++choose a worker count from defaults or `auto`; obtain a positive integer or
++the user's explicit confirmation of a proposed number. NL0-only requests need
++no proof-worker question. NL0/Audit A and
+ Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
+ does not prepare queues, task packets or controller jobs manually.
+ For an ordinary foreground request, follow execution through its actual final
+@@ -29,6 +33,10 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
+ queues and ledgers. Use normal local repair unless a first-pass measurement is
+ explicitly requested. Runtime and software controls are fully inside this skill;
+ no repository example/support directory or old test result is required.
++Positively identified temporary remote-service failures retry within the same
++isolated thread, preserving its drafts and tool receipts. Keep the selected
++profile and record every fault/wait; use [operational recovery](references/operation.md#remote-service-recovery)
++for backoff, cancellation and explicit continuation of an already exited run.
+ 
+ 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](references/audit-a.md#shared-mathematical-acceptance-requirements)
+    as the single mathematical standard for both author and auditor.
+diff --git a/rigorous-proof/references/operation.md b/rigorous-proof/references/operation.md
+index e53e71f..bb3da5a 100644
+--- a/rigorous-proof/references/operation.md
++++ b/rigorous-proof/references/operation.md
+@@ -31,6 +31,30 @@ Standard speed only. Unknown models/efforts/speeds are rejected explicitly;
+ model/effort availability is checked against local backend metadata and actual
+ transmitted/observed settings are recorded. No fallback or automatic upgrade.
+ 
++Collect the following settings before preparing or dispatching a new run.
++A phase profile means model, reasoning effort and speed:
++
++| Requested track | Required user settings |
++| --- | --- |
++| NL0 and Audit A only (`nl0`) | NL0 phase profile |
++| Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile and per-case proof-worker count N |
++| Complete workflow (`full`) | NL0 phase profile, Lean phase profile and per-case proof-worker count N |
++
++Ask for all missing settings together. An explicitly supplied value, or an
++explicit confirmation of a proposed value for this request, satisfies the
++requirement; do not ask again. N must be a positive integer, including 1 when
++the user wants serial proof work. Do not silently resolve an omitted count or
++`auto` to two. If the user delegates the choice, propose a concrete N and obtain
++confirmation before dispatch. Choosing `--use-config-profiles` does not choose
++or confirm N. For several cases, explain that N applies to each case, then
++retain a shared count unless different per-case settings were requested.
++
++An `audit-b`-only continuation has no proof queue and needs only its Lean phase
++profile, not N. `execute` and supported `resume` reuse an existing job's frozen
++settings; they do not recollect values or change a historical worker count.
++These configuration questions do not change the scheduling architecture:
++NL0, Audit A, preparation, assembly and Audit B remain serial within each case.
++
+ ## Entry commands
+ 
+ The user need not type commands or prepare intermediate files. After collecting
+@@ -40,7 +64,8 @@ configuration, the invoking agent calls the installed entry. For example:
+ python3 -B /path/to/rigorous-proof/scripts/yui.py run /papers/example/proof.md \
+   --track full \
+   --nl0-model gpt-6.1-sol --nl0-effort high --nl0-speed standard \
+-  --lean-model gpt-6-luna --lean-effort high --lean-speed standard
++  --lean-model gpt-6-luna --lean-effort high --lean-speed standard \
++  --max-concurrency 5
+ ```
+ 
+ Supply several problem paths to run independent cases together. For different
+@@ -49,14 +74,17 @@ per-case sources, materials or profiles, `prepare` each separately, then use
+ owned background case processes and returns their exact run paths; a parent
+ chat Stop is not a verified cancellation of these processes.
+ 
+-For translation pass `--track translate --source /accepted/nl0-case` and the Lean
+-profile. For audit-only pass `--track audit-b --audit /checked/native-audit-dir`.
++For translation pass `--track translate --source /accepted/nl0-case`, the Lean
++profile and the confirmed `--max-concurrency N`. For audit-only pass
++`--track audit-b --audit /checked/native-audit-dir`.
+ An audit-only continuation discloses inherited native evidence and does not
+ claim a new proof, compilation or cold workflow result.
+ 
+-`--max-concurrency auto|N` limits local Lean proof jobs per case, not all model
+-stages. The current unknown-backend fallback for auto is two and is disclosed,
+-not called a maximum. `--case-concurrency K` separately limits independent cases;
++The public `run`/`prepare` entry requires `--max-concurrency N` for full and
++translation tracks. It limits local Lean proof jobs per case, not all model
++stages. Low-level controllers retain `auto` for compatibility with existing
++jobs; this is not a substitute for user confirmation at the public entry.
++`--case-concurrency K` separately limits independent cases;
+ by default the explicitly requested cases may run concurrently. Preparation and
+ reviews remain serial within each case. Python controllers occupy no model slot.
+ Backend/account limits may lower observed concurrency; retain actual outcomes.
+@@ -118,6 +146,76 @@ do not supply missing mathematical judgments or force every ordinary paper to
+ run a development exercise campaign first. Calibration status, when measured,
+ is reported separately; it is not fabricated as a prerequisite receipt.
+ 
++## Recoverable controller faults
++
++Normal policy repairs ordinary mathematical feedback in its assigned author or
++proof stage; an Audit A/B nonpass is not by itself a first-pass stop. Classify
++execution failures separately. A verified bookkeeping defect must not force
++the proof and all completed independent reviews to be repeated.
++
++Inherited evidence is checked before any remaining review model is called.
++If a legacy path-to-key index is wrong but the original judgment and matching
++source bytes are intact and hash-bound, collection reconstructs a new index,
++validates it with the unchanged full checks, and proceeds. It records the old
++and new bindings in bookkeeping-repairs.json. This operation changes no theorem,
++judgment, source content or acceptance rule and makes no model/native calls.
++Missing/tampered evidence, changed context, unqualified execution or a nonpassing
++judgment cannot be repaired into a PASS by this route.
++
++After repairing this known defect in an already stopped run, use
++`yui.py resume OLD_RUN --repair-evidence --detach`. The guarded entry requires
++the recorded index error to be reproducible and all required actual reviews
++to be complete and qualified. It restores the unchanged released source through
++its bound lineage and inherits completed scopes instead of asking models again.
++An unknown program defect preserves the current phase/artifact checkpoint and
++requires a verified software fix; it is not a mathematical rejection, permission
++to rewrite proof rules, or a reason to replay the whole problem from scratch.
++
++## Remote-service recovery
++
++The common model carrier retries positively identified temporary remote errors
++(capacity, service availability, transient rate limiting or connection failures)
++inside the same isolated thread. It retains actual drafts, source probes and
++immutable tool receipts and uses the stage's existing short continuation input.
++It does not repeat the initial task or execute a repeated completed tool-call ID
++twice. The selected model, reasoning effort, speed, inputs and acceptance gates
++remain fixed. A mathematical nonpass continues through normal located repair;
++it is not a remote error. Authentication, billing/quota, unsupported settings,
++context/output limits, cancellation and local/provenance faults are not remote
++retries. An unclassified failure remains visible rather than guessed transient.
++
++Retry waits start near 15 seconds and increase exponentially to 300 seconds,
++with small jitter; a recorded valid `Retry-After` is a lower bound. There is no
++fixed retry-count cutoff. Waiting makes no model call, remains cancellable, and
++respects an explicit user deadline. Status reports `REMOTE_RETRY_WAIT` on the
++affected task. `remote-retries.jsonl` preserves each reason, delay and original
++failed turn; stage results record the policy and retry count. Original transport
++faults and missing usage remain visible after recovery. A complete qualified
++submission can proceed through actual mathematical gates; recovered execution
++is never relabeled fault-free timing or a cold first-pass success.
++
++For a run that already exited before this in-session recovery was available,
++the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
++
++```sh
++python3 -B /path/to/rigorous-proof/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
++```
++
++This prepares a new owned run, checks that the old processes exited, and binds
++the exact original inputs/profiles, actual last remote failure and selected old
++evidence. The old run is preserved. `--prepare-only` inspects this boundary before
++`execute`. A definitive release-ready NL0 is restored byte-for-byte; only exact
++qualified complete Audit A scopes are inherited. Incomplete reviews get fresh
++isolated contexts without prior judgments. An interrupted unreleased author
++uses its original declared inputs, including an own draft only if that draft
++was already an explicit input. This is a disclosed warm continuation, not a
++resurrected carrier or a new cold attempt. Previous usage stays in the old run.
++This entry supports authoring/Audit A recovery only and rejects unknown faults,
++live old owners, changed inputs, completed workflows or unsupported later phases.
++A former explicit deadline cannot be reset: a finite-budget old run without a
++retained absolute deadline is rejected. New stages then use the common carrier's
++in-session remote retry throughout the remaining workflow.
++
+ ## Observe, stop and clean
+ 
+ ```sh
+diff --git a/rigorous-proof/scripts/audit_a_campaign.py b/rigorous-proof/scripts/audit_a_campaign.py
+index 1acf5eb..143c207 100644
+--- a/rigorous-proof/scripts/audit_a_campaign.py
++++ b/rigorous-proof/scripts/audit_a_campaign.py
+@@ -399,6 +399,8 @@ def prepare(case, problem, out, *, reuse_from=()):
+         manifest(directory);(directory/'prompt.txt').write_text(PACKET)
+         jobs.append({'id':rid,'library':False})
+     inherited={scope:audit_reuse.materialize(hit,case) for scope,hit in hits.items()}
++    # Validate transported evidence before spending model calls on remaining work.
++    for scope,binding in inherited.items():audit_reuse.validate(case,binding,data,scope)
+     plan={'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
+           'global_overview':bind(g/'global-overview.json'),
+           'jobs':jobs,'inherited':inherited,'status':'PREPARED_NOT_REVIEWED',
+@@ -469,13 +471,26 @@ def collect(out, controls):
+         if bind(plan[name]['path']) != plan[name]: raise ValueError('Source changed after review preparation')
+     data=nl0.validate(case/'nl0.json',case/'spec.json')
+     reports={};evidence={};qualifications=[]
++    index_repairs=[]
++    def inherited_review(scope):
++        binding=plan['inherited'][scope]
++        try:cached=audit_reuse.validate(case,binding,data,scope)
++        except audit_reuse.EvidenceIndexError:
++            binding,repair=audit_reuse.repair_evidence_index(case,binding,data,scope)
++            index_repairs.append(repair);plan['inherited'][scope]=binding
++            write(out/'bookkeeping-repairs.json',{'kind':'VALIDATED_EVIDENCE_INDEX_RECOVERY','repairs':index_repairs,
++                'new_model_calls':0,'new_native_checks':0,'source_and_judgments_changed':False})
++            cached=audit_reuse.validate(case,binding,data,scope)
++        return binding,cached
++    def inherited_evidence(binding,cached):
++        original=cached['record'].get('index_repair',{}).get('original')
++        return [binding,*([original] if original else []),*cached['record']['previous'].values()]
+     for job in plan['jobs']:
+         directory=out/job['id']/'stage'
+         if 'packet:'+job['id'] in plan.get('inherited',{}):
+-            inherited=plan['inherited']['packet:'+job['id']]
+-            cached=audit_reuse.validate(case,inherited,data,'packet:'+job['id'])
++            inherited,cached=inherited_review('packet:'+job['id'])
+             reports[job['id']]=cached['raw']
+-            evidence[job['id']]=[inherited,*cached['record']['previous'].values()]
++            evidence[job['id']]=inherited_evidence(inherited,cached)
+             qualifications.append(cached['record']['qualification'])
+             continue
+         if job['library'] and not job.get('required_scopes',['legacy-full']):
+@@ -501,11 +516,11 @@ def collect(out, controls):
+     global_=reports['global'];global_evidence={}
+     for scope,inherited in plan.get('inherited',{}).items():
+         if scope.startswith('packet:'):continue
+-        cached=audit_reuse.validate(case,inherited,data,scope)
++        inherited,cached=inherited_review(scope)
+         pointer={'target':'/target_review','structure':'/structure_review'}.get(scope,
+             '/definition_reviews/'+scope.split(':')[-1] if scope.startswith('definition:') else '/source_reviews/'+scope.split(':')[-1])
+         put(global_,pointer,cached['raw'])
+-        global_evidence[scope]=[inherited,*cached['record']['previous'].values()]
++        global_evidence[scope]=inherited_evidence(inherited,cached)
+         qualifications.append(cached['record']['qualification'])
+     if set(global_['definition_reviews'])!=set(data[5]) or set(global_['source_reviews'])!={k for k,p in data[3].items() if p['kind'] in {'mathlib','external'}}:
+         raise ValueError('Incomplete global definition/source review coverage')
+@@ -571,11 +586,11 @@ def collect(out, controls):
+         actual['replay']={'packet_sha256':packet['packet_sha256'],'mode':background.MODE,
+             'carrier':str(out/rid/'stage'),'prior_exposure':[],
+             'library_evidence':library_evidence,
+-            'read_materials':['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]}
++            'read_materials':list(dict.fromkeys(['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]))}
+         if inherited:
+             actual['inheritance']=inherited
+             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
+-                                    read_materials=['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])
++                                    read_materials=list(dict.fromkeys(['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])))
+         receipt['inference_reviews'][rid]=actual
+     blocking_global = global_['structure_review']['verdict'] != 'PASS' or any(
+         blocking_finding(f) for f in global_.get('findings', []))
+@@ -594,6 +609,7 @@ def collect(out, controls):
+     inspection['calibration_qualification']='NOT_RUN' if controls is None else 'PASSED'
+     inspection['experiment_qualified']=bool(controls and inspection['full_acceptance'])
+     inspection['inherited_items']=sorted(plan.get('inherited',{}))
++    inspection['bookkeeping_repairs']=index_repairs
+     inspection['measurement_complete']=bool(qualifications) and all(q['measurement_complete'] for q in qualifications)
+     inspection['execution_qualifications']=qualifications
+     inspection['benchmark_timing_qualified']=bool(qualifications) and all(q['measurement_valid'] for q in qualifications)
+diff --git a/rigorous-proof/scripts/audit_reuse.py b/rigorous-proof/scripts/audit_reuse.py
+index 8da96ff..4ee4355 100644
+--- a/rigorous-proof/scripts/audit_reuse.py
++++ b/rigorous-proof/scripts/audit_reuse.py
+@@ -8,7 +8,7 @@ from pathlib import Path
+ import shutil
+ import background
+ 
+-from execution_health import qualification
++from execution_health import qualification, record_qualification
+ from execution_state import atomic
+ 
+ VERSION='yui-review-reuse-1'
+@@ -17,6 +17,10 @@ SEMANTIC_RULES=('references/nl0-format.md','references/self-containment.md',
+                 'references/background-notes.md')
+ 
+ 
++class EvidenceIndexError(ValueError):
++    """Intact source evidence is associated with the wrong cached key."""
++
++
+ def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+ def load(path):return json.loads(Path(path).read_text())
+ def hashed(value):return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+@@ -98,7 +102,7 @@ def select(data,campaigns):
+             directory=campaign/job['id'];stage=directory/'stage'
+             if not (stage/'accepted.json').is_file():continue
+             result=load(stage/'result.json')
+-            if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified']:continue
++            if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified']:continue
+             manifest=load(stage/'execution-manifest.json')
+             if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():continue
+             raw=load(stage/'accepted.json');items=[]
+@@ -143,8 +147,12 @@ def materialize(hit,case):
+     background_sources={}
+     for note in hit['row'].get('background_notes', []):
+         for ev in note.get('source',{}).get('evidence',[]):
++            source=directory/'stage'/ev['path']
++            if sha(source)!=ev['sha256']:raise ValueError('Original background evidence changed')
++            if ev['path'] in background_sources:
++                continue
+             key='background_'+str(len(background_sources))
+-            files[key]=directory/'stage'/ev['path'];background_sources[ev['path']]=key
++            files[key]=source;background_sources[ev['path']]=key
+     if hit['scope'].startswith('packet:') and (directory/'stage/tools.jsonl').is_file():
+         files['tools']=directory/'stage/tools.jsonl'
+     for name,path in files.items():
+@@ -171,6 +179,11 @@ def read_binding(case,binding):
+     record=load(checked(binding))
+     if record['version']!=VERSION:raise ValueError('Unsupported review inheritance')
+     paths={key:checked(row) for key,row in record['previous'].items()}
++    if 'index_repair' in record:
++        original=load(checked(record['index_repair']['original']))
++        fields=set(record)-{'background_sources','index_repair'}
++        if fields!=set(original)-{'background_sources','index_repair'} or any(record[k]!=original[k] for k in fields):
++            raise ValueError('An index repair changed non-index review evidence')
+     return record,paths
+ 
+ 
+@@ -194,7 +207,7 @@ def validate(case,binding,data,scope,entry=None):
+     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
+         raise ValueError('Inherited review mathematical context changed')
+     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
+-    if result.get('status')!='ACCEPTED' or not qualification(result)['execution_qualified'] or exposure!=result['exposure']:
++    if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified'] or exposure!=result['exposure']:
+         raise ValueError('Inherited review execution is unqualified')
+     if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():
+         raise ValueError('Inherited review semantic rules changed')
+@@ -215,12 +228,53 @@ def validate(case,binding,data,scope,entry=None):
+     for note in notes:
+         for ev in note.get('source',{}).get('evidence',[]):
+             key=record.get('background_sources',{}).get(ev['path'])
+-            if key not in record['previous']:raise ValueError('Inherited background evidence was not preserved')
++            if key not in record['previous'] or record['previous'][key]['sha256']!=ev['sha256']:
++                raise EvidenceIndexError('Inherited background index does not match the original evidence hash')
+             ev.update(record['previous'][key])
+     if scope.startswith('packet:'):background.validate(notes, nl0.packet(data,scope.split(':')[1]), case)
+     return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw,'background_notes':notes}
+ 
+ 
++def checked_reindex(case,binding,data,scope):
++    """Reconstruct metadata from bound original hashes; no file or judgment edit."""
++    import nl0
++    try:validate(case,binding,data,scope)
++    except EvidenceIndexError:pass
++    else:raise ValueError('No verified inherited evidence-index mismatch to repair')
++    record,paths=read_binding(case,binding);raw=raw_from_binding(case,binding)
++    updated=deepcopy(record);notes=deepcopy(raw.get('background_notes',[]));changes=[]
++    expected={}
++    for note in notes:
++        for ev in note.get('source',{}).get('evidence',[]):
++            path,digest=ev['path'],ev['sha256']
++            if path in expected and expected[path]!=digest:
++                raise ValueError('One original evidence path has conflicting hashes')
++            expected[path]=digest
++            matches=sorted(key for key,row in record['previous'].items()
++                           if key.startswith('background_') and row['sha256']==digest)
++            if not matches:raise ValueError('No intact bound original evidence for index repair')
++            current=record['background_sources'].get(path)
++            selected=current if current in matches else matches[0]
++            updated['background_sources'][path]=selected
++            if current!=selected:changes.append({'original_path':path,'before':current,'after':selected,'sha256':digest})
++            ev.update(record['previous'][selected])
++    if not changes:raise ValueError('No verified index change')
++    background.validate(notes,nl0.packet(data,scope.split(':',1)[1]),case)
++    updated['index_repair']={'original':deepcopy(binding),'kind':'RESTORED_ORIGINAL_EVIDENCE_ASSOCIATION',
++                             'changes':changes,'mathematical_content_changed':False}
++    return updated,changes
++
++
++def repair_evidence_index(case,binding,data,scope):
++    """Publish a new checked index while retaining the original failed binding."""
++    updated,changes=checked_reindex(case,binding,data,scope)
++    case=Path(case).resolve();path=case/'review-evidence/reuse'/(hashed(updated)+'.json')
++    atomic(path,updated);new={'path':str(path.relative_to(case)),'sha256':sha(path)}
++    validate(case,new,data,scope)
++    return new,{'scope':scope,'original':deepcopy(binding),'repaired':new,'changes':changes,
++        'new_model_calls':0,'new_native_checks':0,'mathematical_content_changed':False}
++
++
+ def match_judgment(entry,raw):
+     if entry['verdict']!=raw['verdict']:raise ValueError('Inherited verdict differs from actual review')
+     notes=raw['notes']
+diff --git a/rigorous-proof/scripts/case_runner.py b/rigorous-proof/scripts/case_runner.py
+index b46c989..3acd665 100644
+--- a/rigorous-proof/scripts/case_runner.py
++++ b/rigorous-proof/scripts/case_runner.py
+@@ -102,10 +102,18 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
+ 
+ def nl0_work(job, recorder, budget, progress):
+     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
++    restored=None
++    if (job.get('resume') or {}).get('mode')=='audit-a':
++        import interrupted
++        restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
++        progress(job['case'],'NL0_RELEASED_SOURCE_RESTORED',directory=str(restored),new_author_model_called=False)
+     while True:
+         revision+=1;author=root/'nl0'/f'{revision:04d}';audit=root/'audit-a'/f'{revision:04d}'
+-        progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
+-        source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
++        if restored is not None:
++            source=restored;restored=None
++        else:
++            progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
++            source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
+         key=source_key(source)
+         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
+         seen.add(key)
+@@ -183,7 +191,10 @@ def execute(job, root=None):
+                 'task_outcome':'UNFINISHED_WITH_EXECUTION_FAULT' if fault else 'MODEL_BUDGET_EXHAUSTED' if healthy else 'UNFINISHED_ATTRIBUTION_UNVERIFIED'}
+         except StageFailure as error:result=error.result
+         except Exception as error:
+-            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
++            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc(),
++                'recoverability':'VERIFIED_SOFTWARE_REPAIR_REQUIRED',
++                'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
++                    'preserve_completed_work':True,'restart_whole_workflow':False}}
+         finally:
+             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
+             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
+diff --git a/rigorous-proof/scripts/clean_stage.py b/rigorous-proof/scripts/clean_stage.py
+index 7bb110a..70bc8eb 100644
+--- a/rigorous-proof/scripts/clean_stage.py
++++ b/rigorous-proof/scripts/clean_stage.py
+@@ -213,6 +213,7 @@ class ArtifactStage(pilot.Stage):
+         (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
+             'model_output_policy':pilot.OUTPUT_POLICY,
+             'provider_wait_policy':pilot.PROVIDER_WAIT_POLICY,
++            'remote_retry_policy':pilot.REMOTE_RETRY_POLICY,
+             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
+             'output_verbosity':self.output_verbosity,
+             'arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,'resolved_environment':pilot.load_lock(),'task_documents':
+diff --git a/rigorous-proof/scripts/entrypoint.py b/rigorous-proof/scripts/entrypoint.py
+index 6355c45..1e462ba 100644
+--- a/rigorous-proof/scripts/entrypoint.py
++++ b/rigorous-proof/scripts/entrypoint.py
+@@ -17,7 +17,9 @@ def parsers(commands):
+         p.add_argument('--track',choices=sorted(jobs.TRACKS),required=True)
+         p.add_argument('--material',action='append',type=Path,default=[])
+         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
+-        p.add_argument('--max-concurrency',default='auto');p.add_argument('--case-concurrency',type=int)
++        p.add_argument('--max-concurrency',metavar='N',
++                       help='User-confirmed positive proof-worker count per case; required for full/translate')
++        p.add_argument('--case-concurrency',type=int)
+         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
+         p.add_argument('--time-budget-seconds',type=int)
+         p.add_argument('--use-config-profiles',action='store_true',help='Explicitly select the installed defaults for missing profiles')
+@@ -26,6 +28,11 @@ def parsers(commands):
+         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
+     p=commands.add_parser('execute',help='Execute already prepared, unchanged run jobs')
+     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
++    p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
++    p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
++    p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
++    p.add_argument('--repair-evidence',action='store_true',
++        help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
+     for name in ('status','cancel','cleanup'):
+         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
+         p.add_argument('runs',nargs='+',type=Path)
+@@ -48,6 +55,19 @@ def profiles(args):
+     return selected
+ 
+ 
++def proof_workers(args):
++    """Require explicit proof capacity only for tracks that construct proofs."""
++    requested=args.max_concurrency
++    if args.track not in {'full','translate'}:
++        return 'auto' if requested is None else requested
++    if requested is None or requested=='auto':
++        raise ValueError('Ask once for an explicit positive proof-worker count per case, '
++                         'or confirmation of a proposed number, then supply --max-concurrency N; '
++                         'model-profile defaults do not select this count')
++    import concurrency
++    return concurrency.resolve(requested)['effective']
++
++
+ def preflight_profiles(job):
+     """Use the carrier's actual local model metadata; never guess availability."""
+     path=auth_home()/'models_cache.json'
+@@ -84,16 +104,23 @@ def launch(prepared, *, detached=False, case_concurrency=None):
+ 
+ 
+ def dispatch(args):
++    if args.command=='resume':
++        import interrupted
++        prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
++                  interrupted.prepare(path) for path in args.runs]
++        if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
++        return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+     if args.command in {'prepare','run'}:
+         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
+             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
+-        chosen=profiles(args);prepared=[]
++        chosen=profiles(args);workers=proof_workers(args);prepared=[]
+         for problem in args.problems:
+-            prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=args.max_concurrency,
++            prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
+                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
+                 policy=args.policy,time_budget_seconds=args.time_budget_seconds))
+         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
+-                 'profiles':chosen,'proof_concurrency':__import__('concurrency').resolve(args.max_concurrency),
++                 'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
++                    if args.track in {'full','translate'} else None),
+                  'concurrent_cases':args.case_concurrency or len(prepared)}
+         return summary if args.command=='prepare' else launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+     if args.command=='execute':
+@@ -108,8 +135,8 @@ def dispatch(args):
+             elif (p/'case-result.json').exists():value=json.loads((p/'case-result.json').read_text())
+             else:
+                 launch_file=p/'batch.json' if (p/'batch.json').exists() else p/'launch.json'
+-                launch=json.loads(launch_file.read_text()) if launch_file.exists() else {}
+-                who=launch.get('controller')
++                launch_record=json.loads(launch_file.read_text()) if launch_file.exists() else {}
++                who=launch_record.get('controller')
+                 live=bool(who and same_process(who))
+                 value={'phase':'CANCEL_REQUESTED_NOT_STARTED' if (p/'cancel-request.json').exists() else
+                        'QUEUED' if live else 'CONTROLLER_EXITED_BEFORE_CASE_START' if who else 'PREPARED_NOT_STARTED',
+diff --git a/rigorous-proof/scripts/execution_health.py b/rigorous-proof/scripts/execution_health.py
+index d01013d..89bf822 100644
+--- a/rigorous-proof/scripts/execution_health.py
++++ b/rigorous-proof/scripts/execution_health.py
+@@ -1,8 +1,10 @@
+ """Attribute observed transport/controller health separately from mathematical outcomes."""
+ import json
++import re
+ from pathlib import Path
+ 
+ from usage import events
++import remote_retry
+ 
+ 
+ class StageFailure(ValueError):
+@@ -113,8 +115,10 @@ def inspect(directory):
+                 error={'code':event.get('code'),'message':event.get('message')}
+             if error:
+                 code=error.get('code') if isinstance(error,dict) else None
+-                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error}
+-                if code in {'server_error','internal_error','rate_limit_exceeded','service_unavailable','timeout','request_timeout'}:
++                match=re.fullmatch(r'response-(\d+)\.sse',path.name)
++                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error,
++                     'request_number':int(match.group(1)) if match else None}
++                if remote_retry.classify(error):
+                     faults.append(row)
+                 else:
+                     uncertain.append(row)
+diff --git a/rigorous-proof/scripts/full_workflow.py b/rigorous-proof/scripts/full_workflow.py
+index 955360f..cfb7e7d 100644
+--- a/rigorous-proof/scripts/full_workflow.py
++++ b/rigorous-proof/scripts/full_workflow.py
+@@ -16,12 +16,12 @@ from execution_health import StageFailure, qualification, review_outcome, record
+ def accepted(directory):
+     directory=Path(directory);row=ir.load(directory/'stage/result.json')
+     if row['status']=='CANCELLED':raise execution_state.Cancelled('Stage cancelled externally')
+-    checked=qualification(row)
++    checked=record_qualification(row)
+     if not checked['identity_and_input_boundary_verified']:
+         raise StageFailure('EXECUTION_UNQUALIFIED','Model identity or input boundary is unverified',evidence=directory/'stage/result.json',details=checked)
+-    if row['status']!='ACCEPTED' or checked['execution_health']!='NO_RECORDED_FAULT':
++    if row['status']!='ACCEPTED' or not checked['submitted_record_qualified']:
+         raise StageFailure(row.get('task_outcome') or 'EXECUTION_UNQUALIFIED',
+-            'Stage did not deliver a healthy submitted artifact; preserve actual candidates for explicit qualified recovery',
++            'Stage did not deliver a qualified submitted artifact; preserve actual faults and candidates',
+             evidence=directory/'stage/result.json',details=checked)
+     return row
+ 
+diff --git a/rigorous-proof/scripts/jobs.py b/rigorous-proof/scripts/jobs.py
+index 6944e7d..a3801b8 100644
+--- a/rigorous-proof/scripts/jobs.py
++++ b/rigorous-proof/scripts/jobs.py
+@@ -59,7 +59,8 @@ def stage_document(source, destination):
+ 
+ 
+ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
+-            materials=(), source=None, audit=None, output=None, time_budget_seconds=None):
++            materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
++            resume=None, resume_bindings=()):
+     import concurrency
+     from runtime_config import time_limit
+     if track not in TRACKS or policy not in {'normal','first-pass'}:
+@@ -116,6 +117,9 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
+              'audit':str(Path(audit).resolve()) if audit else None,
+              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
+              'time_budget_seconds':time_budget_seconds,'runtime':runtime_bindings()}
++        if resume:
++            job['resume']=resume
++            job['authority_bindings'].extend(resume_bindings)
+         write(root/'job.json',job)
+         write(root/MARKER,{'version':VERSION,'run_id':run_id,'root':str(root),
+                           'job':bind(root/'job.json'),'original_inputs':[row['original'] for row in documents]})
+@@ -131,6 +135,7 @@ def validate(job, *, verify_runtime=True):
+         raise ValueError('Unsupported explicit case job')
+     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
+               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
++    if 'resume' in job:expected.add('resume')
+     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
+         raise ValueError('Unsupported explicit job fields/policy')
+     from runtime_config import time_limit
+@@ -156,5 +161,8 @@ def validate(job, *, verify_runtime=True):
+             raise ValueError('Frozen task input changed or escaped its directory')
+         verify_bindings([row['original']])
+     verify_bindings(job['authority_bindings'])
++    if 'resume' in job:
++        from interrupted import validate_descriptor
++        validate_descriptor(job)
+     if verify_runtime:verify_bindings(job['runtime'])
+     return job
+diff --git a/rigorous-proof/scripts/nl0.py b/rigorous-proof/scripts/nl0.py
+index baa45eb..a868d3f 100644
+--- a/rigorous-proof/scripts/nl0.py
++++ b/rigorous-proof/scripts/nl0.py
+@@ -426,7 +426,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False,
+                         if replay['mode'] == background.MODE:
+                             require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
+                             if refs:evidence(base, refs)
+-                            materials = ['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]
++                            materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
+                             require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
+                                     'REPLAY-BOUNDARY', 'background source not in reviewed material list')
+                         else:
+diff --git a/rigorous-proof/scripts/run_pilot.py b/rigorous-proof/scripts/run_pilot.py
+index 5afaf77..8e7ba3a 100644
+--- a/rigorous-proof/scripts/run_pilot.py
++++ b/rigorous-proof/scripts/run_pilot.py
+@@ -30,6 +30,9 @@ from pathlib import Path
+ from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
+ from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
+ from runtime_config import model_profile
++import remote_retry
++
++REMOTE_RETRY_POLICY = remote_retry.POLICY
+ 
+ MODEL = model_profile()['id']
+ PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
+@@ -444,6 +447,11 @@ class Trial:
+             execution.model_event(self.execution_task,str(self.logs),request_number,event)
+         if event.get('type') == 'response.output_item.done':
+             item = event['item']
++            if item.get('type') == 'function_call' and item['call_id'] in self.tool_history:
++                previous=self.model_calls.get(item['call_id'])
++                if (previous is None or previous.get('name')!=item.get('name')
++                        or json.loads(previous['arguments'])!=json.loads(item['arguments'])):
++                    raise PermissionError('A completed tool-call ID was reused with a different origin')
+             self.model_history[item['id']] = item
+             if item.get('type') == 'function_call':
+                 self.model_calls[item['call_id']] = item
+@@ -498,7 +506,7 @@ class Trial:
+ 
+             def do_POST(self):
+                 execution=getattr(trial,'execution',None)
+-                if getattr(trial,'local_protocol_fault',None):
++                if getattr(trial,'local_protocol_fault',None) or getattr(trial,'non_remote_relay_fault',False):
+                     self.rfile.read(int(self.headers.get('Content-Length','0')))
+                     message=b'{"error":{"message":"LOCAL_PROTOCOL_REJECTED: stage already stopped"}}'
+                     self.send_response(400);self.send_header('Content-Type','application/json')
+@@ -553,7 +561,9 @@ class Trial:
+                     response = upstream.getresponse()
+                     append(trial.logs / 'http.jsonl', {'status': response.status,
+                         'request_id': response.getheader('x-request-id'), 'path': self.path,
+-                        'request_number': request_number})
++                        'request_number': request_number,
++                        'retry_after': response.getheader('Retry-After')})
++                    trial.last_retry_after = remote_retry.retry_after(response.getheader('Retry-After'))
+                     append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
+                         'status':response.status,'at_utc':now()})
+                     self.send_response(response.status)
+@@ -587,7 +597,10 @@ class Trial:
+                                 return
+                     self.close_connection = True
+                 except Exception as e:
+-                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e)})
++                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
++                        'error_type':type(e).__name__,'upstream_opened':upstream is not None})
++                    if not isinstance(e,(OSError,http.client.HTTPException)):
++                        trial.non_remote_relay_fault=True
+                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
+                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
+                     local = upstream is None and isinstance(e,(PermissionError,ValueError))
+@@ -665,7 +678,13 @@ class Trial:
+                     continue
+                 params = msg['params']
+                 self.validate_tool_rpc(params)
+-                result = self.dispatch(params['tool'], params['arguments'])
++                call_id=params['callId']
++                if call_id in self.tool_history:
++                    result=json.loads(json.dumps(self.tool_history[call_id]))
++                    append(self.logs/'controller.jsonl',{'event':'exact_tool_result_redelivered',
++                        'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
++                else:
++                    result = self.dispatch(params['tool'], params['arguments'])
+                 delivered = self.snapshot_tool_result(params['callId'],result)
+                 if (getattr(self,'stop_on_submission',False) and self.accepted is not None
+                         and not getattr(self,'submission_closed',False)):
+@@ -706,6 +725,8 @@ class Trial:
+         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
+         local=getattr(self,'local_protocol_fault',None)
+         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
++        if getattr(self,'non_remote_relay_fault',False):
++            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled')
+         notice = getattr(self, 'output_guard_notice', None)
+         if notice:
+             from output_guard import ModelOutputStalled
+@@ -823,12 +844,14 @@ tool_suggest = false
+         deadline = self.started + self.timeout if self.timeout is not None else None
+         message = user
+         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
++        self.remote_retry_count=0
+         while True:
+             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
+                 'input': [{'type': 'text', 'text': message}], 'environments': []},
+                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
+             self.active_turn_id = started.get('turn', {}).get('id')
+-            done = self.receive_until(lambda m: m.get('method') == 'turn/completed'
++            done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
++                and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
+                 or getattr(self,'submission_closed',False), deadline)
+             if getattr(self,'submission_closed',False):
+                 try:
+@@ -845,6 +868,17 @@ tool_suggest = false
+                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
+                     from output_guard import ModelOutputLimit
+                     raise ModelOutputLimit(limit)
++                reason=remote_retry.classify(turn.get('error'))
++                if (reason and not getattr(self,'local_protocol_fault',None)
++                        and not getattr(self,'non_remote_relay_fault',False)
++                        and not (self.logs/'isolation-violations.jsonl').exists()):
++                    self.remote_retry_count+=1
++                    wait=remote_retry.delay(self.remote_retry_count,
++                        retry_after_seconds=getattr(self,'last_retry_after',None))
++                    self.wait_remote_retry(wait,reason,turn,deadline)
++                    self.allowed_user_messages.add(continuation_prompt)
++                    message=continuation_prompt
++                    continue
+                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
+             if smoke or self.accepted or not self.strict:
+                 return done
+@@ -858,6 +892,35 @@ tool_suggest = false
+             self.allowed_user_messages.add(continuation_prompt)
+             message = continuation_prompt
+ 
++    def wait_remote_retry(self, seconds, reason, turn, deadline):
++        """Wait without model calls, retaining this exact thread and candidates."""
++        record={'event':'remote_service_retry_wait','retry_number':self.remote_retry_count,
++            'thread_id':self.thread_id,'previous_turn_id':turn.get('id'),
++            'request_number':self.api_calls,'delay_seconds':seconds,'reason':reason,
++            'original_error':turn.get('error'),'policy':REMOTE_RETRY_POLICY['version']}
++        append(self.logs/'remote-retries.jsonl',record)
++        execution=getattr(self,'execution',None)
++        if execution:execution.task(self.execution_task,activity='REMOTE_RETRY_WAIT',
++            remote_retry_number=self.remote_retry_count,remote_retry_delay_seconds=seconds,
++            remote_retry_reason=reason,last_activity_at_utc=now())
++        end=time.monotonic()+seconds
++        sleeper=threading.Event()
++        while time.monotonic()<end:
++            self.check_argument_guard()
++            if execution:execution.check(self.execution_task)
++            if deadline is not None and time.monotonic()>=deadline:
++                raise TimeoutError('Explicit stage deadline reached during remote retry wait')
++            if self.proc is not None and self.proc.poll() is not None:
++                raise RuntimeError('Carrier exited during remote retry wait; not a remote-server retry')
++            sleeper.wait(min(.25,max(0,end-time.monotonic())))
++        if execution:execution.check(self.execution_task)
++        if deadline is not None and time.monotonic()>=deadline:
++            raise TimeoutError('Explicit stage deadline reached during remote retry wait')
++        if execution:execution.task(self.execution_task,activity='MODEL_RUNNING',last_activity_at_utc=now())
++        append(self.logs/'remote-retries.jsonl',{'event':'remote_service_retry_started',
++            'retry_number':self.remote_retry_count,'thread_id':self.thread_id,
++            'previous_turn_id':turn.get('id')})
++
+     def interrupt_active_turn(self, reason='DEADLINE') -> None:
+         prior=getattr(self,'_stopping',False);self._stopping=True
+         try:return self._interrupt_active_turn(reason)
+@@ -967,6 +1030,8 @@ tool_suggest = false
+             result['failure_phase'] = self.phase
+         finally:
+             result['continuation_count'] = self.continuation_count
++            result['remote_retries'] = getattr(self,'remote_retry_count',0)
++            result['remote_retry_policy'] = REMOTE_RETRY_POLICY
+             result['proof_turns'] = self.turn_results
+             result.update({'finished_at_utc': now(), 'api_calls': self.api_calls, 'lean_calls': self.lean_calls})
+             if self.started: result['total_elapsed_seconds'] = time.monotonic() - self.started
+diff --git a/rigorous-proof/scripts/yui.py b/rigorous-proof/scripts/yui.py
+index 2f6e3c5..a1fdd92 100644
+--- a/rigorous-proof/scripts/yui.py
++++ b/rigorous-proof/scripts/yui.py
+@@ -38,12 +38,12 @@ def main():
+     status.add_argument('source',type=Path)
+     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
+     args = parser.parse_args()
+-    if args.command in {'prepare','run','execute','status','cancel','cleanup'}:
++    if args.command in {'prepare','run','execute','resume','status','cancel','cleanup'}:
+         try:
+             result=entrypoint.dispatch(args)
+             print(json.dumps(result,indent=2))
+             if result.get('status') in {'BLOCKED','VALIDATION_FAILED'}:return 1
+-            if args.command in {'run','execute'} and result.get('outcomes'):
++            if args.command in {'run','execute','resume'} and result.get('outcomes'):
+                 return 0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in result['outcomes'].values()) else 1
+             return 0
+         except (OSError,ValueError,KeyError) as error:
+diff --git a/rigorous-proof/tests/test_audit_reuse.py b/rigorous-proof/tests/test_audit_reuse.py
+index b8d1073..f4c1437 100644
+--- a/rigorous-proof/tests/test_audit_reuse.py
++++ b/rigorous-proof/tests/test_audit_reuse.py
+@@ -100,6 +100,21 @@ class AuditReuseTests(unittest.TestCase):
+         manifest['rule_documents']['references/audit-a.md']='changed';a.write(path,manifest)
+         self.assertNotIn('packet:R002',reuse.select(self.data,[self.campaign]))
+ 
++    def test_complete_recovered_review_is_reused_with_fault_measurement_preserved(self):
++        path=self.campaign/'R001/stage/result.json';result=a.nl0.load(path)
++        result.update(execution_health='FAULT',temporary_workspace_removed=True,
++            transport_health={'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR','request_number':1,
++                'code':'server_is_overloaded'}],'uncertainty':[]})
++        a.write(path,result)
++        hit=reuse.select(self.data,[self.campaign])['packet:R001']
++        self.assertFalse(hit['measurement']['execution_qualified'])
++        self.assertFalse(hit['measurement']['measurement_valid'])
++        inherited=reuse.materialize(hit,self.new)
++        reuse.validate(self.new,inherited,self.data,'packet:R001')
++        for field,value in [('execution_fault','Local controller failure'),('isolation_violation',True)]:
++            changed={**result,field:value};a.write(path,changed)
++            self.assertNotIn('packet:R001',reuse.select(self.data,[self.campaign]))
++
+     def test_reused_packet_receipt_is_accepted_only_with_checked_inheritance(self):
+         hits=reuse.select(self.data,[self.campaign]);inheritance=reuse.materialize(hits['packet:R001'],self.new)
+         receipt=a.nl0.closure.audit_template(self.data,a.nl0.CHECKS,a.nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
+diff --git a/rigorous-proof/tests/test_job_entry.py b/rigorous-proof/tests/test_job_entry.py
+index d2ba0cc..53746fc 100644
+--- a/rigorous-proof/tests/test_job_entry.py
++++ b/rigorous-proof/tests/test_job_entry.py
+@@ -1,4 +1,5 @@
+ """Standalone installation, profile and repair-wiring controls. No model is invoked."""
++import argparse
+ from contextvars import copy_context
+ from concurrent.futures import ThreadPoolExecutor
+ import json
+@@ -88,6 +89,75 @@ class JobEntryTests(unittest.TestCase):
+         self.assertNotEqual(r.returncode,0);self.assertIn('Ask once',r.stdout)
+         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
+ 
++    def test_new_proof_runs_require_numeric_worker_confirmation_before_preparation(self):
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        for command in ('prepare','run'):
++            for track in ('full','translate'):
++                for count in (None,'auto','0','-1','2.5'):
++                    argv=[command,str(self.problem),'--track',track,'--use-config-profiles']
++                    if count is not None:argv+=['--max-concurrency',count]
++                    with self.subTest(command=command,track=track,count=count), \
++                         patch.object(jobs,'prepare') as prepare, \
++                         patch.object(entrypoint,'launch') as launch:
++                        with self.assertRaisesRegex(ValueError,'proof-worker count|concurrency'):
++                            entrypoint.dispatch(parser.parse_args(argv))
++                        prepare.assert_not_called();launch.assert_not_called()
++        self.assertFalse((self.problem.parent/'rigorous-proof').exists())
++
++    def test_nl0_public_entry_needs_only_its_profile(self):
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        args=parser.parse_args(['prepare',str(self.problem),'--track','nl0',
++            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard'])
++        result=entrypoint.dispatch(args)
++        self.assertIsNone(result['proof_concurrency'])
++        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
++        self.assertEqual(job['track'],'nl0')
++        self.assertEqual(job['profiles']['nl0'],PROFILES['nl0'])
++
++    def test_full_public_entry_freezes_both_profiles_and_confirmed_workers(self):
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        args=parser.parse_args(['prepare',str(self.problem),'--track','full',
++            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
++            '--lean-model','gpt-6-luna','--lean-effort','medium','--lean-speed','standard',
++            '--max-concurrency','5'])
++        result=entrypoint.dispatch(args)
++        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
++        self.assertEqual(job['profiles'],PROFILES)
++        self.assertEqual(job['max_concurrency'],5)
++        self.assertEqual(result['proof_concurrency']['effective'],5)
++        import concurrency
++        budgets=concurrency.CaseBudgets(job['max_concurrency'])
++        self.assertEqual(budgets.proof.configuration['effective'],5)
++        self.assertEqual(budgets.serial.configuration['effective'],1)
++
++    def test_translation_public_entry_needs_only_lean_profile_and_workers(self):
++        source=self.root/'accepted';source.mkdir()
++        from controller_common import bind
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        args=parser.parse_args(['prepare',str(self.problem),'--track','translate',
++            '--source',str(source),'--lean-model','gpt-6-luna','--lean-effort','medium',
++            '--lean-speed','standard','--max-concurrency','3'])
++        with patch.object(case_runner.source_preparation,'read_source',return_value=([
++            {'current_standard_receipt_valid':True},{},{'inputs':[{'sha256':bind(self.problem)['sha256']}]}],[])):
++            result=entrypoint.dispatch(args)
++        job=json.loads((Path(result['runs'][0])/'job.json').read_text())
++        self.assertEqual(job['track'],'translate')
++        self.assertEqual(job['profiles']['lean'],PROFILES['lean'])
++        self.assertEqual(job['max_concurrency'],3)
++        self.assertEqual(result['proof_concurrency']['effective'],3)
++
++    def test_public_cli_model_defaults_do_not_supply_missing_workers(self):
++        result=subprocess.run([sys.executable,'-B',str(CORE/'scripts/yui.py'),
++            'prepare',str(self.problem),'--track','full','--use-config-profiles'],
++            capture_output=True,text=True)
++        self.assertNotEqual(result.returncode,0)
++        self.assertIn('--max-concurrency N',json.loads(result.stdout)['error'])
++        self.assertFalse((self.problem.parent/'rigorous-proof').exists())
++
+     def test_backend_checks_selected_model_and_effort_without_fallback(self):
+         job=self.job();home=self.root/'auth';home.mkdir()
+         (home/'models_cache.json').write_text(json.dumps({'models':[{'slug':'gpt-6.1-sol','supported_reasoning_levels':[{'effort':'low'}]}]}))
+@@ -96,6 +166,24 @@ class JobEntryTests(unittest.TestCase):
+         with self.assertRaisesRegex(ValueError,'Standard speed only'):
+             config.validate_profile({**PROFILES['nl0'],'speed':'unsupported'})
+ 
++    def test_run_and_execute_dispatch_to_the_actual_launcher(self):
++        parser=argparse.ArgumentParser()
++        entrypoint.parsers(parser.add_subparsers(dest='command'))
++        for command in ('run','execute'):
++            with self.subTest(command=command):
++                if command=='run':
++                    argv=['run',str(self.problem),'--track','nl0',
++                          '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard']
++                else:
++                    argv=['execute',self.job()['root']]
++                args=parser.parse_args(argv+['--detach','--case-concurrency','3'])
++                with patch.object(entrypoint,'launch',return_value={'status':'LAUNCH_CONTROL_ONLY'}) as launcher:
++                    self.assertEqual(entrypoint.dispatch(args),{'status':'LAUNCH_CONTROL_ONLY'})
++                launcher.assert_called_once()
++                self.assertEqual(launcher.call_args.kwargs,{'detached':True,'case_concurrency':3})
++                self.assertEqual(len(launcher.call_args.args[0]),1)
++                jobs.validate(launcher.call_args.args[0][0])
++
+     def test_author_and_reviewer_inputs_do_not_include_sibling_or_prior_verdict(self):
+         job=self.job();root=Path(job['root']);out=root/'nl0/0001'
+         (self.problem.parent/'old-verdict.json').write_text('{"verdict":"PASS"}')
+diff --git a/rigorous-proof/tests/test_workflow_policy.py b/rigorous-proof/tests/test_workflow_policy.py
+index 1d9eba8..670d6e6 100644
+--- a/rigorous-proof/tests/test_workflow_policy.py
++++ b/rigorous-proof/tests/test_workflow_policy.py
+@@ -62,7 +62,7 @@ class WorkflowPolicyTests(unittest.TestCase):
+         self.assertFalse(result['author_timing_qualified'])
+         self.assertFalse(result['execution']['execution_qualified'])
+         self.assertEqual(result['transport_recovery_disclosure'],row['transport_health'])
+-        with self.assertRaises(StageFailure):f.accepted(directory)
++        self.assertEqual(f.accepted(directory),row)
+         self.assertEqual(a.json.loads((directory/'stage/result.json').read_text()),row)
+ 
+     def test_incomplete_or_faulted_sources_cannot_bypass_first_a_eligibility(self):
+@@ -81,6 +81,7 @@ class WorkflowPolicyTests(unittest.TestCase):
+         for row in variants:
+             a.write(directory/'stage/result.json',row)
+             with self.assertRaises((StageFailure,e.Cancelled)):f.nl0_artifact_for_audit(directory)
++            with self.assertRaises((StageFailure,e.Cancelled)):f.accepted(directory)
+ 
+     def test_source_must_match_real_submit_and_current_release_binding(self):
+         directory,row=self.submitted_fixture()
+diff --git a/rigorous-proof/translation/references/assembly.md b/rigorous-proof/translation/references/assembly.md
+index 7d53494..71adc0e 100644
+--- a/rigorous-proof/translation/references/assembly.md
++++ b/rigorous-proof/translation/references/assembly.md
+@@ -67,6 +67,8 @@ printed types. `read_assembly_feedback` reads only this author's candidate,
+ generated Lean, full compiler output or mechanical records in bounded pages.
+ Follow pagination when a short excerpt is insufficient. Correct legitimate
+ mapping/library-application/connection errors without restarting proof authors.
++For library applications or representation conversions, follow the same
++[Lean implementation safeguards](lean-writing.md) used during local proof work.
+ Submitting the identical checked candidate reuses its exact hash-checked native
+ result; this does not create a semantic review or a new PASS.
+ 
+diff --git a/rigorous-proof/translation/references/minimal-translation.md b/rigorous-proof/translation/references/minimal-translation.md
+index 8195eba..2a3bc5e 100644
+--- a/rigorous-proof/translation/references/minimal-translation.md
++++ b/rigorous-proof/translation/references/minimal-translation.md
+@@ -25,6 +25,9 @@ there is no requirement to preload the entire skill or all note bodies.
+    input statements, matched source paragraphs and own compact note index.
+    Read a full note only if useful. No sibling proof bodies, other cases,
+    developer history or additional personal skills are supplied.
++   Use [Lean implementation safeguards](lean-writing.md) for library
++   applications and conversions, including small type checks in preparation.
++   Yui proof workers receive these requirements in their stage instructions.
+ 5. Start the serial [postprocessing author](assembly.md) to connect actual
+    proofs, discharge any retained M ports and compile standalone `Proof.lean`.
+    Inspect signatures/dependencies separately, then start the fresh independent
+diff --git a/rigorous-proof/translation/references/translation-rules.md b/rigorous-proof/translation/references/translation-rules.md
+index 4339e97..b5fb61d 100644
+--- a/rigorous-proof/translation/references/translation-rules.md
++++ b/rigorous-proof/translation/references/translation-rules.md
+@@ -77,6 +77,9 @@ label. New extraction labels should identify the baseline revision explicitly.
+    to implement the NL step. Prefer explicit intermediate conclusions and
+    library automation when it fits. No per-theorem Mathlib permission or
+    correspondence ledger is required; actual Lean compilation checks its use.
++   Follow [Lean implementation safeguards](lean-writing.md) for critical
++   signatures, difficult implicit arguments, representation conversions and
++   small checks after inference failures.
+ 3. Check locally. If it fails, preserve the goal, local context, diagnostic,
+    attempted code and hashes. Continue a clear local repair directly. Optional
+    obstacle lookup is available after observed lack of progress; it is not a
+diff --git a/rigorous-proof/translation/scripts/model_pilot.py b/rigorous-proof/translation/scripts/model_pilot.py
+index acca001..62e9e20 100644
+--- a/rigorous-proof/translation/scripts/model_pilot.py
++++ b/rigorous-proof/translation/scripts/model_pilot.py
+@@ -34,6 +34,8 @@ from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, P
+                           ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
+ from pilot_common import sha256, load_lock as runtime_lock
+ 
++REMOTE_RETRY_POLICY = carrier.REMOTE_RETRY_POLICY
++
+ 
+ def load_lock():
+     return runtime_lock()
+@@ -43,6 +45,7 @@ carrier.load_lock = load_lock
+ 
+ HARNESS = 'yui-0.1.3'
+ BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
++LEAN_WRITING_PATH = ir.HERE/'references/lean-writing.md'
+ STAGE_LIMITER = None
+ carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission. '
+                           'Continue with the same inputs and tools; preserve the fixed specification.')
+@@ -80,6 +83,10 @@ class Stage(carrier.Trial):
+         if instruction_arm not in {'yui','direct'}:
+             raise ValueError('Unknown instruction arm')
+         self.instruction_arm = instruction_arm
++        self.lean_writing_rules = None
++        if mode == 'proof' and instruction_arm == 'yui':
++            self.lean_writing_rules = LEAN_WRITING_PATH.read_text(encoding='utf-8')
++            self.system += '\n\n'+self.lean_writing_rules
+         if instruction_arm == 'direct':
+             if bank_enabled:
+                 raise ValueError('The direct arm cannot use the Yui strategy bank')
+@@ -328,11 +335,18 @@ class Stage(carrier.Trial):
+                 target.parent.mkdir(parents=True,exist_ok=True)
+                 shutil.copyfile(path,target)
+                 files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
++            if self.lean_writing_rules is not None:
++                relative = 'translation/references/lean-writing.md'
++                target = self.logs/'harness-snapshot'/relative
++                target.parent.mkdir(parents=True,exist_ok=True)
++                target.write_text(self.lean_writing_rules,encoding='utf-8')
++                files.append({'path':relative,'sha256':sha256(target)})
+             ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
+                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
+                 'background_note_policy':self.background_note_policy,
+                 'model_output_policy':OUTPUT_POLICY,
+                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
++                'remote_retry_policy':REMOTE_RETRY_POLICY,
+                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
+         (self.logs/'prompt.txt').write_text(user+'\n')
+         (self.logs/'system.txt').write_text(self.system+'\n')
+@@ -418,7 +432,9 @@ class Stage(carrier.Trial):
+                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
+             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
+                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
+-                           'continuations':self.continuation_count,'finished_at_utc':carrier.now()})
++                           'continuations':self.continuation_count,'finished_at_utc':carrier.now(),
++                           'remote_retry_policy':REMOTE_RETRY_POLICY,
++                           'remote_retries':getattr(self,'remote_retry_count',0)})
+             if self.proc:
+                 if getattr(self,'execution',None):
+                     if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'

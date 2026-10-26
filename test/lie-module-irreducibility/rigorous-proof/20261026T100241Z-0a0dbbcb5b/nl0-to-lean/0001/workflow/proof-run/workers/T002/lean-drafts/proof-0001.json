@@ -1,0 +1,16 @@
+{
+  "proof": "classical\nhave hy : ∀ n : ℕ, n ≤ lam.toNat → (y^n) v ≠ 0 := by\n  intro n\n  induction n with\n  | zero => simpa using h_H005.1\n  | succ n ih =>\n    intro hn hz\n    have hnlam : (n : ℤ) < lam := by\n      have := Int.toNat_of_nonneg h_H003.1\n      omega\n    have hc : (((((n+1:ℕ):ℤ) * (lam-(n:ℤ)) : ℤ) : ℂ)) ≠ 0 := by\n      exact_mod_cast (ne_of_gt (mul_pos (by omega : (0:ℤ) < (n+1:ℕ)) (by omega : (0:ℤ) < lam-n)))\n    have he := h_T001.2 n\n    rw [hz, map_zero] at he\n    exact (smul_ne_zero hc (ih (by omega))) he.symm\nhave he : ∀ i : LR.Idx lam.toNat, LR.e y v i.val ≠ 0 := by\n  intro i\n  have hf : (i.val.factorial : ℂ) ≠ 0 := by exact_mod_cast Nat.factorial_ne_zero i.val\n  simpa [LR.e, LR.DP] using smul_ne_zero (inv_ne_zero hf) (hy i.val (by have := i.isLt; omega))\nhave hw : ∀ i : LR.Idx lam.toNat, h (LR.e y v i.val) = (((lam - 2*(i.val:ℤ):ℤ):ℂ)) • LR.e y v i.val := by\n  intro i\n  simp only [LR.e, LR.DP, LinearMap.smul_apply, map_smul, h_T001.1]\n  rw [smul_comm]\nlet w : LR.Idx lam.toNat → ℂ := fun i => ((lam - 2*(i.val:ℤ):ℤ):ℂ)\nhave hinj : Function.Injective w := by\n  intro i j hij\n  have hij' : lam - 2*(i.val:ℤ) = lam - 2*(j.val:ℤ) := by exact_mod_cast hij\n  apply Fin.ext\n  omega\nrefine ⟨he, ?_⟩\nexact h.eigenvectors_linearIndependent' w hinj (fun i => LR.e y v i.val) (fun i => ⟨Module.End.mem_eigenspace_iff.mpr (hw i), he i⟩)",
+  "statement": "(∀ i : LR.Idx lam.toNat, LR.e y v i.val ≠ 0) ∧ LinearIndependent ℂ (fun i : LR.Idx lam.toNat => LR.e y v i.val)",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-7_u2h4j_/output/Check.lean:137:60: error: mod_cast has type\n  w i = w j\nbut is expected to have type\n  lam - ↑(2 * ↑i) = lam - ↑(2 * ↑j)\nT002 : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  0 ≤ lam ∧ lam < ↑p →\n    v ≠ 0 ∧ x v = 0 ∧ h v = ↑lam • v →\n      LR.Strings lam x y h v → (∀ (i : LR.Idx lam.toNat), LR.e y v ↑i ≠ 0) ∧ LinearIndependent ℂ fun i => LR.e y v ↑i\n'Translation.T002' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 7.519670541165397,
+    "status": "LEAN-CHECK-FAILED",
+    "contract_sha256": "b299da5107dcd0034d543f4871dbd75306b577a18d61d88f7edd7b8fbae5d545",
+    "lean_sha256": "2979b2e7596335bae62c61d8ae924a96a20f5936fa85400f189734cef544cf29",
+    "scope": "T002",
+    "accepted": false,
+    "stage_complete": false
+  }
+}

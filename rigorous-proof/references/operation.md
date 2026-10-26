@@ -31,6 +31,30 @@ Standard speed only. Unknown models/efforts/speeds are rejected explicitly;
 model/effort availability is checked against local backend metadata and actual
 transmitted/observed settings are recorded. No fallback or automatic upgrade.
 
+Collect the following settings before preparing or dispatching a new run.
+A phase profile means model, reasoning effort and speed:
+
+| Requested track | Required user settings |
+| --- | --- |
+| NL0 and Audit A only (`nl0`) | NL0 phase profile |
+| Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile and per-case proof-worker count N |
+| Complete workflow (`full`) | NL0 phase profile, Lean phase profile and per-case proof-worker count N |
+
+Ask for all missing settings together. An explicitly supplied value, or an
+explicit confirmation of a proposed value for this request, satisfies the
+requirement; do not ask again. N must be a positive integer, including 1 when
+the user wants serial proof work. Do not silently resolve an omitted count or
+`auto` to two. If the user delegates the choice, propose a concrete N and obtain
+confirmation before dispatch. Choosing `--use-config-profiles` does not choose
+or confirm N. For several cases, explain that N applies to each case, then
+retain a shared count unless different per-case settings were requested.
+
+An `audit-b`-only continuation has no proof queue and needs only its Lean phase
+profile, not N. `execute` and supported `resume` reuse an existing job's frozen
+settings; they do not recollect values or change a historical worker count.
+These configuration questions do not change the scheduling architecture:
+NL0, Audit A, preparation, assembly and Audit B remain serial within each case.
+
 ## Entry commands
 
 The user need not type commands or prepare intermediate files. After collecting
@@ -40,7 +64,8 @@ configuration, the invoking agent calls the installed entry. For example:
 python3 -B /path/to/rigorous-proof/scripts/yui.py run /papers/example/proof.md \
   --track full \
   --nl0-model gpt-6.1-sol --nl0-effort high --nl0-speed standard \
-  --lean-model gpt-6-luna --lean-effort high --lean-speed standard
+  --lean-model gpt-6-luna --lean-effort high --lean-speed standard \
+  --max-concurrency 5
 ```
 
 Supply several problem paths to run independent cases together. For different
@@ -49,14 +74,17 @@ per-case sources, materials or profiles, `prepare` each separately, then use
 owned background case processes and returns their exact run paths; a parent
 chat Stop is not a verified cancellation of these processes.
 
-For translation pass `--track translate --source /accepted/nl0-case` and the Lean
-profile. For audit-only pass `--track audit-b --audit /checked/native-audit-dir`.
+For translation pass `--track translate --source /accepted/nl0-case`, the Lean
+profile and the confirmed `--max-concurrency N`. For audit-only pass
+`--track audit-b --audit /checked/native-audit-dir`.
 An audit-only continuation discloses inherited native evidence and does not
 claim a new proof, compilation or cold workflow result.
 
-`--max-concurrency auto|N` limits local Lean proof jobs per case, not all model
-stages. The current unknown-backend fallback for auto is two and is disclosed,
-not called a maximum. `--case-concurrency K` separately limits independent cases;
+The public `run`/`prepare` entry requires `--max-concurrency N` for full and
+translation tracks. It limits local Lean proof jobs per case, not all model
+stages. Low-level controllers retain `auto` for compatibility with existing
+jobs; this is not a substitute for user confirmation at the public entry.
+`--case-concurrency K` separately limits independent cases;
 by default the explicitly requested cases may run concurrently. Preparation and
 reviews remain serial within each case. Python controllers occupy no model slot.
 Backend/account limits may lower observed concurrency; retain actual outcomes.
@@ -117,6 +145,76 @@ from a case's mathematical review. Calibration tests live in tests/tooling and
 do not supply missing mathematical judgments or force every ordinary paper to
 run a development exercise campaign first. Calibration status, when measured,
 is reported separately; it is not fabricated as a prerequisite receipt.
+
+## Recoverable controller faults
+
+Normal policy repairs ordinary mathematical feedback in its assigned author or
+proof stage; an Audit A/B nonpass is not by itself a first-pass stop. Classify
+execution failures separately. A verified bookkeeping defect must not force
+the proof and all completed independent reviews to be repeated.
+
+Inherited evidence is checked before any remaining review model is called.
+If a legacy path-to-key index is wrong but the original judgment and matching
+source bytes are intact and hash-bound, collection reconstructs a new index,
+validates it with the unchanged full checks, and proceeds. It records the old
+and new bindings in bookkeeping-repairs.json. This operation changes no theorem,
+judgment, source content or acceptance rule and makes no model/native calls.
+Missing/tampered evidence, changed context, unqualified execution or a nonpassing
+judgment cannot be repaired into a PASS by this route.
+
+After repairing this known defect in an already stopped run, use
+`yui.py resume OLD_RUN --repair-evidence --detach`. The guarded entry requires
+the recorded index error to be reproducible and all required actual reviews
+to be complete and qualified. It restores the unchanged released source through
+its bound lineage and inherits completed scopes instead of asking models again.
+An unknown program defect preserves the current phase/artifact checkpoint and
+requires a verified software fix; it is not a mathematical rejection, permission
+to rewrite proof rules, or a reason to replay the whole problem from scratch.
+
+## Remote-service recovery
+
+The common model carrier retries positively identified temporary remote errors
+(capacity, service availability, transient rate limiting or connection failures)
+inside the same isolated thread. It retains actual drafts, source probes and
+immutable tool receipts and uses the stage's existing short continuation input.
+It does not repeat the initial task or execute a repeated completed tool-call ID
+twice. The selected model, reasoning effort, speed, inputs and acceptance gates
+remain fixed. A mathematical nonpass continues through normal located repair;
+it is not a remote error. Authentication, billing/quota, unsupported settings,
+context/output limits, cancellation and local/provenance faults are not remote
+retries. An unclassified failure remains visible rather than guessed transient.
+
+Retry waits start near 15 seconds and increase exponentially to 300 seconds,
+with small jitter; a recorded valid `Retry-After` is a lower bound. There is no
+fixed retry-count cutoff. Waiting makes no model call, remains cancellable, and
+respects an explicit user deadline. Status reports `REMOTE_RETRY_WAIT` on the
+affected task. `remote-retries.jsonl` preserves each reason, delay and original
+failed turn; stage results record the policy and retry count. Original transport
+faults and missing usage remain visible after recovery. A complete qualified
+submission can proceed through actual mathematical gates; recovered execution
+is never relabeled fault-free timing or a cold first-pass success.
+
+For a run that already exited before this in-session recovery was available,
+the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
+
+```sh
+python3 -B /path/to/rigorous-proof/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
+```
+
+This prepares a new owned run, checks that the old processes exited, and binds
+the exact original inputs/profiles, actual last remote failure and selected old
+evidence. The old run is preserved. `--prepare-only` inspects this boundary before
+`execute`. A definitive release-ready NL0 is restored byte-for-byte; only exact
+qualified complete Audit A scopes are inherited. Incomplete reviews get fresh
+isolated contexts without prior judgments. An interrupted unreleased author
+uses its original declared inputs, including an own draft only if that draft
+was already an explicit input. This is a disclosed warm continuation, not a
+resurrected carrier or a new cold attempt. Previous usage stays in the old run.
+This entry supports authoring/Audit A recovery only and rejects unknown faults,
+live old owners, changed inputs, completed workflows or unsupported later phases.
+A former explicit deadline cannot be reset: a finite-budget old run without a
+retained absolute deadline is rejected. New stages then use the common carrier's
+in-session remote retry throughout the remaining workflow.
 
 ## Observe, stop and clean
 

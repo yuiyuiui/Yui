@@ -1,0 +1,50 @@
+{
+  "id": "ST016",
+  "version": 1,
+  "title": "Freeze typed ports and develop conditional proof bodies independently",
+  "family": "interface",
+  "tags": [
+    "parallel",
+    "dependency",
+    "contract",
+    "assembly"
+  ],
+  "preconditions": [
+    "stable_interfaces",
+    "direct_inputs_complete"
+  ],
+  "contraindications": [
+    "upstream_statement_changing"
+  ],
+  "obstacle": "Workers wait for upstream proof bodies or repeatedly reinterpret incompatible shared objects.",
+  "procedure": [
+    "Freeze shared definitions and each exact input/output signature.",
+    "Give each worker only the conditional theorem and its direct inputs.",
+    "Prove bodies independently; assemble actual upstream proofs and recheck the fixed root."
+  ],
+  "verification": "Any changed interface invalidates affected downstream work; unproved ports cannot remain in the final root.",
+  "positive_example": "Independent S/C/L local estimates share frozen carriers before final maximal assembly.",
+  "negative_example": "An imported axiom standing in for an unfinished internal estimate is not parallel proof closure.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "version_boundary": "Pattern observed in these pinned sources; exact APIs must be checked at application.",
+  "status": "RETROSPECTIVE_PATTERN",
+  "speedup_evidence": "NOT_MEASURED",
+  "evidence": [
+    {
+      "path": "translation/bank/sources/d02d0034b2c1846252d356106b05d6f4d34854cc6d0f4e7df79a1c0c85fde93b.txt",
+      "sha256": "d02d0034b2c1846252d356106b05d6f4d34854cc6d0f4e7df79a1c0c85fde93b",
+      "start_line": 1,
+      "end_line": 25,
+      "excerpt": "theorem exists_global_ball_maximal_theorem_P :\n    ∃ C_P : Real, 0 < C_P ∧ ∀ d : Nat, 0 < d →\n      ∀ f : latticeFunction d, latticeMemL2 d f →\n        ballMaxL2Norm d f ≠ ⊤ ∧\n          (ballMaxL2Norm d f).toReal ≤\n            C_P * (latticeL2Norm d f).toReal := by\n  obtain ⟨C_L, hCL, C_B, htail⟩ := external_large_radius_ball_maximal_from\n  let A : Real := (C_L + 1) ^ 2\n  have hA : 0 ≤ A := sq_nonneg _\n  obtain ⟨alpha1, halpha1, C_G, hCG, hgrowing⟩ :=\n    exists_uniform_growingAlphaMaximal hA\n  have ha : 0 < smallAlphaThreshold / 2 :=\n    div_pos smallAlphaThreshold_pos (by norm_num)\n  have hab : smallAlphaThreshold / 2 ≤ 2 * alpha1 := by\n    have hsmall := smallAlphaThreshold_le_one_div_oneTwentyEight\n    nlinarith\n  obtain ⟨C_C, hCC, hcritical⟩ :=\n    exists_uniform_fixedCriticalMaximal_theorem_two_two ha hab\n  obtain ⟨C_S, hCS, hsmall⟩ := exists_uniform_smallAlphaMaximal\n  let C_P : Real := C_S + C_C + C_G + (C_B : Real) + 1\n  have hCP : 0 < C_P := by\n    dsimp [C_P]\n    nlinarith [hCS, hCC, hCG, C_B.2]\n  refine ⟨C_P, hCP, ?_⟩\n  intro d hd f hf",
+      "original_source": {
+        "path": "bench_cases/bench_case_1/reference/lean/EuclideanBallsFormalization/FinalMaximalAssembly.lean",
+        "sha256": "fc378abd62e10e8a0badd6a69bb7ac05a9b72ffdc6a84bd9252ad0484085c6f7",
+        "start_line": 42,
+        "end_line": 66
+      },
+      "scope": "Located excerpt copied from the audited historical source; not a full source-file copy."
+    }
+  ]
+}

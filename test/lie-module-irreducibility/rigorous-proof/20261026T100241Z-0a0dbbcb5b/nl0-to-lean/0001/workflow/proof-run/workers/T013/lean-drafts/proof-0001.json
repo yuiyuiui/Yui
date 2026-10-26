@@ -1,0 +1,21 @@
+{
+  "proof": "intro B hB\nhave hrat := h_T010 B hB\nhave hdim := h_T012 B hB\nrefine ⟨h_T004.1, h_T009 B hB, hrat, hdim, ?_⟩\nintro a c ha hane hc\nobtain ⟨mu, hmu, hinj, hfin⟩ := hrat\nlet ta : LR.T p M v := (1 : ℚ) ⊗ₜ[LR.R p] (⟨a, ha⟩ : LR.Jc p M v)\nlet tc : LR.T p M v := (1 : ℚ) ⊗ₜ[LR.R p] (⟨c, hc⟩ : LR.Jc p M v)\nhave hma : mu ta = a := by simpa [ta] using hmu 1 (⟨a, ha⟩ : LR.Jc p M v)\nhave hmc : mu tc = c := by simpa [tc] using hmu 1 (⟨c, hc⟩ : LR.Jc p M v)\nhave hta : ta ≠ 0 := by\n  intro he\n  apply hane\n  rw [← hma, he, map_zero]\nhave hli : LinearIndependent ℚ (fun _ : Unit => ta) :=\n  linearIndependent_unique_iff.mpr hta\nhave hspan : Submodule.span ℚ ({ta} : Set (LR.T p M v)) = ⊤ := by\n  have hs := hli.span_eq_top_of_card_eq_finrank (by simpa using hdim.symm)\n  simpa using hs\nhave hmem : tc ∈ Submodule.span ℚ ({ta} : Set (LR.T p M v)) := by\n  rw [hspan]\n  trivial\nobtain ⟨q, hq⟩ := Submodule.mem_span_singleton.mp hmem\nrefine ⟨q, ?_⟩\nhave he := congrArg mu hq\nrw [map_smul, hma, hmc] at he\nsimpa only [Rat.smul_def] using he.symm",
+  "statement": "∀ B : Module.Basis (LR.Idx lam.toNat) ℂ V, LR.IsStringBasis lam.toNat y v B → LR.CoordinateResult p lam.toNat M v B",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-b_70_fkb/output/Check.lean:109:34: warning: Variable name `instK` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-b_70_fkb/output/Check.lean:109:212: warning: Variable name `h_H001` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nT013 : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  Nat.Prime p →\n    LR.StringResult lam x y h v →\n      (∀ (B : Module.Basis (LR.Idx lam.toNat) ℂ V),\n          LR.IsStringBasis lam.toNat y v B → Nonempty (LR.Decomposition p lam.toNat M v B)) →\n        (∀ (B : Module.Basis (LR.Idx lam.toNat) ℂ V), LR.IsStringBasis lam.toNat y v B → LR.RationalEmbedding p M v) →\n          (∀ (B : Module.Basis (LR.Idx lam.toNat) ℂ V),\n              LR.IsStringBasis lam.toNat y v B → Module.finrank ℚ (LR.T p M v) = 1) →\n            ∀ (B : Module.Basis (LR.Idx lam.toNat) ℂ V),\n              LR.IsStringBasis lam.toNat y v B → LR.CoordinateResult p lam.toNat M v B\n'Translation.T013' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 8.221133790910244,
+    "status": "LOCAL-PROOF-CHECKED",
+    "contract_sha256": "b299da5107dcd0034d543f4871dbd75306b577a18d61d88f7edd7b8fbae5d545",
+    "lean_sha256": "8df33cce2edfe350164943b3ddeac37f8d9f1dc71e7b09b88ee7ad1667c75070",
+    "scope": "T013",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "accepted": true,
+    "stage_complete": false
+  }
+}

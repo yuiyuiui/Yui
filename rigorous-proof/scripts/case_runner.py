@@ -102,10 +102,18 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
 
 def nl0_work(job, recorder, budget, progress):
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
+    restored=None
+    if (job.get('resume') or {}).get('mode')=='audit-a':
+        import interrupted
+        restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
+        progress(job['case'],'NL0_RELEASED_SOURCE_RESTORED',directory=str(restored),new_author_model_called=False)
     while True:
         revision+=1;author=root/'nl0'/f'{revision:04d}';audit=root/'audit-a'/f'{revision:04d}'
-        progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
-        source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
+        if restored is not None:
+            source=restored;restored=None
+        else:
+            progress(job['case'],'NL0_AUTHORING' if baseline is None else 'NL0_LOCAL_REPAIR',directory=str(author))
+            source=author_stage(job,author,budget,baseline=baseline,obligations=obligations)
         key=source_key(source)
         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
         seen.add(key)
@@ -183,7 +191,10 @@ def execute(job, root=None):
                 'task_outcome':'UNFINISHED_WITH_EXECUTION_FAULT' if fault else 'MODEL_BUDGET_EXHAUSTED' if healthy else 'UNFINISHED_ATTRIBUTION_UNVERIFIED'}
         except StageFailure as error:result=error.result
         except Exception as error:
-            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc()}
+            result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc(),
+                'recoverability':'VERIFIED_SOFTWARE_REPAIR_REQUIRED',
+                'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
+                    'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,

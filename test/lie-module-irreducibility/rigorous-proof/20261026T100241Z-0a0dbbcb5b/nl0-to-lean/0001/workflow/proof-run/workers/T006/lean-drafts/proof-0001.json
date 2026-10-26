@@ -1,0 +1,9 @@
+{
+  "proof": "classical\nrcases h_H006.1 with ⟨f, c, hfc⟩\nhave hs : Submodule.span (R p) (Set.range c) = MR p M := by\n  apply le_antisymm\n  · apply Submodule.span_le.mpr\n    rintro _ ⟨i, rfl⟩\n    rw [← hfc]\n    exact Submodule.subset_span (f i).property\n  · apply Submodule.span_le.mpr\n    intro m hm\n    have he := congrArg (fun z : M => (z : V)) (f.sum_repr ⟨m, hm⟩)\n    simp only [Submodule.coe_sum, Submodule.coe_smul] at he\n    rw [← he]\n    apply Submodule.sum_mem\n    intro i hi\n    exact Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, (hfc i).symm⟩)\nlet g := (c.restrictScalars (R p)).map (LinearEquiv.ofEq _ _ hs)\nhave hg : ∀ i, (g i : V) = c i := by\n  intro i\n  simp [g]\nlet E := (f.baseChange (R p)).equiv g (Equiv.refl _)\nrefine ⟨{ basis := g, tensorEquiv := E, tensor_value := ?_, complex_span := ?_ }⟩\n· intro r m\n  sorry\n· apply top_unique\n  rw [← c.span_eq]\n  apply Submodule.span_mono\n  rintro _ ⟨i, rfl⟩\n  rw [← hfc]\n  exact Submodule.subset_span (f i).property",
+  "statement": "Nonempty (LR.LatticeEmbedding p lam.toNat M)",
+  "check": {
+    "accepted": false,
+    "error": "forbidden proof command or placeholder",
+    "feedback_kind": "candidate_rejected"
+  }
+}

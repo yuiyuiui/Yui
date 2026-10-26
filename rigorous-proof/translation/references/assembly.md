@@ -67,6 +67,8 @@ printed types. `read_assembly_feedback` reads only this author's candidate,
 generated Lean, full compiler output or mechanical records in bounded pages.
 Follow pagination when a short excerpt is insufficient. Correct legitimate
 mapping/library-application/connection errors without restarting proof authors.
+For library applications or representation conversions, follow the same
+[Lean implementation safeguards](lean-writing.md) used during local proof work.
 Submitting the identical checked candidate reuses its exact hash-checked native
 result; this does not create a semantic review or a new PASS.
 

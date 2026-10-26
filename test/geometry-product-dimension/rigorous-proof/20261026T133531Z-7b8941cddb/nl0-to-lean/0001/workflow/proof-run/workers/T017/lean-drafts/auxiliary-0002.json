@@ -1,0 +1,21 @@
+{
+  "statement": "∀ (s δ : ℝ), 0 < s → s < 1 → 0 < δ → ∀ ρ : ℝ≥0∞, ρ ≤ ENNReal.ofReal δ → ENNReal.ofReal (δ ^ (s - 1)) * ρ ≤ ρ ^ s",
+  "proof": "intro s δ hs hs1 hδ ρ hρ\nhave hfin : ρ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.ofReal_ne_top hρ\nhave hle : ρ.toReal ≤ δ := (ENNReal.toReal_le_toReal hfin ENNReal.ofReal_ne_top).2 hρ |>.trans_eq (ENNReal.toReal_ofReal hδ.le)\nhave hreal : δ ^ (s - 1) * ρ.toReal ≤ ρ.toReal ^ s := by\n  by_cases hz : ρ.toReal = 0\n  · simp [hz, Real.zero_rpow hs.ne']\n  · have hp : 0 < ρ.toReal := lt_of_le_of_ne ENNReal.toReal_nonneg (Ne.symm hz)\n    calc\n      _ ≤ ρ.toReal ^ (s - 1) * ρ.toReal := mul_le_mul_of_nonneg_right (Real.rpow_le_rpow_of_nonpos hp hle (by linarith)) ENNReal.toReal_nonneg\n      _ = _ := by rw [Real.rpow_sub_one hz, div_mul_cancel₀ _ hz]\nhave hc := ENNReal.ofReal_le_ofReal hreal\nrw [ENNReal.ofReal_mul (Real.rpow_nonneg hδ.le _), ← ENNReal.ofReal_rpow_of_nonneg ENNReal.toReal_nonneg hs.le, ENNReal.ofReal_toReal hfin] at hc\nexact hc",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-rwhrjxj3/output/Auxiliary.lean:23:25: warning: Variable name `E` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-rwhrjxj3/output/Auxiliary.lean:23:41: warning: Variable name `h_T002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-rwhrjxj3/output/Auxiliary.lean:23:334: warning: Variable name `h_T015` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-rwhrjxj3/output/Auxiliary.lean:23:360: warning: Variable name `h_T016` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n      0 < s →\n        Hmeasure s A = Hnative s A ∧\n          (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n            (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n              (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)) →\n    dimH unitI ≤ 1 →\n      (∀ (δ : ℝ), 0 < δ → ∀ (U : ℕ → Set ℝ), IsCover δ unitI U → 1 ≤ ∑' (i : ℕ), Metric.ediam (U i)) →\n        ∀ (s δ : ℝ), 0 < s → s < 1 → 0 < δ → ∀ ρ ≤ ENNReal.ofReal δ, ENNReal.ofReal (δ ^ (s - 1)) * ρ ≤ ρ ^ s\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.639858959009871,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T017",
+    "candidate": 2,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

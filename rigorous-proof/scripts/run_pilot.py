@@ -30,6 +30,9 @@ from pathlib import Path
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
 from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
 from runtime_config import model_profile
+import remote_retry
+
+REMOTE_RETRY_POLICY = remote_retry.POLICY
 
 MODEL = model_profile()['id']
 PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
@@ -444,6 +447,11 @@ class Trial:
             execution.model_event(self.execution_task,str(self.logs),request_number,event)
         if event.get('type') == 'response.output_item.done':
             item = event['item']
+            if item.get('type') == 'function_call' and item['call_id'] in self.tool_history:
+                previous=self.model_calls.get(item['call_id'])
+                if (previous is None or previous.get('name')!=item.get('name')
+                        or json.loads(previous['arguments'])!=json.loads(item['arguments'])):
+                    raise PermissionError('A completed tool-call ID was reused with a different origin')
             self.model_history[item['id']] = item
             if item.get('type') == 'function_call':
                 self.model_calls[item['call_id']] = item
@@ -498,7 +506,7 @@ class Trial:
 
             def do_POST(self):
                 execution=getattr(trial,'execution',None)
-                if getattr(trial,'local_protocol_fault',None):
+                if getattr(trial,'local_protocol_fault',None) or getattr(trial,'non_remote_relay_fault',False):
                     self.rfile.read(int(self.headers.get('Content-Length','0')))
                     message=b'{"error":{"message":"LOCAL_PROTOCOL_REJECTED: stage already stopped"}}'
                     self.send_response(400);self.send_header('Content-Type','application/json')
@@ -553,7 +561,9 @@ class Trial:
                     response = upstream.getresponse()
                     append(trial.logs / 'http.jsonl', {'status': response.status,
                         'request_id': response.getheader('x-request-id'), 'path': self.path,
-                        'request_number': request_number})
+                        'request_number': request_number,
+                        'retry_after': response.getheader('Retry-After')})
+                    trial.last_retry_after = remote_retry.retry_after(response.getheader('Retry-After'))
                     append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
                         'status':response.status,'at_utc':now()})
                     self.send_response(response.status)
@@ -587,7 +597,10 @@ class Trial:
                                 return
                     self.close_connection = True
                 except Exception as e:
-                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e)})
+                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
+                        'error_type':type(e).__name__,'upstream_opened':upstream is not None})
+                    if not isinstance(e,(OSError,http.client.HTTPException)):
+                        trial.non_remote_relay_fault=True
                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
                     local = upstream is None and isinstance(e,(PermissionError,ValueError))
@@ -665,7 +678,13 @@ class Trial:
                     continue
                 params = msg['params']
                 self.validate_tool_rpc(params)
-                result = self.dispatch(params['tool'], params['arguments'])
+                call_id=params['callId']
+                if call_id in self.tool_history:
+                    result=json.loads(json.dumps(self.tool_history[call_id]))
+                    append(self.logs/'controller.jsonl',{'event':'exact_tool_result_redelivered',
+                        'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
+                else:
+                    result = self.dispatch(params['tool'], params['arguments'])
                 delivered = self.snapshot_tool_result(params['callId'],result)
                 if (getattr(self,'stop_on_submission',False) and self.accepted is not None
                         and not getattr(self,'submission_closed',False)):
@@ -706,6 +725,8 @@ class Trial:
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
         local=getattr(self,'local_protocol_fault',None)
         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
+        if getattr(self,'non_remote_relay_fault',False):
+            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled')
         notice = getattr(self, 'output_guard_notice', None)
         if notice:
             from output_guard import ModelOutputStalled
@@ -823,12 +844,14 @@ tool_suggest = false
         deadline = self.started + self.timeout if self.timeout is not None else None
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
+        self.remote_retry_count=0
         while True:
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
-            done = self.receive_until(lambda m: m.get('method') == 'turn/completed'
+            done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
+                and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
                 or getattr(self,'submission_closed',False), deadline)
             if getattr(self,'submission_closed',False):
                 try:
@@ -845,6 +868,17 @@ tool_suggest = false
                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
                     from output_guard import ModelOutputLimit
                     raise ModelOutputLimit(limit)
+                reason=remote_retry.classify(turn.get('error'))
+                if (reason and not getattr(self,'local_protocol_fault',None)
+                        and not getattr(self,'non_remote_relay_fault',False)
+                        and not (self.logs/'isolation-violations.jsonl').exists()):
+                    self.remote_retry_count+=1
+                    wait=remote_retry.delay(self.remote_retry_count,
+                        retry_after_seconds=getattr(self,'last_retry_after',None))
+                    self.wait_remote_retry(wait,reason,turn,deadline)
+                    self.allowed_user_messages.add(continuation_prompt)
+                    message=continuation_prompt
+                    continue
                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
             if smoke or self.accepted or not self.strict:
                 return done
@@ -857,6 +891,35 @@ tool_suggest = false
                 'elapsed_seconds': time.monotonic() - self.started})
             self.allowed_user_messages.add(continuation_prompt)
             message = continuation_prompt
+
+    def wait_remote_retry(self, seconds, reason, turn, deadline):
+        """Wait without model calls, retaining this exact thread and candidates."""
+        record={'event':'remote_service_retry_wait','retry_number':self.remote_retry_count,
+            'thread_id':self.thread_id,'previous_turn_id':turn.get('id'),
+            'request_number':self.api_calls,'delay_seconds':seconds,'reason':reason,
+            'original_error':turn.get('error'),'policy':REMOTE_RETRY_POLICY['version']}
+        append(self.logs/'remote-retries.jsonl',record)
+        execution=getattr(self,'execution',None)
+        if execution:execution.task(self.execution_task,activity='REMOTE_RETRY_WAIT',
+            remote_retry_number=self.remote_retry_count,remote_retry_delay_seconds=seconds,
+            remote_retry_reason=reason,last_activity_at_utc=now())
+        end=time.monotonic()+seconds
+        sleeper=threading.Event()
+        while time.monotonic()<end:
+            self.check_argument_guard()
+            if execution:execution.check(self.execution_task)
+            if deadline is not None and time.monotonic()>=deadline:
+                raise TimeoutError('Explicit stage deadline reached during remote retry wait')
+            if self.proc is not None and self.proc.poll() is not None:
+                raise RuntimeError('Carrier exited during remote retry wait; not a remote-server retry')
+            sleeper.wait(min(.25,max(0,end-time.monotonic())))
+        if execution:execution.check(self.execution_task)
+        if deadline is not None and time.monotonic()>=deadline:
+            raise TimeoutError('Explicit stage deadline reached during remote retry wait')
+        if execution:execution.task(self.execution_task,activity='MODEL_RUNNING',last_activity_at_utc=now())
+        append(self.logs/'remote-retries.jsonl',{'event':'remote_service_retry_started',
+            'retry_number':self.remote_retry_count,'thread_id':self.thread_id,
+            'previous_turn_id':turn.get('id')})
 
     def interrupt_active_turn(self, reason='DEADLINE') -> None:
         prior=getattr(self,'_stopping',False);self._stopping=True
@@ -967,6 +1030,8 @@ tool_suggest = false
             result['failure_phase'] = self.phase
         finally:
             result['continuation_count'] = self.continuation_count
+            result['remote_retries'] = getattr(self,'remote_retry_count',0)
+            result['remote_retry_policy'] = REMOTE_RETRY_POLICY
             result['proof_turns'] = self.turn_results
             result.update({'finished_at_utc': now(), 'api_calls': self.api_calls, 'lean_calls': self.lean_calls})
             if self.started: result['total_elapsed_seconds'] = time.monotonic() - self.started

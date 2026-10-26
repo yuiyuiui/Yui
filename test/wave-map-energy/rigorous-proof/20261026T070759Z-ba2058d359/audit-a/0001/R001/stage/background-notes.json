@@ -1,0 +1,378 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "At the fixed (x,t), t>0, joint smoothness on ℝ^n×(0,∞) gives joint smoothness at that interior point. Concretely let U(y,r)=u(y,r) for r>0 and q otherwise; H002 says U is smooth on the positive-time domain, and ContDiffOn.contDiffAt makes U smooth at (x,t).",
+    "justification": "Routine open-domain interpretation of H002, not an extension regularity assertion at time zero. The ball of radius t/2 about (x,t) has positive time coordinate, since |r−t|<t/2 implies r>t/2>0. Thus the positive-time domain is a neighborhood of this point, the sole extra premise of the checked theorem. U is a case-defined total function using the given q; no witness or additional hypothesis is needed.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "H002 supplies joint smoothness on the displayed domain."
+      },
+      {
+        "location": "/parameters/2",
+        "reason": "u is defined at every positive-time pair."
+      },
+      {
+        "location": "/parameters/3",
+        "reason": "q is a given vector for the other branch."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "x and t>0 are fixed before taking a time section."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffOn.contDiffAt",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiffOn.contDiffAt : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {s : Set.{uE} E} {f : E → F} {x : E} {n : WithTop.{0} ℕ∞},\n  ContDiffOn.{u, uE, uF} 𝕜 n f s → Membership.mem.{uE, uE} (nhds.{uE} x) s → ContDiffAt.{u, uE, uF} 𝕜 n f x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M911-0011/library-sources.json",
+          "sha256": "003f0590f2531941d1a473ef2a6684ec7e0525c839a5ccc777813e7026f225af"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The joint map U described in BG001 is differentiable at (x,t): a smooth map has nonzero smoothness order and ContDiffAt.differentiableAt applies.",
+    "justification": "The checked declaration only needs a nontrivially normed scalar field and normed real vector spaces, supplied here by ℝ and the Euclidean product and target. H002 supplies all smoothness orders; choose order 1, which is not zero. BG001 explains the interior-point representation. This is the routine regularity implication used in the author's first sentence.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "Joint smoothness includes order 1."
+      },
+      {
+        "location": "/parameters",
+        "reason": "Ambient spaces are the real finite-dimensional Euclidean spaces and their product."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The point lies at positive time, so BG001 applies."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiffAt.differentiableAt",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiffAt.differentiableAt : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {f : E → F} {x : E} {n : WithTop.{0} ℕ∞},\n  ContDiffAt.{u, uE, uF} 𝕜 n f x → Ne.{1} n 0 → DifferentiableAt.{u, uE, uF} 𝕜 f x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M901-0001/library-sources.json",
+          "sha256": "0f93956b3a2d1a4e584b19bdd306f0f49d3532ef015f67ae5743a4fbc227a4b4"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For fixed x, the map ℝ→ℝ^n, r↦x, is differentiable at t.",
+    "justification": "Apply differentiableAt_const with scalar ℝ, source ℝ, target ℝ^n, c=x, evaluation point t. These spaces have the required real module and topological structures; x is already fixed. This routine ingredient checks restriction to the time line without adding regularity assumptions.",
+    "grounds": [
+      {
+        "location": "/inference/locals/0",
+        "reason": "x is an arbitrary but fixed vector in ℝ^n."
+      },
+      {
+        "location": "/inference/locals/1",
+        "reason": "t is a real evaluation point."
+      }
+    ],
+    "source": {
+      "declaration": "differentiableAt_const",
+      "module": "Mathlib.Analysis.Calculus.FDeriv.Const",
+      "signature": "@differentiableAt_const : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} [inst_1 : AddCommGroup.{u_2} E]\n  [inst_2 : _root_.Module.{u_1, u_2} 𝕜 E] [inst_3 : TopologicalSpace.{u_2} E] {F : Type u_3}\n  [inst_4 : AddCommGroup.{u_3} F] [inst_5 : _root_.Module.{u_1, u_3} 𝕜 F] [inst_6 : TopologicalSpace.{u_3} F] {x : E}\n  (c : F), DifferentiableAt.{u_1, u_2, u_3} 𝕜 (fun x => c) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/FDeriv/Const.lean",
+      "source_sha256": "f1ea8ce4160117f303b20fd4bccca2a40e30bed4d9a24887dcf82af5f1cdf5c1",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M903-0003/library-sources.json",
+          "sha256": "17e8647d773e89ff6d634ce948b3a17d97953f1d089b914f695011f7e7b5d049"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The identity map ℝ→ℝ is differentiable at t.",
+    "justification": "Apply differentiableAt_id over ℝ at the fixed real t. All its topological additive and real-module premises hold in ℝ. This is the second component of the time-line parametrization in the first sentence.",
+    "grounds": [
+      {
+        "location": "/inference/locals/1",
+        "reason": "The evaluation point t is a positive real, hence a real."
+      }
+    ],
+    "source": {
+      "declaration": "differentiableAt_id",
+      "module": "Mathlib.Analysis.Calculus.FDeriv.Basic",
+      "signature": "@differentiableAt_id : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} [inst_1 : AddCommGroup.{u_2} E]\n  [inst_2 : _root_.Module.{u_1, u_2} 𝕜 E] [inst_3 : TopologicalSpace.{u_2} E] {x : E},\n  DifferentiableAt.{u_1, u_2, u_2} 𝕜 id.{u_2 + 1} x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/FDeriv/Basic.lean",
+      "source_sha256": "a4e41e70a5c80c4289f24e2ca5e9511ca8278b2aec9ab0b9e5100f7df9ef7929",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M904-0004/library-sources.json",
+          "sha256": "8eb7f4ec7cab58ba75b11e257d7d7a228198bc2a15060d39fb4ded03660d67fa"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG005",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The time-line map r↦(x,r) from ℝ to ℝ^n×ℝ is differentiable at t.",
+    "justification": "Apply DifferentiableAt.prodMk to the constant spatial map and the real identity. Their differentiability was positively checked in BG003 and BG004. Source and both factors are real normed vector spaces, exactly as the native theorem requires. No domain guard is required for this total affine map.",
+    "grounds": [
+      {
+        "location": "/inference/locals/0",
+        "reason": "The spatial component is the fixed x."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "This is precisely the author's fixed-x time section; BG003 and BG004 verify its two components."
+      }
+    ],
+    "source": {
+      "declaration": "DifferentiableAt.prodMk",
+      "module": "Mathlib.Analysis.Calculus.FDeriv.Prod",
+      "signature": "@DifferentiableAt.prodMk : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : NormedSpace.{u_1, u_2} 𝕜 E] {F : Type u_3} [inst_3 : NormedAddCommGroup.{u_3} F]\n  [inst_4 : NormedSpace.{u_1, u_3} 𝕜 F] {G : Type u_4} [inst_5 : NormedAddCommGroup.{u_4} G]\n  [inst_6 : NormedSpace.{u_1, u_4} 𝕜 G] {f₁ : E → F} {x : E} {f₂ : E → G},\n  DifferentiableAt.{u_1, u_2, u_3} 𝕜 f₁ x →\n    DifferentiableAt.{u_1, u_2, u_4} 𝕜 f₂ x →\n      DifferentiableAt.{u_1, u_2, max u_4 u_3} 𝕜 (fun x => Prod.mk.{u_3, u_4} (f₁ x) (f₂ x)) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/FDeriv/Prod.lean",
+      "source_sha256": "be90dddfd6ae19b6f192ac68ee11ebda204bc2225fd9eb16de42fc28aed478ab",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M905-0005/library-sources.json",
+          "sha256": "40ee1c1b9eb541725b9e6114cd15f25dae53653aef4dee0514bd84183394ebf5"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG006",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The author's extended time section h(r)=u(x,r) for r>0 and q otherwise is differentiable at t.",
+    "justification": "Set the inner function in DifferentiableAt.comp to r↦(x,r) and the outer function to U of BG001. BG005 gives differentiability of the inner function at t, BG002 gives differentiability of U at its value (x,t). Their composition is exactly h, by its two branches. All spaces are real normed spaces. This verifies the routine section restriction, not a substitute for the explicit inner-product differentiation input M001.",
+    "grounds": [
+      {
+        "location": "/inputs/0/statement",
+        "reason": "H002 supplies the joint differentiability via BG001–BG002."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The extended section is explicitly defined in the argument; x and positive t have been fixed."
+      },
+      {
+        "location": "/parameters/3",
+        "reason": "The extension uses the given q, so it exists on all ℝ."
+      }
+    ],
+    "source": {
+      "declaration": "DifferentiableAt.comp",
+      "module": "Mathlib.Analysis.Calculus.FDeriv.Comp",
+      "signature": "@DifferentiableAt.comp : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : NormedSpace.{u_1, u_2} 𝕜 E] {F : Type u_3} [inst_3 : NormedAddCommGroup.{u_3} F]\n  [inst_4 : NormedSpace.{u_1, u_3} 𝕜 F] {G : Type u_4} [inst_5 : NormedAddCommGroup.{u_4} G]\n  [inst_6 : NormedSpace.{u_1, u_4} 𝕜 G] {f : E → F} (x : E) {g : F → G},\n  DifferentiableAt.{u_1, u_3, u_4} 𝕜 g (f x) →\n    DifferentiableAt.{u_1, u_2, u_3} 𝕜 f x →\n      DifferentiableAt.{u_1, u_2, u_4} 𝕜 (Function.comp.{u_2 + 1, u_3 + 1, u_4 + 1} g f) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/FDeriv/Comp.lean",
+      "source_sha256": "22b49670dfaa646c560b62e60674ac86288f32b09e920c00cf2d867c60f36a80",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M902-0002/library-sources.json",
+          "sha256": "32f2742f6806c33182212665666e189eb39f259ae96e490cc31405b5d7a6df5f"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG007",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For the extended section h in BG006, HasDerivAt h (ut(x,t)) t holds.",
+    "justification": "DifferentiableAt.hasDerivAt applied to BG006 supplies HasDerivAt h (deriv h t) t. D001 defines ut(x,t) as the classical time-section derivative. At t>0 the section is defined on a full neighborhood, and h is its total representative, so this derivative is the quantity in D001. Locality of this identification for any other representative is checked in BG008. Thus the total-zero fallback convention is not being mistaken for derivative existence.",
+    "grounds": [
+      {
+        "location": "/definitions/0/definition",
+        "reason": "D001 identifies ut with the time derivative, not an independently chosen vector."
+      },
+      {
+        "location": "/inputs/0/statement",
+        "reason": "H002 gives actual differentiability through BG006."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The extended h agrees with the section near the positive evaluation time."
+      }
+    ],
+    "source": {
+      "declaration": "DifferentiableAt.hasDerivAt",
+      "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+      "signature": "@DifferentiableAt.hasDerivAt : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {f : 𝕜 → F} {x : 𝕜},\n  DifferentiableAt.{u, u, v} 𝕜 f x → HasDerivAt.{u, v} f (deriv.{u, v} f x) x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+      "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M906-0006/library-sources.json",
+          "sha256": "00ab80a0bf281a9649a6cc12ae2a67ce0a1fae5739b517a4867ee66e0f791398"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG008",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Derivatives at t are unchanged by the section extension; also the scalar map r↦h(r)·h(r) has derivative zero at t because it agrees with the constant 1 near t.",
+    "justification": "The checked HasDerivAt.congr_of_eventuallyEq transports a given derivative between functions equal on a neighborhood. Here |r−t|<t/2 ensures r>0, so every representative agreeing with the section on positive times agrees there. For the scalar application, BG010 and H004 give h(r)·h(r)=1 on this same neighborhood; apply congr_of_eventuallyEq to the derivative of the constant function checked in BG009. This justifies local rather than global constancy, so no condition on q or behavior at zero is used.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "t>0 and h is the stated casewise extension."
+      },
+      {
+        "location": "/inputs/1/statement",
+        "reason": "H004 fixes the norm at every positive time."
+      },
+      {
+        "location": "/definitions/0/definition",
+        "reason": "The derivative in D001 is local at t, and BG007 verifies actual existence."
+      }
+    ],
+    "source": {
+      "declaration": "HasDerivAt.congr_of_eventuallyEq",
+      "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+      "signature": "@HasDerivAt.congr_of_eventuallyEq : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {f f₁ : 𝕜 → F} {f' : F} {x : 𝕜},\n  HasDerivAt.{u, v} f f' x → Filter.EventuallyEq.{u, v} (nhds.{u} x) f₁ f → HasDerivAt.{u, v} f₁ f' x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+      "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M907-0007/library-sources.json",
+          "sha256": "95d0ccb582b5e20d2eba929c220f0d3c0241c652a3ba9f5d9b02c296c5fd5e98"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG009",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "HasDerivAt (r↦(1:ℝ)) 0 t holds.",
+    "justification": "Apply hasDerivAt_const with scalar and target ℝ, evaluation point t and constant 1. There are no extra premises beyond their real normed space structures. This is explicitly invoked by the author and is routine background, not an additional project theorem.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The argument compares its scalar squared-norm function with the constant real function 1 at t."
+      }
+    ],
+    "source": {
+      "declaration": "hasDerivAt_const",
+      "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+      "signature": "@hasDerivAt_const : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] (x : 𝕜) (c : F), HasDerivAt.{u, v} (fun x => c) 0 x",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+      "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M908-0008/library-sources.json",
+          "sha256": "facc758cbc54df69ba59fc244da5b15030f8cf60378788f6e0155873fdc2a5ec"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG010",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For every v∈ℝ^m, v·v=‖v‖². Therefore H004 gives u(x,r)·u(x,r)=1 for each r>0.",
+    "justification": "Apply inner_self_eq_norm_sq_to_K with 𝕜=ℝ and E the Euclidean space ℝ^m. The real coercion is the identity and dot denotes the Euclidean inner product. The required real inner product and normed additive structures are those of this space. Substitute ‖u(x,r)‖=1 from H004 and use 1²=1. This records the routine norm-to-inner-product identification in S001.",
+    "grounds": [
+      {
+        "location": "/parameters/2",
+        "reason": "u has Euclidean real-vector values."
+      },
+      {
+        "location": "/inputs/1/statement",
+        "reason": "The norm equals 1 for every spatial point and positive time."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The scalar map being differentiated is exactly the dot product of the section with itself."
+      }
+    ],
+    "source": {
+      "declaration": "inner_self_eq_norm_sq_to_K",
+      "module": "Mathlib.Analysis.InnerProductSpace.Basic",
+      "signature": "@inner_self_eq_norm_sq_to_K : ∀ {𝕜 : Type u_1} {E : Type u_2} [inst : RCLike.{u_1} 𝕜] [inst_1 : SeminormedAddCommGroup.{u_2} E]\n  [inst_2 : InnerProductSpace.{u_1, u_2} 𝕜 E] (x : E),\n  Eq.{u_1 + 1} (inner.{u_1, u_2} 𝕜 x x) (HPow.hPow.{u_1, 0, u_1} (↑(norm.{u_2} x)) 2)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/InnerProductSpace/Basic.lean",
+      "source_sha256": "dedfe40bacbdd06190e621ddf2bebe8b0adcdb993e3a41dbb3b6607571c907ab",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M910-0010/library-sources.json",
+          "sha256": "53f19cf7fe29db0c3ae94d64b291d4148ff686d867fda9a1cb2c80d68ffbff65"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG011",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The two derivative values of r↦h(r)·h(r) at t, namely 2u(x,t)·ut(x,t) and 0, are equal.",
+    "justification": "HasDerivAt.unique applies to two HasDerivAt statements for the identical function and real point t. M001 with the checked derivative BG007 supplies the first; BG008–BG010 supply the second. Its real normed target premises hold. Real dot symmetry reduces the first value to twice the displayed scalar, and division by the nonzero real 2 then gives F001. Uniqueness is the elementary calculus fact explicitly named by the author, not a new proof route.",
+    "grounds": [
+      {
+        "location": "/inputs/3/statement",
+        "reason": "M001 gives the derivative of the inner product after the two section-derivative premises are discharged."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Both derivative calculations concern the same extended section's self-dot function at t."
+      },
+      {
+        "location": "/inputs/1/statement",
+        "reason": "H004 supplies its local constancy as checked in BG008–BG010."
+      }
+    ],
+    "source": {
+      "declaration": "HasDerivAt.unique",
+      "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+      "signature": "@HasDerivAt.unique : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {f : 𝕜 → F} {f₀' f₁' : F} {x : 𝕜},\n  HasDerivAt.{u, v} f f₀' x → HasDerivAt.{u, v} f f₁' x → Eq.{v + 1} f₀' f₁'",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+      "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M909-0009/library-sources.json",
+          "sha256": "329bdbe5624ca9335701e7101283230fb45c07777507b00a87221707ebb4f09a"
+        }
+      ]
+    }
+  }
+]

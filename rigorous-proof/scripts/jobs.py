@@ -59,7 +59,8 @@ def stage_document(source, destination):
 
 
 def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
-            materials=(), source=None, audit=None, output=None, time_budget_seconds=None):
+            materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
+            resume=None, resume_bindings=()):
     import concurrency
     from runtime_config import time_limit
     if track not in TRACKS or policy not in {'normal','first-pass'}:
@@ -116,6 +117,9 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
              'audit':str(Path(audit).resolve()) if audit else None,
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
              'time_budget_seconds':time_budget_seconds,'runtime':runtime_bindings()}
+        if resume:
+            job['resume']=resume
+            job['authority_bindings'].extend(resume_bindings)
         write(root/'job.json',job)
         write(root/MARKER,{'version':VERSION,'run_id':run_id,'root':str(root),
                           'job':bind(root/'job.json'),'original_inputs':[row['original'] for row in documents]})
@@ -131,6 +135,7 @@ def validate(job, *, verify_runtime=True):
         raise ValueError('Unsupported explicit case job')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
+    if 'resume' in job:expected.add('resume')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
     from runtime_config import time_limit
@@ -156,5 +161,8 @@ def validate(job, *, verify_runtime=True):
             raise ValueError('Frozen task input changed or escaped its directory')
         verify_bindings([row['original']])
     verify_bindings(job['authority_bindings'])
+    if 'resume' in job:
+        from interrupted import validate_descriptor
+        validate_descriptor(job)
     if verify_runtime:verify_bindings(job['runtime'])
     return job

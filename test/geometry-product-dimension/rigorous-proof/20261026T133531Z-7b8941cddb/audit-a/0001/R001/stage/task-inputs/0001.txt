@@ -1,0 +1,599 @@
+{
+  "contract_version": 2,
+  "case_id": "geometry-product-dimension",
+  "graph_sha256": "721031e69a0b2ed2da4b4441595cfbeba55696f852b815dc278f3fcb12e98c2e",
+  "spec_sha256": "8a9a7e15cc0bf2be2dcd525bc78f1e24947ca2830bcbe3c25525e9aef284accc",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "natural number"
+    },
+    {
+      "symbol": "E",
+      "type": "subset of Euclidean ℝ^n"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "case_elimination",
+      "forall_introduction",
+      "implication_introduction",
+      "exists_elimination"
+    ],
+    "calculations": [
+      "equality: Equality reflexivity, symmetry, transitivity and substitution.",
+      "definitions: Unfold an explicitly supplied definition; this proves no extra property.",
+      "finite_algebra: Routine finite semiring/ring/field arithmetic, including zero/one laws, distributivity, associativity and finite polynomial identities. Correct elementary compression is permitted; a substantive missing argument is not.",
+      "finite_order: Routine ordered-field reasoning with actual signs/domains: order laws, adding inequalities, multiplication/division with sign conditions, and real square nonnegativity. Ordinary valid elementary inferences need no exhaustive displayed chain. Check that the conclusion follows; substantial named theorems still require inputs or verified-background admission.",
+      "finite_sums: Unfold and rearrange finite sums/products with explicitly given finite indices."
+    ],
+    "primitives": [
+      {
+        "symbol": "0",
+        "type": "typed numeral",
+        "meaning": "Zero of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "1",
+        "type": "typed numeral",
+        "meaning": "One of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "2",
+        "type": "typed numeral",
+        "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+      },
+      {
+        "symbol": "ℕ",
+        "type": "number system",
+        "meaning": "The natural numbers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℤ",
+        "type": "number system",
+        "meaning": "The integers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℚ",
+        "type": "number system",
+        "meaning": "The rational numbers with their usual ordered-field operations."
+      },
+      {
+        "symbol": "ℝ",
+        "type": "number system",
+        "meaning": "The real numbers with their usual ordered-field structure."
+      },
+      {
+        "symbol": "ℂ",
+        "type": "number system",
+        "meaning": "The complex numbers with their usual field structure."
+      },
+      {
+        "symbol": "∅",
+        "type": "typed set notation",
+        "meaning": "The empty set in the explicitly specified ambient type."
+      },
+      {
+        "symbol": "∞",
+        "type": "typed order notation",
+        "meaning": "The top element in an explicitly specified extended ordered codomain."
+      },
+      {
+        "symbol": "norm",
+        "type": "norm notation",
+        "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+      },
+      {
+        "symbol": "∂",
+        "type": "derivative notation",
+        "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+      },
+      {
+        "symbol": "∫",
+        "type": "integral notation",
+        "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+      },
+      {
+        "symbol": "Integrable",
+        "type": "predicate notation",
+        "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+      },
+      {
+        "symbol": "AEStronglyMeasurable",
+        "type": "predicate notation",
+        "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "foundation_profile": "finite-language-3",
+  "standard_language": "Ordinary typed mathematical language: logical connectives, quantifiers, equality, sets, functions, tuples, finite indices and their usual notation. A type explicitly named natural numbers, integers, rationals, reals or complex numbers means that standard structure, with its usual numerals and arithmetic operations; these operation tokens need not be redeclared as project objects. The fixed finite calculation rules below, including a+0=a, are controller permissions, not an author claim. Project functions/sets and substantive analytic properties still need their explicit declarations and direct inputs or displayed local proofs.",
+  "background_policy": "verified-background-1",
+  "definitions": [
+    {
+      "id": "D003",
+      "symbol": "Hscale",
+      "type": "operator on a metric space X, a positive real s, a positive real δ and a subset A⊆X, valued in [0,∞]",
+      "definition": "For a metric space X, s>0, δ>0 and A⊆X, Hscale(s,δ,A)=inf{Σ_{i≥0}(diam U_i)^s : A⊆⋃_{i≥0}U_i and diam U_i≤δ for every i}. Covers are countable (finite covers are padded by empty sets). The diameter is the supremum of pairwise distances, with diameter of the empty set zero and unbounded diameter +∞; an empty member contributes zero. Sums, infima and suprema are in [0,∞], with inf ∅=∞. Covers are not required to be measurable.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "metric space"
+        },
+        {
+          "symbol": "s",
+          "type": "positive real"
+        },
+        {
+          "symbol": "δ",
+          "type": "positive real"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        },
+        {
+          "symbol": "U",
+          "type": "sequence of subsets of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "s",
+        "δ",
+        "A",
+        "U"
+      ]
+    },
+    {
+      "id": "D004",
+      "symbol": "Hmeasure",
+      "type": "operator on positive real exponents and subsets of metric spaces, valued in [0,∞]",
+      "definition": "For s>0 and a subset A of a metric space X, Hmeasure(s,A)=sup_{δ>0}Hscale(s,δ,A). This is precisely the unnormalized Hausdorff measure convention in problem.md:34-42.",
+      "depends_on": [
+        "D003"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "metric space"
+        },
+        {
+          "symbol": "s",
+          "type": "positive real"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "s",
+        "A",
+        "Hscale"
+      ]
+    },
+    {
+      "id": "D005",
+      "symbol": "hdim",
+      "type": "operator on subsets of extended metric spaces, valued in [0,∞]",
+      "definition": "For A⊆X, hdim(A)=sup{a∈[0,∞):Hnative(a,A)=∞}, with the empty supremum equal to zero and real exponents embedded into [0,∞]. This is the native dimH definition (the exponent is represented by a nonnegative real). It is the usual Hausdorff dimension; in particular the definition assigns zero to the empty set.",
+      "depends_on": [
+        "D008"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "A",
+        "Hnative"
+      ]
+    },
+    {
+      "id": "D008",
+      "symbol": "Hnative",
+      "type": "operator on a real exponent a and a subset A of an extended metric space X with its Borel measurable structure, valued in [0,∞]",
+      "definition": "Hnative(a,A) denotes the native value (MeasureTheory.Measure.hausdorffMeasure a)(A) on X. Its full covering formula is sup_{r∈(0,∞]} inf_{T:ℕ→Set X, A⊆⋃_i T_i, ∀i ediam(T_i)≤r} Σ_i w_a(T_i), where w_a(T)=0 for T empty and w_a(T)=(ediam T)^a otherwise; all diameters and operations here are extended nonnegative real operations, including extended real powers. Thus empty sets are zero even at exponent zero. The native definition is the Borel measure Measure.mkMetric(r↦r^a). For ordinary metric spaces ediam is the extended-valued supremum of ordinary distances.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space"
+        },
+        {
+          "symbol": "a",
+          "type": "real number"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "a",
+        "A"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "M001",
+      "kind": "mathlib",
+      "statement": "For every extended metric space X with a measurable space structure equal to its Borel structure, every real a and every A⊆X, Hnative(a,A)=sup_{r∈[0,∞], r>0} inf_{T:ℕ→Set X, A⊆⋃_i T_i, ∀i ediam(T_i)≤r} Σ_i sup_{h:T_i.Nonempty}(ediam(T_i))^a. The inner supremum is zero for an empty T_i and is the indicated power otherwise.",
+      "definitions": [
+        "D008"
+      ],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space with a Borel measurable structure"
+        },
+        {
+          "symbol": "a",
+          "type": "real number"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "a",
+        "A",
+        "Hnative"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "X is an extended metric space.",
+          "X has a measurable space structure and this structure is its Borel structure."
+        ],
+        "declaration": "MeasureTheory.Measure.hausdorffMeasure_apply",
+        "signature": "@MeasureTheory.Measure.hausdorffMeasure_apply : ∀ {X : Type u_2} [inst : EMetricSpace.{u_2} X] [inst_1 : MeasurableSpace.{u_2} X] [inst_2 : BorelSpace.{u_2} X] (d : ℝ)\n  (s : Set.{u_2} X),\n  Eq.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_2} d) s)\n    (⨆ r,\n      ⨆ (_ : LT.lt.{0} 0 r),\n        ⨅ t,\n          ⨅ (_ : s ⊆ ⋃ n, t n),\n            ⨅ (_ : ∀ (n : ℕ), LE.le.{0} (Metric.ediam.{u_2} (t n)) r),\n              ∑' (n : ℕ), ⨆ (_ : Set.Nonempty.{u_2} (t n)), HPow.hPow.{0, 0, 0} (Metric.ediam.{u_2} (t n)) d)"
+      }
+    },
+    {
+      "id": "M002",
+      "kind": "mathlib",
+      "statement": "For every extended metric space X with its Borel measurable structure, A⊆X and nonnegative real a, if a<hdim(A), then Hnative(a,A)=∞.",
+      "definitions": [
+        "D005",
+        "D008"
+      ],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space with a Borel measurable structure"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        },
+        {
+          "symbol": "a",
+          "type": "nonnegative real"
+        }
+      ],
+      "objects": [
+        "X",
+        "A",
+        "a",
+        "hdim",
+        "Hnative"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "X is an extended metric space.",
+          "X has a measurable space structure equal to its Borel structure.",
+          "a is a nonnegative real and a<hdim(A)."
+        ],
+        "declaration": "hausdorffMeasure_of_lt_dimH",
+        "signature": "@hausdorffMeasure_of_lt_dimH : ∀ {X : Type u_2} [inst : EMetricSpace.{u_2} X] [inst_1 : MeasurableSpace.{u_2} X] [inst_2 : BorelSpace.{u_2} X]\n  {s : Set.{u_2} X} {d : NNReal},\n  LT.lt.{0} (↑d) (dimH.{u_2} s) → Eq.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_2} ↑d) s) Top.top.{0}"
+      }
+    },
+    {
+      "id": "M003",
+      "kind": "mathlib",
+      "statement": "For every extended metric space X with its Borel measurable structure, A⊆X and nonnegative real a, if hdim(A)<a, then Hnative(a,A)=0.",
+      "definitions": [
+        "D005",
+        "D008"
+      ],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space with a Borel measurable structure"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        },
+        {
+          "symbol": "a",
+          "type": "nonnegative real"
+        }
+      ],
+      "objects": [
+        "X",
+        "A",
+        "a",
+        "hdim",
+        "Hnative"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "X is an extended metric space.",
+          "X has a measurable space structure equal to its Borel structure.",
+          "a is a nonnegative real and hdim(A)<a."
+        ],
+        "declaration": "hausdorffMeasure_of_dimH_lt",
+        "signature": "@hausdorffMeasure_of_dimH_lt : ∀ {X : Type u_2} [inst : EMetricSpace.{u_2} X] [inst_1 : MeasurableSpace.{u_2} X] [inst_2 : BorelSpace.{u_2} X]\n  {s : Set.{u_2} X} {d : NNReal},\n  LT.lt.{0} (dimH.{u_2} s) ↑d → Eq.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_2} ↑d) s) 0"
+      }
+    },
+    {
+      "id": "M004",
+      "kind": "mathlib",
+      "statement": "For every extended metric space X with its Borel measurable structure, A⊆X and nonnegative real a, if Hnative(a,A)≠∞, then hdim(A)≤a.",
+      "definitions": [
+        "D005",
+        "D008"
+      ],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space with a Borel measurable structure"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        },
+        {
+          "symbol": "a",
+          "type": "nonnegative real"
+        }
+      ],
+      "objects": [
+        "X",
+        "A",
+        "a",
+        "hdim",
+        "Hnative"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "X is an extended metric space.",
+          "X has a measurable space structure equal to its Borel structure.",
+          "a is a nonnegative real and Hnative(a,A)≠∞."
+        ],
+        "declaration": "dimH_le_of_hausdorffMeasure_ne_top",
+        "signature": "@dimH_le_of_hausdorffMeasure_ne_top : ∀ {X : Type u_2} [inst : EMetricSpace.{u_2} X] [inst_1 : MeasurableSpace.{u_2} X] [inst_2 : BorelSpace.{u_2} X]\n  {s : Set.{u_2} X} {d : NNReal},\n  Ne.{1} ((MeasureTheory.Measure.hausdorffMeasure.{u_2} ↑d) s) Top.top.{0} → LE.le.{0} (dimH.{u_2} s) ↑d"
+      }
+    }
+  ],
+  "output": {
+    "id": "N001",
+    "kind": "internal",
+    "statement": "For every metric space X, every A⊆X and every real s>0, Hmeasure(s,A)=Hnative(s,A). Moreover Hmeasure(s,A)=0 if hdim(A)<s; Hmeasure(s,A)=∞ if s<hdim(A); Hmeasure(s,A)=0 implies hdim(A)≤s; and Hmeasure(s,A)=∞ implies s≤hdim(A).",
+    "definitions": [
+      "D003",
+      "D004",
+      "D005",
+      "D008"
+    ],
+    "binders": [
+      {
+        "symbol": "X",
+        "type": "metric space"
+      },
+      {
+        "symbol": "A",
+        "type": "subset of X"
+      },
+      {
+        "symbol": "s",
+        "type": "positive real"
+      }
+    ],
+    "objects": [
+      "X",
+      "A",
+      "s",
+      "Hmeasure",
+      "Hnative",
+      "hdim"
+    ]
+  },
+  "inference": {
+    "id": "R001",
+    "inputs": [
+      "M001",
+      "M002",
+      "M003",
+      "M004"
+    ],
+    "output": "N001",
+    "definitions": [
+      "D003",
+      "D004",
+      "D005",
+      "D008"
+    ],
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "implication_introduction"
+    ],
+    "locals": [
+      {
+        "symbol": "X",
+        "type": "metric space",
+        "scope": "R001/argument",
+        "start": "S001",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix an arbitrary metric space X, equipped for source applications with its Borel σ algebra.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "A",
+        "type": "subset of X",
+        "scope": "R001/argument",
+        "start": "S001",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix an arbitrary subset A of X.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": [
+          "X"
+        ]
+      },
+      {
+        "symbol": "s",
+        "type": "positive real number",
+        "scope": "R001/argument",
+        "start": "S001",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Fix s>0 for the universally quantified assertion.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      }
+    ],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "Fix a metric space X, a subset A⊆X and s>0. Regard its metric as an extended metric and give X its Borel measurable structure. M001 gives the native covering formula. At every finite positive scale its inner infimum is exactly Hscale(s,δ,A): extended diameter agrees with ordinary diameter on bounded sets, nonempty-member costs agree, and both conventions make empty members zero. Infinite-diameter sets cannot occur at a finite scale. The extra scale r=∞ in M001 contributes no more than any finite-scale infimum because its cover class is larger. Thus its inclusion does not change the supremum over finite positive scales. Hence Hnative(s,A)=Hmeasure(s,A).",
+        "uses": [
+          "M001"
+        ],
+        "uses_local": [],
+        "objects": [
+          "X",
+          "A",
+          "s",
+          "Hnative",
+          "Hmeasure",
+          "Hscale"
+        ],
+        "produces": [
+          {
+            "id": "F001",
+            "statement": "For the arbitrary X,A and s>0, Hnative(s,A)=Hmeasure(s,A).",
+            "binders": [],
+            "objects": [
+              "X",
+              "A",
+              "s",
+              "Hnative",
+              "Hmeasure"
+            ],
+            "assumptions": []
+          }
+        ],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S002",
+        "text": "Using F001, apply M002 in the case s<hdim(A) to obtain Hmeasure(s,A)=∞. Apply M003 in the case hdim(A)<s to obtain Hmeasure(s,A)=0. If Hmeasure(s,A)=0, F001 makes Hnative(s,A)=0≠∞, so M004 gives hdim(A)≤s. If Hmeasure(s,A)=∞, then F001 and the supremum definition of hdim show s≤hdim(A), since s is one of its nonnegative exponents with infinite native measure. Each implication is conditional only on its displayed antecedent and is closed here; X,A,s were arbitrary. This proves every asserted clause.",
+        "uses": [
+          "M002",
+          "M003",
+          "M004"
+        ],
+        "uses_local": [
+          "F001"
+        ],
+        "objects": [
+          "X",
+          "A",
+          "s",
+          "Hnative",
+          "Hmeasure",
+          "hdim"
+        ],
+        "produces": [],
+        "introduces": [
+          "L1",
+          "L2",
+          "L3",
+          "L4"
+        ],
+        "discharges": [
+          "L1",
+          "L2",
+          "L3",
+          "L4"
+        ]
+      }
+    ],
+    "applications": [
+      {
+        "input": "M001",
+        "at": "S001",
+        "bindings": "Use the current metric space X as an extended metric space, a=s and the current subset A.",
+        "hypothesis_checks": [
+          "The metric of X gives its extended metric by embedding each distance into [0,∞].",
+          "Equip X with exactly its Borel σ algebra, so both measurable-space and BorelSpace premises hold."
+        ]
+      },
+      {
+        "input": "M002",
+        "at": "S002",
+        "bindings": "Use X,A as in S001 and the nonnegative real exponent a=s.",
+        "hypothesis_checks": [
+          "X has the extended metric fixed in S001.",
+          "The measurable structure was chosen to be the Borel structure in S001.",
+          "s>0 was fixed in S001, so it is a nonnegative real; the local antecedent of this implication is s<hdim(A)."
+        ]
+      },
+      {
+        "input": "M003",
+        "at": "S002",
+        "bindings": "Use X,A as in S001 and a=s.",
+        "hypothesis_checks": [
+          "X has the extended metric fixed in S001.",
+          "X has its Borel measurable structure by S001.",
+          "s>0 makes s nonnegative; this implication has antecedent hdim(A)<s."
+        ]
+      },
+      {
+        "input": "M004",
+        "at": "S002",
+        "bindings": "Use X,A as in S001 and a=s in the implication whose antecedent is Hmeasure(s,A)=0.",
+        "hypothesis_checks": [
+          "X has the extended metric fixed in S001.",
+          "X has its Borel measurable structure by S001.",
+          "s>0 makes s nonnegative, and F001 changes the local zero-measure antecedent into Hnative(s,A)=0, which is not ∞."
+        ]
+      }
+    ]
+  },
+  "warning": "Direct inputs and fixed logic are supplied. Audit A may record positively checked routine background under the declared policy, with logged pinned-library evidence. No ancestor proof or extra H is available. A packet is not an audit certificate.",
+  "packet_sha256": "b9728be6c30be20756aa1e474ac9f0bc98872185a58e57288068b29a4019bcff"
+}

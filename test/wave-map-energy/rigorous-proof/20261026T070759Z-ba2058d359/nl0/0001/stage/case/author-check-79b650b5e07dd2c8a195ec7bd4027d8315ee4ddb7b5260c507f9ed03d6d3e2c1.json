@@ -1,0 +1,111 @@
+{
+  "content_sha256": "79b650b5e07dd2c8a195ec7bd4027d8315ee4ddb7b5260c507f9ed03d6d3e2c1",
+  "same_author": true,
+  "mathematical_acceptance": false,
+  "acceptance_contract": {
+    "source": "references/audit-a.md",
+    "version": "nl0-audit-a-8",
+    "section_sha256": "5e944d89afdfd3b98ddcbc3601273a9127ae67687c09796e8b3c725e999ccfab",
+    "document_sha256": "5c2fd58f6edce6e63fca9a2567f6edbfea5e8f6eee78f8b674bbf136dad4a0f8",
+    "criterion_ids": [
+      "applicability",
+      "argument",
+      "definitions",
+      "dependency_accounting",
+      "dependency_closure",
+      "inputs",
+      "object_closure",
+      "output",
+      "scope",
+      "sources",
+      "statement_closure",
+      "structure",
+      "target"
+    ]
+  },
+  "readiness": "no_known_issue",
+  "coverage_complete": true,
+  "open_issues": [],
+  "resolutions": [],
+  "criteria_by_note_group": {
+    "declaration_check": [
+      "object_closure"
+    ],
+    "dependency_and_local_assumption_check": [
+      "argument",
+      "dependency_accounting",
+      "dependency_closure",
+      "inputs",
+      "scope"
+    ],
+    "original_context_note": [
+      "definitions",
+      "sources",
+      "structure",
+      "target"
+    ],
+    "output_notes": [
+      "output",
+      "statement_closure"
+    ],
+    "source_application_check": [
+      "applicability"
+    ]
+  },
+  "original_context_note": "Compared spec.full_target, spec.hypotheses H001–H006, D001–D007 and P with problem.md:17–48 and the supplied route at lines 52–159. All six original givens remain explicit: both dimension bounds, joint smoothness, the fixed unit q, the pointwise unit constraint, pointwise normal acceleration with an existential real scalar and no scalar regularity, and the common compact support of u−q on every positive closed time interval. Positive integer dimensions are represented by natural dimension indices; under H001 this is the same range of dimensions as the original integer dimensions, not an extra hypothesis or a permission to infer positivity without H001. The approved nontrivial support interpretation, Euclidean/Frobenius normalization, componentwise Laplacian, Lebesgue measure, and exclusion of time zero are retained. D001–D004 are typed derivative aliases, with a disclosed total-derivative convention which agrees with the original derivatives under H002; they grant no analytic properties. D005 preserves exactly the original density, without a factor 1/2. D006 defines its time derivative, whose identity is proved in R002. D007 preserves the original finite integral and is guarded by N002; R002 proves integrability without using E, and R003 and R005 have N002 as a direct input before using E. The source contracts of the nine retained M nodes were compared with their actual successful pinned native probes and relevant source text: M001 inner-product differentiation; M002 countably generated filter dominated convergence; M003 continuous compact-support integrability; M006 derivative-bound mean-value estimate with within derivatives on a closed interval; M007 FTC with complete codomain and interval-integrable derivative; M009 symmetry with its actual minSmoothness threshold; M010 the additive compact continuous bound (not the multiplicative variant); M011 coordinate-extraction measure preservation; M012 symmetric Fubini with S-finite measures. Their full conditions, including structures and measures, appear in the source statements and applications; no external literature theorem is imported from Evans. The graph has one producer for each of N001–N004 and P, and every retained M and N is in P's AND closure. H003 is deliberately retained but unused: the proof uses that q is fixed, not its unit norm. The independent optional explanation at problem.md:62–68 deriving the explicit scalar formula a=|D_xu|²−|u_t|² is omitted: it is not used anywhere in the supplied energy route, and normality alone suffices after tangency. No step in the common-support, dominated-difference-quotient, FTC/Fubini integration-by-parts, or final cancellation route is omitted. I actually read all five own conditional packets; R003 was reread after adding its explicit local indicator χQ. These are same-author closing checks, not independent Audit A or a claim that structural validation certifies the mathematics.",
+  "output_notes": [
+    {
+      "id": "N001",
+      "note": "R001/S001 establishes u·ut=0 from the unit constraint and the derivative of u·u, and S002 establishes ut·(utt−lap)=0 using just the pointwise scalar witness. N001 exports both complete formulas for every spatial point and every positive time, with the derivative aliases defined; R005 needs only the second and does not need a scalar selection or any unexported fact."
+    },
+    {
+      "id": "N002",
+      "note": "R002/S001 exports the actual global density derivative with both factors 2, mixed-partial identification, and smoothness. S002–S004 construct the common compact C and positive enclosing R for each τ>0, explicitly give J,Q and their ranges and box measure, derive vanishing of all positive-order derivatives on the open complement, and prove absolute integrability of every product later integrated. The output contains these formulas and support properties rather than a reference to the producer. It proves integrability at every positive time by τ∈int J, which supplies the independent guard for E. These are exactly the smoothness, joint et continuity, common support, and finite integrability statements consumed by R003, R004 and R005."
+    },
+    {
+      "id": "N003",
+      "note": "R003/S001–S004 prove differentiability of the actual finite E, not a formal integral: a two-sided difference quotient is bounded for all 0<|h|<η by an integrable box indicator, tends pointwise to et, and its integral equals the quotient of E by linearity. The output explicitly states E'(t)=∫et(x,t) dx for every t>0. N002 supplies E's guard and integrability of et, so no limit identity or representation is missing from this port."
+    },
+    {
+      "id": "N004",
+      "note": "R004/S001 gives the displayed derivative of g; S002 makes the coordinate-product integral identification explicit; S003 computes each inner integral by FTC using both zero endpoints and concludes ∫d=0; S004 rearranges the two absolutely integrable summands. N004 exports the exact signed integration-by-parts equality for every positive time and every spatial index, with finiteness of both integrands' absolute integrals. R005 can sum the identities without importing g, I or any private box choice."
+    },
+    {
+      "id": "P",
+      "note": "R005/S001 uses the four direct N ports to prove all density sections integrable, E differentiable and its derivative zero, retaining the full chain with coefficients 2 and the Laplacian sum. S002 proves constancy on every ordered positive time pair by M006 and covers equal and reversed pairs by equality and symmetry. Thus P contains all three original required conclusions, plus the supplied constancy consequence, on precisely (0,∞) and with no assertion at zero."
+    }
+  ],
+  "inference_notes": [
+    {
+      "id": "R001",
+      "dependency_and_local_assumption_check": "Checked R001/S001 against only H002,H004,M001: smoothness gives the section derivative, the unit constraint identifies its square with the constant 1 on an open time neighborhood, and the inner derivative formula and uniqueness give tangency. S002 uses its actual direct H005 and the earlier local F001; dotting the pointwise equation gives zero by bilinearity and symmetry. The existential scalar is eliminated locally, never differentiated and never exported. No support or H003 is imported. The ordinary constant-derivative, locality, and derivative-uniqueness steps have their actual standard conditions (an open neighborhood of t>0); they do not replace the main product rule.",
+      "source_application_check": "The sole application at R001/S001 uses M001 over ℝ with Euclidean ℝ^m, both functions the same time section and both derivatives ut(x,t). H002 supplies both derivatives. Extension by q for nonpositive times makes the native ℝ-domain function total and leaves the positive-time germ unchanged. The delivered inner derivative is u·ut+ut·u, exactly the square-norm derivative used after real symmetry; no complex conjugation or scalar regularity issue is present.",
+      "declaration_check": "R001.locals fixes x∈ℝ^n and t∈(0,∞) through both paragraphs. The real a begins and ends at S002, chosen from the direct existential H005 at that same x,t. The section extension uses the global vector q only as a value, not its unused unit-norm property. D001,D002,D004 supply ut,utt,lap, and all free objects in the two formulas are these aliases, u, and the scoped x,t. The final formulas universally close x,t and contain no witness a."
+    },
+    {
+      "id": "R002",
+      "dependency_and_local_assumption_check": "Checked R002/S001–S004 using the actual H001,H002,H006 and M001,M003,M009,M010 packet. Smoothness is used for all derivative continuities; mixed derivatives and product rules give the displayed et formula, not an additional PDE assumption. H006 is instantiated at τ/2 and 3τ/2, whose positive strict order follows from τ>0. F002 precedes the choice of C. Compactness plus the identity-map bound produces F003 before R is chosen. The open complement of the closed C carries the constant map, so successive local derivatives vanish there; every later scalar product is consequently zero outside C. Continuity and closed compact support justify integrability and boundedness for each section. τ∈int J proves integrability for every τ>0 without invoking the energy symbol or any other producer. Empty C causes no difficulty for the chosen positive enclosure. H001's n≥1 is used for the dimension range; its additional m bound remains present without an invented analytic use.",
+      "source_application_check": "At S001, M009 is used for the smooth germ of the extended u at each positive-time point, with real scalar field, order 2, and the actual real threshold 2; evaluating its symmetric bilinear second derivative on time and spatial coordinate directions gives the stated mixed partial equality. The two M001 application families differentiate ut·ut and each dxu(j)·dxu(j), with derivatives supplied by H002; finite addition and the mixed-partial identification produce precisely the two factors 2. M010 at S003 is applied to identity on the already compact C, then the real bound is enlarged to a strictly positive enclosure. At S004 M003 applies to continuous sections whose support closure is contained in closed compact C. M010 applies to these same continuous functions on compact Q. The Euclidean Borel/Lebesgue structures supply measurable opens and finiteness on compacts; ordinary compact interval/product and finite-box-measure facts are standard local background, not project assumptions.",
+      "declaration_check": "τ,J are introduced at S002; C is a witness from earlier F002 at S003; R is a witness from earlier F003 at S004; Q is then defined from R. Their dependence on τ is retained and none becomes a global choice. x,r,j in F001 and the formula and section assertions are quantified dummy variables with the displayed spatial, positive-time and finite-index ranges. The C₀,R₀ in existence statements are bound variables, distinct from the subsequent chosen C,R. D001–D003,D005,D006 type all derivative/density notation, and E is absent. Only quantified existence and universal identities escape."
+    },
+    {
+      "id": "R003",
+      "dependency_and_local_assumption_check": "Checked the reread candidate-5 R003 packet. N002 directly supplies its common C,R at τ=t0, smoothness of e,et, finite box measure and integrability of all relevant sections; no H002 or H006 is recovered from an ancestor body. η=t0/4 keeps the entire closed time segment in int J. F001 proves existence of a nonnegative uniform et bound before B is chosen. S002 uses M006 on min/max endpoints, so the absolute increment estimate is valid for positive and negative h; outside Q both sections vanish. The explicitly defined χQ is measurable because Q is a measurable box; BχQ has finite absolute integral B(2R)^n. F002 supplies actual pointwise convergence of the quotients and eventual measurable majorized sections. S003 applies dominated convergence with a displayed countable base for the punctured real filter. S004 uses the integrability of the two sections before linearity, thereby identifying the limiting integral with the derivative quotient of E. The invalid increments in Vh's total definition are irrelevant on the chosen punctured neighborhood, and all times used by E are positive.",
+      "source_application_check": "M010 at S001 has continuous et on the compact product box; the extension by zero changes nothing there. M006 at S002 uses the real time section of e and its actual derivative et on the closed interval between t0 and t0+h, entirely in the positive domain, and F001 gives its bound B. Ordinary derivatives restrict to within derivatives at both endpoints, as required natively. M002 at S003 is over Lebesgue ℝ^n with real codomain and the countably generated punctured real neighborhood filter. F002 gives eventual measurability and the pointwise (hence a.e.) bound; the displayed finite indicator integral gives its majorant integrability; F002 gives convergence at every x. The source conclusion is exactly the limit of the integrals in F003, and S004 supplies the separate linearity bridge to E, so no differentiation under the integral is assumed.",
+      "declaration_check": "t0,J,C,R,Q,η are introduced at S001; C,R are jointly chosen from the direct existential N002. B is chosen at S002 from F001, not before its proof. Vh is a total real-increment family defined explicitly for invalid increments as zero, and χQ is now explicitly declared and defined as the real box indicator at S002 through its last use at S003. h,x in its formulas and F002/F003 are expression/statement-bound variables of the indicated types; min/max endpoint names in the application are source substitutions, not undeclared project objects. E is used only with N002 as a direct guard. t0 is arbitrary, and the output contains neither the private constants nor their witnesses."
+    },
+    {
+      "id": "R004",
+      "dependency_and_local_assumption_check": "Checked R004/S001–S004 with only H001,H002,N002 and the five listed source nodes. N002 supplies common support and integrability at t0 and the compact witnesses; H002 gives smoothness of g. The product formula has the exact two summands, and both vanish outside the closed C contained in int Q. S002 constructs the insertion map and its inverse coordinatewise, checks n=k+1 and the correct selected index, and transports the box measure before Fubini; the integrand is continuous on a compact finite-measure product and integrable there. S003 computes each line integral by FTC with derivative d∘I, checking both boundary values and interval integrability, and bridges the oriented integral to the closed-interval Lebesgue integral using null endpoints. Fubini and zero exterior values give F003 on all ℝ^n, and S004 uses only the earlier product formula and F003 with integral linearity. The k=0 case is explicitly covered by empty-coordinate product volume one. No energy derivative or tangency producer is silently used.",
+      "source_application_check": "M001 at S001 differentiates the two j-coordinate sections with their actual partial derivatives from H002. M003 there proves g integrable from its continuous closed-compact support, and at S003 proves each derivative slice integrable, since it is continuous and zero for |y|>R. M011 at S002 uses k=n−1, real sigma-finite component volumes and index j−1; its exact coordinate-extraction equivalence is the inverse of the constructed I, so its measure-preservation applies to the box and its integrable scalar function. M012 is used with μ on [-R,R] and ν on Qrest, both finite (hence S-finite), and real codomain; the restriction of d∘I is integrable. Its symmetric iterated integral puts the selected coordinate on the inside, as needed for FTC. M007 then has complete codomain ℝ, derivative d(I(y,z)) everywhere including endpoints, and interval integrability established earlier in S003. The delivered endpoint difference is zero; the null-endpoint bridge and measure-preserving change-of-variables bridges are explicitly described, not asserted as extra hypotheses.",
+      "declaration_check": "The arbitrary t0,j have the correct positive-time and finite-index ranges throughout. C,R are joint witnesses of the direct N002; Q,g,d are explicit local functions/box. k=n−1 is introduced from H001; I has the full coordinate insertion formula and its inverse is checked; Qrest is the remaining-coordinate box. x,y,z in formulas are respectively the n-dimensional, real and remaining-coordinate variables, bound by the statements/integrals or the slice quantification. The source index i₀=j−1 is an explicit zero-based substitution, not a second choice of spatial index. All these locals close inside the inference; N004 exports only the universal integral identity and its absolute integrability."
+    },
+    {
+      "id": "R005",
+      "dependency_and_local_assumption_check": "Checked R005 independently of producer bodies: its direct N002 explicitly states integrability and the et formula, N003 explicitly states differentiability and the integral derivative representation, N004 explicitly gives both finite integration-by-parts integrals, and N001 explicitly gives the pointwise cancellation. S001 combines exactly these ports with finite sum/integral linearity, preserving the normalization 2, the minus sign, and the componentwise lap definition. All linearity premises are available in N002/N004, and the final integrand is pointwise zero by N001. F001 universally records the full positive-time differentiability/zero derivative result. In S002 L1:0<s<t is introduced only for the interval argument and explicitly discharged; equal and reversed positive pairs are covered without introducing another global H. No statement about t=0 is made, and H003 is not silently used.",
+      "source_application_check": "The only M use is M006 at S002 with real codomain, f the total extension of E, derivative function identically zero, α=s,β=t,L=0,y=t. Under the scoped L1, every point of [s,t] is positive. F001 gives the ordinary derivative zero at every point, so it gives the native within-interval derivative premise including endpoints; |0|≤0 gives the derivative bound. The exact conclusion is |E(t)−E(s)|≤0, which implies the required equality. There is no appeal to continuity or a separate unregistered constancy theorem.",
+      "declaration_check": "D001–D007 supply every task function in the cancellation. N002 is a direct input before using the guarded E, even though another input also mentions E. t0 is arbitrary only in S001, and F001 binds its own r, so t0 does not escape into S002. The real s,t are arbitrary in S002, with their positivity and strict order explicitly scoped as L1 rather than hidden in a parameter type. Integration variables and finite-sum indices are expression-bound. The final output universally closes both positive time arguments and all clauses of P."
+    }
+  ],
+  "scope": "Author notes, not Audit A. No independent feedback was supplied. Exclude these notes from fresh independent audit inputs."
+}

@@ -1,0 +1,13 @@
+theorem parityConjugatedGaussianMaxEnvelope_eq (d : Nat)
+    (f : latticeFunction d) :
+    parityConjugatedGaussianMaxEnvelope d f =
+      gaussianMaxEnvelope d (parityModulation d f) := by
+  funext x
+  unfold parityConjugatedGaussianMaxEnvelope gaussianMaxEnvelope
+  apply iSup_congr
+  intro rho
+  rw [enorm_eq_nnnorm, enorm_eq_nnnorm]
+  norm_cast
+  apply NNReal.eq
+  simpa only [coe_nnnorm] using
+    norm_parityConjugatedGaussianAverage d rho.1 f x

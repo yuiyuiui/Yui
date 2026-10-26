@@ -1,0 +1,61 @@
+Perform the actual fresh Audit B semantic review under endpoint-fidelity-2.
+Read the compact review-packet.json using read_task_input JSON pointers. Start
+with /scope and /mechanical_summary, list /endpoints, then read each endpoint's
+/source, /actual and /correspondence. Large objects return keys; large strings
+return next_offset. Follow has_more until each required statement is complete.
+The /documents index names exact original source/context and actual Proof.lean
+documents. Read relevant source definitions and actual Lean definitions there,
+including structure fields which could hide a stronger assumption. No raw
+compiler output or imported dependency dump needs to be read. The machine
+summary reports actual recorded checks, never a semantic verdict. If native
+evidence is inherited, it is NOT a new compiler run or previous semantic PASS.
+Review exactly every external E and complete P. The target
+includes ALL parameters, quantifiers, hypotheses, domains and the conclusion.
+The author's explanation helps locate the comparison; independently verify it
+against the source and actual Lean. A claimed direct translation or equivalence
+is not itself evidence of correctness. Check hidden proof fields and edge cases
+when they affect an endpoint's meaning. Equivalent mathematical encodings are
+allowed without duplicating a literal Mathlib object or requiring a redundant
+formal isomorphism. If a proof uses two representations, their actual conversions
+must be checked. Reject changed/strengthened assumptions, unsupported equivalence,
+wrong domains or an omitted target clause.
+
+The pinned Mathlib environment is freely available. Do NOT review whether its
+theorem names, counts or per-node uses match the NL0 M inventory. There is no
+per-M, per-N, per-D, instance or calculation permission audit. Inspect relevant
+local definitions to understand E/P, not as a separate source-inventory test.
+Check the actual standalone root, completed assembly and recorded kernel trust
+evidence. External inputs remain conditional; do not claim their publications
+were proved in Lean. Compilation and accepted JSON are not a semantic PASS.
+
+Return exactly nodes,checks,findings. nodes has exactly the /scope/endpoint_ids
+keys (E and P). checks has exactly endpoint_inventory_and_scope,
+external_statement_fidelity,complete_target_and_representations,kernel_closure_and_trust.
+Each row is {verdict:PASS|FAIL|UNVERIFIED,notes:<specific comparison>,
+locations:[<JSON pointers into review-packet.json>]}. For each endpoint include
+/endpoints/<ID>/source, /endpoints/<ID>/actual and /endpoints/<ID>/correspondence.
+For P also include /scope/full_target, /scope/parameters and /scope/hypotheses.
+Each global check includes /scope, /endpoints and /mechanical_summary plus useful
+specific locations. Escape JSON pointer keys if necessary.
+findings is a list of concrete {verdict,explanation,locations}, empty if none.
+If there are no external inputs, say so in that global check. Preserve defects;
+do not repair the proof or treat an author's assurance as a passed review.
+
+Review completion contract: coverage is separate from verdict. Required review
+item pointers are listed below. For a full draft add coverage:{pointer:"assessed"
+|"read"|"unread",...}. A not-yet-examined item is unread/read, not an assessed
+UNVERIFIED judgment. An actually evaluated uncertainty can be assessed UNVERIFIED
+with its specific reason. An ordinary incomplete draft continues in this same
+stage and remaining budget. Save work with record_review_item; after a context
+reset inspect read_review_progress. To assemble saved actual rows submit
+{from_saved_review:true,summary:{...}}; summary supplies remaining required fields
+(including your actual overall verdict/notes where requested and findings),
+never saved judgment containers. No PASS is filled by the controller. A located
+real blocking defect may stop early through submit_review_blocker after saving
+its assessed FAIL item; untouched work stays explicitly incomplete. Do not
+restart the entire review just to transcribe already saved judgments.
+
+Required review items: ["/checks/complete_target_and_representations", "/checks/endpoint_inventory_and_scope", "/checks/external_statement_fidelity", "/checks/kernel_closure_and_trust", "/nodes/P"]
+Yui entry: read_yui(path="SKILL.md", start=1, end=200). Relevant frozen rule paths (relative to rigorous-proof): SKILL.md, translation/references/audit-b.md, translation/templates/audit-b.md. Other declared Markdown references linked from these remain available through read_yui. Reads return explicit pages of at most 250 lines with continuation metadata. Follow relevant links; operator scheduling/control manuals are not proof-worker inputs.
+Frozen task document IDs: Proof.lean, review-packet.json, source-context.json, source-original.txt. Use read_task_input to read them.
+Prefer check_draft/submit_draft with an actual artifact JSON object. The older check_artifact/submit_artifact wrappers require artifact_json to be a double-encoded valid JSON string; do not supply Python dictionaries or single-quoted keys. Both forms run identical checks.

@@ -77,6 +77,9 @@ label. New extraction labels should identify the baseline revision explicitly.
    to implement the NL step. Prefer explicit intermediate conclusions and
    library automation when it fits. No per-theorem Mathlib permission or
    correspondence ledger is required; actual Lean compilation checks its use.
+   Follow [Lean implementation safeguards](lean-writing.md) for critical
+   signatures, difficult implicit arguments, representation conversions and
+   small checks after inference failures.
 3. Check locally. If it fails, preserve the goal, local context, diagnostic,
    attempted code and hashes. Continue a clear local repair directly. Optional
    obstacle lookup is available after observed lack of progress; it is not a

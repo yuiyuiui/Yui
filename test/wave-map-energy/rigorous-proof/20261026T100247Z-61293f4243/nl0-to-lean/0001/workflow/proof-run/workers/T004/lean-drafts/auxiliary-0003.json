@@ -1,0 +1,21 @@
+{
+  "statement": "∀ {V : Type} [NormedAddCommGroup V] [NormedSpace ℝ V] (O : Set (WM.X n × ℝ)), IsOpen O → ∀ (f : WM.X n × ℝ → V) (v : V), Set.EqOn f (fun _ => v) O → ∀ p ∈ O, WM.dt f p.1 p.2 = 0 ∧ ∀ j, WM.dx f j p.1 p.2 = 0",
+  "proof": "intro V _ _ O hO f v hf p hp\nhave he : f =ᶠ[𝓝 p] (fun _ => v) := Filter.eventually_of_mem (hO.mem_nhds hp) hf\nconstructor\n· have ht : (fun r => f (p.1,r)) =ᶠ[𝓝 p.2] (fun _ => v) := he.comp_tendsto (continuous_const.prodMk continuous_id).continuousAt\n  simpa [WM.dt] using ht.deriv_eq\n· intro j\n  have hx : (fun y => f (y,p.2)) =ᶠ[𝓝 p.1] (fun _ => v) := he.comp_tendsto (continuous_id.prodMk continuous_const).continuousAt\n  simp [WM.dx, hx.fderiv_eq]",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-ws245c6k/output/Auxiliary.lean:54:72: warning: Variable name `h_H001` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-ws245c6k/output/Auxiliary.lean:54:97: warning: Variable name `h_H002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-ws245c6k/output/Auxiliary.lean:54:136: warning: Variable name `h_T002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-ws245c6k/output/Auxiliary.lean:54:160: warning: Variable name `h_T003` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  1 ≤ n ∧ 1 ≤ m →\n    ContDiffOn ℝ ∞ u (WM.dom n) →\n      WM.regular u →\n        (∀ (τ : ℝ), 0 < τ → ∃ C R, WM.geometry u q τ C R) →\n          ∀ {V : Type} [inst : NormedAddCommGroup V] [inst_1 : NormedSpace ℝ V] (O : Set (WM.X n × ℝ)),\n            IsOpen O →\n              ∀ (f : WM.X n × ℝ → V) (v : V),\n                Set.EqOn f (fun x => v) O → ∀ p ∈ O, WM.dt f p.1 p.2 = 0 ∧ ∀ (j : Fin n), WM.dx f j p.1 p.2 = 0\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.07658916618675,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T004",
+    "candidate": 3,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

@@ -1,0 +1,369 @@
+{
+  "inference": "R005",
+  "packet_sha256": "11e60997a11c581f558c1457ac5b7782e5c8215a6f10a364c9f0c7c5fc4903ec",
+  "checks": {
+    "applicability": {
+      "verdict": "PASS",
+      "notes": "M006 is used exactly once with V=ℝ, the explicitly zero-extended energy f:ℝ→ℝ, f₁=0, α=s, β=t, L=0 and y=t. The standard real normed-space structures satisfy its structural premises. Under L1 every r∈[s,t] is positive; F001 supplies its ordinary zero derivative, and BG006–BG007 justify extension locality and restriction, including endpoints. The bound on [s,t) is |0|=0 and t∈[s,t]. Its conclusion is exactly |E(t)−E(s)|≤0, hence equality. This checks the conditional application, not M006's separately owned source fidelity. No E applications occur.",
+      "locations": [
+        "/inputs/4/statement",
+        "/inputs/4/source_contract/hypotheses",
+        "/inference/applications/0",
+        "/inference/argument/0/produces/0/statement",
+        "/inference/argument/1/text"
+      ]
+    },
+    "argument": {
+      "verdict": "PASS",
+      "notes": "At arbitrary t0>0, N003 identifies the derivative of the actual finite energy with ∫et. In N002 take τ=t0, so t0∈(τ/2,3τ/2); its density formula and integrable scalar sections apply. Finite integral linearity and scalar multiplication are checked in BG001–BG004. Replacing each spatial integral by N004 yields the minus sign displayed. Expanding the Euclidean dot product into its finite coordinate sum and D004's finite Laplacian gives ut·utt−Σj ut·∂j dxu(j)=ut·(utt−lap). N001 makes this identically zero and BG005 evaluates its integral. There is no extra differentiation or limit exchange. S002 then validly applies M006 with the zero derivative and obtains equality; equal or reversed positive times cover all cases. The factor 2 and energy normalization are preserved. Empty sums (n=0), trivial codomain (m=0), and the excluded time-zero endpoint introduce no exceptional step.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inputs/3/statement",
+        "/definitions/3/definition",
+        "/definitions/4/definition",
+        "/inference/argument/1/text"
+      ]
+    },
+    "dependency_accounting": {
+      "verdict": "PASS",
+      "notes": "Every direct input has an actual role: N001 supplies the final orthogonality identity; N002 supplies integrability and the density derivative formula; N003 supplies energy differentiability and its integral derivative; N004 supplies the individual spatial integration-by-parts equalities; M006 supplies the zero-derivative constancy estimate. Only the second conjunct of N001 is needed; unused conjuncts do not make the input unused. The omitted routine integration algebra, its integrability closure, zero-integral evaluation, and derivative locality/restriction are positively checked in seven saved background notes BG001–BG007. No original H, additional project result, or unregistered substantive analytic tool is imported.",
+      "locations": [
+        "/inference/inputs",
+        "/inference/argument/0/uses",
+        "/inference/argument/0/text",
+        "/inference/argument/1/uses",
+        "/inference/argument/1/uses_local",
+        "/inference/argument/1/text"
+      ]
+    },
+    "dependency_closure": {
+      "verdict": "PASS",
+      "notes": "Reverse tracing the prose: energy/density regularity and integrability come from N002–N003; the density expansion comes from N002; the integrated spatial replacements come from N004; the pointwise cancellation comes from N001. Finite-coordinate dot-product distributivity and Laplacian unfolding use D004 and finite algebra. BG001–BG005 cover the ordinary integral facts not granted by finite-language-3. The only earlier local fact used in S002 is the fully quantified F001 produced by S001; BG006–BG007 justify the derivative restriction/extension. M006 then supplies the sole constancy theorem. Order cases and equality symmetry are elementary. No unavailable ancestor body or implied ambient PDE hypothesis is used.",
+      "locations": [
+        "/inference/argument/0/text",
+        "/inference/argument/0/produces/0",
+        "/inference/argument/1/text",
+        "/inference/argument/1/uses_local",
+        "/definitions/3/definition",
+        "/logic/calculations"
+      ]
+    },
+    "inputs": {
+      "verdict": "PASS",
+      "notes": "N001–N004 and M006 are precisely the five direct conditional premises supplied. Each is instantiated with the packet's same u, n, m and derivatives. N001, N003 and N004 are specialized to t0>0 (and 1≤j≤n where needed). N002's more precise section-integrability assertion applies with τ=t0 and r=t0 in int J, in addition to its unconditional e-integrability clause. F001 is proved earlier, with no open extra assumptions, before its S002 use. M006 is specialized to real-valued total f and the stated interval. No producer proof or unstated property of an N input is used.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inputs/3/statement",
+        "/inputs/4/statement",
+        "/inference/inputs",
+        "/inference/argument/0/produces/0",
+        "/inference/applications/0"
+      ]
+    },
+    "object_closure": {
+      "verdict": "PASS",
+      "notes": "Actual objects have compatible declarations: n,m,u,q are parameters; ut,utt,dxu,lap,e,et,E are D001–D007 with the displayed domains. The guard N002 for the finite energy is directly available and supplies all positive-time section integrability before E is used. t0 is introduced arbitrary positive in S001; x and j are integration and finite-sum binders. F001 binds its own positive r rather than exporting t0. s,t are introduced as arbitrary reals in S002, with positivity/order introduced locally. The zero extension is explicitly defined there by cases using E only at positive arguments; f₁=0 and the source parameters are explicitly supplied by the application bindings. C,R,J,Q remain bound in N002 and no private witness is exported or presumed. Euclidean dot products and their finite coordinate sums match the vector/scalar types throughout.",
+      "locations": [
+        "/parameters",
+        "/definitions",
+        "/inputs/1/statement",
+        "/inference/locals",
+        "/inference/argument/0/text",
+        "/inference/argument/0/produces/0",
+        "/inference/argument/1/text",
+        "/inference/applications/0/bindings"
+      ]
+    },
+    "output": {
+      "verdict": "PASS",
+      "notes": "F001 establishes exactly the first three clauses of P for every positive time: e-section Lebesgue integrability, differentiability of the finite integral E, and E'=0. S002 proves the remaining equality E(s)=E(t) for all s,t>0 using the same E. D005 and D007 fix the integral on ℝ^n with Lebesgue measure and the energy without a factor 1/2; no redefinition is exported. No claim at t=0 or outside positive times is made, and no temporary strict-order hypothesis remains in P.",
+      "locations": [
+        "/output/statement",
+        "/definitions/4/definition",
+        "/definitions/6/definition",
+        "/inference/argument/0/produces/0/statement",
+        "/inference/argument/1/text"
+      ]
+    },
+    "packet_replay": {
+      "verdict": "PASS",
+      "notes": "I read packet.json in full (lines 1–698), the relevant declared Yui rules, and only logged read-only pinned-Mathlib searches, excerpts and native probes for routine background. No original problem/proof, ancestor producer, other project proof or prior verdict was supplied or consulted. The conditional replay of R005 is sufficient from the five supplied premises, definitions, finite-language-3 reasoning and seven positively checked saved notes BG001–BG007. This is PASS with background notes, not a claim of author pre-registration or source-lane verification. My judgment is the mathematical implication given the externally checked input boundary; I do not attest carrier identity, runtime isolation or canonical-hash enforcement.",
+      "locations": [
+        "/inference",
+        "/inputs",
+        "/definitions",
+        "/output/statement",
+        "/packet_sha256"
+      ]
+    },
+    "scope": {
+      "verdict": "PASS",
+      "notes": "S001 introduces arbitrary t0>0, then universally closes its conclusion as F001 with bound r and no extra assumptions. S002 uses only this earlier closed F001. The arbitrary s,t are initially real; L1:0<s<t is explicitly temporary and its discharge yields the strict-positive-order implication, not an unconditional assertion. Positive equal times are handled reflexively, and reversed unequal positive times by applying that implication to the swapped pair and equality symmetry. Thus all positive pairs are covered with L1 discharged. The extension's nonpositive values are only its definition, not a new regularity assumption; no interval parameter or support witness escapes.",
+      "locations": [
+        "/inference/locals",
+        "/inference/argument/0/text",
+        "/inference/argument/0/produces/0/assumptions",
+        "/inference/argument/1/text",
+        "/inference/argument/1/introduces",
+        "/inference/argument/1/discharges"
+      ]
+    },
+    "statement_closure": {
+      "verdict": "PASS",
+      "notes": "Each consumed N premise explicitly exports the needed content: N001 the pointwise zero scalar product; N002 the density formula and the local-window integrable sections; N003 differentiability of the actual E and E'=∫et; N004 both spatial integral equality and integrability. Their full quantifiers, positive-time conditions and spatial indices are present, and D001–D007 identify all derivatives, Laplacian and the normalized Lebesgue energy. M006 states its normed-space premise, closed-interval derivative condition, half-open-interval derivative bound and endpoint conclusion in full. F001 fully states the previously proved universal fact used by S002. P fully states integrability, differentiability, zero derivative and pairwise constancy, without relying on producer prose or equation labels for its meaning.",
+      "locations": [
+        "/inputs/0/statement",
+        "/inputs/1/statement",
+        "/inputs/2/statement",
+        "/inputs/3/statement",
+        "/inputs/4/statement",
+        "/inputs/4/source_contract",
+        "/definitions",
+        "/inference/argument/0/produces/0/statement",
+        "/output/statement"
+      ]
+    }
+  },
+  "background_notes": [
+    {
+      "id": "BG001",
+      "kind": "mathlib",
+      "at": "/inference/argument/0/text",
+      "fact": "For a real-valued Lebesgue-integrable function h on ℝ^n, every constant multiple c h is integrable. Here this applies to c=2,-2,-1 and the scalar spatial sections appearing in S001.",
+      "justification": "M103 is Integrable.smul, specialized to real scalars and real codomain with their standard bounded scalar multiplication. Real scalar multiplication is ordinary multiplication. N002 supplies the unscaled sections; this only supplies routine closure needed for the explicitly written finite linearity, not a new analytic argument.",
+      "grounds": [
+        {
+          "location": "/inputs/1/statement",
+          "reason": "At τ=t0, t0 lies strictly between τ/2 and 3τ/2. Thus the listed sections ut·utt, dxu(j)·∂j ut and ut·∂j dxu(j) are integrable for every relevant j."
+        },
+        {
+          "location": "/inference/argument/0/text",
+          "reason": "t0>0 is fixed; only constant real coefficients are used."
+        }
+      ],
+      "source": {
+        "declaration": "MeasureTheory.Integrable.smul",
+        "module": "Mathlib.MeasureTheory.Function.L1Space.Integrable",
+        "signature": "@MeasureTheory.Integrable.smul : ∀ {α : Type u_1} {β : Type u_2} {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α}\n  [inst : NormedAddCommGroup.{u_2} β] {𝕜 : Type u_8} [inst_1 : NormedAddCommGroup.{u_8} 𝕜]\n  [inst_2 : SMulZeroClass.{u_8, u_2} 𝕜 β] [IsBoundedSMul.{u_8, u_2} 𝕜 β] (c : 𝕜) {f : α → β},\n  MeasureTheory.Integrable.{u_2, u_1} f μ →\n    MeasureTheory.Integrable.{u_2, u_1} (HSMul.hSMul.{u_8, max u_1 u_2, max u_1 u_2} c f) μ",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/MeasureTheory/Function/L1Space/Integrable.lean",
+        "source_sha256": "1eb43b0c29afe46be67da796537cad31a702da7e2f9dd364f1f9dd5b344d7b9c",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M103-0003/library-sources.json",
+            "sha256": "1820fc69671293b19b4ad8bf4673a0d931b2c354b152b7fd58e1bfd883e0ba2d"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG002",
+      "kind": "mathlib",
+      "at": "/inference/argument/0/text",
+      "fact": "A finite sum of the integrable real spatial sections in S001, including their constant multiples, is integrable. In particular ut·(utt−lap) is integrable after expanding the componentwise Laplacian and Euclidean dot product.",
+      "justification": "M104 states integrable_finsetSum; specialize the domain to ℝ^n with Lebesgue measure and codomain to ℝ, which has the required continuous addition and seminormed commutative additive structure. The finite family consists of ut·utt and the negatives of ut·∂j dxu(j); N002 gives each original section and BG001 gives their scalar multiples. The same applies to the weighted density formula. Empty spatial sums are covered. This verifies the prose's composite-integrability claim by routine finite closure.",
+      "grounds": [
+        {
+          "location": "/inputs/1/statement",
+          "reason": "Supplies all constituent scalar integrability at t0 using τ=t0."
+        },
+        {
+          "location": "/definitions/3/definition",
+          "reason": "lap is the finite componentwise sum, so dot-product distributivity identifies the stated composite with that finite combination."
+        },
+        {
+          "location": "/inference/argument/0/text",
+          "reason": "The combinations and their real coefficients are displayed; there is no infinite series or limit interchange."
+        }
+      ],
+      "source": {
+        "declaration": "MeasureTheory.integrable_finsetSum",
+        "module": "Mathlib.MeasureTheory.Function.L1Space.Integrable",
+        "signature": "@MeasureTheory.integrable_finsetSum : ∀ {α : Type u_1} {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α} {ε' : Type u_8}\n  [inst : TopologicalSpace.{u_8} ε'] [inst_1 : ESeminormedAddCommMonoid.{u_8} ε'] [ContinuousAdd.{u_8} ε']\n  {ι : Type u_9} (s : Finset.{u_9} ι) {f : ι → α → ε'},\n  (∀ (i : ι), Membership.mem.{u_9, u_9} s i → MeasureTheory.Integrable.{u_8, u_1} (f i) μ) →\n    MeasureTheory.Integrable.{u_8, u_1} (fun a => ∑ i ∈ s, f i a) μ",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/MeasureTheory/Function/L1Space/Integrable.lean",
+        "source_sha256": "1eb43b0c29afe46be67da796537cad31a702da7e2f9dd364f1f9dd5b344d7b9c",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M104-0004/library-sources.json",
+            "sha256": "b5920af65175cdcb3151049cea31a9b8f645e7d910923397dbc4a1cd2396cc4c"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG003",
+      "kind": "mathlib",
+      "at": "/inference/argument/0/text",
+      "fact": "For any finite family of the integrable real sections used in S001, the integral of its sum equals the sum of its integrals. Applying this also to a finite family consisting of the temporal term and the n signed spatial terms justifies the additive and subtractive parts of the displayed integral equalities.",
+      "justification": "M101, integral_finsetSum, has exactly this statement. Instantiate α=ℝ^n, G=ℝ, μ=Lebesgue measure, and use the finite spatial indices, or their disjoint union with a singleton temporal index. N002 and BG001 give every summand's integrability. Expanding a two-term addition/subtraction as the corresponding finite sum is finite algebra, not an additional theorem. This is routine integral linearity accompanying the supplied N003 and N004, not differentiation under an integral or an integration-by-parts proof.",
+      "grounds": [
+        {
+          "location": "/inputs/1/statement",
+          "reason": "Lists all integrable scalar sections used in the sums."
+        },
+        {
+          "location": "/inference/argument/0/text",
+          "reason": "Only finite sums over 1≤j≤n and the single temporal term are integrated."
+        },
+        {
+          "location": "/inputs/3/statement",
+          "reason": "The individual spatial integral replacements are supplied separately by N004."
+        }
+      ],
+      "source": {
+        "declaration": "MeasureTheory.integral_finsetSum",
+        "module": "Mathlib.MeasureTheory.Integral.Bochner.Basic",
+        "signature": "@MeasureTheory.integral_finsetSum.{u_1, u_2,\n    u_3} : ∀ {α : Type u_1} {G : Type u_2} [inst : NormedAddCommGroup.{u_2} G] [inst_1 : NormedSpace.{0, u_2} ℝ G]\n  {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α} {ι : Type u_3} (s : Finset.{u_3} ι) {f : ι → α → G},\n  (∀ (i : ι), Membership.mem.{u_3, u_3} s i → MeasureTheory.Integrable.{u_2, u_1} (f i) μ) →\n    Eq.{u_2 + 1} (∫ (a : α), ∑ i ∈ s, f i a ∂μ) (∑ i ∈ s, ∫ (a : α), f i a ∂μ)",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/MeasureTheory/Integral/Bochner/Basic.lean",
+        "source_sha256": "87a4e4904132b77e04759b119b84fd3c08bec6639ae6f9953ece518b6b36ce04",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M101-0001/library-sources.json",
+            "sha256": "dc8edf09314fb0056afa0a7e563e7ed64c34f2d64454b735216b6702b5a99508"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG004",
+      "kind": "mathlib",
+      "at": "/inference/argument/0/text",
+      "fact": "For a real function h on ℝ^n and a real constant c, ∫ c h(x) dx = c ∫ h(x) dx; use this for the constants 2 and the signed coefficients in S001.",
+      "justification": "M102 is integral_const_mul. Its RCLike codomain is instantiated by ℝ; the measure is Lebesgue. Its statement imposes no extra integrability premise (the actual sections are integrable anyway). Together with finite-sum linearity this accounts for all coefficient movements in the displayed calculation, without adding a core tool.",
+      "grounds": [
+        {
+          "location": "/inference/argument/0/text",
+          "reason": "The coefficients are fixed real constants independent of x."
+        },
+        {
+          "location": "/inputs/1/statement",
+          "reason": "The integrated expressions are real scalar sections on ℝ^n with Lebesgue measure."
+        }
+      ],
+      "source": {
+        "declaration": "MeasureTheory.integral_const_mul",
+        "module": "Mathlib.MeasureTheory.Integral.Bochner.Basic",
+        "signature": "@MeasureTheory.integral_const_mul.{u_1,\n    u_2} : ∀ {α : Type u_1} {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α} {L : Type u_2}\n  [inst : RCLike.{u_2} L] (r : L) (f : α → L),\n  Eq.{u_2 + 1} (∫ (a : α), HMul.hMul.{u_2, u_2, u_2} r (f a) ∂μ) (HMul.hMul.{u_2, u_2, u_2} r (∫ (a : α), f a ∂μ))",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/MeasureTheory/Integral/Bochner/Basic.lean",
+        "source_sha256": "87a4e4904132b77e04759b119b84fd3c08bec6639ae6f9953ece518b6b36ce04",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M102-0002/library-sources.json",
+            "sha256": "c5238fe6ce40f88e46649b23e46fc1996b6c1c004b434c45c26948227d549964"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG005",
+      "kind": "mathlib",
+      "at": "/inference/argument/0/text",
+      "fact": "The real Lebesgue integral of the identically zero function on ℝ^n is zero. N001 therefore makes the final integral in S001 equal to zero.",
+      "justification": "M105, integral_zero, specializes to real codomain and Lebesgue measure on ℝ^n; no finite-measure premise is present or needed. N001 gives pointwise zero for ut·(utt−lap), so ordinary equality substitution identifies the integrand with zero. This routine evaluation closes the displayed calculation.",
+      "grounds": [
+        {
+          "location": "/inputs/0/statement",
+          "reason": "For every x and t0>0, ut(x,t0)·(utt(x,t0)−lap(x,t0))=0."
+        },
+        {
+          "location": "/inference/argument/0/text",
+          "reason": "The final integral is exactly of this scalar function."
+        }
+      ],
+      "source": {
+        "declaration": "MeasureTheory.integral_zero",
+        "module": "Mathlib.MeasureTheory.Integral.Bochner.Basic",
+        "signature": "@MeasureTheory.integral_zero : ∀ (α : Type u_1) (G : Type u_5) [inst : NormedAddCommGroup.{u_5} G] [inst_1 : NormedSpace.{0, u_5} ℝ G]\n  {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α}, Eq.{u_5 + 1} (∫ (x : α), 0 ∂μ) 0",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/MeasureTheory/Integral/Bochner/Basic.lean",
+        "source_sha256": "87a4e4904132b77e04759b119b84fd3c08bec6639ae6f9953ece518b6b36ce04",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M105-0005/library-sources.json",
+            "sha256": "1e7d561de9ec3ebb16f6cac0c9bec66eed155c20dea36299c80eb25a5af8013e"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG006",
+      "kind": "mathlib",
+      "at": "/inference/argument/1/text",
+      "fact": "The total real function f(r)=E(r) for r>0 and f(r)=0 otherwise has derivative zero at every r∈[s,t] under 0<s<t, by local agreement with the positive-time energy from F001.",
+      "justification": "M107 preserves HasDerivAt under equality in a neighborhood. For r∈[s,t], r≥s>0; on (r/2,3r/2) the extension is exactly E. Thus the ordinary derivative from F001 is unchanged by the extension. For the native theorem, total representatives of the open-domain function agree on this neighborhood. This is routine derivative locality; no derivative at zero or global extension regularity is asserted.",
+      "grounds": [
+        {
+          "location": "/inference/argument/0/produces/0/statement",
+          "reason": "F001 gives differentiability and derivative zero at every positive r."
+        },
+        {
+          "location": "/inference/argument/1/text",
+          "reason": "Defines the zero extension and assumes L1:0<s<t, ensuring every point of [s,t] has a positive neighborhood."
+        }
+      ],
+      "source": {
+        "declaration": "HasDerivAt.congr_of_eventuallyEq",
+        "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+        "signature": "@HasDerivAt.congr_of_eventuallyEq : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {f f₁ : 𝕜 → F} {f' : F} {x : 𝕜},\n  HasDerivAt.{u, v} f f' x → Filter.EventuallyEq.{u, v} (nhds.{u} x) f₁ f → HasDerivAt.{u, v} f₁ f' x",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+        "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M107-0007/library-sources.json",
+            "sha256": "2c30fe22d4cd55624457b329466c18aaa0803406624a74551cf2d40bdfafb64b"
+          }
+        ]
+      }
+    },
+    {
+      "id": "BG007",
+      "kind": "mathlib",
+      "at": "/inference/argument/1/text",
+      "fact": "At every r∈[s,t] under 0<s<t, HasDerivAt f 0 r implies HasDerivWithinAt f 0 [s,t] r, including both endpoints.",
+      "justification": "M106 is HasDerivAt.hasDerivWithinAt; specialize scalar and codomain to ℝ and the set to [s,t]. F001 and the checked local agreement of the zero extension give the ordinary derivative zero at each such r. The theorem needs no interior-point condition and so covers the endpoint premise of M006. This is routine restriction, not an additional mean-value theorem.",
+      "grounds": [
+        {
+          "location": "/inference/argument/0/produces/0/statement",
+          "reason": "Gives the ordinary zero derivative at every positive time."
+        },
+        {
+          "location": "/inference/argument/1/text",
+          "reason": "Under L1 the whole closed interval is in positive times, and the extension agrees locally with E."
+        }
+      ],
+      "source": {
+        "declaration": "HasDerivAt.hasDerivWithinAt",
+        "module": "Mathlib.Analysis.Calculus.Deriv.Basic",
+        "signature": "@HasDerivAt.hasDerivWithinAt : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {F : Type v} [inst_1 : NormedAddCommGroup.{v} F]\n  [inst_2 : NormedSpace.{u, v} 𝕜 F] {f : 𝕜 → F} {f' : F} {x : 𝕜} {s : Set.{u} 𝕜},\n  HasDerivAt.{u, v} f f' x → HasDerivWithinAt.{u, v} f f' s x",
+        "declaration_kind": "theorem",
+        "source_path": "Mathlib/Analysis/Calculus/Deriv/Basic.lean",
+        "source_sha256": "851f375cfb2f528b6a22486c093fcac73e0181c5d09f8f811f2d332aca39177d",
+        "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+        "evidence": [
+          {
+            "path": "library/M106-0006/library-sources.json",
+            "sha256": "6fbdf9396d90b77b102fb50735a9c066c5d8ae3c587544eb34822c42c66b4c3a"
+          }
+        ]
+      }
+    }
+  ],
+  "verdict": "PASS",
+  "notes": "R005 passes conditional mathematical replay with seven positively checked recorded background notes (BG001–BG007). All ten checks are assessed PASS. Material read: packet.json in full, declared Yui rules, and logged pinned-Mathlib routine-background queries/probes. The argument preserves its supplied route and all positive-time output clauses; no additional hypothesis or project input is needed. Source fidelity and execution/carrier/hash attestation remain outside this local mathematical judgment.",
+  "findings": []
+}

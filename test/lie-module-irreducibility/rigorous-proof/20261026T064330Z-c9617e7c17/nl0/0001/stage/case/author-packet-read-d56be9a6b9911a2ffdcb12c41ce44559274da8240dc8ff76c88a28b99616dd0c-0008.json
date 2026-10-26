@@ -1,0 +1,896 @@
+{
+  "packet_sha256": "d56be9a6b9911a2ffdcb12c41ce44559274da8240dc8ff76c88a28b99616dd0c",
+  "originating_candidate": 8,
+  "packet": {
+    "parameters": [
+      {
+        "symbol": "p",
+        "type": "natural number"
+      },
+      {
+        "symbol": "K",
+        "type": "field"
+      },
+      {
+        "symbol": "λ",
+        "type": "integer"
+      },
+      {
+        "symbol": "V",
+        "type": "complex sl₂(C)-module"
+      },
+      {
+        "symbol": "x",
+        "type": "element of sl₂(C)"
+      },
+      {
+        "symbol": "y",
+        "type": "element of sl₂(C)"
+      },
+      {
+        "symbol": "h",
+        "type": "element of sl₂(C)"
+      },
+      {
+        "symbol": "v",
+        "type": "vector in V"
+      },
+      {
+        "symbol": "M",
+        "type": "additive subgroup of V"
+      }
+    ],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "direct",
+        "forall_introduction",
+        "implication_introduction",
+        "exists_elimination",
+        "case_elimination",
+        "natural_induction"
+      ],
+      "calculations": [
+        "equality: Equality reflexivity, symmetry, transitivity and substitution.",
+        "definitions: Unfold an explicitly supplied definition; this proves no extra property.",
+        "finite_algebra: Routine finite semiring/ring/field arithmetic, including zero/one laws, distributivity, associativity and finite polynomial identities. Correct elementary compression is permitted; a substantive missing argument is not.",
+        "finite_order: Routine ordered-field reasoning with actual signs/domains: order laws, adding inequalities, multiplication/division with sign conditions, and real square nonnegativity. Ordinary valid elementary inferences need no exhaustive displayed chain. Check that the conclusion follows; substantial named theorems still require inputs or verified-background admission.",
+        "finite_sums: Unfold and rearrange finite sums/products with explicitly given finite indices."
+      ],
+      "primitives": [
+        {
+          "symbol": "0",
+          "type": "typed numeral",
+          "meaning": "Zero of the explicitly specified mathematical type."
+        },
+        {
+          "symbol": "1",
+          "type": "typed numeral",
+          "meaning": "One of the explicitly specified mathematical type."
+        },
+        {
+          "symbol": "2",
+          "type": "typed numeral",
+          "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+        },
+        {
+          "symbol": "ℕ",
+          "type": "number system",
+          "meaning": "The natural numbers with their usual arithmetic."
+        },
+        {
+          "symbol": "ℤ",
+          "type": "number system",
+          "meaning": "The integers with their usual arithmetic."
+        },
+        {
+          "symbol": "ℚ",
+          "type": "number system",
+          "meaning": "The rational numbers with their usual ordered-field operations."
+        },
+        {
+          "symbol": "ℝ",
+          "type": "number system",
+          "meaning": "The real numbers with their usual ordered-field structure."
+        },
+        {
+          "symbol": "ℂ",
+          "type": "number system",
+          "meaning": "The complex numbers with their usual field structure."
+        },
+        {
+          "symbol": "∅",
+          "type": "typed set notation",
+          "meaning": "The empty set in the explicitly specified ambient type."
+        },
+        {
+          "symbol": "∞",
+          "type": "typed order notation",
+          "meaning": "The top element in an explicitly specified extended ordered codomain."
+        },
+        {
+          "symbol": "norm",
+          "type": "norm notation",
+          "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+        },
+        {
+          "symbol": "∂",
+          "type": "derivative notation",
+          "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+        },
+        {
+          "symbol": "∫",
+          "type": "integral notation",
+          "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+        },
+        {
+          "symbol": "Integrable",
+          "type": "predicate notation",
+          "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+        },
+        {
+          "symbol": "AEStronglyMeasurable",
+          "type": "predicate notation",
+          "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+        }
+      ]
+    },
+    "acceptance_contract": {
+      "source": "references/audit-a.md",
+      "version": "nl0-audit-a-8",
+      "section_sha256": "5e944d89afdfd3b98ddcbc3601273a9127ae67687c09796e8b3c725e999ccfab",
+      "document_sha256": "5c2fd58f6edce6e63fca9a2567f6edbfea5e8f6eee78f8b674bbf136dad4a0f8",
+      "criterion_ids": [
+        "applicability",
+        "argument",
+        "definitions",
+        "dependency_accounting",
+        "dependency_closure",
+        "inputs",
+        "object_closure",
+        "output",
+        "scope",
+        "sources",
+        "statement_closure",
+        "structure",
+        "target"
+      ]
+    },
+    "definitions": [
+      {
+        "id": "D001",
+        "symbol": "n",
+        "type": "integer",
+        "definition": "n=λ+1.",
+        "depends_on": [],
+        "requires": [],
+        "binders": [],
+        "objects": [
+          "λ"
+        ]
+      },
+      {
+        "id": "D002",
+        "symbol": "I",
+        "type": "finite set of integers",
+        "definition": "I={i∈ℤ:0≤i≤λ}. Factorials and binomial coefficients with indices in this range are those of the corresponding nonnegative integers.",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "i",
+            "type": "integer"
+          }
+        ],
+        "objects": [
+          "λ",
+          "i"
+        ]
+      },
+      {
+        "id": "D003",
+        "symbol": "X",
+        "type": "family of complex linear endomorphisms of V indexed by nonnegative integers",
+        "definition": "For each integer r≥0, X_r=x^r/r!, where powers denote composition of the action of x and X_0=Id_V.",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "nonnegative integer"
+          }
+        ],
+        "objects": [
+          "r",
+          "x",
+          "V"
+        ]
+      },
+      {
+        "id": "D004",
+        "symbol": "Y",
+        "type": "family of complex linear endomorphisms of V indexed by nonnegative integers",
+        "definition": "For each integer r≥0, Y_r=y^r/r!, where powers denote composition of the action of y and Y_0=Id_V.",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "nonnegative integer"
+          }
+        ],
+        "objects": [
+          "r",
+          "y",
+          "V"
+        ]
+      },
+      {
+        "id": "D005",
+        "symbol": "U_Z",
+        "type": "integer subalgebra of the universal enveloping algebra of sl₂(C), with its action on V",
+        "definition": "U_Z is the ℤ-subalgebra of the universal enveloping algebra generated by all divided powers x^r/r!,y^r/r! for integers r≥0; their actions on V are X_r,Y_r.",
+        "depends_on": [
+          "D003",
+          "D004"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "nonnegative integer"
+          }
+        ],
+        "objects": [
+          "r",
+          "x",
+          "y",
+          "V",
+          "X",
+          "Y"
+        ]
+      },
+      {
+        "id": "D006",
+        "symbol": "e",
+        "type": "family I→V",
+        "definition": "For i∈I, e_i=y^iv/i!=Y_i v.",
+        "depends_on": [
+          "D002",
+          "D004"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "i",
+            "type": "element of I"
+          }
+        ],
+        "objects": [
+          "i",
+          "I",
+          "y",
+          "v",
+          "Y"
+        ]
+      },
+      {
+        "id": "D007",
+        "symbol": "R",
+        "type": "subring of ℚ, also embedded in ℂ",
+        "definition": "R=ℤ_(p)={a/b∈ℚ:a,b∈ℤ, b≠0, p does not divide b}, with the usual rational arithmetic and its embedding into ℂ.",
+        "depends_on": [],
+        "requires": [
+          "H001"
+        ],
+        "binders": [
+          {
+            "symbol": "a",
+            "type": "integer"
+          },
+          {
+            "symbol": "b",
+            "type": "nonzero integer"
+          }
+        ],
+        "objects": [
+          "p",
+          "a",
+          "b"
+        ]
+      },
+      {
+        "id": "D008",
+        "symbol": "M_R",
+        "type": "R-module",
+        "definition": "M_R=R⊗_ℤ M. Once its multiplication map into V is proved injective, it is identified with its image in V.",
+        "depends_on": [
+          "D007"
+        ],
+        "requires": [
+          "H001"
+        ],
+        "binders": [],
+        "objects": [
+          "R",
+          "M",
+          "V"
+        ]
+      },
+      {
+        "id": "D009",
+        "symbol": "ι_R",
+        "type": "R-linear map M_R→V",
+        "definition": "ι_R is the tensor multiplication map determined by ι_R(r⊗m)=r m for r∈R and m∈M, using the rational scalar action on V.",
+        "depends_on": [
+          "D007",
+          "D008"
+        ],
+        "requires": [
+          "H001"
+        ],
+        "binders": [
+          {
+            "symbol": "r",
+            "type": "element of R"
+          },
+          {
+            "symbol": "m",
+            "type": "element of M"
+          }
+        ],
+        "objects": [
+          "r",
+          "m",
+          "R",
+          "M",
+          "M_R",
+          "V"
+        ]
+      },
+      {
+        "id": "D010",
+        "symbol": "E",
+        "type": "family of complex linear endomorphisms of V indexed by I×I",
+        "definition": "For i,j∈I, E_ij is the unique complex linear map sending e_j to e_i and every e_k with k∈I and k≠j to zero. This definition is made only after (e_k)_{k∈I} has been proved to be a complex basis of V.",
+        "depends_on": [
+          "D002",
+          "D006"
+        ],
+        "requires": [
+          "N001"
+        ],
+        "binders": [
+          {
+            "symbol": "i",
+            "type": "element of I"
+          },
+          {
+            "symbol": "j",
+            "type": "element of I"
+          },
+          {
+            "symbol": "k",
+            "type": "element of I"
+          }
+        ],
+        "objects": [
+          "i",
+          "j",
+          "k",
+          "I",
+          "e",
+          "V"
+        ]
+      }
+    ],
+    "inputs": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "statement": "p is prime.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "p"
+        ]
+      },
+      {
+        "id": "H003",
+        "kind": "hypothesis",
+        "statement": "0≤λ<p.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "λ",
+          "p"
+        ]
+      },
+      {
+        "id": "H004",
+        "kind": "hypothesis",
+        "statement": "V=V(λ) is the complex irreducible highest-weight sl₂(C)-module of highest weight λ, of complex dimension λ+1. The elements x,y,h are its Chevalley generators and satisfy [h,x]=2x, [h,y]=-2y, [x,y]=h.",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "V",
+          "λ",
+          "x",
+          "y",
+          "h"
+        ]
+      },
+      {
+        "id": "H006",
+        "kind": "hypothesis",
+        "statement": "M is an admissible lattice: it is a free abelian subgroup of V with an integer basis that is also a complex basis of V, and is stable under U_Z. It is arbitrary and is not required to be the minimal lattice.",
+        "definitions": [
+          "D005"
+        ],
+        "binders": [],
+        "objects": [
+          "M",
+          "V",
+          "U_Z"
+        ]
+      },
+      {
+        "id": "N001",
+        "kind": "internal",
+        "statement": "n=λ+1>0 and card(I)=n. The vectors (e_i)_{i∈I} form a complex basis of V; e_0=v. For every integer m≥0, h y^m v=(λ-2m)y^m v; for m≥1, x y^m v=m(λ-m+1)y^{m-1}v. The vectors y^m v vanish for m>λ. The action matrices are xe_0=0, xe_i=(λ-i+1)e_{i-1} for 1≤i≤λ, ye_i=(i+1)e_{i+1} for 0≤i<λ, ye_λ=0, and he_i=(λ-2i)e_i. For all r≥0 and i∈I, X_r e_i=binom(λ-i+r,r)e_{i-r} if r≤i and is zero otherwise; Y_r e_i=binom(i+r,r)e_{i+r} if i+r≤λ and is zero otherwise. All these divided-power matrix coefficients are integers.",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D004",
+          "D006"
+        ],
+        "binders": [
+          {
+            "symbol": "m",
+            "type": "nonnegative integer"
+          },
+          {
+            "symbol": "i",
+            "type": "element of I"
+          },
+          {
+            "symbol": "r",
+            "type": "nonnegative integer"
+          }
+        ],
+        "objects": [
+          "n",
+          "λ",
+          "I",
+          "e",
+          "v",
+          "V",
+          "x",
+          "y",
+          "h",
+          "X",
+          "Y",
+          "m",
+          "i",
+          "r"
+        ]
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "Let A be a commutative semiring, B a semiring with an A-algebra structure, T an additive commutative monoid with an A-module structure, and f an A-basis of T indexed by a type Q. The canonical base-changed basis f.baseChange B is a B-basis of B⊗_A T, and for each q∈Q its q-th vector is 1⊗f_q.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "A",
+            "type": "commutative semiring"
+          },
+          {
+            "symbol": "B",
+            "type": "semiring and A-algebra"
+          },
+          {
+            "symbol": "T",
+            "type": "additive commutative monoid and A-module"
+          },
+          {
+            "symbol": "Q",
+            "type": "index type"
+          },
+          {
+            "symbol": "f",
+            "type": "A-basis of T indexed by Q"
+          },
+          {
+            "symbol": "q",
+            "type": "element of Q"
+          }
+        ],
+        "objects": [
+          "A",
+          "B",
+          "T",
+          "Q",
+          "f",
+          "q"
+        ],
+        "source_conditions": [
+          "A is a commutative semiring; B is a semiring with an A-algebra structure.",
+          "T is an additive commutative monoid with an A-module structure.",
+          "f is an A-basis of T indexed by Q; q is in Q."
+        ],
+        "source_declaration": "Module.Basis.baseChange_apply"
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "For a semiring A satisfying the strong rank condition, an additive commutative monoid T with an A-module structure, a finite index type Q and an A-basis f of T indexed by Q, Module.finrank_A(T)=card(Q).",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "A",
+            "type": "semiring satisfying the strong rank condition"
+          },
+          {
+            "symbol": "T",
+            "type": "additive commutative monoid and A-module"
+          },
+          {
+            "symbol": "Q",
+            "type": "finite index type"
+          },
+          {
+            "symbol": "f",
+            "type": "A-basis of T indexed by Q"
+          }
+        ],
+        "objects": [
+          "A",
+          "T",
+          "Q",
+          "f"
+        ],
+        "source_conditions": [
+          "A is a semiring satisfying the strong rank condition.",
+          "T is an additive commutative monoid with an A-module structure.",
+          "Q is a finite index type and f is an A-basis of T indexed by Q."
+        ],
+        "source_declaration": "Module.finrank_eq_card_basis"
+      },
+      {
+        "id": "M006",
+        "kind": "mathlib",
+        "statement": "For natural numbers ℓ and t, if ℓ is prime and t<ℓ, then ℓ is coprime to t!.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "ℓ",
+            "type": "natural number"
+          },
+          {
+            "symbol": "t",
+            "type": "natural number"
+          }
+        ],
+        "objects": [
+          "ℓ",
+          "t"
+        ],
+        "source_conditions": [
+          "ℓ is prime.",
+          "t<ℓ."
+        ],
+        "source_declaration": "Nat.Prime.coprime_factorial_of_lt"
+      }
+    ],
+    "output": {
+      "id": "N002",
+      "kind": "internal",
+      "statement": "ι_R:M_R→V is injective, its image spans V over ℂ, and M_R is free of rank n over R. Under this embedding M_R is stable under all X_r,Y_r (r≥0). For every integer t with 0≤t≤λ, t! is a unit in R. For all i,j∈I, binom(λ,j) is a unit in R, Y_λ X_λ=E_{λλ}, X_{λ-i}E_{λλ}=E_{iλ}, E_{λλ}Y_{λ-j}=binom(λ,j)E_{λj}, and E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. In particular every E_ij preserves M_R. The operators x,y,h preserve M and give its induced Chevalley action after tensoring.",
+      "definitions": [
+        "D001",
+        "D002",
+        "D003",
+        "D004",
+        "D007",
+        "D008",
+        "D009",
+        "D010"
+      ],
+      "binders": [
+        {
+          "symbol": "r",
+          "type": "nonnegative integer"
+        },
+        {
+          "symbol": "t",
+          "type": "integer with 0≤t≤λ"
+        },
+        {
+          "symbol": "i",
+          "type": "element of I"
+        },
+        {
+          "symbol": "j",
+          "type": "element of I"
+        }
+      ],
+      "objects": [
+        "ι_R",
+        "M_R",
+        "V",
+        "M",
+        "n",
+        "R",
+        "X",
+        "Y",
+        "λ",
+        "I",
+        "E",
+        "x",
+        "y",
+        "h",
+        "r",
+        "t",
+        "i",
+        "j"
+      ]
+    },
+    "inference": {
+      "id": "R002",
+      "inputs": [
+        "H001",
+        "H003",
+        "H004",
+        "H006",
+        "N001",
+        "M001",
+        "M002",
+        "M006"
+      ],
+      "output": "N002",
+      "definitions": [
+        "D001",
+        "D002",
+        "D003",
+        "D004",
+        "D005",
+        "D006",
+        "D007",
+        "D008",
+        "D009",
+        "D010"
+      ],
+      "rules": [
+        "direct",
+        "exists_elimination",
+        "forall_introduction"
+      ],
+      "locals": [
+        {
+          "symbol": "f",
+          "type": "integer basis of M indexed by I, also a complex basis of V",
+          "scope": "lattice localization",
+          "start": "S002",
+          "end": "S004",
+          "kind": "witness",
+          "declaration": "Choose an integer basis f=(f_i)_{i∈I} of M that is a complex basis of V, using F001.",
+          "from_inputs": [],
+          "from_local": [
+            "F001"
+          ],
+          "objects": [
+            "I",
+            "M",
+            "V"
+          ]
+        }
+      ],
+      "argument": [
+        {
+          "id": "S001",
+          "text": "By H006 choose an integer basis of M that is also a complex basis of V. Its index set is finite because V has finite complex dimension (H004). M002 applied to this complex basis over ℂ counts its elements as dim_ℂ V=n. N001 gives card(I)=n, so reindexing gives an integer basis indexed by I. This proves F001. H001 ensures R is a subring: products of integers not divisible by the prime p are again not divisible by p, and addition and multiplication of the stated fractions preserve the denominator condition.",
+          "uses": [
+            "H001",
+            "H004",
+            "H006",
+            "N001",
+            "M002"
+          ],
+          "uses_local": [],
+          "objects": [
+            "M",
+            "V",
+            "n",
+            "I",
+            "R",
+            "p"
+          ],
+          "produces": [
+            {
+              "id": "F001",
+              "statement": "There exists an integer basis of M indexed by I that is also a complex basis of V.",
+              "binders": [],
+              "objects": [
+                "M",
+                "I",
+                "V"
+              ],
+              "assumptions": []
+            }
+          ],
+          "introduces": [],
+          "discharges": []
+        },
+        {
+          "id": "S002",
+          "text": "Choose f as in F001. M001 with A=ℤ, B=R and T=M gives the R-basis (1⊗f_i)_{i∈I} of M_R. Under ι_R these vectors go to f_i. If ∑ r_i f_i=0 with r_i∈R, complex independence of f gives every r_i=0. Hence ι_R is injective. Its image contains f and therefore spans V over ℂ. This also proves that M_R is free of rank n. From now on identify M_R with this image.",
+          "uses": [
+            "M001"
+          ],
+          "uses_local": [
+            "F001"
+          ],
+          "objects": [
+            "f",
+            "I",
+            "R",
+            "M",
+            "M_R",
+            "ι_R",
+            "V",
+            "n"
+          ],
+          "produces": [
+            {
+              "id": "F002",
+              "statement": "ι_R is injective; M_R has R-basis (1⊗f_i)_{i∈I}, has rank n, and its image spans V over ℂ.",
+              "binders": [
+                {
+                  "symbol": "i",
+                  "type": "element of I"
+                }
+              ],
+              "objects": [
+                "ι_R",
+                "M_R",
+                "f",
+                "I",
+                "n",
+                "V",
+                "i"
+              ],
+              "assumptions": []
+            }
+          ],
+          "introduces": [],
+          "discharges": []
+        },
+        {
+          "id": "S003",
+          "text": "Admissibility H006 makes every X_r,Y_r preserve M; their complex linearity then preserves the R-span M_R. In particular x=X_1 and y=Y_1 preserve M, and h=[x,y]=xy-yx does too by H004. These integral operators obey the Chevalley brackets on M and therefore induce the stated action after tensoring. For any 0≤t≤λ, H003 gives t<p; applying M006 with ℓ=p to this arbitrary t and H001 gives p coprime to t!, hence p does not divide t!. Thus 1/t!∈R and t! is a unit. In particular λ!, j!, (λ-j)! are units for j∈I. The integer identity binom(λ,j)j!(λ-j)!=λ! shows that binom(λ,j) is a unit of R, with inverse j!(λ-j)!/λ!.",
+          "uses": [
+            "H001",
+            "H003",
+            "H004",
+            "H006",
+            "M006"
+          ],
+          "uses_local": [
+            "F002"
+          ],
+          "objects": [
+            "M",
+            "M_R",
+            "R",
+            "X",
+            "Y",
+            "x",
+            "y",
+            "h",
+            "p",
+            "λ",
+            "I"
+          ],
+          "produces": [
+            {
+              "id": "F003",
+              "statement": "All X_r,Y_r preserve M_R, and x,y,h preserve M. For 0≤t≤λ, t! is a unit of R; for every j∈I, binom(λ,j) is a unit of R.",
+              "binders": [
+                {
+                  "symbol": "r",
+                  "type": "nonnegative integer"
+                },
+                {
+                  "symbol": "t",
+                  "type": "integer with 0≤t≤λ"
+                },
+                {
+                  "symbol": "j",
+                  "type": "element of I"
+                }
+              ],
+              "objects": [
+                "X",
+                "Y",
+                "M_R",
+                "M",
+                "x",
+                "y",
+                "h",
+                "t",
+                "λ",
+                "R",
+                "j",
+                "I",
+                "r"
+              ],
+              "assumptions": []
+            }
+          ],
+          "introduces": [],
+          "discharges": []
+        },
+        {
+          "id": "S004",
+          "text": "Compute on the complex e-basis of N001. X_λ kills all e_k with k<λ and sends e_λ to e_0 with coefficient binom(λ,λ)=1; Y_λ sends e_0 to e_λ with coefficient 1. Thus Y_λ X_λ=E_{λλ}. Also X_{λ-i}e_λ=e_i with coefficient 1, so X_{λ-i}E_{λλ}=E_{iλ}. For E_{λλ}Y_{λ-j}, an input e_k with k<j is sent below e_λ and killed by the projection; if k>j it is sent beyond the end of the string and is zero. On e_j the coefficient is binom(λ,λ-j)=binom(λ,j). Thus E_{λλ}Y_{λ-j}=binom(λ,j)E_{λj}. Composing gives E_ij=binom(λ,j)^{-1}X_{λ-i}Y_λ X_λ Y_{λ-j}. Every factor preserves M_R by F003, and its scalar lies in R. Hence all E_ij preserve M_R. These identities and preservation statements require no distinction of weights modulo p.",
+          "uses": [
+            "N001"
+          ],
+          "uses_local": [
+            "F002",
+            "F003"
+          ],
+          "objects": [
+            "I",
+            "e",
+            "λ",
+            "X",
+            "Y",
+            "E",
+            "M_R",
+            "R",
+            "p"
+          ],
+          "produces": [],
+          "introduces": [],
+          "discharges": []
+        }
+      ],
+      "applications": [
+        {
+          "input": "M002",
+          "at": "S001",
+          "bindings": "A=ℂ, T=V, f the complex basis supplied by H006, Q its finite index set.",
+          "hypothesis_checks": [
+            "ℂ is a field, hence satisfies the strong rank condition.",
+            "V is a complex vector space.",
+            "H006 supplies a complex basis; its index set is finite since H004 gives finite dimension."
+          ]
+        },
+        {
+          "input": "M001",
+          "at": "S002",
+          "bindings": "A=ℤ, B=R, T=M, Q=I, basis f from F001, for every i∈I.",
+          "hypothesis_checks": [
+            "ℤ is commutative and R is the rational subring established in S001, with its integer algebra map.",
+            "M is an abelian group and ℤ-module.",
+            "The chosen f is an integer basis by F001; its indices are exactly I."
+          ]
+        },
+        {
+          "input": "M006",
+          "at": "S003",
+          "bindings": "ℓ=p and t an arbitrary integer 0≤t≤λ regarded as a natural number.",
+          "hypothesis_checks": [
+            "H001 gives primality of p.",
+            "H003 and t≤λ give t<p."
+          ]
+        }
+      ]
+    },
+    "warning": "Same-author inspection under the shared verified-background policy: direct inputs, definitions and fixed logic are supplied; eligible routine background may receive audit notes. No ancestor/other producer body or extra H is available. Inspect important source types separately. This read produces no judgment."
+  },
+  "scope": "Actual same-author tool view only; no mathematical judgment or independent review."
+}

@@ -399,6 +399,8 @@ def prepare(case, problem, out, *, reuse_from=()):
         manifest(directory);(directory/'prompt.txt').write_text(PACKET)
         jobs.append({'id':rid,'library':False})
     inherited={scope:audit_reuse.materialize(hit,case) for scope,hit in hits.items()}
+    # Validate transported evidence before spending model calls on remaining work.
+    for scope,binding in inherited.items():audit_reuse.validate(case,binding,data,scope)
     plan={'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
           'global_overview':bind(g/'global-overview.json'),
           'jobs':jobs,'inherited':inherited,'status':'PREPARED_NOT_REVIEWED',
@@ -469,13 +471,26 @@ def collect(out, controls):
         if bind(plan[name]['path']) != plan[name]: raise ValueError('Source changed after review preparation')
     data=nl0.validate(case/'nl0.json',case/'spec.json')
     reports={};evidence={};qualifications=[]
+    index_repairs=[]
+    def inherited_review(scope):
+        binding=plan['inherited'][scope]
+        try:cached=audit_reuse.validate(case,binding,data,scope)
+        except audit_reuse.EvidenceIndexError:
+            binding,repair=audit_reuse.repair_evidence_index(case,binding,data,scope)
+            index_repairs.append(repair);plan['inherited'][scope]=binding
+            write(out/'bookkeeping-repairs.json',{'kind':'VALIDATED_EVIDENCE_INDEX_RECOVERY','repairs':index_repairs,
+                'new_model_calls':0,'new_native_checks':0,'source_and_judgments_changed':False})
+            cached=audit_reuse.validate(case,binding,data,scope)
+        return binding,cached
+    def inherited_evidence(binding,cached):
+        original=cached['record'].get('index_repair',{}).get('original')
+        return [binding,*([original] if original else []),*cached['record']['previous'].values()]
     for job in plan['jobs']:
         directory=out/job['id']/'stage'
         if 'packet:'+job['id'] in plan.get('inherited',{}):
-            inherited=plan['inherited']['packet:'+job['id']]
-            cached=audit_reuse.validate(case,inherited,data,'packet:'+job['id'])
+            inherited,cached=inherited_review('packet:'+job['id'])
             reports[job['id']]=cached['raw']
-            evidence[job['id']]=[inherited,*cached['record']['previous'].values()]
+            evidence[job['id']]=inherited_evidence(inherited,cached)
             qualifications.append(cached['record']['qualification'])
             continue
         if job['library'] and not job.get('required_scopes',['legacy-full']):
@@ -501,11 +516,11 @@ def collect(out, controls):
     global_=reports['global'];global_evidence={}
     for scope,inherited in plan.get('inherited',{}).items():
         if scope.startswith('packet:'):continue
-        cached=audit_reuse.validate(case,inherited,data,scope)
+        inherited,cached=inherited_review(scope)
         pointer={'target':'/target_review','structure':'/structure_review'}.get(scope,
             '/definition_reviews/'+scope.split(':')[-1] if scope.startswith('definition:') else '/source_reviews/'+scope.split(':')[-1])
         put(global_,pointer,cached['raw'])
-        global_evidence[scope]=[inherited,*cached['record']['previous'].values()]
+        global_evidence[scope]=inherited_evidence(inherited,cached)
         qualifications.append(cached['record']['qualification'])
     if set(global_['definition_reviews'])!=set(data[5]) or set(global_['source_reviews'])!={k for k,p in data[3].items() if p['kind'] in {'mathlib','external'}}:
         raise ValueError('Incomplete global definition/source review coverage')
@@ -571,11 +586,11 @@ def collect(out, controls):
         actual['replay']={'packet_sha256':packet['packet_sha256'],'mode':background.MODE,
             'carrier':str(out/rid/'stage'),'prior_exposure':[],
             'library_evidence':library_evidence,
-            'read_materials':['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]}
+            'read_materials':list(dict.fromkeys(['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]))}
         if inherited:
             actual['inheritance']=inherited
             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
-                                    read_materials=['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])
+                                    read_materials=list(dict.fromkeys(['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])))
         receipt['inference_reviews'][rid]=actual
     blocking_global = global_['structure_review']['verdict'] != 'PASS' or any(
         blocking_finding(f) for f in global_.get('findings', []))
@@ -594,6 +609,7 @@ def collect(out, controls):
     inspection['calibration_qualification']='NOT_RUN' if controls is None else 'PASSED'
     inspection['experiment_qualified']=bool(controls and inspection['full_acceptance'])
     inspection['inherited_items']=sorted(plan.get('inherited',{}))
+    inspection['bookkeeping_repairs']=index_repairs
     inspection['measurement_complete']=bool(qualifications) and all(q['measurement_complete'] for q in qualifications)
     inspection['execution_qualifications']=qualifications
     inspection['benchmark_timing_qualified']=bool(qualifications) and all(q['measurement_valid'] for q in qualifications)

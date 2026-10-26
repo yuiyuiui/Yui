@@ -1,0 +1,345 @@
+{
+  "format_version": 2,
+  "case_id": "wave-map-energy",
+  "full_target": "Let n,m be integer dimensions with n,m≥1, let u:ℝ^n×(0,∞)→ℝ^m be jointly smooth, and fix q∈ℝ^m with |q|=1. Assume |u(x,t)|=1 everywhere; at every (x,t) there exists a real a with u_tt(x,t)−Δ_xu(x,t)=a u(x,t), with no regularity of a assumed; and for every 0<s<t<∞ there is a compact C_[s,t]⊂ℝ^n such that u(x,r)=q for x∉C_[s,t] and r∈[s,t]. Spatial compact support means this locally uniform compact support of the perturbation u−q, not compact support of u itself. With Euclidean norms, Frobenius spatial gradient square, componentwise Laplacian and Lebesgue measure, put e(x,t)=|u_t(x,t)|²+Σ_{j=1}^n|∂_{x_j}u(x,t)|² and E(t)=∫_{ℝ^n}e(x,t) dx. Prove integrability of every spatial section of e, differentiability of E on (0,∞), and E'(t)=0 for every t>0; consequently E is constant there. There is no assertion at time zero.",
+  "conclusion": "For every t>0, e(·,t) is Lebesgue integrable on ℝ^n. The finite integral E is differentiable on (0,∞), and for every t>0, E'(t)=0. For every s,t>0, E(s)=E(t).",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "natural number"
+    },
+    {
+      "symbol": "m",
+      "type": "natural number"
+    },
+    {
+      "symbol": "u",
+      "type": "map ℝ^n×(0,∞)→ℝ^m"
+    },
+    {
+      "symbol": "q",
+      "type": "vector in ℝ^m"
+    }
+  ],
+  "hypotheses": [
+    {
+      "id": "H001",
+      "statement": "n≥1 and m≥1.",
+      "origin": "problem.md:25"
+    },
+    {
+      "id": "H002",
+      "statement": "u:ℝ^n×(0,∞)→ℝ^m is jointly smooth.",
+      "origin": "problem.md:25-26"
+    },
+    {
+      "id": "H003",
+      "statement": "|q|=1.",
+      "origin": "problem.md:27"
+    },
+    {
+      "id": "H004",
+      "statement": "For every x∈ℝ^n and t>0, |u(x,t)|=1.",
+      "origin": "problem.md:29"
+    },
+    {
+      "id": "H005",
+      "statement": "For every x∈ℝ^n and t>0 there exists a real scalar a such that u_tt(x,t)−Δ_xu(x,t)=a u(x,t). No regularity of a selection of these scalars is assumed.",
+      "origin": "problem.md:30-33"
+    },
+    {
+      "id": "H006",
+      "statement": "For every pair of real times 0<s<t<∞ there is a compact set C_[s,t]⊂ℝ^n such that for every x∉C_[s,t] and every r∈[s,t], u(x,r)=q.",
+      "origin": "problem.md:34-36"
+    }
+  ],
+  "definitions": [
+    {
+      "id": "D001",
+      "symbol": "ut",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "ut(x,t)=u_t(x,t)=d/dr u(x,r)|_{r=t}, the time partial derivative. Derivative notation uses the usual total derivative convention (zero if a derivative does not exist); no regularity property is granted by this definition.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "u",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D002",
+      "symbol": "utt",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "utt(x,t)=u_tt(x,t)=d/dr ut(x,r)|_{r=t}, with the same total derivative convention.",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "ut",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D003",
+      "symbol": "dxu",
+      "type": "family of maps ℝ^n×(0,∞)→ℝ^m indexed by j∈{1,…,n}",
+      "definition": "dxu(j,x,t)=∂_{x_j}u(x,t), the partial derivative in the jth standard coordinate, with the total derivative convention. Further expressions ∂_{x_j}ut and ∂_{x_j}dxu(j,·,t) denote partial derivatives of the displayed functions; the latter is ∂_{x_jx_j}u.",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "j",
+          "type": "integer spatial index, 1≤j≤n"
+        },
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "u",
+        "ut",
+        "n",
+        "j",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D004",
+      "symbol": "lap",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "lap(x,t)=Δ_xu(x,t)=Σ_{j=1}^n ∂_{x_j}dxu(j,x,t)=Σ_{j=1}^n ∂_{x_jx_j}u(x,t), component by component.",
+      "depends_on": [
+        "D003"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "dxu",
+        "n",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D005",
+      "symbol": "e",
+      "type": "map ℝ^n×(0,∞)→ℝ",
+      "definition": "e(x,t)=|u_t(x,t)|²+Σ_{j=1}^n|∂_{x_j}u(x,t)|²=|ut(x,t)|²+Σ_{j=1}^n|dxu(j,x,t)|². Norms are Euclidean; the sum is exactly the Frobenius square |D_xu|², with no factor 1/2.",
+      "depends_on": [
+        "D001",
+        "D003"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "ut",
+        "dxu",
+        "n",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D006",
+      "symbol": "et",
+      "type": "map ℝ^n×(0,∞)→ℝ",
+      "definition": "et(x,t)=e_t(x,t)=d/dr e(x,r)|_{r=t}, with the total derivative convention. Its derivative and integral properties are proved, not part of the definition.",
+      "depends_on": [
+        "D005"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "e",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D007",
+      "symbol": "E",
+      "type": "real-valued function on (0,∞)",
+      "definition": "E(t)=∫_{ℝ^n}e(x,t) dx, with Lebesgue measure, for t>0. This is the finite energy integral; its use is guarded by absolute integrability of every spatial section of e.",
+      "depends_on": [
+        "D005"
+      ],
+      "requires": [
+        "N002"
+      ],
+      "binders": [
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "e",
+        "n",
+        "t"
+      ]
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "implication_introduction",
+      "exists_elimination",
+      "case_elimination"
+    ],
+    "calculations": [
+      "equality",
+      "definitions",
+      "finite_algebra",
+      "finite_order",
+      "finite_sums"
+    ],
+    "primitives": [
+      {
+        "symbol": "0",
+        "type": "typed numeral",
+        "meaning": "Zero of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "1",
+        "type": "typed numeral",
+        "meaning": "One of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "2",
+        "type": "typed numeral",
+        "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+      },
+      {
+        "symbol": "ℕ",
+        "type": "number system",
+        "meaning": "The natural numbers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℤ",
+        "type": "number system",
+        "meaning": "The integers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℚ",
+        "type": "number system",
+        "meaning": "The rational numbers with their usual ordered-field operations."
+      },
+      {
+        "symbol": "ℝ",
+        "type": "number system",
+        "meaning": "The real numbers with their usual ordered-field structure."
+      },
+      {
+        "symbol": "ℂ",
+        "type": "number system",
+        "meaning": "The complex numbers with their usual field structure."
+      },
+      {
+        "symbol": "∅",
+        "type": "typed set notation",
+        "meaning": "The empty set in the explicitly specified ambient type."
+      },
+      {
+        "symbol": "∞",
+        "type": "typed order notation",
+        "meaning": "The top element in an explicitly specified extended ordered codomain."
+      },
+      {
+        "symbol": "norm",
+        "type": "norm notation",
+        "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+      },
+      {
+        "symbol": "∂",
+        "type": "derivative notation",
+        "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+      },
+      {
+        "symbol": "∫",
+        "type": "integral notation",
+        "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+      },
+      {
+        "symbol": "Integrable",
+        "type": "predicate notation",
+        "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+      },
+      {
+        "symbol": "AEStronglyMeasurable",
+        "type": "predicate notation",
+        "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "inputs": [
+    {
+      "path": "inputs/problem.md",
+      "sha256": "e858e20c3c50892224d315966ffed960bc0a4713ce9d2b9a3139dc84b49600ac"
+    }
+  ]
+}

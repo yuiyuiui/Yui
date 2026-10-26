@@ -16,12 +16,12 @@ from execution_health import StageFailure, qualification, review_outcome, record
 def accepted(directory):
     directory=Path(directory);row=ir.load(directory/'stage/result.json')
     if row['status']=='CANCELLED':raise execution_state.Cancelled('Stage cancelled externally')
-    checked=qualification(row)
+    checked=record_qualification(row)
     if not checked['identity_and_input_boundary_verified']:
         raise StageFailure('EXECUTION_UNQUALIFIED','Model identity or input boundary is unverified',evidence=directory/'stage/result.json',details=checked)
-    if row['status']!='ACCEPTED' or checked['execution_health']!='NO_RECORDED_FAULT':
+    if row['status']!='ACCEPTED' or not checked['submitted_record_qualified']:
         raise StageFailure(row.get('task_outcome') or 'EXECUTION_UNQUALIFIED',
-            'Stage did not deliver a healthy submitted artifact; preserve actual candidates for explicit qualified recovery',
+            'Stage did not deliver a qualified submitted artifact; preserve actual faults and candidates',
             evidence=directory/'stage/result.json',details=checked)
     return row
 

@@ -1,0 +1,135 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For fixed s>0 and 0<δ₁≤δ₂, Hscale(s,δ₂,E)≤Hscale(s,δ₁,E).",
+    "justification": "The δ₁-admissible cover costs form a subset of the δ₂-admissible cover costs: the covering condition and exponent are unchanged and every diameter ≤δ₁ is ≤δ₂. Apply sInf_le_sInf to these two sets of costs in [0,∞]. This verifies precisely the stated monotonicity, not an analytic limit theorem. The codomain is the extended nonnegative reals, whose complete linear order instance was read in Mathlib/Data/ENNReal/Basic.lean:152-153.",
+    "grounds": [
+      {
+        "location": "/definitions/2/definition",
+        "reason": "D003 defines the admissible covers, their costs and infima in [0,∞]."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The exponent s is positive and scales under discussion are positive; the claim concerns decreasing allowed scale."
+      }
+    ],
+    "source": {
+      "declaration": "sInf_le_sInf",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@sInf_le_sInf : ∀ {α : Type u_1} [inst : CompleteSemilatticeInf.{u_1} α] {s t : Set.{u_1} α},\n  s ⊆ t → LE.le.{u_1} (sInf.{u_1} t) (sInf.{u_1} s)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M002-0002/library-sources.json",
+          "sha256": "0c38ba9f86cb2e950dd8ed2edafa4d369496caebd0314d485b181979080849e1"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "If Hmeasure(s,E)=∞, then for every finite K≥0 and every δ₀>0 there is a scale 0<δ≤δ₀ with K<Hscale(s,δ,E).",
+    "justification": "Apply iSup_eq_top to f indexed by positive real δ with f(δ)=Hscale(s,δ,E). D004 identifies its supremum with Hmeasure, and N001 gives that value ∞ here. The codomain [0,∞] has the complete linear order required by the probed theorem, as read in Mathlib/Data/ENNReal/Basic.lean:152-153. The theorem supplies a positive scale δ′ with K<f(δ′). Taking δ=min(δ′,δ₀), elementary order and the already checked cover-class monotonicity retain this bound. This is the ordinary supremum meaning of 'arbitrarily large as δ↓0', not an exchange of limits.",
+    "grounds": [
+      {
+        "location": "/definitions/3/definition",
+        "reason": "D004 is the supremum over all positive scales in [0,∞]."
+      },
+      {
+        "location": "/inputs/0/statement",
+        "reason": "N001 supplies Hmeasure(s,E)=∞ when 0<s<hdim(E)."
+      },
+      {
+        "location": "/definitions/5/definition",
+        "reason": "D identifies hdim(E), so the local 0<s<D meets the N001 condition."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "s is fixed positive below D and the cover-class monotonicity is justified in the same paragraph and BG001."
+      }
+    ],
+    "source": {
+      "declaration": "iSup_eq_top",
+      "module": "Mathlib.Order.CompleteLattice.Defs",
+      "signature": "@iSup_eq_top : ∀ {α : Type u_1} {ι : Sort u_4} [inst : CompleteLinearOrder.{u_1} α] {f : ι → α},\n  Eq.{u_1 + 1} (iSup.{u_1, u_4} f) Top.top.{u_1} ↔ ∀ (b : α), LT.lt.{u_1} b Top.top.{u_1} → ∃ i, LT.lt.{u_1} b (f i)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Defs.lean",
+      "source_sha256": "a20e6c3a992a9683a33fdff863abb6ec8d36c26d78765950600259bcc23c70b0",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M003-0003/library-sources.json",
+          "sha256": "f405b539130097bcb8361bcf6cd7180fb2b7b5893dce0b9ac6fbdf2bb6bc1249"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "For s>0, the inequalities N004 imply Hmeasure(s,E)≤Hmeasure(s+1,F). Consequently Hmeasure(s,E)=∞ forces Hmeasure(s+1,F)=∞.",
+    "justification": "Use iSup_mono with index type {δ:ℝ // 0<δ}, codomain [0,∞], f(δ)=Hscale(s,δ,E) and g(δ)=Hscale(s+1,δ,F). Every pointwise premise is exactly N004 and s+1>0 follows from s>0. D004 identifies both suprema. Since ∞ is the largest element, an upper bound for ∞ equals ∞. The required complete lattice is supplied by the usual extended nonnegative real complete linear order read in Mathlib/Data/ENNReal/Basic.lean:152-153. This is a basic order application to the displayed proof, not a new geometric ingredient.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "N004 provides the pointwise comparison for every positive s and δ."
+      },
+      {
+        "location": "/definitions/3/definition",
+        "reason": "D004 identifies Hmeasure with these positive-scale suprema."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The current s is positive and Hmeasure(s,E)=∞ was already derived from N001."
+      }
+    ],
+    "source": {
+      "declaration": "iSup_mono",
+      "module": "Mathlib.Order.CompleteLattice.Basic",
+      "signature": "@iSup_mono : ∀ {α : Type u_1} {ι : Sort u_4} [inst : CompleteLattice.{u_1} α] {f g : ι → α},\n  (∀ (i : ι), LE.le.{u_1} (f i) (g i)) → LE.le.{u_1} (iSup.{u_1, u_4} f) (iSup.{u_1, u_4} g)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Order/CompleteLattice/Basic.lean",
+      "source_sha256": "fbee6c2fe2a4d59c738fa73939f54f1462ecd8418f4d98cc542435329fb4503f",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M001-0001/library-sources.json",
+          "sha256": "06505ea03e55a5315c7e0f1b7d10a4b0c1a2ebc7541ec3933fa6c85c2c9f1d83"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "elementary",
+    "at": "/inference/argument/1/text",
+    "fact": "For finite real D>0, if x∈[0,∞] satisfies x≥s+1 for every real 0<s<D, then x≥D+1.",
+    "justification": "This expands the packet's explicit order argument. For any real q<D+1 set m=max(0,q−1) and s=(D+m)/2. Both 0≤m<D and m<s<D follow from D>0 and q−1<D. Thus 0<s<D and q<s+1. If x=∞ the conclusion is immediate. If x is finite and x<D+1, take q to be its real representative; the displayed s gives x<s+1, contradicting the given bound. No continuity or convergence theorem is required, and no finiteness of x is assumed. This is routine ordered-field completion of the exact route already stated.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "N002 supplies the finite real representative for D."
+      },
+      {
+        "location": "/inference/argument/0/produces/0/statement",
+        "reason": "F001 supplies all bounds x=hdim(F)≥s+1 for 0<s<D."
+      },
+      {
+        "location": "/inference/argument/1/text",
+        "reason": "D>0 remains the open assumption and the paragraph explicitly uses numbers below D+1."
+      },
+      {
+        "location": "/definitions/4/type",
+        "reason": "hdim(F) takes values in [0,∞], including the infinite case."
+      }
+    ]
+  }
+]

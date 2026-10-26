@@ -1,0 +1,21 @@
+{
+  "statement": "∀ a : ℝ, 1 < a → Filter.Tendsto (fun N : ℕ => ENNReal.ofReal ((N : ℝ) ^ (1-a))) Filter.atTop (nhds 0) ∧ ∀ δ : ℝ, 0 < δ → ∀ᶠ N : ℕ in Filter.atTop, 0 < N ∧ 1 / (N : ℝ) ≤ δ",
+  "proof": "intro a ha\nconstructor\n· have h : Filter.Tendsto (fun N : ℕ => (N : ℝ) ^ (1-a)) Filter.atTop (nhds 0) := by\n    simpa only [Function.comp_def, neg_sub] using (tendsto_rpow_neg_atTop (sub_pos.mpr ha)).comp (tendsto_natCast_atTop_atTop (R := ℝ))\n  simpa using ENNReal.tendsto_ofReal h\n· intro δ hδ\n  have h : Filter.Tendsto (fun N : ℕ => 1 / (N : ℝ)) Filter.atTop (nhds 0) := by\n    simpa only [Function.comp_def, one_div] using tendsto_inv_atTop_zero.comp (tendsto_natCast_atTop_atTop (R := ℝ))\n  filter_upwards [Filter.eventually_gt_atTop 0, h.eventually (gt_mem_nhds hδ)] with N hN hNd\n  exact ⟨hN, hNd.le⟩",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-jtuca1ph/output/Auxiliary.lean:23:41: warning: Variable name `h_T002` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-jtuca1ph/output/Auxiliary.lean:23:334: warning: Variable name `h_T005` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n      0 < s →\n        Hmeasure s A = Hnative s A ∧\n          (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n            (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n              (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)) →\n    Bornology.IsBounded E ∧\n        (∀ (s δ : ℝ),\n            0 < s →\n              0 < δ →\n                ∃ k U,\n                  E ⊆ ⋃ i, U i ∧\n                    (∀ (i : Fin k), Metric.ediam (U i) ≤ ENNReal.ofReal δ) ∧ ∑ i, Metric.ediam (U i) ^ s < ∞) ∧\n          (∀ (s δ : ℝ), 0 < s → 0 < δ → Hscale s δ E < ∞) ∧\n            0 ≤ dimH E ∧ dimH E ≤ ↑n ∧ dimH E < ∞ ∧ (n = 0 → E = Set.univ ∧ dimH E = 0) →\n      ∀ (a : ℝ),\n        1 < a →\n          Filter.Tendsto (fun N => ENNReal.ofReal (↑N ^ (1 - a))) Filter.atTop (nhds 0) ∧\n            ∀ (δ : ℝ), 0 < δ → ∀ᶠ (N : ℕ) in Filter.atTop, 0 < N ∧ 1 / ↑N ≤ δ\n'YuiAuxiliary.checked' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.9267189169768244,
+    "auxiliary_valid": true,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T006",
+    "candidate": 9,
+    "accepted": true,
+    "stage_complete": false
+  }
+}

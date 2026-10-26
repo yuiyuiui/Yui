@@ -1,0 +1,2642 @@
+{
+  "spec": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "full_target": "Let n,m be integer dimensions with n,m≥1, let u:ℝ^n×(0,∞)→ℝ^m be jointly smooth, and fix q∈ℝ^m with |q|=1. Assume |u(x,t)|=1 everywhere; at every (x,t) there exists a real a with u_tt(x,t)−Δ_xu(x,t)=a u(x,t), with no regularity of a assumed; and for every 0<s<t<∞ there is a compact C_[s,t]⊂ℝ^n such that u(x,r)=q for x∉C_[s,t] and r∈[s,t]. Spatial compact support means this locally uniform compact support of the perturbation u−q, not compact support of u itself. With Euclidean norms, Frobenius spatial gradient square, componentwise Laplacian and Lebesgue measure, put e(x,t)=|u_t(x,t)|²+Σ_{j=1}^n|∂_{x_j}u(x,t)|² and E(t)=∫_{ℝ^n}e(x,t) dx. Prove integrability of every spatial section of e, differentiability of E on (0,∞), and E'(t)=0 for every t>0; consequently E is constant there. There is no assertion at time zero.",
+    "conclusion": "For every t>0, e(·,t) is Lebesgue integrable on ℝ^n. The finite integral E is differentiable on (0,∞), and for every t>0, E'(t)=0. For every s,t>0, E(s)=E(t).",
+    "parameters": [
+      {
+        "symbol": "n",
+        "type": "natural number"
+      },
+      {
+        "symbol": "m",
+        "type": "natural number"
+      },
+      {
+        "symbol": "u",
+        "type": "map ℝ^n×(0,∞)→ℝ^m"
+      },
+      {
+        "symbol": "q",
+        "type": "vector in ℝ^m"
+      }
+    ],
+    "hypotheses": [
+      {
+        "id": "H001",
+        "statement": "n≥1 and m≥1.",
+        "origin": "problem.md:25"
+      },
+      {
+        "id": "H002",
+        "statement": "u:ℝ^n×(0,∞)→ℝ^m is jointly smooth.",
+        "origin": "problem.md:25-26"
+      },
+      {
+        "id": "H003",
+        "statement": "|q|=1.",
+        "origin": "problem.md:27"
+      },
+      {
+        "id": "H004",
+        "statement": "For every x∈ℝ^n and t>0, |u(x,t)|=1.",
+        "origin": "problem.md:29"
+      },
+      {
+        "id": "H005",
+        "statement": "For every x∈ℝ^n and t>0 there exists a real scalar a such that u_tt(x,t)−Δ_xu(x,t)=a u(x,t). No regularity of a selection of these scalars is assumed.",
+        "origin": "problem.md:30-33"
+      },
+      {
+        "id": "H006",
+        "statement": "For every pair of real times 0<s<t<∞ there is a compact set C_[s,t]⊂ℝ^n such that for every x∉C_[s,t] and every r∈[s,t], u(x,r)=q.",
+        "origin": "problem.md:34-36"
+      }
+    ],
+    "definitions": [
+      {
+        "id": "D001",
+        "symbol": "ut",
+        "type": "map ℝ^n×(0,∞)→ℝ^m",
+        "definition": "ut(x,t)=u_t(x,t)=d/dr u(x,r)|_{r=t}, the time partial derivative. Derivative notation uses the usual total derivative convention (zero if a derivative does not exist); no regularity property is granted by this definition.",
+        "depends_on": [],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "u",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D002",
+        "symbol": "utt",
+        "type": "map ℝ^n×(0,∞)→ℝ^m",
+        "definition": "utt(x,t)=u_tt(x,t)=d/dr ut(x,r)|_{r=t}, with the same total derivative convention.",
+        "depends_on": [
+          "D001"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "ut",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D003",
+        "symbol": "dxu",
+        "type": "family of maps ℝ^n×(0,∞)→ℝ^m indexed by j∈{1,…,n}",
+        "definition": "dxu(j,x,t)=∂_{x_j}u(x,t), the partial derivative in the jth standard coordinate, with the total derivative convention. Further expressions ∂_{x_j}ut and ∂_{x_j}dxu(j,·,t) denote partial derivatives of the displayed functions; the latter is ∂_{x_jx_j}u.",
+        "depends_on": [
+          "D001"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "j",
+            "type": "integer spatial index, 1≤j≤n"
+          },
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "u",
+          "ut",
+          "n",
+          "j",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D004",
+        "symbol": "lap",
+        "type": "map ℝ^n×(0,∞)→ℝ^m",
+        "definition": "lap(x,t)=Δ_xu(x,t)=Σ_{j=1}^n ∂_{x_j}dxu(j,x,t)=Σ_{j=1}^n ∂_{x_jx_j}u(x,t), component by component.",
+        "depends_on": [
+          "D003"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "dxu",
+          "n",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D005",
+        "symbol": "e",
+        "type": "map ℝ^n×(0,∞)→ℝ",
+        "definition": "e(x,t)=|u_t(x,t)|²+Σ_{j=1}^n|∂_{x_j}u(x,t)|²=|ut(x,t)|²+Σ_{j=1}^n|dxu(j,x,t)|². Norms are Euclidean; the sum is exactly the Frobenius square |D_xu|², with no factor 1/2.",
+        "depends_on": [
+          "D001",
+          "D003"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "ut",
+          "dxu",
+          "n",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D006",
+        "symbol": "et",
+        "type": "map ℝ^n×(0,∞)→ℝ",
+        "definition": "et(x,t)=e_t(x,t)=d/dr e(x,r)|_{r=t}, with the total derivative convention. Its derivative and integral properties are proved, not part of the definition.",
+        "depends_on": [
+          "D005"
+        ],
+        "requires": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "e",
+          "x",
+          "t"
+        ]
+      },
+      {
+        "id": "D007",
+        "symbol": "E",
+        "type": "real-valued function on (0,∞)",
+        "definition": "E(t)=∫_{ℝ^n}e(x,t) dx, with Lebesgue measure. N002 establishes absolute integrability for every t>0 before E is used as this finite energy integral.",
+        "depends_on": [
+          "D005"
+        ],
+        "requires": [
+          "N002"
+        ],
+        "binders": [
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "e",
+          "n",
+          "t"
+        ]
+      }
+    ],
+    "logic": {
+      "classical": true,
+      "rules": [
+        "direct",
+        "forall_introduction",
+        "implication_introduction",
+        "exists_elimination",
+        "case_elimination"
+      ],
+      "calculations": [
+        "equality",
+        "definitions",
+        "finite_algebra",
+        "finite_order",
+        "finite_sums"
+      ],
+      "primitives": [
+        {
+          "symbol": "0",
+          "type": "typed numeral",
+          "meaning": "Zero of the explicitly specified mathematical type."
+        },
+        {
+          "symbol": "1",
+          "type": "typed numeral",
+          "meaning": "One of the explicitly specified mathematical type."
+        },
+        {
+          "symbol": "2",
+          "type": "typed numeral",
+          "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+        },
+        {
+          "symbol": "ℕ",
+          "type": "number system",
+          "meaning": "The natural numbers with their usual arithmetic."
+        },
+        {
+          "symbol": "ℤ",
+          "type": "number system",
+          "meaning": "The integers with their usual arithmetic."
+        },
+        {
+          "symbol": "ℚ",
+          "type": "number system",
+          "meaning": "The rational numbers with their usual ordered-field operations."
+        },
+        {
+          "symbol": "ℝ",
+          "type": "number system",
+          "meaning": "The real numbers with their usual ordered-field structure."
+        },
+        {
+          "symbol": "ℂ",
+          "type": "number system",
+          "meaning": "The complex numbers with their usual field structure."
+        },
+        {
+          "symbol": "∅",
+          "type": "typed set notation",
+          "meaning": "The empty set in the explicitly specified ambient type."
+        },
+        {
+          "symbol": "∞",
+          "type": "typed order notation",
+          "meaning": "The top element in an explicitly specified extended ordered codomain."
+        },
+        {
+          "symbol": "norm",
+          "type": "norm notation",
+          "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+        },
+        {
+          "symbol": "∂",
+          "type": "derivative notation",
+          "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+        },
+        {
+          "symbol": "∫",
+          "type": "integral notation",
+          "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+        },
+        {
+          "symbol": "Integrable",
+          "type": "predicate notation",
+          "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+        },
+        {
+          "symbol": "AEStronglyMeasurable",
+          "type": "predicate notation",
+          "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+        }
+      ]
+    },
+    "pins": {
+      "lean_version": "4.32.2",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+    },
+    "inputs": [
+      {
+        "path": "inputs/problem.md",
+        "sha256": "e858e20c3c50892224d315966ffed960bc0a4713ce9d2b9a3139dc84b49600ac"
+      }
+    ]
+  },
+  "graph": {
+    "format_version": 2,
+    "case_id": "wave-map-energy",
+    "spec_sha256": "01349ad87d2c892d13c935d6b4536b585fe7e3445448f80c46429818ccb6fd95",
+    "propositions": [
+      {
+        "id": "H001",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "n",
+          "m"
+        ],
+        "statement": "n≥1 and m≥1."
+      },
+      {
+        "id": "H002",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "u",
+          "n",
+          "m"
+        ],
+        "statement": "u:ℝ^n×(0,∞)→ℝ^m is jointly smooth."
+      },
+      {
+        "id": "H003",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [],
+        "objects": [
+          "q"
+        ],
+        "statement": "|q|=1."
+      },
+      {
+        "id": "H004",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "u",
+          "x",
+          "t",
+          "n"
+        ],
+        "statement": "For every x∈ℝ^n and t>0, |u(x,t)|=1."
+      },
+      {
+        "id": "H005",
+        "kind": "hypothesis",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D004"
+        ],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "a",
+            "type": "real scalar existentially bound at (x,t)"
+          }
+        ],
+        "objects": [
+          "u",
+          "utt",
+          "lap",
+          "x",
+          "t",
+          "a",
+          "n"
+        ],
+        "statement": "For every x∈ℝ^n and t>0 there exists a real scalar a such that u_tt(x,t)−Δ_xu(x,t)=a u(x,t). No regularity of a selection of these scalars is assumed."
+      },
+      {
+        "id": "H006",
+        "kind": "hypothesis",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "s",
+            "type": "real time"
+          },
+          {
+            "symbol": "t",
+            "type": "real time"
+          },
+          {
+            "symbol": "C_[s,t]",
+            "type": "existentially bound compact subset of ℝ^n"
+          },
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "r",
+            "type": "real time"
+          }
+        ],
+        "objects": [
+          "u",
+          "q",
+          "n",
+          "s",
+          "t",
+          "C_[s,t]",
+          "x",
+          "r"
+        ],
+        "statement": "For every pair of real times 0<s<t<∞ there is a compact set C_[s,t]⊂ℝ^n such that for every x∉C_[s,t] and every r∈[s,t], u(x,r)=q."
+      },
+      {
+        "id": "M001",
+        "kind": "mathlib",
+        "statement": "Let 𝕂 be an RCLike scalar field, V a normed additive commutative group with an inner product space structure over 𝕂 and also a normed space structure over ℝ. For functions f,g:ℝ→V, vectors v_f,v_g∈V and ξ∈ℝ, if HasDerivAt f v_f ξ and HasDerivAt g v_g ξ, then HasDerivAt (r↦⟨f(r),g(r)⟩_𝕂) (⟨f(ξ),v_g⟩_𝕂+⟨v_f,g(ξ)⟩_𝕂) ξ.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "𝕂",
+            "type": "RCLike scalar field"
+          },
+          {
+            "symbol": "V",
+            "type": "normed additive commutative group, inner product space over 𝕂, normed space over ℝ"
+          },
+          {
+            "symbol": "f",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "g",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "v_f",
+            "type": "V"
+          },
+          {
+            "symbol": "v_g",
+            "type": "V"
+          },
+          {
+            "symbol": "ξ",
+            "type": "ℝ"
+          }
+        ],
+        "objects": [
+          "𝕂",
+          "V",
+          "f",
+          "g",
+          "v_f",
+          "v_g",
+          "ξ"
+        ],
+        "source": {
+          "declaration": "HasDerivAt.inner",
+          "hypotheses": [
+            "𝕂 is RCLike; V has the stated normed additive group, inner product and real normed space structures.",
+            "HasDerivAt f v_f ξ.",
+            "HasDerivAt g v_g ξ."
+          ],
+          "statement": "Let 𝕂 be an RCLike scalar field, V a normed additive commutative group with an inner product space structure over 𝕂 and also a normed space structure over ℝ. For functions f,g:ℝ→V, vectors v_f,v_g∈V and ξ∈ℝ, if HasDerivAt f v_f ξ and HasDerivAt g v_g ξ, then HasDerivAt (r↦⟨f(r),g(r)⟩_𝕂) (⟨f(ξ),v_g⟩_𝕂+⟨v_f,g(ξ)⟩_𝕂) ξ.",
+          "module": "Mathlib.Analysis.InnerProductSpace.Calculus",
+          "signature": "@HasDerivAt.inner : ∀ (𝕜 : Type u_1) {E : Type u_2} [inst : RCLike.{u_1} 𝕜] [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : InnerProductSpace.{u_1, u_2} 𝕜 E] [inst_3 : NormedSpace.{0, u_2} ℝ E] {f g : ℝ → E} {f' g' : E} {x : ℝ},\n  HasDerivAt.{0, u_2} f f' x →\n    HasDerivAt.{0, u_2} g g' x →\n      HasDerivAt.{0, u_1} (fun t => inner.{u_1, u_2} 𝕜 (f t) (g t))\n        (HAdd.hAdd.{u_1, u_1, u_1} (inner.{u_1, u_2} 𝕜 (f x) g') (inner.{u_1, u_2} 𝕜 f' (g x))) x",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Analysis/InnerProductSpace/Calculus.lean",
+          "source_sha256": "902f118cce8ed2a8d385b11e29d95a20424361ca8e47d9bf94fbf954057a7f05",
+          "evidence": [
+            {
+              "path": "library/M001-0001/library-sources.json",
+              "sha256": "6a32c99e003a9a14f349a5770a0ccff9020952453e53bf3dd4cf6b0eaefb09ce"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M002",
+        "kind": "mathlib",
+        "statement": "Let A be a measurable space with measure μ, and V a normed additive commutative group and normed space over ℝ. Let I be an index type, l a countably generated filter on I, F:I→A→V, f:A→V and b:A→ℝ. If eventually in l, F(i,·) is μ-almost everywhere strongly measurable; eventually in l, |F(i,a)|≤b(a) for μ-almost every a; b is μ-integrable; and for μ-almost every a, F(i,a) tends along l to f(a), then ∫_A F(i,a) dμ tends along l to ∫_A f(a) dμ. No completeness assumption on V is required by this native theorem.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "A",
+            "type": "measurable space"
+          },
+          {
+            "symbol": "μ",
+            "type": "measure on A"
+          },
+          {
+            "symbol": "V",
+            "type": "real normed space with normed additive commutative group"
+          },
+          {
+            "symbol": "I",
+            "type": "index type"
+          },
+          {
+            "symbol": "l",
+            "type": "countably generated filter on I"
+          },
+          {
+            "symbol": "F",
+            "type": "I→A→V"
+          },
+          {
+            "symbol": "f",
+            "type": "A→V"
+          },
+          {
+            "symbol": "b",
+            "type": "A→ℝ"
+          }
+        ],
+        "objects": [
+          "A",
+          "μ",
+          "V",
+          "I",
+          "l",
+          "F",
+          "f",
+          "b"
+        ],
+        "source": {
+          "declaration": "MeasureTheory.tendsto_integral_filter_of_dominated_convergence",
+          "hypotheses": [
+            "A,μ,V have the stated measurable and real normed space structures.",
+            "l is countably generated.",
+            "Eventually in l the sections F(i,·) are μ-a.e. strongly measurable.",
+            "Eventually in l, |F(i,a)|≤b(a) μ-a.e.",
+            "b is μ-integrable.",
+            "For μ-a.e. a the sections converge along l to f(a)."
+          ],
+          "statement": "Let A be a measurable space with measure μ, and V a normed additive commutative group and normed space over ℝ. Let I be an index type, l a countably generated filter on I, F:I→A→V, f:A→V and b:A→ℝ. If eventually in l, F(i,·) is μ-almost everywhere strongly measurable; eventually in l, |F(i,a)|≤b(a) for μ-almost every a; b is μ-integrable; and for μ-almost every a, F(i,a) tends along l to f(a), then ∫_A F(i,a) dμ tends along l to ∫_A f(a) dμ. No completeness assumption on V is required by this native theorem.",
+          "module": "Mathlib.MeasureTheory.Integral.DominatedConvergence",
+          "signature": "@MeasureTheory.tendsto_integral_filter_of_dominated_convergence : ∀ {α : Type u_1} {G : Type u_3} [inst : NormedAddCommGroup.{u_3} G] [inst_1 : NormedSpace.{0, u_3} ℝ G]\n  {m : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α} {ι : Type u_4} {l : Filter.{u_4} ι}\n  [Filter.IsCountablyGenerated.{u_4} l] {F : ι → α → G} {f : α → G} (bound : α → ℝ),\n  (∀ᶠ (n : ι) in l, MeasureTheory.AEStronglyMeasurable.{u_1, u_3} (F n) μ) →\n    (∀ᶠ (n : ι) in l, ∀ᵐ (a : α) ∂μ, LE.le.{0} (norm.{u_3} (F n a)) (bound a)) →\n      MeasureTheory.Integrable.{0, u_1} bound μ →\n        (∀ᵐ (a : α) ∂μ, Filter.Tendsto.{u_4, u_3} (fun n => F n a) l (nhds.{u_3} (f a))) →\n          Filter.Tendsto.{u_4, u_3} (fun n => ∫ (a : α), F n a ∂μ) l (nhds.{u_3} (∫ (a : α), f a ∂μ))",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/DominatedConvergence.lean",
+          "source_sha256": "8b992825c893a377d5be8c370fae94c31dbee29d6b4bfbe0a3cd36bd5438a3d7",
+          "evidence": [
+            {
+              "path": "library/M002-0002/library-sources.json",
+              "sha256": "4cd917529f96b81b0f3792586a3b75082090e07bfcd61d3350d1050e3b1fa062"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M003",
+        "kind": "mathlib",
+        "statement": "Let X carry a measurable space and a topology with all open sets measurable, let V be a normed additive commutative group, μ a measure finite on compact subsets of X, and f:X→V. If f is continuous and has compact support (the closure of its nonzero set is compact), then f is μ-integrable.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "X",
+            "type": "topological and measurable space with measurable open sets"
+          },
+          {
+            "symbol": "V",
+            "type": "normed additive commutative group"
+          },
+          {
+            "symbol": "μ",
+            "type": "measure on X finite on compacts"
+          },
+          {
+            "symbol": "f",
+            "type": "X→V"
+          }
+        ],
+        "objects": [
+          "X",
+          "V",
+          "μ",
+          "f"
+        ],
+        "source": {
+          "declaration": "Continuous.integrable_of_hasCompactSupport",
+          "hypotheses": [
+            "X has the stated compatible topology and measurable space; V is a normed additive commutative group; μ is finite on compact sets.",
+            "f is continuous.",
+            "The closure of the nonzero set of f is compact."
+          ],
+          "statement": "Let X carry a measurable space and a topology with all open sets measurable, let V be a normed additive commutative group, μ a measure finite on compact subsets of X, and f:X→V. If f is continuous and has compact support (the closure of its nonzero set is compact), then f is μ-integrable.",
+          "module": "Mathlib.MeasureTheory.Function.LocallyIntegrable",
+          "signature": "@Continuous.integrable_of_hasCompactSupport : ∀ {X : Type u_1} {E : Type u_6} [inst : MeasurableSpace.{u_1} X] [inst_1 : TopologicalSpace.{u_1} X]\n  [inst_2 : NormedAddCommGroup.{u_6} E] {μ : MeasureTheory.Measure.{u_1} X} [OpensMeasurableSpace.{u_1} X] {f : X → E}\n  [MeasureTheory.IsFiniteMeasureOnCompacts.{u_1} μ],\n  Continuous.{u_1, u_6} f → HasCompactSupport.{u_1, u_6} f → MeasureTheory.Integrable.{u_6, u_1} f μ",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Function/LocallyIntegrable.lean",
+          "source_sha256": "f9db33ffd373f38d223d7d3c0fab09e10c9b57d87352d25a55a2ce7df3c011a4",
+          "evidence": [
+            {
+              "path": "library/M003-0003/library-sources.json",
+              "sha256": "da6a2a731f811e9b523d53815c62a8ca161d5782d32bad443874dd9ef8010297"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M006",
+        "kind": "mathlib",
+        "statement": "Let V be a normed additive commutative group and a normed space over ℝ, f,f₁:ℝ→V, and α,β,L∈ℝ. If for every r∈[α,β], HasDerivWithinAt f (f₁(r)) [α,β] r, and for every r∈[α,β), |f₁(r)|≤L, then for every y∈[α,β], |f(y)−f(α)|≤L(y−α).",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "V",
+            "type": "real normed space with normed additive commutative group"
+          },
+          {
+            "symbol": "f",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "f₁",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "α",
+            "type": "ℝ"
+          },
+          {
+            "symbol": "β",
+            "type": "ℝ"
+          },
+          {
+            "symbol": "L",
+            "type": "ℝ"
+          },
+          {
+            "symbol": "r",
+            "type": "ℝ, locally quantified in the premises"
+          },
+          {
+            "symbol": "y",
+            "type": "ℝ, universally quantified in the conclusion"
+          }
+        ],
+        "objects": [
+          "V",
+          "f",
+          "f₁",
+          "α",
+          "β",
+          "L",
+          "r",
+          "y"
+        ],
+        "source": {
+          "declaration": "norm_image_sub_le_of_norm_deriv_le_segment'",
+          "hypotheses": [
+            "V is a normed additive commutative group and real normed space.",
+            "For every r∈[α,β], f has derivative f₁(r) within [α,β] at r.",
+            "For every r∈[α,β), |f₁(r)|≤L."
+          ],
+          "statement": "Let V be a normed additive commutative group and a normed space over ℝ, f,f₁:ℝ→V, and α,β,L∈ℝ. If for every r∈[α,β], HasDerivWithinAt f (f₁(r)) [α,β] r, and for every r∈[α,β), |f₁(r)|≤L, then for every y∈[α,β], |f(y)−f(α)|≤L(y−α).",
+          "module": "Mathlib.Analysis.Calculus.MeanValue",
+          "signature": "@norm_image_sub_le_of_norm_deriv_le_segment' : ∀ {E : Type u_1} [inst : NormedAddCommGroup.{u_1} E] [inst_1 : NormedSpace.{0, u_1} ℝ E] {f : ℝ → E} {a b : ℝ}\n  {f' : ℝ → E} {C : ℝ},\n  (∀ (x : ℝ), Membership.mem.{0, 0} (Set.Icc.{0} a b) x → HasDerivWithinAt.{0, u_1} f (f' x) (Set.Icc.{0} a b) x) →\n    (∀ (x : ℝ), Membership.mem.{0, 0} (Set.Ico.{0} a b) x → LE.le.{0} (norm.{u_1} (f' x)) C) →\n      ∀ (x : ℝ),\n        Membership.mem.{0, 0} (Set.Icc.{0} a b) x →\n          LE.le.{0} (norm.{u_1} (HSub.hSub.{u_1, u_1, u_1} (f x) (f a)))\n            (HMul.hMul.{0, 0, 0} C (HSub.hSub.{0, 0, 0} x a))",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Analysis/Calculus/MeanValue.lean",
+          "source_sha256": "27a7aeff2b82764662161e427cd5cafa977430af16a3b24b2495f76c3ba36a97",
+          "evidence": [
+            {
+              "path": "library/M006-0006/library-sources.json",
+              "sha256": "ad7035a1bc534772ec83d8297928ea4a75852b1e9a4ade8e4c598d8770c5c93c"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M007",
+        "kind": "mathlib",
+        "statement": "Let V be a complete normed additive commutative group and a normed space over ℝ, α,β∈ℝ and f,f₁:ℝ→V. If for every r in the unordered closed interval [min(α,β),max(α,β)], HasDerivAt f (f₁(r)) r, and f₁ is Lebesgue interval-integrable from α to β, then the oriented interval integral ∫_{α}^{β} f₁(r) dr equals f(β)−f(α).",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "V",
+            "type": "complete real normed space with normed additive commutative group"
+          },
+          {
+            "symbol": "α",
+            "type": "ℝ"
+          },
+          {
+            "symbol": "β",
+            "type": "ℝ"
+          },
+          {
+            "symbol": "f",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "f₁",
+            "type": "ℝ→V"
+          },
+          {
+            "symbol": "r",
+            "type": "ℝ, bound within interval premise and integral"
+          }
+        ],
+        "objects": [
+          "V",
+          "α",
+          "β",
+          "f",
+          "f₁",
+          "r"
+        ],
+        "source": {
+          "declaration": "intervalIntegral.integral_eq_sub_of_hasDerivAt",
+          "hypotheses": [
+            "V has the stated complete normed additive commutative group and real normed space structures.",
+            "f has derivative f₁(r) at every r in the unordered closed interval with endpoints α,β.",
+            "f₁ is Lebesgue interval-integrable from α to β."
+          ],
+          "statement": "Let V be a complete normed additive commutative group and a normed space over ℝ, α,β∈ℝ and f,f₁:ℝ→V. If for every r in the unordered closed interval [min(α,β),max(α,β)], HasDerivAt f (f₁(r)) r, and f₁ is Lebesgue interval-integrable from α to β, then the oriented interval integral ∫_{α}^{β} f₁(r) dr equals f(β)−f(α).",
+          "module": "Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus",
+          "signature": "@intervalIntegral.integral_eq_sub_of_hasDerivAt : ∀ {E : Type u_3} [inst : NormedAddCommGroup.{u_3} E] [inst_1 : NormedSpace.{0, u_3} ℝ E] {a b : ℝ}\n  [CompleteSpace.{u_3} E] {f f' : ℝ → E},\n  (∀ (x : ℝ), Membership.mem.{0, 0} (Set.uIcc.{0} a b) x → HasDerivAt.{0, u_3} f (f' x) x) →\n    IntervalIntegrable.{u_3} f' MeasureTheory.volume.{0} a b →\n      Eq.{u_3 + 1} (∫ (y : ℝ) in a..b, f' y) (HSub.hSub.{u_3, u_3, u_3} (f b) (f a))",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/IntervalIntegral/FundThmCalculus.lean",
+          "source_sha256": "7904979eef087ce4341a89007175e51841e24f5cc3b11840820480edd6cefba7",
+          "evidence": [
+            {
+              "path": "library/M007-0007/library-sources.json",
+              "sha256": "e15834907a6e4f1f2db69b8e5991612807b20f45043e903b3b7dbe7127cd8624"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M009",
+        "kind": "mathlib",
+        "statement": "Let 𝕂 be a nontrivially normed field, V,W normed additive commutative groups and normed spaces over 𝕂, f:V→W, p∈V and σ∈ℕ∞ω (the natural smoothness orders together with ∞ and the analytic order ω). Define the threshold minSmoothness(𝕂,2) to be 2 when 𝕂 has an IsRCLikeNormedField structure, and ω otherwise. If f is ContDiffAt 𝕂 σ at p and minSmoothness(𝕂,2)≤σ, then its second Fréchet derivative at p is symmetric: for all v,w∈V, (D(Df)(p)v)w=(D(Df)(p)w)v. Here D denotes the total Fréchet derivative, and the displayed symmetry is precisely IsSymmSndFDerivAt 𝕂 f p.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "𝕂",
+            "type": "nontrivially normed field"
+          },
+          {
+            "symbol": "V",
+            "type": "normed additive commutative group and normed space over 𝕂"
+          },
+          {
+            "symbol": "W",
+            "type": "normed additive commutative group and normed space over 𝕂"
+          },
+          {
+            "symbol": "f",
+            "type": "V→W"
+          },
+          {
+            "symbol": "p",
+            "type": "V"
+          },
+          {
+            "symbol": "σ",
+            "type": "smoothness order ℕ∞ω"
+          },
+          {
+            "symbol": "v",
+            "type": "V"
+          },
+          {
+            "symbol": "w",
+            "type": "V"
+          }
+        ],
+        "objects": [
+          "𝕂",
+          "V",
+          "W",
+          "f",
+          "p",
+          "σ",
+          "v",
+          "w"
+        ],
+        "source": {
+          "declaration": "ContDiffAt.isSymmSndFDerivAt",
+          "hypotheses": [
+            "𝕂,V,W have the stated nontrivially normed field and normed space structures.",
+            "f is ContDiffAt 𝕂 σ at p.",
+            "minSmoothness(𝕂,2)≤σ."
+          ],
+          "statement": "Let 𝕂 be a nontrivially normed field, V,W normed additive commutative groups and normed spaces over 𝕂, f:V→W, p∈V and σ∈ℕ∞ω (the natural smoothness orders together with ∞ and the analytic order ω). Define the threshold minSmoothness(𝕂,2) to be 2 when 𝕂 has an IsRCLikeNormedField structure, and ω otherwise. If f is ContDiffAt 𝕂 σ at p and minSmoothness(𝕂,2)≤σ, then its second Fréchet derivative at p is symmetric: for all v,w∈V, (D(Df)(p)v)w=(D(Df)(p)w)v. Here D denotes the total Fréchet derivative, and the displayed symmetry is precisely IsSymmSndFDerivAt 𝕂 f p.",
+          "module": "Mathlib.Analysis.Calculus.FDeriv.Symmetric",
+          "signature": "@ContDiffAt.isSymmSndFDerivAt : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {E : Type u_2} {F : Type u_3}\n  [inst_1 : NormedAddCommGroup.{u_2} E] [inst_2 : NormedSpace.{u_1, u_2} 𝕜 E] [inst_3 : NormedAddCommGroup.{u_3} F]\n  [inst_4 : NormedSpace.{u_1, u_3} 𝕜 F] {f : E → F} {x : E} {n : WithTop.{0} ℕ∞},\n  ContDiffAt.{u_1, u_2, u_3} 𝕜 n f x → LE.le.{0} (minSmoothness.{u_1} 𝕜 2) n → IsSymmSndFDerivAt.{u_1, u_2, u_3} 𝕜 f x",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Analysis/Calculus/FDeriv/Symmetric.lean",
+          "source_sha256": "c262fa67a6097d95f55ef053fb2870a9b84b097f21c8cfea65b46e6d1677d725",
+          "evidence": [
+            {
+              "path": "library/M009-0009/library-sources.json",
+              "sha256": "aa69661b464d622af4bdd25ed0374323fc360ca3a122590bb62487cb1cc020da"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M010",
+        "kind": "mathlib",
+        "statement": "Let X be a topological space, V a seminormed additive group, K⊂X compact and f:X→V continuous on K. Then there is a real L such that for every z∈K, |f(z)|≤L.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "X",
+            "type": "topological space"
+          },
+          {
+            "symbol": "V",
+            "type": "seminormed additive group"
+          },
+          {
+            "symbol": "K",
+            "type": "subset of X"
+          },
+          {
+            "symbol": "f",
+            "type": "X→V"
+          },
+          {
+            "symbol": "L",
+            "type": "existentially bound real"
+          },
+          {
+            "symbol": "z",
+            "type": "universally bound point of K"
+          }
+        ],
+        "objects": [
+          "X",
+          "V",
+          "K",
+          "f",
+          "L",
+          "z"
+        ],
+        "source": {
+          "declaration": "IsCompact.exists_bound_of_continuousOn",
+          "hypotheses": [
+            "X is a topological space and V a seminormed additive group.",
+            "K is compact.",
+            "f is continuous on K."
+          ],
+          "statement": "Let X be a topological space, V a seminormed additive group, K⊂X compact and f:X→V continuous on K. Then there is a real L such that for every z∈K, |f(z)|≤L.",
+          "module": "Mathlib.Analysis.Normed.Group.Bounded",
+          "signature": "@IsCompact.exists_bound_of_continuousOn : ∀ {α : Type u_1} {E : Type u_2} [inst : SeminormedAddGroup.{u_2} E] [inst_1 : TopologicalSpace.{u_1} α]\n  {s : Set.{u_1} α},\n  IsCompact.{u_1} s →\n    ∀ {f : α → E},\n      ContinuousOn.{u_1, u_2} f s → ∃ C, ∀ (x : α), Membership.mem.{u_1, u_1} s x → LE.le.{0} (norm.{u_2} (f x)) C",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/Analysis/Normed/Group/Bounded.lean",
+          "source_sha256": "5e93b1cc169d5d5a4c0f7361ef09b0b481c881d3f32b0067deb6c62d90c3ed78",
+          "evidence": [
+            {
+              "path": "library/M010-0010/library-sources.json",
+              "sha256": "6d55b82c809560753e8bb7c4cb892d59e020e4b33f2a7d4c0802cb28852aca4c"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M011",
+        "kind": "mathlib",
+        "statement": "For a natural k, a family of measure spaces A_i indexed by i∈Fin(k+1), each with sigma-finite volume measure, and an index i₀∈Fin(k+1), the measurable equivalence piFinSuccAbove: (Π_i A_i)→A_i₀×(Π_{j∈Fin k}A_{i₀.succAbove(j)}) preserves volume. It sends x to (x(i₀), j↦x(i₀.succAbove(j))); its inverse inserts the selected coordinate at i₀. On the domain volume is the finite product of all component volumes; on the range it is the product of the selected volume with the remaining finite product volumes. Preservation means measurability and equality of the pushed-forward measure to this range volume.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "k",
+            "type": "natural number"
+          },
+          {
+            "symbol": "A_i",
+            "type": "family of measure spaces on Fin(k+1)"
+          },
+          {
+            "symbol": "i₀",
+            "type": "Fin(k+1)"
+          },
+          {
+            "symbol": "x",
+            "type": "element of Π_i A_i"
+          }
+        ],
+        "objects": [
+          "k",
+          "A_i",
+          "i₀",
+          "x"
+        ],
+        "source": {
+          "declaration": "MeasureTheory.volume_preserving_piFinSuccAbove",
+          "hypotheses": [
+            "k is a natural number and the A_i are measure spaces.",
+            "Each component volume is sigma-finite.",
+            "i₀ is an index in Fin(k+1)."
+          ],
+          "statement": "For a natural k, a family of measure spaces A_i indexed by i∈Fin(k+1), each with sigma-finite volume measure, and an index i₀∈Fin(k+1), the measurable equivalence piFinSuccAbove: (Π_i A_i)→A_i₀×(Π_{j∈Fin k}A_{i₀.succAbove(j)}) preserves volume. It sends x to (x(i₀), j↦x(i₀.succAbove(j))); its inverse inserts the selected coordinate at i₀. On the domain volume is the finite product of all component volumes; on the range it is the product of the selected volume with the remaining finite product volumes. Preservation means measurability and equality of the pushed-forward measure to this range volume.",
+          "module": "Mathlib.MeasureTheory.Constructions.Pi",
+          "signature": "@MeasureTheory.volume_preserving_piFinSuccAbove : ∀ {n : ℕ} (α : Fin (HAdd.hAdd.{0, 0, 0} n 1) → Type u)\n  [inst : (i : Fin (HAdd.hAdd.{0, 0, 0} n 1)) → MeasureTheory.MeasureSpace.{u} (α i)]\n  [∀ (i : Fin (HAdd.hAdd.{0, 0, 0} n 1)), MeasureTheory.SigmaFinite.{u} MeasureTheory.volume.{u}]\n  (i : Fin (HAdd.hAdd.{0, 0, 0} n 1)),\n  MeasureTheory.MeasurePreserving.{u, u} (⇑(MeasurableEquiv.piFinSuccAbove.{u} α i)) MeasureTheory.volume.{u}\n    MeasureTheory.volume.{u}",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Constructions/Pi.lean",
+          "source_sha256": "56cfeee42d092b72fcc531b1932ec6cf09b2e95394a4f013c1e4ce8c2772e472",
+          "evidence": [
+            {
+              "path": "library/M011-0012/library-sources.json",
+              "sha256": "07bdd6058468875bb8ddd78a3eb6d7deeaefeddb0a9e383e6d66c238014b01f8"
+            }
+          ]
+        }
+      },
+      {
+        "id": "M012",
+        "kind": "mathlib",
+        "statement": "Let A,B be measurable spaces with S-finite measures μ,ν, let V be a normed additive commutative group and a normed space over ℝ, and let f:A×B→V be integrable with respect to μ×ν. Then ∫_{A×B} f d(μ×ν)=∫_B (∫_A f(a,b) dμ(a)) dν(b). Completeness of V is not a premise of the native theorem.",
+        "definitions": [],
+        "binders": [
+          {
+            "symbol": "A",
+            "type": "measurable space"
+          },
+          {
+            "symbol": "B",
+            "type": "measurable space"
+          },
+          {
+            "symbol": "μ",
+            "type": "S-finite measure on A"
+          },
+          {
+            "symbol": "ν",
+            "type": "S-finite measure on B"
+          },
+          {
+            "symbol": "V",
+            "type": "real normed space with normed additive commutative group"
+          },
+          {
+            "symbol": "f",
+            "type": "A×B→V"
+          }
+        ],
+        "objects": [
+          "A",
+          "B",
+          "μ",
+          "ν",
+          "V",
+          "f"
+        ],
+        "source": {
+          "declaration": "MeasureTheory.integral_prod_symm",
+          "hypotheses": [
+            "A,B are measurable spaces, μ,ν are S-finite, and V is a normed additive commutative group and real normed space.",
+            "f is μ×ν-integrable."
+          ],
+          "statement": "Let A,B be measurable spaces with S-finite measures μ,ν, let V be a normed additive commutative group and a normed space over ℝ, and let f:A×B→V be integrable with respect to μ×ν. Then ∫_{A×B} f d(μ×ν)=∫_B (∫_A f(a,b) dμ(a)) dν(b). Completeness of V is not a premise of the native theorem.",
+          "module": "Mathlib.MeasureTheory.Integral.Prod",
+          "signature": "@MeasureTheory.integral_prod_symm : ∀ {α : Type u_1} {β : Type u_2} {E : Type u_3} [inst : MeasurableSpace.{u_1} α] [inst_1 : MeasurableSpace.{u_2} β]\n  {μ : MeasureTheory.Measure.{u_1} α} {ν : MeasureTheory.Measure.{u_2} β} [inst_2 : NormedAddCommGroup.{u_3} E]\n  [MeasureTheory.SFinite.{u_2} ν] [inst_4 : NormedSpace.{0, u_3} ℝ E] [MeasureTheory.SFinite.{u_1} μ]\n  (f : Prod.{u_1, u_2} α β → E),\n  MeasureTheory.Integrable.{u_3, max u_1 u_2} f (MeasureTheory.Measure.prod.{u_1, u_2} μ ν) →\n    Eq.{u_3 + 1} (∫ (z : Prod.{u_1, u_2} α β), f z ∂MeasureTheory.Measure.prod.{u_1, u_2} μ ν)\n      (∫ (y : β), ∫ (x : α), f (Prod.mk.{u_1, u_2} x y) ∂μ ∂ν)",
+          "declaration_kind": "theorem",
+          "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+          "source_path": "Mathlib/MeasureTheory/Integral/Prod.lean",
+          "source_sha256": "5b2267a5d7d2b8de1dd89ee6843bcfa63a8b7534535f7c92ebe17fe52a900c51",
+          "evidence": [
+            {
+              "path": "library/M012-0013/library-sources.json",
+              "sha256": "b6e34c0f8c4cfa17c9d5d47a3164b97596ae94f1cce05221779165defea87ddd"
+            }
+          ]
+        }
+      },
+      {
+        "id": "N001",
+        "kind": "internal",
+        "statement": "For every x∈ℝ^n and t>0, u(x,t)·ut(x,t)=0 and ut(x,t)·(utt(x,t)−lap(x,t))=0.",
+        "definitions": [
+          "D001",
+          "D002",
+          "D004"
+        ],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "u",
+          "ut",
+          "utt",
+          "lap",
+          "n",
+          "x",
+          "t"
+        ],
+        "origin": "problem.md:52-60, tangency and orthogonality to normal acceleration."
+      },
+      {
+        "id": "N002",
+        "kind": "internal",
+        "statement": "The functions ut,utt,dxu,e,et are smooth on their stated positive-time domains. For every x∈ℝ^n and r>0, et(x,r)=2ut(x,r)·utt(x,r)+2Σ_{j=1}^n dxu(j,x,r)·∂_{x_j}ut(x,r), and ∂_r dxu(j,x,r)=∂_{x_j}ut(x,r) for each 1≤j≤n. For every t>0, e(·,t) is Lebesgue integrable. More precisely, for every τ>0, put J=[τ/2,3τ/2]. There exist a compact C⊂ℝ^n and R>0 such that C⊂(-R,R)^n and u(x,r)=q whenever x∉C and r∈J. Put Q=[-R,R]^n. Its measure is (2R)^n<∞. On (ℝ^n\\C)×int J all positive-order derivatives of u vanish. For every r∈int J, the spatial sections of e,et, ut·utt, dxu(j,·,r)·∂_{x_j}ut, ut·∂_{x_j}dxu(j,·,r), and ∂_{x_j}(ut·dxu(j,·,r)), for each 1≤j≤n, are continuous, bounded on Q, zero outside C, and absolutely Lebesgue integrable on ℝ^n.",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D005",
+          "D006"
+        ],
+        "binders": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n"
+          },
+          {
+            "symbol": "r",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "j",
+            "type": "spatial index 1≤j≤n"
+          },
+          {
+            "symbol": "τ",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "J",
+            "type": "interval defined within the statement"
+          },
+          {
+            "symbol": "C",
+            "type": "existentially bound compact subset of ℝ^n"
+          },
+          {
+            "symbol": "R",
+            "type": "existentially bound positive real"
+          },
+          {
+            "symbol": "Q",
+            "type": "box defined within the statement"
+          }
+        ],
+        "objects": [
+          "u",
+          "q",
+          "n",
+          "ut",
+          "utt",
+          "dxu",
+          "e",
+          "et",
+          "x",
+          "r",
+          "t",
+          "j",
+          "τ",
+          "J",
+          "C",
+          "R",
+          "Q"
+        ],
+        "origin": "problem.md:70-94, common support, integrability and density derivative."
+      },
+      {
+        "id": "N003",
+        "kind": "internal",
+        "statement": "For every t>0 the finite energy integral E is differentiable at t, and E'(t)=∫_{ℝ^n}et(x,t) dx.",
+        "definitions": [
+          "D005",
+          "D006",
+          "D007"
+        ],
+        "binders": [
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "x",
+            "type": "integration variable in ℝ^n"
+          }
+        ],
+        "objects": [
+          "E",
+          "et",
+          "e",
+          "n",
+          "t",
+          "x"
+        ],
+        "origin": "problem.md:87-117, dominated difference quotients."
+      },
+      {
+        "id": "N004",
+        "kind": "internal",
+        "statement": "For every t>0 and 1≤j≤n, ∫_{ℝ^n}dxu(j,x,t)·∂_{x_j}ut(x,t) dx = −∫_{ℝ^n}ut(x,t)·∂_{x_j}dxu(j,x,t) dx. Both integrals are absolutely integrable.",
+        "definitions": [
+          "D001",
+          "D003"
+        ],
+        "binders": [
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "j",
+            "type": "spatial index 1≤j≤n"
+          },
+          {
+            "symbol": "x",
+            "type": "integration variable in ℝ^n"
+          }
+        ],
+        "objects": [
+          "ut",
+          "dxu",
+          "n",
+          "t",
+          "j",
+          "x"
+        ],
+        "origin": "problem.md:119-142, box integration by parts by FTC and Fubini."
+      },
+      {
+        "id": "P",
+        "kind": "target",
+        "definitions": [
+          "D005",
+          "D007"
+        ],
+        "binders": [
+          {
+            "symbol": "t",
+            "type": "positive real time"
+          },
+          {
+            "symbol": "s",
+            "type": "positive real time"
+          }
+        ],
+        "objects": [
+          "e",
+          "E",
+          "n",
+          "s",
+          "t"
+        ],
+        "statement": "For every t>0, e(·,t) is Lebesgue integrable on ℝ^n. The finite integral E is differentiable on (0,∞), and for every t>0, E'(t)=0. For every s,t>0, E(s)=E(t)."
+      }
+    ],
+    "inferences": [
+      {
+        "id": "R001",
+        "inputs": [
+          "H002",
+          "H004",
+          "H005",
+          "M001"
+        ],
+        "output": "N001",
+        "definitions": [
+          "D001",
+          "D002",
+          "D004"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "exists_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "x",
+            "type": "ℝ^n",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary spatial point x.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "n"
+            ]
+          },
+          {
+            "symbol": "t",
+            "type": "positive real time",
+            "scope": "R001",
+            "start": "S001",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary time t in (0,∞).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "a",
+            "type": "real scalar",
+            "scope": "R001/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "witness",
+            "declaration": "Choose a real scalar a at (x,t) satisfying utt(x,t)−lap(x,t)=a u(x,t), using H005.",
+            "from_inputs": [
+              "H005"
+            ],
+            "from_local": [],
+            "objects": [
+              "x",
+              "t",
+              "u",
+              "utt",
+              "lap"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix x∈ℝ^n and t>0. By H002 the time section of u has derivative ut(x,t). For applying a theorem on ℝ, extend that section by q for nonpositive times; this does not change any derivative at t>0. H004 gives u(x,r)·u(x,r)=1 for r>0. M001 with both functions equal to this section gives its squared norm derivative as ut(x,t)·u(x,t)+u(x,t)·ut(x,t)=2u(x,t)·ut(x,t). The constant function 1 has derivative zero; uniqueness of derivatives gives 2u(x,t)·ut(x,t)=0, hence u(x,t)·ut(x,t)=0.",
+            "uses": [
+              "H002",
+              "H004",
+              "M001"
+            ],
+            "uses_local": [],
+            "objects": [
+              "n",
+              "u",
+              "q",
+              "ut",
+              "x",
+              "t"
+            ],
+            "produces": [
+              {
+                "id": "F001",
+                "statement": "u(x,t)·ut(x,t)=0.",
+                "binders": [],
+                "objects": [
+                  "u",
+                  "ut",
+                  "x",
+                  "t"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "At the same point choose a from H005. Dot utt(x,t)−lap(x,t)=a u(x,t) with ut(x,t). Bilinearity and F001 give ut(x,t)·(utt(x,t)−lap(x,t))=a(ut(x,t)·u(x,t))=0. No derivative, measurability, or globally selected version of a is used. The conclusions are independent of the witness a. Since x and t were arbitrary, both assertions of N001 follow.",
+            "uses": [
+              "H005"
+            ],
+            "uses_local": [
+              "F001"
+            ],
+            "objects": [
+              "u",
+              "ut",
+              "utt",
+              "lap",
+              "x",
+              "t",
+              "a"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M001",
+            "at": "S001",
+            "bindings": "𝕂=ℝ, V=ℝ^m with its Euclidean inner product, ξ=t, f=g=(r↦u(x,r) for r>0, q otherwise), v_f=v_g=ut(x,t).",
+            "hypothesis_checks": [
+              "Euclidean ℝ^m is a real inner product space and real normed space.",
+              "H002 gives the time derivative of the section at t; the extension agrees on the open neighborhood (0,∞) of t.",
+              "The second section is identical, so it has the same derivative from H002."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "R002",
+        "inputs": [
+          "H001",
+          "H002",
+          "H006",
+          "M001",
+          "M003",
+          "M009",
+          "M010"
+        ],
+        "output": "N002",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D005",
+          "D006"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "exists_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "τ",
+            "type": "positive real time",
+            "scope": "R002",
+            "start": "S002",
+            "end": "S004",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary τ>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "J",
+            "type": "closed real interval",
+            "scope": "R002",
+            "start": "S002",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set J=[τ/2,3τ/2].",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "τ"
+            ]
+          },
+          {
+            "symbol": "C",
+            "type": "compact subset of ℝ^n",
+            "scope": "R002",
+            "start": "S003",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose C with the support property on J supplied by F002.",
+            "from_inputs": [],
+            "from_local": [
+              "F002"
+            ],
+            "objects": [
+              "u",
+              "q",
+              "n",
+              "J"
+            ]
+          },
+          {
+            "symbol": "R",
+            "type": "positive real",
+            "scope": "R002",
+            "start": "S004",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose R>0 with C⊂(-R,R)^n using F003.",
+            "from_inputs": [],
+            "from_local": [
+              "F003"
+            ],
+            "objects": [
+              "C",
+              "n"
+            ]
+          },
+          {
+            "symbol": "Q",
+            "type": "compact spatial box in ℝ^n",
+            "scope": "R002",
+            "start": "S004",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set Q=[-R,R]^n.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "R",
+              "n"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "H002 gives continuous partial derivatives of every order on the open positive-time domain, so ut,utt,dxu are smooth. Squared Euclidean norms are finite sums of component squares, so e and its partial derivatives are smooth as well. Apply M009 at every (x,r) with r>0 to u (extended arbitrarily, say by q, outside the positive-time domain). Its C² germ is supplied by H002; over ℝ the threshold in M009 is 2. Evaluate symmetry on the time direction and each standard spatial coordinate direction to obtain ∂_r dxu(j,x,r)=∂_{x_j}ut(x,r). Apply M001 to the time sections ut with itself, and dxu(j) with itself, and add the finitely many resulting derivative formulas. The dot product is symmetric over ℝ, and |v|²=v·v, so for all x∈ℝ^n,r>0,\net(x,r)=2ut(x,r)·utt(x,r)+2Σ_{j=1}^n dxu(j,x,r)·∂_{x_j}ut(x,r).\nThis also proves smoothness of et. Each use of time sections on ℝ can use the extension by zero outside positive times, without changing their positive-time germs.",
+            "uses": [
+              "H002",
+              "M001",
+              "M009"
+            ],
+            "uses_local": [],
+            "objects": [
+              "u",
+              "q",
+              "ut",
+              "utt",
+              "dxu",
+              "e",
+              "et",
+              "n",
+              "m"
+            ],
+            "produces": [
+              {
+                "id": "F001",
+                "statement": "ut,utt,dxu,e,et are smooth on their positive-time domains. For every x∈ℝ^n and r>0, et(x,r)=2ut(x,r)·utt(x,r)+2Σ_{j=1}^n dxu(j,x,r)·∂_{x_j}ut(x,r), and for each 1≤j≤n, ∂_r dxu(j,x,r)=∂_{x_j}ut(x,r).",
+                "binders": [
+                  {
+                    "symbol": "x",
+                    "type": "ℝ^n"
+                  },
+                  {
+                    "symbol": "r",
+                    "type": "positive real time"
+                  },
+                  {
+                    "symbol": "j",
+                    "type": "spatial index 1≤j≤n"
+                  }
+                ],
+                "objects": [
+                  "ut",
+                  "utt",
+                  "dxu",
+                  "e",
+                  "et",
+                  "n",
+                  "x",
+                  "r",
+                  "j"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "Fix τ>0 and put J=[τ/2,3τ/2]. The endpoints are positive and strictly ordered. H006 applied to these endpoints gives existence of a compact spatial set on which the perturbation can be supported throughout J.",
+            "uses": [
+              "H006"
+            ],
+            "uses_local": [],
+            "objects": [
+              "τ",
+              "J",
+              "u",
+              "q",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F002",
+                "statement": "There exists a compact C₀⊂ℝ^n such that for all x∉C₀ and r∈J, u(x,r)=q.",
+                "binders": [
+                  {
+                    "symbol": "C₀",
+                    "type": "existentially bound compact subset of ℝ^n"
+                  },
+                  {
+                    "symbol": "x",
+                    "type": "ℝ^n"
+                  },
+                  {
+                    "symbol": "r",
+                    "type": "real time"
+                  }
+                ],
+                "objects": [
+                  "n",
+                  "J",
+                  "u",
+                  "q",
+                  "C₀",
+                  "x",
+                  "r"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "Choose C from F002. Apply M010 to the identity map of Euclidean ℝ^n restricted to C. There exists a finite real bound on |x| for x∈C. Taking a positive number larger than that bound, for example one plus its maximum with zero, and using |x_j|≤|x|, gives existence of R>0 with C⊂(-R,R)^n. This argument also works when C is empty.",
+            "uses": [
+              "M010"
+            ],
+            "uses_local": [
+              "F002"
+            ],
+            "objects": [
+              "C",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F003",
+                "statement": "There exists a real R₀>0 such that C⊂(-R₀,R₀)^n.",
+                "binders": [
+                  {
+                    "symbol": "R₀",
+                    "type": "existentially bound positive real"
+                  }
+                ],
+                "objects": [
+                  "C",
+                  "n",
+                  "R₀"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S004",
+            "text": "Choose R from F003 and set Q=[-R,R]^n. H001 ensures the spatial dimension is a positive finite integer. The box is compact and has Lebesgue measure (2R)^n<∞. The compact set C is closed, so (ℝ^n\\C)×int J is open; u equals the constant q there by F002. Every positive-order derivative of u is zero there: at each point its germ is constant, so the defining difference quotients, and then successively all derivative germs, are zero. Consequently at each r∈int J, e,et, ut·utt, dxu(j)·∂_{x_j}ut, ut·∂_{x_j}dxu(j), and ∂_{x_j}(ut·dxu(j)) vanish outside C, for every index j. H002 and F001 give continuity of these sections (products and finite sums of continuous derivative components). Their nonzero sets thus have closures contained in the closed compact C; hence they have compact support. M003 proves their absolute integrability. M010 on Q bounds each section; its absolute integral is bounded by its finite absolute bound times |Q| because it vanishes outside Q. In particular τ∈int J, so e(·,τ) is integrable. Since τ was arbitrary, this proves integrability at every positive time, together with all the asserted common-support and integrability statements of N002 and the global identities of F001.",
+            "uses": [
+              "H001",
+              "H002",
+              "M003",
+              "M010"
+            ],
+            "uses_local": [
+              "F001",
+              "F002",
+              "F003"
+            ],
+            "objects": [
+              "τ",
+              "J",
+              "C",
+              "R",
+              "Q",
+              "u",
+              "q",
+              "ut",
+              "utt",
+              "dxu",
+              "e",
+              "et",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M009",
+            "at": "S001",
+            "bindings": "𝕂=ℝ, V=ℝ^n×ℝ, W=ℝ^m, f the extension of u by q at nonpositive times, p=(x,r) for any x and r>0, σ=2; evaluate on (0,1) and (standard spatial basis vector j,0).",
+            "hypothesis_checks": [
+              "Finite-dimensional Euclidean spaces have the required real normed space structures and ℝ is nontrivially normed.",
+              "H002 is smooth on an open neighborhood of each such p; the extension equals u on that neighborhood, hence is C² at p.",
+              "For ℝ, IsRCLikeNormedField holds and the defined threshold is 2; choose σ=2."
+            ]
+          },
+          {
+            "id": "A001",
+            "input": "M001",
+            "at": "S001",
+            "bindings": "𝕂=ℝ, V=ℝ^m, ξ=r>0, f=g=(s↦ut(x,s)), extended by zero for s≤0, v_f=v_g=utt(x,r).",
+            "hypothesis_checks": [
+              "ℝ^m has the Euclidean real inner product and normed space structures.",
+              "H002 supplies the time derivative of ut, namely utt, at positive r.",
+              "The second function is the identical time section and has the same derivative."
+            ]
+          },
+          {
+            "id": "A002",
+            "input": "M001",
+            "at": "S001",
+            "bindings": "For each 1≤j≤n use 𝕂=ℝ, V=ℝ^m, ξ=r>0, f=g=(s↦dxu(j,x,s)), extended by zero for s≤0, with both derivatives ∂_r dxu(j,x,r).",
+            "hypothesis_checks": [
+              "ℝ^m has the Euclidean real inner product and normed space structures.",
+              "H002 gives the time derivative of the smooth partial dxu(j), and the section extension agrees near r.",
+              "The second section is the same smooth partial and thus has the same derivative."
+            ]
+          },
+          {
+            "id": "A003",
+            "input": "M010",
+            "at": "S003",
+            "bindings": "X=V=ℝ^n, K=C, f=identity.",
+            "hypothesis_checks": [
+              "Euclidean ℝ^n is a topological space and a seminormed additive group.",
+              "C was chosen compact from F002 at the beginning of S003.",
+              "The identity map is continuous everywhere, hence on C."
+            ]
+          },
+          {
+            "id": "A004",
+            "input": "M003",
+            "at": "S004",
+            "bindings": "X=ℝ^n with its Borel topology and Lebesgue measure μ, V=ℝ, f any of the scalar spatial sections listed in S004 at r∈int J.",
+            "hypothesis_checks": [
+              "Euclidean Borel space has measurable opens and Lebesgue measure finite on compact sets; ℝ is a normed additive commutative group.",
+              "H002 and F001 give continuity of every listed section by products and finite sums of smooth components.",
+              "S004 shows each section is zero off the closed compact C, so its support closure is a closed subset of C and compact."
+            ]
+          },
+          {
+            "id": "A005",
+            "input": "M010",
+            "at": "S004",
+            "bindings": "X=ℝ^n, V=ℝ, K=Q, f each listed scalar spatial section at a fixed r∈int J.",
+            "hypothesis_checks": [
+              "Euclidean domain and real codomain have the required topology and seminormed additive group.",
+              "Q is a finite product of closed bounded intervals, hence compact.",
+              "H002 and F001 give continuity on Q of every section, as explained in S004."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "R003",
+        "inputs": [
+          "N002",
+          "M002",
+          "M006",
+          "M010"
+        ],
+        "output": "N003",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D005",
+          "D006",
+          "D007"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "exists_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "t0",
+            "type": "positive real time",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary t0>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "J",
+            "type": "closed real interval",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set J=[t0/2,3t0/2].",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "t0"
+            ]
+          },
+          {
+            "symbol": "C",
+            "type": "compact subset of ℝ^n",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose the compact C in N002 for τ=t0.",
+            "from_inputs": [
+              "N002"
+            ],
+            "from_local": [],
+            "objects": [
+              "t0",
+              "n"
+            ]
+          },
+          {
+            "symbol": "R",
+            "type": "positive real",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose R jointly with C from N002, so C⊂(-R,R)^n and the support property holds on J.",
+            "from_inputs": [
+              "N002"
+            ],
+            "from_local": [],
+            "objects": [
+              "t0",
+              "n",
+              "C",
+              "J"
+            ]
+          },
+          {
+            "symbol": "Q",
+            "type": "compact spatial box",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set Q=[-R,R]^n.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "R",
+              "n"
+            ]
+          },
+          {
+            "symbol": "η",
+            "type": "positive real",
+            "scope": "R003",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set η=t0/4.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "t0"
+            ]
+          },
+          {
+            "symbol": "B",
+            "type": "nonnegative real",
+            "scope": "R003",
+            "start": "S002",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose B≥0 bounding |et| on Q×[t0−η,t0+η], using F001.",
+            "from_inputs": [],
+            "from_local": [
+              "F001"
+            ],
+            "objects": [
+              "et",
+              "Q",
+              "t0",
+              "η"
+            ]
+          },
+          {
+            "symbol": "Vh",
+            "type": "map ℝ×ℝ^n→ℝ",
+            "scope": "R003",
+            "start": "S002",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Define Vh(h,x)=(e(x,t0+h)−e(x,t0))/h if h≠0 and t0+h>0, and Vh(h,x)=0 otherwise.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "e",
+              "t0",
+              "n"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix t0>0, put J=[t0/2,3t0/2], and choose C,R jointly from N002. Set Q=[-R,R]^n and η=t0/4. Then [t0−η,t0+η]⊂int J. By N002, et is continuous. The product Q×[t0−η,t0+η] is compact. M010 applied to et on this product gives a finite absolute bound; replacing it by its maximum with zero gives a nonnegative such bound.",
+            "uses": [
+              "N002",
+              "M010"
+            ],
+            "uses_local": [],
+            "objects": [
+              "t0",
+              "J",
+              "C",
+              "R",
+              "Q",
+              "η",
+              "et",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F001",
+                "statement": "There exists B₀≥0 such that |et(x,r)|≤B₀ for all x∈Q and r∈[t0−η,t0+η].",
+                "binders": [
+                  {
+                    "symbol": "B₀",
+                    "type": "existentially bound nonnegative real"
+                  },
+                  {
+                    "symbol": "x",
+                    "type": "ℝ^n"
+                  },
+                  {
+                    "symbol": "r",
+                    "type": "real time"
+                  }
+                ],
+                "objects": [
+                  "et",
+                  "Q",
+                  "t0",
+                  "η",
+                  "B₀",
+                  "x",
+                  "r"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "Choose B from F001 and define Vh as declared. For every 0<|h|<η and x∈Q apply M006 to the time section of e, on the interval from min(t0,t0+h) to max(t0,t0+h), with derivative et and bound B, evaluating at the upper endpoint. All times in this interval lie in [t0−η,t0+η]. This gives |e(x,t0+h)−e(x,t0)|≤B|h|, also for negative h by symmetry of absolute value. For x∉Q, N002 gives e(x,t0+h)=e(x,t0)=0. Hence throughout ℝ^n, |Vh(h,x)|≤B 1_Q(x). Each valid quotient is a continuous compactly supported spatial function by N002 and is integrable by linearity from integrability of the two density sections. For each x, differentiability of e in time from N002 gives Vh(h,x)→et(x,t0) as h→0 through h≠0.",
+            "uses": [
+              "N002",
+              "M006"
+            ],
+            "uses_local": [
+              "F001"
+            ],
+            "objects": [
+              "Vh",
+              "e",
+              "et",
+              "t0",
+              "η",
+              "B",
+              "Q",
+              "C",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F002",
+                "statement": "For every h∈ℝ with 0<|h|<η, Vh(h,·) is continuous, measurable and integrable, and |Vh(h,x)|≤B 1_Q(x) for every x∈ℝ^n. For every x∈ℝ^n, Vh(h,x) tends to et(x,t0) as h→0 through nonzero h.",
+                "binders": [
+                  {
+                    "symbol": "h",
+                    "type": "real increment"
+                  },
+                  {
+                    "symbol": "x",
+                    "type": "ℝ^n"
+                  }
+                ],
+                "objects": [
+                  "Vh",
+                  "et",
+                  "t0",
+                  "η",
+                  "B",
+                  "Q",
+                  "n",
+                  "h",
+                  "x"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "The measurable nonnegative function x↦B 1_Q(x) is integrable: its absolute integral is B|Q|=B(2R)^n<∞, since Q is a measurable box of finite measure by N002. Use M002 with increment filter h→0, h≠0, the real-valued functions Vh(h,·), limit et(·,t0), and this majorant. This punctured real neighborhood filter is countably generated (the punctured intervals of radii 1/k, k positive integer, form a countable base). F002 supplies eventual measurability, the eventual bound, and pointwise, hence almost everywhere, convergence. We obtain lim_{h→0,h≠0}∫ Vh(h,x) dx=∫ et(x,t0) dx.",
+            "uses": [
+              "N002",
+              "M002"
+            ],
+            "uses_local": [
+              "F002"
+            ],
+            "objects": [
+              "Vh",
+              "et",
+              "t0",
+              "B",
+              "Q",
+              "R",
+              "η",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F003",
+                "statement": "As h→0 through h≠0, ∫_{ℝ^n}Vh(h,x) dx tends to ∫_{ℝ^n}et(x,t0) dx.",
+                "binders": [
+                  {
+                    "symbol": "h",
+                    "type": "real increment"
+                  },
+                  {
+                    "symbol": "x",
+                    "type": "spatial integration variable in ℝ^n"
+                  }
+                ],
+                "objects": [
+                  "Vh",
+                  "et",
+                  "t0",
+                  "n",
+                  "h",
+                  "x"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S004",
+            "text": "For 0<|h|<η, the two density sections are integrable by N002, t0+h>0, and integral linearity gives ∫Vh(h,x) dx=(E(t0+h)−E(t0))/h. Combining this identity with F003 is exactly the difference-quotient definition of differentiability at t0 and gives E'(t0)=∫et(x,t0) dx. The limit is finite because et(·,t0) is integrable by N002. As t0>0 was arbitrary, N003 holds for every positive time.",
+            "uses": [
+              "N002"
+            ],
+            "uses_local": [
+              "F003"
+            ],
+            "objects": [
+              "Vh",
+              "E",
+              "e",
+              "et",
+              "t0",
+              "η",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M010",
+            "at": "S001",
+            "bindings": "X=ℝ^n×ℝ, V=ℝ, K=Q×[t0−η,t0+η], f=et on positive times extended by zero elsewhere.",
+            "hypothesis_checks": [
+              "The product has its Euclidean topology and ℝ is a seminormed additive group.",
+              "Both factors of K are compact closed bounded boxes; finite products are compact.",
+              "N002 gives smoothness, thus continuity of et; K lies inside the positive-time domain so the extension is continuous on K."
+            ]
+          },
+          {
+            "input": "M006",
+            "at": "S002",
+            "bindings": "For each x∈Q and 0<|h|<η use V=ℝ, f(r)=e(x,r) for r>0 and 0 otherwise, f₁(r)=et(x,r) for r>0 and 0 otherwise, α=min(t0,t0+h), β=max(t0,t0+h), L=B, y=β.",
+            "hypothesis_checks": [
+              "ℝ is a real normed space and normed additive commutative group.",
+              "N002 gives the derivative et at all times on the segment, which lies in the open positive-time domain; an ordinary derivative restricts to a derivative within the segment.",
+              "F001 and the choice of B give the absolute bound on the entire segment, hence on [α,β)."
+            ]
+          },
+          {
+            "input": "M002",
+            "at": "S003",
+            "bindings": "A=ℝ^n, μ=Lebesgue measure, V=ℝ, I=ℝ, l=punctured neighborhood filter at 0, F(h,x)=Vh(h,x), f(x)=et(x,t0), b(x)=B 1_Q(x).",
+            "hypothesis_checks": [
+              "The Euclidean domain has its Lebesgue measurable space and measure; ℝ has the required real normed space structure.",
+              "S003 displays a countable neighborhood base for l.",
+              "F002 gives measurable continuous quotients for every 0<|h|<η, an eventual condition in l; measurable real functions are a.e. strongly measurable.",
+              "F002 gives the displayed pointwise majorant on that same punctured neighborhood, hence the required eventual a.e. bound.",
+              "S003 computes the absolute integral B|Q|<∞ using B≥0 and the finite box measure exported by N002.",
+              "F002 gives convergence at every x by the time derivative definition, so in particular almost everywhere."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "R004",
+        "inputs": [
+          "H001",
+          "H002",
+          "N002",
+          "M001",
+          "M003",
+          "M007",
+          "M011",
+          "M012"
+        ],
+        "output": "N004",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D005",
+          "D006"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "exists_elimination"
+        ],
+        "locals": [
+          {
+            "symbol": "t0",
+            "type": "positive real time",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary t0>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "j",
+            "type": "integer spatial index with 1≤j≤n",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary spatial index j∈{1,…,n}.",
+            "from_inputs": [
+              "H001"
+            ],
+            "from_local": [],
+            "objects": [
+              "n"
+            ]
+          },
+          {
+            "symbol": "C",
+            "type": "compact subset of ℝ^n",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose C from N002 for τ=t0.",
+            "from_inputs": [
+              "N002"
+            ],
+            "from_local": [],
+            "objects": [
+              "t0",
+              "n"
+            ]
+          },
+          {
+            "symbol": "R",
+            "type": "positive real",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "witness",
+            "declaration": "Choose R jointly with C from N002, with C⊂(-R,R)^n.",
+            "from_inputs": [
+              "N002"
+            ],
+            "from_local": [],
+            "objects": [
+              "C",
+              "t0",
+              "n"
+            ]
+          },
+          {
+            "symbol": "Q",
+            "type": "compact box in ℝ^n",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set Q=[-R,R]^n.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "R",
+              "n"
+            ]
+          },
+          {
+            "symbol": "g",
+            "type": "smooth function ℝ^n→ℝ",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set g(x)=ut(x,t0)·dxu(j,x,t0).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "ut",
+              "dxu",
+              "j",
+              "t0",
+              "n"
+            ]
+          },
+          {
+            "symbol": "d",
+            "type": "scalar function on ℝ^n",
+            "scope": "R004",
+            "start": "S001",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set d(x)=∂_{x_j}g(x).",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "g",
+              "j",
+              "n"
+            ]
+          },
+          {
+            "symbol": "k",
+            "type": "natural number",
+            "scope": "R004",
+            "start": "S002",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set k=n−1; H001 gives n=k+1.",
+            "from_inputs": [
+              "H001"
+            ],
+            "from_local": [],
+            "objects": [
+              "n"
+            ]
+          },
+          {
+            "symbol": "I",
+            "type": "linear coordinate insertion bijection ℝ×ℝ^k→ℝ^n",
+            "scope": "R004",
+            "start": "S002",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "I(y,z) has jth coordinate y, and its remaining coordinates, in their original increasing order, are the coordinates of z.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "j",
+              "n",
+              "k"
+            ]
+          },
+          {
+            "symbol": "Qrest",
+            "type": "box in ℝ^k",
+            "scope": "R004",
+            "start": "S002",
+            "end": "S004",
+            "kind": "definition",
+            "declaration": "Set Qrest=[-R,R]^k, the box of remaining coordinates.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": [
+              "R",
+              "k"
+            ]
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix t0>0 and 1≤j≤n. Choose C,R from N002 for τ=t0 and put Q=[-R,R]^n. Define g(x)=ut(x,t0)·dxu(j,x,t0) and d(x)=∂_{x_j}g(x). H002 makes g smooth. Apply M001 to the j-coordinate sections of its two factors. The product rule gives, for every x∈ℝ^n,\nd(x)=∂_{x_j}ut(x,t0)·dxu(j,x,t0)+ut(x,t0)·∂_{x_j}dxu(j,x,t0).\nN002 shows g and d vanish outside C, so they vanish on a neighborhood of the boundary of Q: the complement of the closed set C is an open set containing that boundary. The functions g,d and the two displayed summands are continuous with compact support; d and the summands are integrable by N002, and M003 also gives integrability of g.",
+            "uses": [
+              "H002",
+              "N002",
+              "M001",
+              "M003"
+            ],
+            "uses_local": [],
+            "objects": [
+              "t0",
+              "j",
+              "C",
+              "R",
+              "Q",
+              "g",
+              "d",
+              "ut",
+              "dxu",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F001",
+                "statement": "g and d are smooth, absolutely integrable and zero outside C. For every x∈ℝ^n, d(x)=∂_{x_j}ut(x,t0)·dxu(j,x,t0)+ut(x,t0)·∂_{x_j}dxu(j,x,t0). The two summands are absolutely integrable and vanish outside C, and g vanishes at every boundary point of Q.",
+                "binders": [
+                  {
+                    "symbol": "x",
+                    "type": "ℝ^n"
+                  }
+                ],
+                "objects": [
+                  "g",
+                  "d",
+                  "C",
+                  "Q",
+                  "ut",
+                  "dxu",
+                  "t0",
+                  "j",
+                  "n",
+                  "x"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "Set k=n−1; n=k+1 by H001. Identify ℝ^n with its n real coordinates and define I(y,z) by insertion of y in position j with all remaining coordinates z kept in their original order. Its inverse takes the jth coordinate and the ordered list of other coordinates; these formulas are inverse by inspection coordinate by coordinate. With zero-based indexing i₀=j−1, this inverse is exactly piFinSuccAbove in M011, with all component spaces ℝ. M011 says it preserves product Lebesgue measure, and so does its inverse I. Set Qrest=[-R,R]^k; then I maps [-R,R]×Qrest exactly onto Q. Apply M012 with μ the restriction of real Lebesgue measure to [-R,R], ν the restriction of Lebesgue measure on ℝ^k to Qrest, and integrand (y,z)↦d(I(y,z)). It is continuous and bounded on this compact product and the product measure is finite, hence integrable; equivalently it is the restriction of the integrable compactly supported function d∘I. Change of variables under the measure-preserving coordinate equivalence therefore yields\n∫_Q d(x) dx=∫_{Qrest}(∫_{[-R,R]}d(I(y,z)) dy) dz.\nFor k=0, ℝ^0 is the singleton of empty coordinate lists, whose product volume is one; this formula remains valid.",
+            "uses": [
+              "H001",
+              "M011",
+              "M012"
+            ],
+            "uses_local": [
+              "F001"
+            ],
+            "objects": [
+              "k",
+              "n",
+              "j",
+              "I",
+              "Qrest",
+              "R",
+              "Q",
+              "d"
+            ],
+            "produces": [
+              {
+                "id": "F002",
+                "statement": "I maps [-R,R]×Qrest onto Q and preserves the corresponding restricted product Lebesgue measures. Moreover, ∫_Q d(x) dx=∫_{Qrest}(∫_{[-R,R]}d(I(y,z)) dy) dz.",
+                "binders": [
+                  {
+                    "symbol": "x",
+                    "type": "spatial integration variable in ℝ^n"
+                  },
+                  {
+                    "symbol": "y",
+                    "type": "real integration variable"
+                  },
+                  {
+                    "symbol": "z",
+                    "type": "integration variable in ℝ^k"
+                  }
+                ],
+                "objects": [
+                  "I",
+                  "Qrest",
+                  "Q",
+                  "R",
+                  "d",
+                  "k",
+                  "n",
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S003",
+            "text": "For every fixed z∈Qrest, the smooth real function y↦g(I(y,z)) has derivative y↦d(I(y,z)); varying y varies just coordinate j at unit speed. That derivative is continuous, and zero for |y|>R because d is zero outside C⊂int Q. Thus it has compact support in [-R,R], and M003 gives its integrability on ℝ, hence interval integrability on [-R,R]. Apply M007 with endpoints −R,R. Both endpoint values of g(I(±R,z)) are zero by F001, because these points are on the boundary of Q. Hence the interval integral of d(I(y,z)) is zero. The oriented integral from −R to R equals the integral on the closed interval [-R,R], since R>0 and singleton endpoints have Lebesgue measure zero. F002 now gives ∫_Q d=0. Since d is zero outside Q, its integral over ℝ^n is also zero.",
+            "uses": [
+              "M003",
+              "M007"
+            ],
+            "uses_local": [
+              "F001",
+              "F002"
+            ],
+            "objects": [
+              "g",
+              "d",
+              "I",
+              "Qrest",
+              "R",
+              "Q",
+              "C",
+              "j",
+              "k",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F003",
+                "statement": "∫_{ℝ^n}d(x) dx=0.",
+                "binders": [
+                  {
+                    "symbol": "x",
+                    "type": "spatial integration variable in ℝ^n"
+                  }
+                ],
+                "objects": [
+                  "d",
+                  "n",
+                  "x"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S004",
+            "text": "Integrate the product formula in F001 and use F003. Its summands are integrable, so linearity gives 0=∫_{ℝ^n}∂_{x_j}ut(x,t0)·dxu(j,x,t0) dx+∫_{ℝ^n}ut(x,t0)·∂_{x_j}dxu(j,x,t0) dx. Symmetry of the real dot product and rearrangement give precisely ∫dxu(j,x,t0)·∂_{x_j}ut(x,t0) dx=−∫ut(x,t0)·∂_{x_j}dxu(j,x,t0) dx. Absolute integrability is part of F001. Arbitrary t0,j give all of N004.",
+            "uses": [],
+            "uses_local": [
+              "F001",
+              "F003"
+            ],
+            "objects": [
+              "d",
+              "ut",
+              "dxu",
+              "j",
+              "t0",
+              "n"
+            ],
+            "produces": [],
+            "introduces": [],
+            "discharges": []
+          }
+        ],
+        "applications": [
+          {
+            "input": "M001",
+            "at": "S001",
+            "bindings": "For every x use 𝕂=ℝ, V=ℝ^m, ξ=x_j, f(y)=ut(x with jth coordinate replaced by y,t0), g_source(y)=dxu(j,x with jth coordinate replaced by y,t0), derivatives the respective jth spatial partials.",
+            "hypothesis_checks": [
+              "Euclidean ℝ^m has the stated real inner product and normed space structures.",
+              "H002 gives the j-coordinate derivative of ut at every x.",
+              "H002 gives the j-coordinate derivative of dxu(j) at every x."
+            ]
+          },
+          {
+            "id": "A001",
+            "input": "M003",
+            "at": "S001",
+            "bindings": "X=ℝ^n, μ=Lebesgue measure, V=ℝ, f=g.",
+            "hypothesis_checks": [
+              "Euclidean Borel space has measurable opens and Lebesgue measure finite on compact sets, with real normed codomain.",
+              "H002 gives smoothness and hence continuity of g as a dot product of smooth derivative sections.",
+              "N002 gives ut=dxu(j)=0 off the closed compact C, so the support closure of g is compact."
+            ]
+          },
+          {
+            "input": "M011",
+            "at": "S002",
+            "bindings": "Source natural k=n−1, all A_i=ℝ with real Lebesgue measure, i₀=j−1∈Fin(k+1). Use piFinSuccAbove, the inverse of the explicitly defined insertion I.",
+            "hypothesis_checks": [
+              "H001 gives n≥1, so n=k+1; all components are the real Lebesgue measure space.",
+              "Real Lebesgue measure is sigma-finite.",
+              "The arbitrary index satisfies 1≤j≤n, so j−1 is a valid zero-based index."
+            ]
+          },
+          {
+            "input": "M012",
+            "at": "S002",
+            "bindings": "A=ℝ, B=ℝ^k, V=ℝ, μ=Lebesgue measure restricted to [-R,R], ν=Lebesgue measure restricted to Qrest, f(y,z)=d(I(y,z)).",
+            "hypothesis_checks": [
+              "The factors carry their Borel measurable structures; restricted box volumes are finite, hence S-finite; the codomain ℝ is a real normed space.",
+              "F001 gives d integrable and smooth compactly supported. The coordinate insertion equivalence transports product measure by M011, so d∘I is integrable, and remains integrable under restriction to the measurable product box; also its continuous bounded values on this finite-measure box give the same integrability directly."
+            ]
+          },
+          {
+            "id": "A002",
+            "input": "M003",
+            "at": "S003",
+            "bindings": "For every fixed z∈Qrest use X=ℝ, V=ℝ, μ=real Lebesgue measure, f(y)=d(I(y,z)).",
+            "hypothesis_checks": [
+              "The real Borel line has measurable opens and Lebesgue measure finite on compact sets.",
+              "F001 and the continuous linear insertion give continuity of the slice.",
+              "For |y|>R the inserted point lies outside C, so the slice is zero. Its support closure lies in the compact interval [-R,R]."
+            ]
+          },
+          {
+            "input": "M007",
+            "at": "S003",
+            "bindings": "For each z∈Qrest take V=ℝ, α=−R, β=R, f(y)=g(I(y,z)), f₁(y)=d(I(y,z)).",
+            "hypothesis_checks": [
+              "ℝ is a complete real normed space and normed additive commutative group.",
+              "F001 gives smoothness of g; varying y is precisely its jth coordinate line, so its ordinary derivative is d(I(y,z)) at every real y, including both endpoints.",
+              "The preceding application of M003 in S003 proves integrability of the derivative on ℝ, hence on the interval with endpoints −R,R."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "R005",
+        "inputs": [
+          "N001",
+          "N002",
+          "N003",
+          "N004",
+          "M006"
+        ],
+        "output": "P",
+        "definitions": [
+          "D001",
+          "D002",
+          "D003",
+          "D004",
+          "D005",
+          "D006",
+          "D007"
+        ],
+        "rules": [
+          "direct",
+          "forall_introduction",
+          "implication_introduction"
+        ],
+        "locals": [
+          {
+            "symbol": "t0",
+            "type": "positive real time",
+            "scope": "R005/S001",
+            "start": "S001",
+            "end": "S001",
+            "kind": "arbitrary",
+            "declaration": "Fix an arbitrary t0>0.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "s",
+            "type": "real number",
+            "scope": "R005/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Let s be arbitrary; the time restrictions are introduced as L1 in S002.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          },
+          {
+            "symbol": "t",
+            "type": "real number",
+            "scope": "R005/S002",
+            "start": "S002",
+            "end": "S002",
+            "kind": "arbitrary",
+            "declaration": "Let t be arbitrary; the time restrictions are introduced as L1 in S002.",
+            "from_inputs": [],
+            "from_local": [],
+            "objects": []
+          }
+        ],
+        "argument": [
+          {
+            "id": "S001",
+            "text": "Fix t0>0. N002 proves integrability of e and of every term below; N003 gives differentiability of the actual finite integral and its derivative ∫et. Substitute the density derivative formula from N002 and sum the integration-by-parts identities of N004 over the finitely many j:\nE'(t0)=2∫_{ℝ^n}ut(x,t0)·utt(x,t0) dx+2Σ_{j=1}^n∫_{ℝ^n}dxu(j,x,t0)·∂_{x_j}ut(x,t0) dx\n=2∫_{ℝ^n}ut(x,t0)·utt(x,t0) dx−2Σ_{j=1}^n∫_{ℝ^n}ut(x,t0)·∂_{x_j}dxu(j,x,t0) dx\n=2∫_{ℝ^n}ut(x,t0)·(utt(x,t0)−lap(x,t0)) dx=0.\nThe second equality uses N004, the third finite-sum integral linearity and the definition of the componentwise Laplacian, and the last the pointwise zero identity of N001. All integrals are finite, so these applications of linearity are legitimate. Since t0 was arbitrary, e(·,t) is integrable and E is differentiable with E'(t)=0 at every t>0.",
+            "uses": [
+              "N001",
+              "N002",
+              "N003",
+              "N004"
+            ],
+            "uses_local": [],
+            "objects": [
+              "t0",
+              "E",
+              "et",
+              "e",
+              "ut",
+              "utt",
+              "dxu",
+              "lap",
+              "n"
+            ],
+            "produces": [
+              {
+                "id": "F001",
+                "statement": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+                "binders": [
+                  {
+                    "symbol": "r",
+                    "type": "positive real time"
+                  }
+                ],
+                "objects": [
+                  "e",
+                  "E",
+                  "r"
+                ],
+                "assumptions": []
+              }
+            ],
+            "introduces": [],
+            "discharges": []
+          },
+          {
+            "id": "S002",
+            "text": "Let s,t be arbitrary real numbers and temporarily assume L1: 0<s<t. Apply M006 to E (extended by zero outside positive times), f₁=0, on [s,t], with L=0 and y=t. F001 gives the ordinary zero derivative at every point of this entire positive-time interval, hence the derivative within the interval. The derivative bound is |0|≤0. Therefore |E(t)−E(s)|≤0(t−s)=0, and E(t)=E(s). Discharge L1 to obtain this assertion for every 0<s<t. Equal positive times give equality reflexively, and reversing two unequal positive times gives the remaining order by symmetry. Thus E(s)=E(t) for all s,t>0. Together with F001 this is P, with exactly the original energy normalization and no assertion at time zero.",
+            "uses": [
+              "M006"
+            ],
+            "uses_local": [
+              "F001"
+            ],
+            "objects": [
+              "s",
+              "t",
+              "E",
+              "e"
+            ],
+            "produces": [],
+            "introduces": [
+              "L1"
+            ],
+            "discharges": [
+              "L1"
+            ]
+          }
+        ],
+        "applications": [
+          {
+            "input": "M006",
+            "at": "S002",
+            "bindings": "V=ℝ, f(r)=E(r) for r>0 and 0 otherwise, f₁(r)=0, α=s, β=t, L=0, y=t.",
+            "hypothesis_checks": [
+              "ℝ is a real normed space and normed additive commutative group.",
+              "Under L1, [s,t]⊂(0,∞). F001 proves the ordinary derivative exists and equals zero at every point there; restriction gives HasDerivWithinAt on [s,t].",
+              "The norm of f₁(r)=0 is zero for all r, so the bound by L=0 holds on [s,t)."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

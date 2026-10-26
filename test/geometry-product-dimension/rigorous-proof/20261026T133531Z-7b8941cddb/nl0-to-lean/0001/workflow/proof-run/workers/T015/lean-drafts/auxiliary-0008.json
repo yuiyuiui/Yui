@@ -1,0 +1,22 @@
+{
+  "statement": "∀ a : ℝ, Hmeasure a unitI = 0 → dimH unitI ≤ ENNReal.ofReal a",
+  "proof": "intro a hz\nlet f := (ULift.up : ℝ → ULift ℝ)\nhave hp := h_T002 (ULift ℝ) (f '' unitI) a\nhave hf : Isometry f := fun x y => rfl\nhave hs : ∀ δ : ℝ, Hscale a δ (f '' unitI) ≤ Hscale a δ unitI := by\n  intro δ\n  unfold Hscale\n  refine le_iInf fun U => le_iInf fun hU => ?_\n  have hcov : IsCover δ (f '' unitI) (fun i => f '' U i) := by\n    constructor\n    · rintro _ ⟨x, hx, rfl⟩\n      rcases Set.mem_iUnion.mp (hU.1 hx) with ⟨i, hi⟩\n      exact Set.mem_iUnion.mpr ⟨i, ⟨x, hi, rfl⟩⟩\n    · intro i\n      rw [hf.ediam_image]\n      exact hU.2 i\n  have hcost : coverCost a (fun i => f '' U i) = coverCost a U := by\n    simp only [coverCost, Set.image_nonempty, hf.ediam_image]\n  exact iInf_le_of_le (fun i => f '' U i) (iInf_le_of_le hcov hcost.le)\nhave hz' : Hmeasure a (f '' unitI) = 0 := by\n  apply le_antisymm _ bot_le\n  rw [← hz]\n  exact iSup_mono fun δ => iSup_mono fun _ => hs δ\nby_cases ha : 0 < a\n· rw [← hf.dimH_image unitI]\n  exact (hp ha).2.2.2.1 hz'\n· have : a ≤ 0 := le_of_not_gt ha\n  -- this helper requires positivity\n  exact False.elim (by linarith)",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-2dmeo0mq/output/Auxiliary.lean:45:8: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern\n  0\nin the target expression\n  Hmeasure a (f '' unitI) ≤ ⊥\n\nn : ℕ\nE : Set (V n)\nh_T002 :\n  ∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n    0 < s →\n      Hmeasure s A = Hnative s A ∧\n        (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n          (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n            (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)\na : ℝ\nhz : Hmeasure a unitI = 0\nf : ℝ → ULift.{u_1, 0} ℝ := ⋯\nhp :\n  0 < a →\n    Hmeasure a (f '' unitI) = Hnative a (f '' unitI) ∧\n      (dimH (f '' unitI) < ENNReal.ofReal a → Hmeasure a (f '' unitI) = 0) ∧\n        (ENNReal.ofReal a < dimH (f '' unitI) → Hmeasure a (f '' unitI) = ∞) ∧\n          (Hmeasure a (f '' unitI) = 0 → dimH (f '' unitI) ≤ ENNReal.ofReal a) ∧\n            (Hmeasure a (f '' unitI) = ∞ → ENNReal.ofReal a ≤ dimH (f '' unitI))\nhf : Isometry f\nhs : ∀ (δ : ℝ), Hscale a δ (f '' unitI) ≤ Hscale a δ unitI\n⊢ Hmeasure a (f '' unitI) ≤ ⊥\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-2dmeo0mq/output/Auxiliary.lean:52:25: error: linarith failed to find a contradiction\nn : ℕ\nE : Set (V n)\nh_T002 :\n  ∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n    0 < s →\n      Hmeasure s A = Hnative s A ∧\n        (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n          (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n            (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)\na : ℝ\nhz : Hmeasure a unitI = 0\nf : ℝ → ULift.{u_1, 0} ℝ := ULift.up\nhp :\n  0 < a →\n    Hmeasure a (f '' unitI) = Hnative a (f '' unitI) ∧\n      (dimH (f '' unitI) < ENNReal.ofReal a → Hmeasure a (f '' unitI) = 0) ∧\n        (ENNReal.ofReal a < dimH (f '' unitI) → Hmeasure a (f '' unitI) = ∞) ∧\n          (Hmeasure a (f '' unitI) = 0 → dimH (f '' unitI) ≤ ENNReal.ofReal a) ∧\n            (Hmeasure a (f '' unitI) = ∞ → ENNReal.ofReal a ≤ dimH (f '' unitI))\nhf : Isometry f\nhs : ∀ (δ : ℝ), Hscale a δ (f '' unitI) ≤ Hscale a δ unitI\nhz' : Hmeasure a (f '' unitI) = 0\nha : ¬0 < a\nthis : a ≤ 0\n⊢ False\nfailed\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (∀ (X : Type u_1) [inst : MetricSpace X] (A : Set X) (s : ℝ),\n      0 < s →\n        Hmeasure s A = Hnative s A ∧\n          (dimH A < ENNReal.ofReal s → Hmeasure s A = 0) ∧\n            (ENNReal.ofReal s < dimH A → Hmeasure s A = ∞) ∧\n              (Hmeasure s A = 0 → dimH A ≤ ENNReal.ofReal s) ∧ (Hmeasure s A = ∞ → ENNReal.ofReal s ≤ dimH A)) →\n    ∀ (a : ℝ), Hmeasure a unitI = 0 → dimH unitI ≤ ENNReal.ofReal a\n'YuiAuxiliary.checked' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.6140275408979505,
+    "auxiliary_valid": false,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext",
+      "sorryAx"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T015",
+    "candidate": 8,
+    "accepted": false,
+    "stage_complete": false
+  }
+}

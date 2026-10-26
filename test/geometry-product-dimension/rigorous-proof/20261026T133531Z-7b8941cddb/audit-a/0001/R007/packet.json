@@ -1,0 +1,418 @@
+{
+  "contract_version": 2,
+  "case_id": "geometry-product-dimension",
+  "graph_sha256": "721031e69a0b2ed2da4b4441595cfbeba55696f852b815dc278f3fcb12e98c2e",
+  "spec_sha256": "8a9a7e15cc0bf2be2dcd525bc78f1e24947ca2830bcbe3c25525e9aef284accc",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "natural number"
+    },
+    {
+      "symbol": "E",
+      "type": "subset of Euclidean ℝ^n"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "case_elimination",
+      "forall_introduction",
+      "implication_introduction",
+      "exists_elimination"
+    ],
+    "calculations": [
+      "equality: Equality reflexivity, symmetry, transitivity and substitution.",
+      "definitions: Unfold an explicitly supplied definition; this proves no extra property.",
+      "finite_algebra: Routine finite semiring/ring/field arithmetic, including zero/one laws, distributivity, associativity and finite polynomial identities. Correct elementary compression is permitted; a substantive missing argument is not.",
+      "finite_order: Routine ordered-field reasoning with actual signs/domains: order laws, adding inequalities, multiplication/division with sign conditions, and real square nonnegativity. Ordinary valid elementary inferences need no exhaustive displayed chain. Check that the conclusion follows; substantial named theorems still require inputs or verified-background admission.",
+      "finite_sums: Unfold and rearrange finite sums/products with explicitly given finite indices."
+    ],
+    "primitives": [
+      {
+        "symbol": "0",
+        "type": "typed numeral",
+        "meaning": "Zero of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "1",
+        "type": "typed numeral",
+        "meaning": "One of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "2",
+        "type": "typed numeral",
+        "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+      },
+      {
+        "symbol": "ℕ",
+        "type": "number system",
+        "meaning": "The natural numbers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℤ",
+        "type": "number system",
+        "meaning": "The integers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℚ",
+        "type": "number system",
+        "meaning": "The rational numbers with their usual ordered-field operations."
+      },
+      {
+        "symbol": "ℝ",
+        "type": "number system",
+        "meaning": "The real numbers with their usual ordered-field structure."
+      },
+      {
+        "symbol": "ℂ",
+        "type": "number system",
+        "meaning": "The complex numbers with their usual field structure."
+      },
+      {
+        "symbol": "∅",
+        "type": "typed set notation",
+        "meaning": "The empty set in the explicitly specified ambient type."
+      },
+      {
+        "symbol": "∞",
+        "type": "typed order notation",
+        "meaning": "The top element in an explicitly specified extended ordered codomain."
+      },
+      {
+        "symbol": "norm",
+        "type": "norm notation",
+        "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+      },
+      {
+        "symbol": "∂",
+        "type": "derivative notation",
+        "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+      },
+      {
+        "symbol": "∫",
+        "type": "integral notation",
+        "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+      },
+      {
+        "symbol": "Integrable",
+        "type": "predicate notation",
+        "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+      },
+      {
+        "symbol": "AEStronglyMeasurable",
+        "type": "predicate notation",
+        "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "foundation_profile": "finite-language-3",
+  "standard_language": "Ordinary typed mathematical language: logical connectives, quantifiers, equality, sets, functions, tuples, finite indices and their usual notation. A type explicitly named natural numbers, integers, rationals, reals or complex numbers means that standard structure, with its usual numerals and arithmetic operations; these operation tokens need not be redeclared as project objects. The fixed finite calculation rules below, including a+0=a, are controller permissions, not an author claim. Project functions/sets and substantive analytic properties still need their explicit declarations and direct inputs or displayed local proofs.",
+  "background_policy": "verified-background-1",
+  "definitions": [
+    {
+      "id": "D001",
+      "symbol": "I",
+      "type": "subset of ℝ",
+      "definition": "I=[0,1]={t∈ℝ:0≤t≤1}.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [],
+      "objects": []
+    },
+    {
+      "id": "D002",
+      "symbol": "F",
+      "type": "subset of Euclidean ℝ^{n+1}, identified with ℝ^n×ℝ",
+      "definition": "F=E×I. Under the coordinate identification (x,t)↔(x_1,…,x_n,t), the distance between (x,t) and (y,u) is sqrt(‖x-y‖₂²+|t-u|²). For n=0, ℝ^0 consists of its unique empty coordinate vector.",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "point of ℝ^n"
+        },
+        {
+          "symbol": "y",
+          "type": "point of ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "real number"
+        },
+        {
+          "symbol": "u",
+          "type": "real number"
+        }
+      ],
+      "objects": [
+        "n",
+        "E",
+        "I",
+        "x",
+        "y",
+        "t",
+        "u"
+      ]
+    },
+    {
+      "id": "D003",
+      "symbol": "Hscale",
+      "type": "operator on a metric space X, a positive real s, a positive real δ and a subset A⊆X, valued in [0,∞]",
+      "definition": "For a metric space X, s>0, δ>0 and A⊆X, Hscale(s,δ,A)=inf{Σ_{i≥0}(diam U_i)^s : A⊆⋃_{i≥0}U_i and diam U_i≤δ for every i}. Covers are countable (finite covers are padded by empty sets). The diameter is the supremum of pairwise distances, with diameter of the empty set zero and unbounded diameter +∞; an empty member contributes zero. Sums, infima and suprema are in [0,∞], with inf ∅=∞. Covers are not required to be measurable.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "metric space"
+        },
+        {
+          "symbol": "s",
+          "type": "positive real"
+        },
+        {
+          "symbol": "δ",
+          "type": "positive real"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        },
+        {
+          "symbol": "U",
+          "type": "sequence of subsets of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "s",
+        "δ",
+        "A",
+        "U"
+      ]
+    },
+    {
+      "id": "D005",
+      "symbol": "hdim",
+      "type": "operator on subsets of extended metric spaces, valued in [0,∞]",
+      "definition": "For A⊆X, hdim(A)=sup{a∈[0,∞):Hnative(a,A)=∞}, with the empty supremum equal to zero and real exponents embedded into [0,∞]. This is the native dimH definition (the exponent is represented by a nonnegative real). It is the usual Hausdorff dimension; in particular the definition assigns zero to the empty set.",
+      "depends_on": [
+        "D008"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "A",
+        "Hnative"
+      ]
+    },
+    {
+      "id": "D006",
+      "symbol": "D",
+      "type": "extended nonnegative real number",
+      "definition": "D=hdim(E). Once finiteness is proved, real arithmetic with D means its unique finite real representative; no finiteness is assumed by this definition.",
+      "depends_on": [
+        "D005"
+      ],
+      "requires": [],
+      "binders": [],
+      "objects": [
+        "E",
+        "hdim"
+      ]
+    },
+    {
+      "id": "D008",
+      "symbol": "Hnative",
+      "type": "operator on a real exponent a and a subset A of an extended metric space X with its Borel measurable structure, valued in [0,∞]",
+      "definition": "Hnative(a,A) denotes the native value (MeasureTheory.Measure.hausdorffMeasure a)(A) on X. Its full covering formula is sup_{r∈(0,∞]} inf_{T:ℕ→Set X, A⊆⋃_i T_i, ∀i ediam(T_i)≤r} Σ_i w_a(T_i), where w_a(T)=0 for T empty and w_a(T)=(ediam T)^a otherwise; all diameters and operations here are extended nonnegative real operations, including extended real powers. Thus empty sets are zero even at exponent zero. The native definition is the Borel measure Measure.mkMetric(r↦r^a). For ordinary metric spaces ediam is the extended-valued supremum of ordinary distances.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "X",
+          "type": "extended metric space"
+        },
+        {
+          "symbol": "a",
+          "type": "real number"
+        },
+        {
+          "symbol": "A",
+          "type": "subset of X"
+        }
+      ],
+      "objects": [
+        "X",
+        "a",
+        "A"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "N002",
+      "kind": "internal",
+      "statement": "E is bounded. For every δ>0 and every s>0, E has a finite cover by sets of diameter at most δ and finite s-cost, so Hscale(s,δ,E)<∞. Also 0≤D≤n, in particular hdim(E)=D is finite and can be identified with a real number. If n=0, then E=ℝ^0 is the singleton and D=0.",
+      "definitions": [
+        "D003",
+        "D005",
+        "D006"
+      ],
+      "binders": [
+        {
+          "symbol": "δ",
+          "type": "positive real"
+        },
+        {
+          "symbol": "s",
+          "type": "positive real"
+        }
+      ],
+      "objects": [
+        "E",
+        "n",
+        "δ",
+        "s",
+        "D",
+        "Hscale",
+        "hdim"
+      ]
+    },
+    {
+      "id": "N003",
+      "kind": "internal",
+      "statement": "hdim(F)≤D+1.",
+      "definitions": [
+        "D002",
+        "D005",
+        "D006"
+      ],
+      "binders": [],
+      "objects": [
+        "F",
+        "D",
+        "hdim"
+      ]
+    },
+    {
+      "id": "N005",
+      "kind": "internal",
+      "statement": "If D>0, then hdim(F)≥D+1.",
+      "definitions": [
+        "D002",
+        "D005",
+        "D006"
+      ],
+      "binders": [],
+      "objects": [
+        "D",
+        "F",
+        "hdim"
+      ]
+    },
+    {
+      "id": "N006",
+      "kind": "internal",
+      "statement": "If D=0, then hdim(F)≥1=D+1, including n=0.",
+      "definitions": [
+        "D002",
+        "D005",
+        "D006"
+      ],
+      "binders": [],
+      "objects": [
+        "D",
+        "F",
+        "n",
+        "hdim"
+      ]
+    }
+  ],
+  "output": {
+    "id": "P",
+    "kind": "target",
+    "statement": "hdim(F)=hdim(E)+1.",
+    "definitions": [
+      "D002",
+      "D005"
+    ],
+    "binders": [],
+    "objects": [
+      "F",
+      "E",
+      "hdim"
+    ]
+  },
+  "inference": {
+    "id": "R007",
+    "inputs": [
+      "N002",
+      "N003",
+      "N005",
+      "N006"
+    ],
+    "output": "P",
+    "definitions": [
+      "D002",
+      "D005",
+      "D006"
+    ],
+    "rules": [
+      "direct",
+      "case_elimination"
+    ],
+    "locals": [],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "By N002, 0≤D≤n, so D is finite and either D>0 or D=0. In the first case N005 gives hdim(F)≥D+1; in the second N006 gives exactly the same lower bound. Thus hdim(F)≥D+1 in all cases. N003 gives the reverse bound. By antisymmetry hdim(F)=D+1=hdim(E)+1, as required. The definition of F supplies precisely E×[0,1] in the Euclidean metric, including n=0.",
+        "uses": [
+          "N002",
+          "N003",
+          "N005",
+          "N006"
+        ],
+        "uses_local": [],
+        "objects": [
+          "D",
+          "n",
+          "E",
+          "F",
+          "hdim"
+        ],
+        "produces": [],
+        "introduces": [
+          "L1",
+          "L2"
+        ],
+        "discharges": [
+          "L1",
+          "L2"
+        ]
+      }
+    ],
+    "applications": []
+  },
+  "warning": "Direct inputs and fixed logic are supplied. Audit A may record positively checked routine background under the declared policy, with logged pinned-library evidence. No ancestor proof or extra H is available. A packet is not an audit certificate.",
+  "packet_sha256": "22c6f546eb5ffb774541423e7cd6b98cf1489bae109a683dd8353ad61c21fd57"
+}

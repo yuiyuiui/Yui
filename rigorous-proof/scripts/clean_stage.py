@@ -213,6 +213,7 @@ class ArtifactStage(pilot.Stage):
         (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
             'model_output_policy':pilot.OUTPUT_POLICY,
             'provider_wait_policy':pilot.PROVIDER_WAIT_POLICY,
+            'remote_retry_policy':pilot.REMOTE_RETRY_POLICY,
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
             'output_verbosity':self.output_verbosity,
             'arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,'resolved_environment':pilot.load_lock(),'task_documents':

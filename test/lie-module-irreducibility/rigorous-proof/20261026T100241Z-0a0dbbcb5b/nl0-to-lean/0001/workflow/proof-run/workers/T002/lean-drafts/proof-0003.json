@@ -1,0 +1,21 @@
+{
+  "proof": "classical\nhave hy : ∀ n : ℕ, n ≤ lam.toNat → (y^n) v ≠ 0 := by\n  intro n\n  induction n with\n  | zero => simpa using h_H005.1\n  | succ n ih =>\n    intro hn hz\n    have hnlam : (n : ℤ) < lam := by\n      have := Int.toNat_of_nonneg h_H003.1\n      omega\n    have hc : (((((n+1:ℕ):ℤ) * (lam-(n:ℤ)) : ℤ) : ℂ)) ≠ 0 := by\n      exact_mod_cast (ne_of_gt (mul_pos (by omega : (0:ℤ) < (n+1:ℕ)) (by omega : (0:ℤ) < lam-n)))\n    have hh := h_T001.2 n\n    rw [hz, map_zero] at hh\n    exact (smul_ne_zero hc (ih (by omega))) hh.symm\nhave he : ∀ i : LR.Idx lam.toNat, LR.e y v i.val ≠ 0 := by\n  intro i\n  have hf : (i.val.factorial : ℂ) ≠ 0 := by exact_mod_cast Nat.factorial_ne_zero i.val\n  simpa [LR.e, LR.DP] using smul_ne_zero (inv_ne_zero hf) (hy i.val (by have := i.isLt; omega))\nhave hw : ∀ i : LR.Idx lam.toNat, h (LR.e y v i.val) = (((lam - 2*(i.val:ℤ):ℤ):ℂ)) • LR.e y v i.val := by\n  intro i\n  simp only [LR.e, LR.DP, LinearMap.smul_apply, map_smul, h_T001.1]\n  rw [smul_comm]\nlet w : LR.Idx lam.toNat → ℂ := fun i => ((lam - 2*(i.val:ℤ):ℤ):ℂ)\nhave hinj : Function.Injective w := by\n  intro i j hij\n  change ((lam - 2*(i.val:ℤ):ℤ):ℂ) = ((lam - 2*(j.val:ℤ):ℤ):ℂ) at hij\n  have hij' : lam - 2*(i.val:ℤ) = lam - 2*(j.val:ℤ) := by exact_mod_cast hij\n  apply Fin.ext\n  omega\nrefine ⟨he, Fintype.linearIndependent_iff.mpr ?_⟩\nintro c hc j\nlet q : Polynomial ℂ := ∏ k ∈ (Finset.univ.erase j), (Polynomial.X - Polynomial.C (w k))\nhave hq (i : LR.Idx lam.toNat) : q.eval (w i) = ∏ k ∈ (Finset.univ.erase j), (w i - w k) := by\n  simp [q, Polynomial.eval_prod]\nhave hz (i : LR.Idx lam.toNat) (hij : i ≠ j) : q.eval (w i) = 0 := by\n  rw [hq]\n  apply Finset.prod_eq_zero (Finset.mem_erase.mpr ⟨hij, Finset.mem_univ _⟩)\n  simp\nhave hn : q.eval (w j) ≠ 0 := by\n  rw [hq]\n  apply Finset.prod_ne_zero_iff.mpr\n  intro k hk\n  exact sub_ne_zero.mpr (fun hh => (Finset.mem_erase.mp hk).1 (hinj hh).symm)\nhave ht := congrArg (fun z : V => (Polynomial.aeval h q) z) hc\nsimp only [map_sum, map_smul, map_zero] at ht\nsimp_rw [Module.End.aeval_apply_of_mem_apply_eq_smul (hw _)] at ht\nhave hs : (∑ i, c i • (q.eval (w i) • LR.e y v i.val)) = c j • (q.eval (w j) • LR.e y v j.val) := by\n  apply Finset.sum_eq_single j\n  · intro i hi hij\n    rw [hz i hij, zero_smul, smul_zero]\n  · simp\nchange (∑ i, c i • (q.eval (w i) • LR.e y v i.val)) = 0 at ht\nrw [hs, smul_smul] at ht\nexact (mul_eq_zero.mp ((smul_eq_zero.mp ht).resolve_right (he j))).resolve_right hn",
+  "statement": "(∀ i : LR.Idx lam.toNat, LR.e y v i.val ≠ 0) ∧ LinearIndependent ℂ (fun i : LR.Idx lam.toNat => LR.e y v i.val)",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-igl1gvv0/output/Check.lean:109:34: warning: Variable name `instK` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\n/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-igl1gvv0/output/Check.lean:109:192: warning: Variable name `M` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nT002 : ∀ (p : ℕ) (K : Type u_1) [instK : Field K] (lam : ℤ) (V : Type u_2) [instV : AddCommGroup V]\n  [instCV : Module ℂ V] (x y h : Module.End ℂ V) (v : V) (M : Submodule ℤ V),\n  0 ≤ lam ∧ lam < ↑p →\n    v ≠ 0 ∧ x v = 0 ∧ h v = ↑lam • v →\n      LR.Strings lam x y h v → (∀ (i : LR.Idx lam.toNat), LR.e y v ↑i ≠ 0) ∧ LinearIndependent ℂ fun i => LR.e y v ↑i\n'Translation.T002' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 8.312633583089337,
+    "status": "LOCAL-PROOF-CHECKED",
+    "contract_sha256": "b299da5107dcd0034d543f4871dbd75306b577a18d61d88f7edd7b8fbae5d545",
+    "lean_sha256": "2f1a1793bf396591cd5d258e775a2126767ffdc35c75b027b1599f88c8394be7",
+    "scope": "T002",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "accepted": true,
+    "stage_complete": true
+  }
+}

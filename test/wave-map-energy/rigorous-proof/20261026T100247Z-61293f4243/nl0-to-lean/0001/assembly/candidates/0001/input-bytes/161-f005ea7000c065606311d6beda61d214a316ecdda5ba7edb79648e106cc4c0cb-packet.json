@@ -1,0 +1,698 @@
+{
+  "contract_version": 2,
+  "case_id": "wave-map-energy",
+  "graph_sha256": "87dcef2461511f6ffc882bcabf0fec6b7260ae5282645087357f537f485a385e",
+  "spec_sha256": "86d6b3cdec7f7d2e2ff99ca5862ee97fe8e955389cb29c16b2e0809c34dd6cef",
+  "parameters": [
+    {
+      "symbol": "n",
+      "type": "natural number"
+    },
+    {
+      "symbol": "m",
+      "type": "natural number"
+    },
+    {
+      "symbol": "u",
+      "type": "map ℝ^n×(0,∞)→ℝ^m"
+    },
+    {
+      "symbol": "q",
+      "type": "vector in ℝ^m"
+    }
+  ],
+  "logic": {
+    "classical": true,
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "implication_introduction",
+      "exists_elimination",
+      "case_elimination"
+    ],
+    "calculations": [
+      "equality: Equality reflexivity, symmetry, transitivity and substitution.",
+      "definitions: Unfold an explicitly supplied definition; this proves no extra property.",
+      "finite_algebra: Routine finite semiring/ring/field arithmetic, including zero/one laws, distributivity, associativity and finite polynomial identities. Correct elementary compression is permitted; a substantive missing argument is not.",
+      "finite_order: Routine ordered-field reasoning with actual signs/domains: order laws, adding inequalities, multiplication/division with sign conditions, and real square nonnegativity. Ordinary valid elementary inferences need no exhaustive displayed chain. Check that the conclusion follows; substantial named theorems still require inputs or verified-background admission.",
+      "finite_sums: Unfold and rearrange finite sums/products with explicitly given finite indices."
+    ],
+    "primitives": [
+      {
+        "symbol": "0",
+        "type": "typed numeral",
+        "meaning": "Zero of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "1",
+        "type": "typed numeral",
+        "meaning": "One of the explicitly specified mathematical type."
+      },
+      {
+        "symbol": "2",
+        "type": "typed numeral",
+        "meaning": "Two of the explicitly specified mathematical type, including an exponent two."
+      },
+      {
+        "symbol": "ℕ",
+        "type": "number system",
+        "meaning": "The natural numbers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℤ",
+        "type": "number system",
+        "meaning": "The integers with their usual arithmetic."
+      },
+      {
+        "symbol": "ℚ",
+        "type": "number system",
+        "meaning": "The rational numbers with their usual ordered-field operations."
+      },
+      {
+        "symbol": "ℝ",
+        "type": "number system",
+        "meaning": "The real numbers with their usual ordered-field structure."
+      },
+      {
+        "symbol": "ℂ",
+        "type": "number system",
+        "meaning": "The complex numbers with their usual field structure."
+      },
+      {
+        "symbol": "∅",
+        "type": "typed set notation",
+        "meaning": "The empty set in the explicitly specified ambient type."
+      },
+      {
+        "symbol": "∞",
+        "type": "typed order notation",
+        "meaning": "The top element in an explicitly specified extended ordered codomain."
+      },
+      {
+        "symbol": "norm",
+        "type": "norm notation",
+        "meaning": "The norm supplied by the explicitly specified normed-space structure; no estimate is granted."
+      },
+      {
+        "symbol": "∂",
+        "type": "derivative notation",
+        "meaning": "Classical differentiation where the stated derivative exists; no calculus rule is granted."
+      },
+      {
+        "symbol": "∫",
+        "type": "integral notation",
+        "meaning": "The integral for the explicitly specified function, measure and codomain; no integral identity is granted."
+      },
+      {
+        "symbol": "Integrable",
+        "type": "predicate notation",
+        "meaning": "Bochner integrability for the specified function and measure; no integrability is asserted."
+      },
+      {
+        "symbol": "AEStronglyMeasurable",
+        "type": "predicate notation",
+        "meaning": "Almost-everywhere strong measurability for the specified function and measure; no measurability is asserted."
+      }
+    ]
+  },
+  "pins": {
+    "lean_version": "4.32.2",
+    "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+    "mathlib_root": "/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib"
+  },
+  "foundation_profile": "finite-language-3",
+  "standard_language": "Ordinary typed mathematical language: logical connectives, quantifiers, equality, sets, functions, tuples, finite indices and their usual notation. A type explicitly named natural numbers, integers, rationals, reals or complex numbers means that standard structure, with its usual numerals and arithmetic operations; these operation tokens need not be redeclared as project objects. The fixed finite calculation rules below, including a+0=a, are controller permissions, not an author claim. Project functions/sets and substantive analytic properties still need their explicit declarations and direct inputs or displayed local proofs.",
+  "background_policy": "verified-background-1",
+  "definitions": [
+    {
+      "id": "D001",
+      "symbol": "ut",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "ut(x,t)=u_t(x,t)=d/dr u(x,r)|_{r=t}, the time partial derivative. Derivative notation uses the usual total derivative convention (zero if a derivative does not exist); no regularity property is granted by this definition.",
+      "depends_on": [],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "u",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D002",
+      "symbol": "utt",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "utt(x,t)=u_tt(x,t)=d/dr ut(x,r)|_{r=t}, with the same total derivative convention.",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "ut",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D003",
+      "symbol": "dxu",
+      "type": "family of maps ℝ^n×(0,∞)→ℝ^m indexed by j∈{1,…,n}",
+      "definition": "dxu(j,x,t)=∂_{x_j}u(x,t), the partial derivative in the jth standard coordinate, with the total derivative convention. Further expressions ∂_{x_j}ut and ∂_{x_j}dxu(j,·,t) denote partial derivatives of the displayed functions; the latter is ∂_{x_jx_j}u.",
+      "depends_on": [
+        "D001"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "j",
+          "type": "integer spatial index, 1≤j≤n"
+        },
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "u",
+        "ut",
+        "n",
+        "j",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D004",
+      "symbol": "lap",
+      "type": "map ℝ^n×(0,∞)→ℝ^m",
+      "definition": "lap(x,t)=Δ_xu(x,t)=Σ_{j=1}^n ∂_{x_j}dxu(j,x,t)=Σ_{j=1}^n ∂_{x_jx_j}u(x,t), component by component.",
+      "depends_on": [
+        "D003"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "dxu",
+        "n",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D005",
+      "symbol": "e",
+      "type": "map ℝ^n×(0,∞)→ℝ",
+      "definition": "e(x,t)=|u_t(x,t)|²+Σ_{j=1}^n|∂_{x_j}u(x,t)|²=|ut(x,t)|²+Σ_{j=1}^n|dxu(j,x,t)|². Norms are Euclidean; the sum is exactly the Frobenius square |D_xu|², with no factor 1/2.",
+      "depends_on": [
+        "D001",
+        "D003"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "ut",
+        "dxu",
+        "n",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D006",
+      "symbol": "et",
+      "type": "map ℝ^n×(0,∞)→ℝ",
+      "definition": "et(x,t)=e_t(x,t)=d/dr e(x,r)|_{r=t}, with the total derivative convention. Its derivative and integral properties are proved, not part of the definition.",
+      "depends_on": [
+        "D005"
+      ],
+      "requires": [],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "e",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "D007",
+      "symbol": "E",
+      "type": "real-valued function on (0,∞)",
+      "definition": "E(t)=∫_{ℝ^n}e(x,t) dx, with Lebesgue measure, for t>0. This is the finite energy integral; its use is guarded by absolute integrability of every spatial section of e.",
+      "depends_on": [
+        "D005"
+      ],
+      "requires": [
+        "N002"
+      ],
+      "binders": [
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "e",
+        "n",
+        "t"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "N001",
+      "kind": "internal",
+      "statement": "For every x∈ℝ^n and t>0, u(x,t)·ut(x,t)=0 and ut(x,t)·(utt(x,t)−lap(x,t))=0.",
+      "definitions": [
+        "D001",
+        "D002",
+        "D004"
+      ],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        }
+      ],
+      "objects": [
+        "u",
+        "ut",
+        "utt",
+        "lap",
+        "n",
+        "x",
+        "t"
+      ]
+    },
+    {
+      "id": "N002",
+      "kind": "internal",
+      "statement": "The functions ut,utt,dxu,e,et are smooth on their stated positive-time domains. For every x∈ℝ^n and r>0, et(x,r)=2ut(x,r)·utt(x,r)+2Σ_{j=1}^n dxu(j,x,r)·∂_{x_j}ut(x,r), and ∂_r dxu(j,x,r)=∂_{x_j}ut(x,r) for each 1≤j≤n. For every t>0, e(·,t) is Lebesgue integrable. More precisely, for every τ>0, put J=[τ/2,3τ/2]. There exist a compact C⊂ℝ^n and R>0 such that C⊂(-R,R)^n and u(x,r)=q whenever x∉C and r∈J. Put Q=[-R,R]^n. Its measure is (2R)^n<∞. On (ℝ^n\\C)×int J all positive-order derivatives of u vanish. For every r∈int J, the spatial sections of e,et, ut·utt, dxu(j,·,r)·∂_{x_j}ut, ut·∂_{x_j}dxu(j,·,r), and ∂_{x_j}(ut·dxu(j,·,r)), for each 1≤j≤n, are continuous, bounded on Q, zero outside C, and absolutely Lebesgue integrable on ℝ^n.",
+      "definitions": [
+        "D001",
+        "D002",
+        "D003",
+        "D005",
+        "D006"
+      ],
+      "binders": [
+        {
+          "symbol": "x",
+          "type": "ℝ^n"
+        },
+        {
+          "symbol": "r",
+          "type": "positive real time"
+        },
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        },
+        {
+          "symbol": "j",
+          "type": "spatial index 1≤j≤n"
+        },
+        {
+          "symbol": "τ",
+          "type": "positive real time"
+        },
+        {
+          "symbol": "J",
+          "type": "interval defined within the statement"
+        },
+        {
+          "symbol": "C",
+          "type": "existentially bound compact subset of ℝ^n"
+        },
+        {
+          "symbol": "R",
+          "type": "existentially bound positive real"
+        },
+        {
+          "symbol": "Q",
+          "type": "box defined within the statement"
+        }
+      ],
+      "objects": [
+        "u",
+        "q",
+        "n",
+        "ut",
+        "utt",
+        "dxu",
+        "e",
+        "et",
+        "x",
+        "r",
+        "t",
+        "j",
+        "τ",
+        "J",
+        "C",
+        "R",
+        "Q"
+      ]
+    },
+    {
+      "id": "N003",
+      "kind": "internal",
+      "statement": "For every t>0 the finite energy integral E is differentiable at t, and E'(t)=∫_{ℝ^n}et(x,t) dx.",
+      "definitions": [
+        "D005",
+        "D006",
+        "D007"
+      ],
+      "binders": [
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        },
+        {
+          "symbol": "x",
+          "type": "integration variable in ℝ^n"
+        }
+      ],
+      "objects": [
+        "E",
+        "et",
+        "e",
+        "n",
+        "t",
+        "x"
+      ]
+    },
+    {
+      "id": "N004",
+      "kind": "internal",
+      "statement": "For every t>0 and 1≤j≤n, ∫_{ℝ^n}dxu(j,x,t)·∂_{x_j}ut(x,t) dx = −∫_{ℝ^n}ut(x,t)·∂_{x_j}dxu(j,x,t) dx. Both integrals are absolutely integrable.",
+      "definitions": [
+        "D001",
+        "D003"
+      ],
+      "binders": [
+        {
+          "symbol": "t",
+          "type": "positive real time"
+        },
+        {
+          "symbol": "j",
+          "type": "spatial index 1≤j≤n"
+        },
+        {
+          "symbol": "x",
+          "type": "integration variable in ℝ^n"
+        }
+      ],
+      "objects": [
+        "ut",
+        "dxu",
+        "n",
+        "t",
+        "j",
+        "x"
+      ]
+    },
+    {
+      "id": "M006",
+      "kind": "mathlib",
+      "statement": "Let V be a normed additive commutative group and a normed space over ℝ, f,f₁:ℝ→V, and α,β,L∈ℝ. If for every r∈[α,β], HasDerivWithinAt f (f₁(r)) [α,β] r, and for every r∈[α,β), |f₁(r)|≤L, then for every y∈[α,β], |f(y)−f(α)|≤L(y−α).",
+      "definitions": [],
+      "binders": [
+        {
+          "symbol": "V",
+          "type": "real normed space with normed additive commutative group"
+        },
+        {
+          "symbol": "f",
+          "type": "ℝ→V"
+        },
+        {
+          "symbol": "f₁",
+          "type": "ℝ→V"
+        },
+        {
+          "symbol": "α",
+          "type": "ℝ"
+        },
+        {
+          "symbol": "β",
+          "type": "ℝ"
+        },
+        {
+          "symbol": "L",
+          "type": "ℝ"
+        },
+        {
+          "symbol": "r",
+          "type": "ℝ, locally quantified in the premises"
+        },
+        {
+          "symbol": "y",
+          "type": "ℝ, universally quantified in the conclusion"
+        }
+      ],
+      "objects": [
+        "V",
+        "f",
+        "f₁",
+        "α",
+        "β",
+        "L",
+        "r",
+        "y"
+      ],
+      "source_contract": {
+        "hypotheses": [
+          "V is a normed additive commutative group and real normed space.",
+          "For every r∈[α,β], f has derivative f₁(r) within [α,β] at r.",
+          "For every r∈[α,β), |f₁(r)|≤L."
+        ],
+        "declaration": "norm_image_sub_le_of_norm_deriv_le_segment'",
+        "signature": "@norm_image_sub_le_of_norm_deriv_le_segment' : ∀ {E : Type u_1} [inst : NormedAddCommGroup.{u_1} E] [inst_1 : NormedSpace.{0, u_1} ℝ E] {f : ℝ → E} {a b : ℝ}\n  {f' : ℝ → E} {C : ℝ},\n  (∀ (x : ℝ), Membership.mem.{0, 0} (Set.Icc.{0} a b) x → HasDerivWithinAt.{0, u_1} f (f' x) (Set.Icc.{0} a b) x) →\n    (∀ (x : ℝ), Membership.mem.{0, 0} (Set.Ico.{0} a b) x → LE.le.{0} (norm.{u_1} (f' x)) C) →\n      ∀ (x : ℝ),\n        Membership.mem.{0, 0} (Set.Icc.{0} a b) x →\n          LE.le.{0} (norm.{u_1} (HSub.hSub.{u_1, u_1, u_1} (f x) (f a)))\n            (HMul.hMul.{0, 0, 0} C (HSub.hSub.{0, 0, 0} x a))"
+      }
+    }
+  ],
+  "output": {
+    "id": "P",
+    "kind": "target",
+    "statement": "For every t>0, e(·,t) is Lebesgue integrable on ℝ^n. The finite integral E is differentiable on (0,∞), and for every t>0, E'(t)=0. For every s,t>0, E(s)=E(t).",
+    "definitions": [
+      "D005",
+      "D007"
+    ],
+    "binders": [
+      {
+        "symbol": "t",
+        "type": "positive real time"
+      },
+      {
+        "symbol": "s",
+        "type": "positive real time"
+      }
+    ],
+    "objects": [
+      "e",
+      "E",
+      "n",
+      "s",
+      "t"
+    ]
+  },
+  "inference": {
+    "id": "R005",
+    "inputs": [
+      "N001",
+      "N002",
+      "N003",
+      "N004",
+      "M006"
+    ],
+    "output": "P",
+    "definitions": [
+      "D001",
+      "D002",
+      "D003",
+      "D004",
+      "D005",
+      "D006",
+      "D007"
+    ],
+    "rules": [
+      "direct",
+      "forall_introduction",
+      "implication_introduction"
+    ],
+    "locals": [
+      {
+        "symbol": "t0",
+        "type": "positive real time",
+        "scope": "R005/S001",
+        "start": "S001",
+        "end": "S001",
+        "kind": "arbitrary",
+        "declaration": "Fix an arbitrary t0>0.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "s",
+        "type": "real number",
+        "scope": "R005/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Let s be arbitrary; the time restrictions are introduced as L1 in S002.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      },
+      {
+        "symbol": "t",
+        "type": "real number",
+        "scope": "R005/S002",
+        "start": "S002",
+        "end": "S002",
+        "kind": "arbitrary",
+        "declaration": "Let t be arbitrary; the time restrictions are introduced as L1 in S002.",
+        "from_inputs": [],
+        "from_local": [],
+        "objects": []
+      }
+    ],
+    "argument": [
+      {
+        "id": "S001",
+        "text": "Fix t0>0. N002 proves integrability of e and of every term below; N003 gives differentiability of the actual finite integral and its derivative ∫et. Substitute the density derivative formula from N002 and sum the integration-by-parts identities of N004 over the finitely many j:\nE'(t0)=2∫_{ℝ^n}ut(x,t0)·utt(x,t0) dx+2Σ_{j=1}^n∫_{ℝ^n}dxu(j,x,t0)·∂_{x_j}ut(x,t0) dx\n=2∫_{ℝ^n}ut(x,t0)·utt(x,t0) dx−2Σ_{j=1}^n∫_{ℝ^n}ut(x,t0)·∂_{x_j}dxu(j,x,t0) dx\n=2∫_{ℝ^n}ut(x,t0)·(utt(x,t0)−lap(x,t0)) dx=0.\nThe second equality uses N004, the third finite-sum integral linearity and the definition of the componentwise Laplacian, and the last the pointwise zero identity of N001. All integrals are finite, so these applications of linearity are legitimate. Since t0 was arbitrary, e(·,t) is integrable and E is differentiable with E'(t)=0 at every t>0.",
+        "uses": [
+          "N001",
+          "N002",
+          "N003",
+          "N004"
+        ],
+        "uses_local": [],
+        "objects": [
+          "t0",
+          "E",
+          "et",
+          "e",
+          "ut",
+          "utt",
+          "dxu",
+          "lap",
+          "n"
+        ],
+        "produces": [
+          {
+            "id": "F001",
+            "statement": "For every r>0, e(·,r) is Lebesgue integrable, E is differentiable at r, and E'(r)=0.",
+            "binders": [
+              {
+                "symbol": "r",
+                "type": "positive real time"
+              }
+            ],
+            "objects": [
+              "e",
+              "E",
+              "r"
+            ],
+            "assumptions": []
+          }
+        ],
+        "introduces": [],
+        "discharges": []
+      },
+      {
+        "id": "S002",
+        "text": "Let s,t be arbitrary real numbers and temporarily assume L1: 0<s<t. Apply M006 to E (extended by zero outside positive times), f₁=0, on [s,t], with L=0 and y=t. F001 gives the ordinary zero derivative at every point of this entire positive-time interval, hence the derivative within the interval. The derivative bound is |0|≤0. Therefore |E(t)−E(s)|≤0(t−s)=0, and E(t)=E(s). Discharge L1 to obtain this assertion for every 0<s<t. Equal positive times give equality reflexively, and reversing two unequal positive times gives the remaining order by symmetry. Thus E(s)=E(t) for all s,t>0. Together with F001 this is P, with exactly the original energy normalization and no assertion at time zero.",
+        "uses": [
+          "M006"
+        ],
+        "uses_local": [
+          "F001"
+        ],
+        "objects": [
+          "s",
+          "t",
+          "E",
+          "e"
+        ],
+        "produces": [],
+        "introduces": [
+          "L1"
+        ],
+        "discharges": [
+          "L1"
+        ]
+      }
+    ],
+    "applications": [
+      {
+        "input": "M006",
+        "at": "S002",
+        "bindings": "V=ℝ, f(r)=E(r) for r>0 and 0 otherwise, f₁(r)=0, α=s, β=t, L=0, y=t.",
+        "hypothesis_checks": [
+          "ℝ is a real normed space and normed additive commutative group.",
+          "Under L1, [s,t]⊂(0,∞). F001 proves the ordinary derivative exists and equals zero at every point there; restriction gives HasDerivWithinAt on [s,t].",
+          "The norm of f₁(r)=0 is zero for all r, so the bound by L=0 holds on [s,t)."
+        ]
+      }
+    ]
+  },
+  "warning": "Direct inputs and fixed logic are supplied. Audit A may record positively checked routine background under the declared policy, with logged pinned-library evidence. No ancestor proof or extra H is available. A packet is not an audit certificate.",
+  "packet_sha256": "11e60997a11c581f558c1457ac5b7782e5c8215a6f10a364c9f0c7c5fc4903ec"
+}

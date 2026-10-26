@@ -1,0 +1,21 @@
+{
+  "proof": "refine ⟨(fun t ht => (h_T013 t ht).1), ?_, (fun t ht => (h_T013 t ht).2.2), ?_⟩\n· intro t ht\n  exact (h_T013 t ht).2.1.differentiableAt.differentiableWithinAt\n· have ordered : ∀ s t : ℝ, 0 < s → s < t → WM.energy u s = WM.energy u t := by\n    intro s t hs hst\n    have hd : ∀ r ∈ Set.Icc s t,\n        HasDerivWithinAt (WM.energy u) (0 : ℝ) (Set.Icc s t) r := by\n      intro r hr\n      exact (h_T013 r (lt_of_lt_of_le hs hr.1)).2.1.hasDerivWithinAt\n    have hb : ∀ r ∈ Set.Ico s t, ‖(0 : ℝ)‖ ≤ (0 : ℝ) := by\n      intros\n      simp\n    have h := norm_image_sub_le_of_norm_deriv_le_segment' hd hb t\n      (show t ∈ Set.Icc s t from ⟨le_of_lt hst, le_rfl⟩)\n    have hz : WM.energy u t - WM.energy u s = 0 :=\n      norm_eq_zero.mp (le_antisymm (by simpa using h) (norm_nonneg _))\n    exact (sub_eq_zero.mp hz).symm\n  intro s t hs ht\n  rcases lt_trichotomy s t with hst | hst | hts\n  · exact ordered s t hs hst\n  · rw [hst]\n  · exact (ordered t s ht hts).symm",
+  "statement": "(∀ t : ℝ, 0 < t → Integrable (fun x => WM.e u (x,t))) ∧ DifferentiableOn ℝ (WM.energy u) (Set.Ioi 0) ∧ (∀ t : ℝ, 0 < t → deriv (WM.energy u) t = 0) ∧ (∀ s t : ℝ, 0 < s → 0 < t → WM.energy u s = WM.energy u t)",
+  "check": {
+    "exit_code": 0,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/nl0-ir-check-s75z2f1h/output/Check.lean:50:56: warning: Variable name `q` is not explicitly referenced.\n\nThe binding can be removed (if unused) or named `_` (if used implicitly).\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`\nT014 : ∀ (n m : ℕ) (u : WM.X n × ℝ → WM.Y m) (q : WM.Y m),\n  (∀ (t : ℝ),\n      0 < t → Integrable (fun x => WM.e u (x, t)) volume ∧ HasDerivAt (WM.energy u) 0 t ∧ deriv (WM.energy u) t = 0) →\n    (∀ (t : ℝ), 0 < t → Integrable (fun x => WM.e u (x, t)) volume) ∧\n      DifferentiableOn ℝ (WM.energy u) (Set.Ioi 0) ∧\n        (∀ (t : ℝ), 0 < t → deriv (WM.energy u) t = 0) ∧ ∀ (s t : ℝ), 0 < s → 0 < t → WM.energy u s = WM.energy u t\n'Translation.T014' depends on axioms: [propext, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 3.487232250161469,
+    "status": "LOCAL-PROOF-CHECKED",
+    "contract_sha256": "8ae9dc883dfbcb3b7eb394f1aaac4de567f9b55c2b7f6a07d3bf79784568524f",
+    "lean_sha256": "a065f56ad7a57c6ec94d2e146185ee5a4c75bdcd9370a637b9d14da88ce9767d",
+    "scope": "T014",
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext"
+    ],
+    "accepted": true,
+    "stage_complete": false
+  }
+}

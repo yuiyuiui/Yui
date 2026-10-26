@@ -1,0 +1,22 @@
+{
+  "statement": "∀ (a δ d : ℝ), 0 ≤ a → d ≤ δ → ∀ {ι : Type} [Fintype ι] (U : ι → Set (V n)), E ⊆ ⋃ i, U i → (∀ i, Metric.ediam (U i) ≤ ENNReal.ofReal d) → Hscale a δ E ≤ (Fintype.card ι : ℝ≥0∞) * (ENNReal.ofReal d) ^ a",
+  "proof": "classical\nintro a δ d ha hd ι _ U hU hdiam\nlet c := Fintype.card ι\nlet e : Fin c ≃ ι := (Fintype.equivFin ι).symm\nlet T : ℕ → Set (V n) := fun i => if hi : i < c then U (e ⟨i, hi⟩) else ∅\nhave hcov : IsCover δ E T := by\n  constructor\n  · intro x hx\n    obtain ⟨i, hi⟩ := Set.mem_iUnion.mp (hU hx)\n    refine Set.mem_iUnion.mpr ⟨(e.symm i).val, ?_⟩\n    simp only [T, dif_pos (e.symm i).isLt, Fin.eta, Equiv.apply_symm_apply]\n    exact hi\n  · intro i\n    dsimp [T]\n    split_ifs with hi\n    · exact (hdiam _).trans (ENNReal.ofReal_le_ofReal hd)\n    · simp\nhave hcost : coverCost a T ≤ (c : ℝ≥0∞) * (ENNReal.ofReal d) ^ a := by\n  unfold coverCost\n  rw [tsum_eq_sum (s := Finset.range c) (fun i hi => ?_)]\n  · calc\n      _ ≤ ∑ _i ∈ Finset.range c, (ENNReal.ofReal d) ^ a := by\n        apply Finset.sum_le_sum\n        intro i hi\n        have hi' : i < c := Finset.mem_range.mp hi\n        dsimp [T]\n        rw [dif_pos hi']\n        apply iSup_le\n        intro _\n        exact ENNReal.rpow_le_rpow (hdiam (e ⟨i, hi'⟩)) ha\n      _ = _ := by simp\n  · have hi' : ¬ i < c := by simpa using hi\n    simp [T, hi']\nunfold Hscale\nexact (iInf_le_of_le T (iInf_le_of_le hcov le_rfl)).trans hcost",
+  "check": {
+    "exit_code": 1,
+    "stdout": "/private/var/folders/rh/238ty32j2fd87j0xms57ry900000gn/T/yui-auxiliary-a86pjrjw/output/Auxiliary.lean:58:40: error: Application type mismatch: The argument\n  hcov\nhas type\n  IsCover δ E T\nof sort `Prop` but is expected to have type\n  ℕ\nof sort `Type` in the application\n  iInf_le_of_le hcov\nchecked : ∀ (n : ℕ) (E : Set (V n)),\n  (Bornology.IsBounded E ∧\n      (∃ B, 1 ≤ B ∧ ∀ x ∈ E, ‖x‖ ≤ B) ∧\n        (∀ (s δ : ℝ),\n            0 < s →\n              0 < δ →\n                ∃ k U,\n                  E ⊆ ⋃ i, U i ∧\n                    (∀ (i : Fin k), Metric.ediam (U i) ≤ ENNReal.ofReal δ) ∧ ∑ i, Metric.ediam (U i) ^ s < ∞) ∧\n          ∀ (s δ : ℝ), 0 < s → 0 < δ → Hscale s δ E < ∞) →\n    ∀ (a δ d : ℝ),\n      0 ≤ a →\n        d ≤ δ →\n          ∀ {ι : Type} [inst : Fintype ι] (U : ι → Set (V n)),\n            E ⊆ ⋃ i, U i →\n              (∀ (i : ι), Metric.ediam (U i) ≤ ENNReal.ofReal d) →\n                Hscale a δ E ≤ ↑(Fintype.card ι) * ENNReal.ofReal d ^ a\n'YuiAuxiliary.checked' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]\n",
+    "stderr": "",
+    "wall_seconds": 2.8526044581085443,
+    "auxiliary_valid": false,
+    "axioms": [
+      "Classical.choice",
+      "Quot.sound",
+      "propext",
+      "sorryAx"
+    ],
+    "scope": "AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET",
+    "context_port": "T004",
+    "candidate": 4,
+    "accepted": false,
+    "stage_complete": false
+  }
+}

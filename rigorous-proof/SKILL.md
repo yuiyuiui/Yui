@@ -13,9 +13,13 @@ invalidation rules; completing stage one does not require stage two.
 
 The invoking agent owns request/configuration collection and dispatch. Follow
 [installed operation](references/operation.md) to identify explicit proof inputs,
-ask once for missing active-phase model/reasoning/speed settings, and call
+ask once for missing active-phase model/reasoning/speed settings and, for a
+full or translation request, an explicit per-case proof-worker count, then call
 `scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
-the user; do not call a separate intent-classification model. NL0/Audit A and
+the user; do not call a separate intent-classification model. Do not silently
+choose a worker count from defaults or `auto`; obtain a positive integer or
+the user's explicit confirmation of a proposed number. NL0-only requests need
+no proof-worker question. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
 For an ordinary foreground request, follow execution through its actual final
@@ -29,6 +33,10 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
 queues and ledgers. Use normal local repair unless a first-pass measurement is
 explicitly requested. Runtime and software controls are fully inside this skill;
 no repository example/support directory or old test result is required.
+Positively identified temporary remote-service failures retry within the same
+isolated thread, preserving its drafts and tool receipts. Keep the selected
+profile and record every fault/wait; use [operational recovery](references/operation.md#remote-service-recovery)
+for backoff, cancellation and explicit continuation of an already exited run.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.

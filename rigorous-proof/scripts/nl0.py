@@ -426,7 +426,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                         if replay['mode'] == background.MODE:
                             require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
                             if refs:evidence(base, refs)
-                            materials = ['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]
+                            materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
                             require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
                                     'REPLAY-BOUNDARY', 'background source not in reviewed material list')
                         else:

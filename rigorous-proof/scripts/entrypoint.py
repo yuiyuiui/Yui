@@ -17,7 +17,9 @@ def parsers(commands):
         p.add_argument('--track',choices=sorted(jobs.TRACKS),required=True)
         p.add_argument('--material',action='append',type=Path,default=[])
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
-        p.add_argument('--max-concurrency',default='auto');p.add_argument('--case-concurrency',type=int)
+        p.add_argument('--max-concurrency',metavar='N',
+                       help='User-confirmed positive proof-worker count per case; required for full/translate')
+        p.add_argument('--case-concurrency',type=int)
         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
         p.add_argument('--time-budget-seconds',type=int)
         p.add_argument('--use-config-profiles',action='store_true',help='Explicitly select the installed defaults for missing profiles')
@@ -26,6 +28,11 @@ def parsers(commands):
         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
     p=commands.add_parser('execute',help='Execute already prepared, unchanged run jobs')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
+    p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
+    p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
+    p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
+    p.add_argument('--repair-evidence',action='store_true',
+        help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
     for name in ('status','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
@@ -46,6 +53,19 @@ def profiles(args):
         selected[phase]=validate_profile(dict(zip(('id','reasoning_effort','speed'),values),automatic_fallback=False))
     for phase in {'nl0','lean'}-required:selected[phase]=dict(next(iter(selected.values())))
     return selected
+
+
+def proof_workers(args):
+    """Require explicit proof capacity only for tracks that construct proofs."""
+    requested=args.max_concurrency
+    if args.track not in {'full','translate'}:
+        return 'auto' if requested is None else requested
+    if requested is None or requested=='auto':
+        raise ValueError('Ask once for an explicit positive proof-worker count per case, '
+                         'or confirmation of a proposed number, then supply --max-concurrency N; '
+                         'model-profile defaults do not select this count')
+    import concurrency
+    return concurrency.resolve(requested)['effective']
 
 
 def preflight_profiles(job):
@@ -84,16 +104,23 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command=='resume':
+        import interrupted
+        prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
+                  interrupted.prepare(path) for path in args.runs]
+        if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
+        return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
     if args.command in {'prepare','run'}:
         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
-        chosen=profiles(args);prepared=[]
+        chosen=profiles(args);workers=proof_workers(args);prepared=[]
         for problem in args.problems:
-            prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=args.max_concurrency,
+            prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
-                 'profiles':chosen,'proof_concurrency':__import__('concurrency').resolve(args.max_concurrency),
+                 'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
+                    if args.track in {'full','translate'} else None),
                  'concurrent_cases':args.case_concurrency or len(prepared)}
         return summary if args.command=='prepare' else launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
     if args.command=='execute':
@@ -108,8 +135,8 @@ def dispatch(args):
             elif (p/'case-result.json').exists():value=json.loads((p/'case-result.json').read_text())
             else:
                 launch_file=p/'batch.json' if (p/'batch.json').exists() else p/'launch.json'
-                launch=json.loads(launch_file.read_text()) if launch_file.exists() else {}
-                who=launch.get('controller')
+                launch_record=json.loads(launch_file.read_text()) if launch_file.exists() else {}
+                who=launch_record.get('controller')
                 live=bool(who and same_process(who))
                 value={'phase':'CANCEL_REQUESTED_NOT_STARTED' if (p/'cancel-request.json').exists() else
                        'QUEUED' if live else 'CONTROLLER_EXITED_BEFORE_CASE_START' if who else 'PREPARED_NOT_STARTED',

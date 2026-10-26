@@ -1,0 +1,298 @@
+[
+  {
+    "id": "BG001",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "At fixed t0>0, g(x)=ut(x,t0)·dxu(j,x,t0) is smooth: the real inner product of two smooth Euclidean-valued spatial sections is smooth.",
+    "justification": "ContDiff.inner with scalar ℝ and Euclidean codomain ℝ^m applies to the smooth sections supplied by N002 (also H002). This only accounts for routine regularity of the displayed product, not the integration-by-parts argument.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "ut and dxu are smooth on the positive-time domain; restricting to t0 gives smooth spatial sections."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "t0>0 and j is a valid coordinate; g is explicitly the inner product of these sections."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiff.inner",
+      "module": "Mathlib.Analysis.InnerProductSpace.Calculus",
+      "signature": "@ContDiff.inner : ∀ (𝕜 : Type u_1) {E : Type u_2} [inst : RCLike.{u_1} 𝕜] [inst_1 : NormedAddCommGroup.{u_2} E]\n  [inst_2 : InnerProductSpace.{u_1, u_2} 𝕜 E] [inst_3 : NormedSpace.{0, u_2} ℝ E] {G : Type u_4}\n  [inst_4 : NormedAddCommGroup.{u_4} G] [inst_5 : NormedSpace.{0, u_4} ℝ G] {f g : G → E} {n : WithTop.{0} ℕ∞},\n  ContDiff.{0, u_4, u_2} ℝ n f →\n    ContDiff.{0, u_4, u_2} ℝ n g → ContDiff.{0, u_4, u_1} ℝ n fun x => inner.{u_1, u_2} 𝕜 (f x) (g x)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/InnerProductSpace/Calculus.lean",
+      "source_sha256": "902f118cce8ed2a8d385b11e29d95a20424361ca8e47d9bf94fbf954057a7f05",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M101-0001/library-sources.json",
+          "sha256": "efbb674ecdd0ceac569b96c74bae5ae9f58de51c053d5c5e3f229daf59864629"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG002",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "All fixed spatial partial derivatives of a smooth function on ℝ^n are smooth, in particular d=∂_{x_j}g; smoothness also supplies the coordinate-section derivatives used in M001.",
+    "justification": "Apply the forward implication of contDiff_succ_iff_fderiv_apply at each finite order and at the jth coordinate unit vector. The scalar field ℝ is complete and ℝ^n is finite-dimensional. A partial derivative is exactly differentiation along this coordinate line; the function has the required differentiability, so the total-derivative convention agrees with the actual derivative. This is routine smooth-calculus bookkeeping.",
+    "grounds": [
+      {
+        "location": "/inputs/1/statement",
+        "reason": "Joint smoothness at positive times yields all spatial derivative sections."
+      },
+      {
+        "location": "/inputs/2/statement",
+        "reason": "Smoothness of ut and dxu is expressly a conditional input."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "g is the smooth product established by BG001, and d is defined as its jth partial."
+      }
+    ],
+    "source": {
+      "declaration": "contDiff_succ_iff_fderiv_apply",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.FiniteDimension",
+      "signature": "@contDiff_succ_iff_fderiv_apply : ∀ {𝕜 : Type u_1} [inst : NontriviallyNormedField.{u_1} 𝕜] {D : Type uD} [inst_1 : NormedAddCommGroup.{uD} D]\n  [inst_2 : NormedSpace.{u_1, uD} 𝕜 D] {E : Type uE} [inst_3 : NormedAddCommGroup.{uE} E]\n  [inst_4 : NormedSpace.{u_1, uE} 𝕜 E] {n : WithTop.{0} ℕ∞} {f : D → E} [CompleteSpace.{u_1} 𝕜]\n  [FiniteDimensional.{u_1, uD} 𝕜 D],\n  ContDiff.{u_1, uD, uE} 𝕜 (HAdd.hAdd.{0, 0, 0} n 1) f ↔\n    Differentiable.{u_1, uD, uE} 𝕜 f ∧\n      (Eq.{1} n Top.top.{0} → AnalyticOnNhd.{u_1, uD, uE} 𝕜 f Set.univ.{uD}) ∧\n        ∀ (y : D), ContDiff.{u_1, uD, uE} 𝕜 n fun x => (fderiv.{u_1, uD, uE} 𝕜 f x) y",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/FiniteDimension.lean",
+      "source_sha256": "07c8cafa9d7f76be2fee0ae108287a0c1de25f2347f64a2f4c1a5ad403e84846",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M102-0002/library-sources.json",
+          "sha256": "4677ef06f0dc19ae9ced7b97e47bafcae01e963928887af488f37f6e234507f6"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG003",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The functions g,d and both product-rule summands have compact support, since each vanishes outside the compact set C.",
+    "justification": "Apply HasCompactSupport.of_support_subset_isCompact to each function. ℝ^n is Hausdorff, hence R1, and vanishing outside C says its nonzero support is contained in C. This just supplies the support guard used for M003.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "C is compact; positive-order derivatives and the listed products vanish outside C at r=t0."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The explicit g,d and summands have this vanishing, and t0 lies strictly inside [t0/2,3t0/2]."
+      }
+    ],
+    "source": {
+      "declaration": "HasCompactSupport.of_support_subset_isCompact",
+      "module": "Mathlib.Topology.Algebra.Support",
+      "signature": "@HasCompactSupport.of_support_subset_isCompact : ∀ {α : Type u_2} {β : Type u_4} [inst : TopologicalSpace.{u_2} α] [inst_1 : Zero.{u_4} β] {f : α → β} {K : Set.{u_2} α}\n  [R1Space.{u_2} α], IsCompact.{u_2} K → Function.support.{u_2, u_4} f ⊆ K → HasCompactSupport.{u_2, u_4} f",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Algebra/Support.lean",
+      "source_sha256": "84a9e491db8e8c489dad7799305acea394a05f1263a72efe3591c6cd516d1ac5",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M103-0003/library-sources.json",
+          "sha256": "1c46b3eee308a5aa2b78e2bc1a3f213b7d8e5553a5f252da4918362e2fd0fbbd"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG004",
+    "kind": "mathlib",
+    "at": "/inference/argument/2/text",
+    "fact": "For fixed z∈Qrest, y↦d(I(y,z)) has compact support contained in [-R,R].",
+    "justification": "Apply HasCompactSupport.of_support_subset_isCompact on ℝ, an R1 space. The interval [-R,R] is compact and the displayed argument proves the slice vanishes when |y|>R. This is only the compact-support guard of the given M003 application.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/produces/0/statement",
+        "reason": "d is zero outside C."
+      },
+      {
+        "location": "/inference/locals/3/declaration",
+        "reason": "C lies in (-R,R)^n and R>0."
+      },
+      {
+        "location": "/inference/argument/2/text",
+        "reason": "Insertion with |y|>R lies outside C, so the slice is zero there."
+      }
+    ],
+    "source": {
+      "declaration": "HasCompactSupport.of_support_subset_isCompact",
+      "module": "Mathlib.Topology.Algebra.Support",
+      "signature": "@HasCompactSupport.of_support_subset_isCompact : ∀ {α : Type u_2} {β : Type u_4} [inst : TopologicalSpace.{u_2} α] [inst_1 : Zero.{u_4} β] {f : α → β} {K : Set.{u_2} α}\n  [R1Space.{u_2} α], IsCompact.{u_2} K → Function.support.{u_2, u_4} f ⊆ K → HasCompactSupport.{u_2, u_4} f",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Algebra/Support.lean",
+      "source_sha256": "84a9e491db8e8c489dad7799305acea394a05f1263a72efe3591c6cd516d1ac5",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M103-0003/library-sources.json",
+          "sha256": "1c46b3eee308a5aa2b78e2bc1a3f213b7d8e5553a5f252da4918362e2fd0fbbd"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG005",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "The established smoothness of g and d implies their continuity, in particular the continuity premise of M003 for g.",
+    "justification": "Use ContDiff.continuous over ℝ, with Euclidean domain and scalar codomain. Smoothness is established in S001 using the direct smoothness premises and BG001–BG002. The continuity of d and the product-rule summands is additionally explicitly supplied by N002.",
+    "grounds": [
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "g and d are smooth functions at fixed positive time."
+      },
+      {
+        "location": "/inputs/2/statement",
+        "reason": "All needed displayed scalar derivative sections are continuous at t0."
+      }
+    ],
+    "source": {
+      "declaration": "ContDiff.continuous",
+      "module": "Mathlib.Analysis.Calculus.ContDiff.Defs",
+      "signature": "@ContDiff.continuous : ∀ {𝕜 : Type u} [inst : NontriviallyNormedField.{u} 𝕜] {E : Type uE} [inst_1 : NormedAddCommGroup.{uE} E]\n  [inst_2 : NormedSpace.{u, uE} 𝕜 E] {F : Type uF} [inst_3 : NormedAddCommGroup.{uF} F]\n  [inst_4 : NormedSpace.{u, uF} 𝕜 F] {f : E → F} {n : WithTop.{0} ℕ∞},\n  ContDiff.{u, uE, uF} 𝕜 n f → Continuous.{uE, uF} f",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Analysis/Calculus/ContDiff/Defs.lean",
+      "source_sha256": "5d2f01069c6265873a372d4aed746c5d3411073b8acb108a180d02a84c832dca",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M104-0004/library-sources.json",
+          "sha256": "ba0ec9b9d9529f9625c0c4230e1e2e3f5fa9c4da9fef57134ec575749b7bb83e"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG006",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "C is closed in ℝ^n, so its complement is an open neighborhood of the boundary of Q, on which g and d vanish.",
+    "justification": "IsCompact.isClosed applies since ℝ^n is Hausdorff and C is compact. Since C⊂(-R,R)^n, no point on a face of [-R,R]^n belongs to C. Thus the open complement contains all boundary points. The proof uses no positive uniform separation or additional witness.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "Chosen C is compact and contained in the open box (-R,R)^n."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "Q is the corresponding closed box; g and d are zero outside C."
+      }
+    ],
+    "source": {
+      "declaration": "IsCompact.isClosed",
+      "module": "Mathlib.Topology.Separation.Hausdorff",
+      "signature": "@IsCompact.isClosed : ∀ {X : Type u_1} [inst : TopologicalSpace.{u_1} X] [T2Space.{u_1} X] {s : Set.{u_1} X},\n  IsCompact.{u_1} s → IsClosed.{u_1} s",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/Topology/Separation/Hausdorff.lean",
+      "source_sha256": "6e914b44923f4bef81025c0e4da56a8ed076a0d841c9d30a3e9d225fac8d1882",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M105-0005/library-sources.json",
+          "sha256": "9d08d65d2f130ad5e22cc9cb41e61653d05c1430991eda032319313b73c31d12"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG007",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Real Lebesgue measure is locally finite.",
+    "justification": "The native proved instance Real.locallyFinite_volume supplies this standard structure, used for the Euclidean Lebesgue compact-finiteness guards of M003 and subsequently sigma-finiteness for M011.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "All spatial integrals and measures here are explicitly Lebesgue."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "M003 is applied on the finite real coordinate space with Lebesgue measure."
+      }
+    ],
+    "source": {
+      "declaration": "Real.locallyFinite_volume",
+      "module": "Mathlib.MeasureTheory.Measure.Lebesgue.Basic",
+      "signature": "@Real.locallyFinite_volume : MeasureTheory.IsLocallyFiniteMeasure.{0} MeasureTheory.volume.{0}",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Lebesgue/Basic.lean",
+      "source_sha256": "72101050c59e99875b25c8cde0cebbcac53c99f569a4c5ab2d43a533d1f5fb8b",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M106-0006/library-sources.json",
+          "sha256": "b6759719927ee05bcd66ca64b734f38b2cf79ca5fe5c86a157539f9b9182a11f"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG008",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Real Lebesgue measure is sigma-finite.",
+    "justification": "MeasureTheory.sigmaFinite_of_locallyFinite applies to the second-countable real line, whose local finiteness was checked in BG007. This routine structure guard supplies the component sigma-finiteness used in the finite product and M011; it adds no project assumption.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "Measures are Lebesgue on finite real coordinate spaces."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The ambient component space is the usual real line."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.sigmaFinite_of_locallyFinite",
+      "module": "Mathlib.MeasureTheory.Measure.Typeclasses.SFinite",
+      "signature": "@MeasureTheory.sigmaFinite_of_locallyFinite : ∀ {α : Type u_1} {m0 : MeasurableSpace.{u_1} α} {μ : MeasureTheory.Measure.{u_1} α} [inst : TopologicalSpace.{u_1} α]\n  [SecondCountableTopology.{u_1} α] [MeasureTheory.IsLocallyFiniteMeasure.{u_1} μ], MeasureTheory.SigmaFinite.{u_1} μ",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Measure/Typeclasses/SFinite.lean",
+      "source_sha256": "53f2bee51c13fc29bb0952ae7961c7f528d54e45361b637171f27b00f6bbe380",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M108-0008/library-sources.json",
+          "sha256": "25868ca1af80fd4b64f6386981d545e272201435a38af6e566668e8e7592820f"
+        }
+      ]
+    }
+  },
+  {
+    "id": "BG009",
+    "kind": "mathlib",
+    "at": "/inference/argument/0/text",
+    "fact": "Lebesgue measure on every finite coordinate space ℝ^l, including l=0, is locally finite.",
+    "justification": "MeasureTheory.Measure.pi.isLocallyFiniteMeasure applies with finite index Fin l, all factors ℝ, and component local finiteness and sigma-finiteness checked in BG007–BG008. Euclidean Lebesgue measure in real coordinates is this finite product measure. The empty product is covered as well.",
+    "grounds": [
+      {
+        "location": "/inputs/2/statement",
+        "reason": "The ambient measure is Euclidean Lebesgue measure."
+      },
+      {
+        "location": "/inference/argument/0/text",
+        "reason": "The proof works on finite real coordinate spaces; later deleting one coordinate remains such a space."
+      }
+    ],
+    "source": {
+      "declaration": "MeasureTheory.Measure.pi.isLocallyFiniteMeasure",
+      "module": "Mathlib.MeasureTheory.Constructions.Pi",
+      "signature": "@MeasureTheory.Measure.pi.isLocallyFiniteMeasure : ∀ {ι : Type u_1} {α : ι → Type u_3} [inst : Fintype.{u_1} ι] [inst_1 : (i : ι) → MeasurableSpace.{u_3} (α i)]\n  {μ : (i : ι) → MeasureTheory.Measure.{u_3} (α i)} [∀ (i : ι), MeasureTheory.SigmaFinite.{u_3} (μ i)]\n  [inst_3 : (i : ι) → TopologicalSpace.{u_3} (α i)] [∀ (i : ι), MeasureTheory.IsLocallyFiniteMeasure.{u_3} (μ i)],\n  MeasureTheory.IsLocallyFiniteMeasure.{max u_3 u_1} (MeasureTheory.Measure.pi.{u_1, u_3} μ)",
+      "declaration_kind": "theorem",
+      "source_path": "Mathlib/MeasureTheory/Constructions/Pi.lean",
+      "source_sha256": "56cfeee42d092b72fcc531b1932ec6cf09b2e95394a4f013c1e4ce8c2772e472",
+      "mathlib_commit": "905b95818eb32af7874a58b427f50c1711a5e96c",
+      "evidence": [
+        {
+          "path": "library/M107-0007/library-sources.json",
+          "sha256": "b7808a93a3c2eab0de527d070b7c53d575b45047ca56f3a2b7b8cc76543c68a8"
+        }
+      ]
+    }
+  }
+]
