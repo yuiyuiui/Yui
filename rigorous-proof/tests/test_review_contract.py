@@ -1,11 +1,10 @@
 """Own-stage coverage controls; synthetic verdicts are not mathematical audits."""
+import harness_support
 from copy import deepcopy
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from review_contract import ReviewContract
 from clean_stage import ArtifactStage
 from execution_health import qualification, require_review_execution, StageFailure

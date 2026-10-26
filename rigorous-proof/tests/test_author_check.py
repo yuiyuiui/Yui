@@ -1,11 +1,10 @@
 """Actual same-author read/notes binding; never an independent A verdict."""
+import harness_support
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from artifact_validation import NL0Contract
 from acceptance import AcceptanceContract,SOURCE
 
@@ -104,7 +103,7 @@ class AuthorCheckTests(unittest.TestCase):
 
     def test_changed_used_definition_requires_new_view_reads(self):
         import re
-        text=(Path(__file__).parents[1]/'templates/guarded-definition-example.md').read_text()
+        text=(Path(__file__).parents[1]/'nl0/templates/guarded-definition-example.md').read_text()
         value=json.loads(re.search(r'```json\n(.*?)\n```',text,re.S).group(1))
         contract=NL0Contract(self.root/'definition-control',{'problem.txt':'Unique witness and its equality to a.'})
         contract(value)
@@ -177,7 +176,7 @@ class AuthorCheckTests(unittest.TestCase):
                 'location':'/graph','note':'Unknown standards are not accepted.'}])
 
     def test_neutral_quantified_implication_example_closes_local_antecedent(self):
-        path=Path(__file__).parents[1]/'templates/quantified-implication-example.md'
+        path=Path(__file__).parents[1]/'nl0/templates/quantified-implication-example.md'
         value=json.loads(path.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         contract=NL0Contract(self.root/'implication',{'problem.txt':'For every real r, r=0 implies r*r=0.'})
         self.assertFalse(contract(value)['mathematical_acceptance'])

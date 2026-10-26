@@ -1,18 +1,16 @@
 """Independent finite process scheduling; executors below are synthetic controls."""
+import harness_support
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import threading
-import time
 import unittest
 from unittest.mock import patch
 CORE=Path(__file__).resolve().parents[1]
-for path in (CORE/'scripts',CORE/'translation/scripts'):sys.path.insert(0,str(path))
 import jobs
 import queue_controller as q
-from test_job_entry import PROFILES
+from harness_support import PROFILES
 
 class QueueControllerTests(unittest.TestCase):
     def setUp(self):

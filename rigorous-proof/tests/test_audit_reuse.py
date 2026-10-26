@@ -1,46 +1,16 @@
 """Synthetic inheritance controls. No actual model judgment is produced here."""
+import harness_support
+from audit_a_fixtures import AuditReuseFixture
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
 from copy import deepcopy
-import json
-from pathlib import Path
-import shutil
-import tempfile
 import unittest
 
 import audit_a_campaign as a
 import audit_reuse as reuse
 
 
-class AuditReuseTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
-        self.old=self.root/'old';shutil.copytree(a.CORE/'tests/fixtures/closed-addition',self.old)
-        self.problem=self.root/'problem';self.problem.mkdir();(self.problem/'problem.md').write_text('Synthetic controller fixture only.')
-        self.campaign=self.root/'previous';self.plan=a.prepare(self.old,self.problem,self.campaign)
-        for job in self.plan['jobs']:
-            directory=self.campaign/job['id'];stage=directory/'stage';stage.mkdir()
-            row={'verdict':'PASS','notes':'SYNTHETIC inheritance test judgment, not a mathematical audit.','locations':['/inference/argument']}
-            if job['library']:
-                raw={'target_review':row,'structure_review':row,'definition_reviews':{},'source_reviews':{},'findings':[]}
-                docs={name:reuse.sha(directory/name) for name in ['spec.json','nl0.json']}
-            else:
-                packet=a.nl0.load(directory/'packet.json')
-                raw={'inference':job['id'],'packet_sha256':packet['packet_sha256'],'verdict':'PASS',
-                     'notes':row['notes'],'checks':{key:row for key in a.nl0.CHECKS|a.nl0.closure.CLOSURE_CHECKS},'findings':[]}
-                docs={'packet.json':reuse.sha(directory/'packet.json')}
-            exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}
-            result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':True},'exposure':exposure}
-            for name,value in [('accepted.json',raw),('result.json',result),('exposure-audit.json',exposure),
-                               ('execution-manifest.json',{'rule_documents':reuse.rules(),'task_documents':docs})]:a.write(stage/name,value)
-        self.new=self.root/'new';shutil.copytree(self.old,self.new)
-        self.data=a.nl0.validate(self.new/'nl0.json',self.new/'spec.json')
+class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
 
-    def tearDown(self):self.tmp.cleanup()
 
     def test_unrelated_graph_change_reuses_only_identical_item_context(self):
         graph=a.nl0.load(self.new/'nl0.json');graph['inferences'][1]['argument'][0]['text']+=' This is the same local additive-identity calculation.'
@@ -97,7 +67,7 @@ class AuditReuseTests(unittest.TestCase):
         result['exposure']['actual_model_ids']=['wrong-model'];a.write(path,result)
         self.assertNotIn('packet:R001',reuse.select(self.data,[self.campaign]))
         path=self.campaign/'R002/stage/execution-manifest.json';manifest=a.nl0.load(path)
-        manifest['rule_documents']['references/audit-a.md']='changed';a.write(path,manifest)
+        manifest['rule_documents']['nl0/references/audit-a.md']='changed';a.write(path,manifest)
         self.assertNotIn('packet:R002',reuse.select(self.data,[self.campaign]))
 
     def test_complete_recovered_review_is_reused_with_fault_measurement_preserved(self):

@@ -1,4 +1,5 @@
 """Owned-run cleanup with real neutral processes; no model execution."""
+import harness_support
 import json
 import os
 from pathlib import Path
@@ -10,12 +11,11 @@ import time
 import unittest
 from unittest.mock import patch
 CORE=Path(__file__).resolve().parents[1]
-for path in (CORE/'scripts',CORE/'translation/scripts'):sys.path.insert(0,str(path))
 import cleanup as c
 import jobs
 import run_resources
 from execution_state import identity
-from test_job_entry import PROFILES
+from harness_support import PROFILES
 
 class CleanupTests(unittest.TestCase):
     def setUp(self):
@@ -32,7 +32,7 @@ class CleanupTests(unittest.TestCase):
         self.tmp.cleanup()
     def start_owner(self,stubborn=False):
         ready=self.output/'ready.json'
-        script=("import sys,time,json,signal,subprocess,tempfile;from pathlib import Path;sys.path.insert(0,"+repr(str(CORE/'scripts'))+");"
+        script=("import sys,time,json,signal,subprocess,tempfile;from pathlib import Path;sys.path.insert(0,"+repr(str(CORE/'nl0/scripts'))+");"
             "from run_resources import register_workspace,register_child;from execution_state import identity;"
             "logs=Path("+repr(str(self.output))+ ");work=Path(tempfile.mkdtemp(prefix='yui-cleanup-control-'));register_workspace(work,logs);"
             "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);register_child(work,child,'neutral-child');"

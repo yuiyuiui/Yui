@@ -59,23 +59,86 @@ retain the completed run's provenance without rewriting the original receipts.
 
 ## Runtime
 
-Only `rigorous-proof/` is required for the workflow. It contains the four
-mathematical responsibilities, their shared Python controllers, software tests,
-and one skill entry. [Operator instructions](rigorous-proof/references/operation.md)
+The only directory you need to copy from this repository is `rigorous-proof/`.
+It contains the four mathematical responsibilities, their shared Python
+controllers, software tests, and one skill entry.
+[Operator instructions](rigorous-proof/nl0/references/operation.md)
 cover commands, profile selection, local output, repair, status and cleanup.
 
 ```sh
-python3 -B rigorous-proof/scripts/yui.py doctor
-python3 -B rigorous-proof/scripts/yui.py selftest
+python3 -B rigorous-proof/nl0/scripts/yui.py doctor
+python3 -B rigorous-proof/nl0/scripts/yui.py selftest
 ```
 
 The current isolated carrier requires macOS `sandbox-exec`, Python, ripgrep,
 an authenticated compatible Codex installation and Lean 4.32.2 with Mathlib
-commit `905b95818eb32af7874a58b427f50c1711a5e96c`. Configure `YUI_LEAN_ROOT`,
-`YUI_MATHLIB_ROOT`, `YUI_CODEX_BINARY`, `YUI_RG_BINARY` or `YUI_CODEX_HOME` when
-existing compatible installations are outside the usual locations. Credentials
-are never committed. The current carrier supports Standard speed; unavailable
+commit `905b95818eb32af7874a58b427f50c1711a5e96c`. Lean and Mathlib must be
+installed separately; they are not bundled with the skill. Configure
+`YUI_CODEX_BINARY`, `YUI_RG_BINARY` or `YUI_CODEX_HOME` when the other host tools
+or authentication home are outside their usual locations. Credentials are
+never committed. The current carrier supports Standard speed; unavailable
 models, reasoning levels or speeds fail explicitly, without fallback.
+
+### Lean and Mathlib locations
+
+The controller resolves these paths before model work starts. It does not ask
+the LLM to locate Mathlib, scan the computer for repositories, or download a
+missing installation. Path discovery is independent of the optional metadata
+catalog in [`library/`](library/README.md).
+
+| Dependency | Environment override | Default when no override is supplied |
+| --- | --- | --- |
+| Mathlib repository root, containing `Mathlib/` and `.lake/` | `YUI_MATHLIB_ROOT` | `~/formalization-tools/lean-mathlib-v4.32.2/mathlib` |
+| Lean installation root, containing `bin/lean` | `YUI_LEAN_ROOT` | `~/formalization-tools/lean-mathlib-v4.32.2/lean`, then `~/.elan/toolchains/leanprover--lean4---v4.32.2` if the first path is absent |
+
+Here `~` means the home directory of the user running Yui, not a fixed username.
+Existing symbolic links are resolved to their targets. An explicit override
+takes precedence: an invalid override fails instead of falling back to a
+default. Missing default installations also fail.
+
+For a compatible installation elsewhere, set the paths in the environment
+used to launch Yui:
+
+```sh
+export YUI_MATHLIB_ROOT="/absolute/path/to/mathlib4"
+export YUI_LEAN_ROOT="/absolute/path/to/lean-4.32.2"
+python3 -B rigorous-proof/nl0/scripts/yui.py doctor
+```
+
+The `doctor` command checks the environment and prints the resolved paths under
+`resolved_environment`. Location overrides do not override version requirements:
+[`toolchain/lock.json`](rigorous-proof/toolchain/lock.json) pins the Mathlib
+commit, dependency revisions, dependency manifest and Lean version. Startup
+checks reject incompatible versions or tracked source changes in Mathlib and
+its pinned dependencies. The resolved Mathlib location is then used both for
+source search/read tools and for Lean's compiled-library search paths.
+See [`runtime_config.py`](rigorous-proof/nl0/scripts/runtime_config.py) for path
+selection and checks, and [`pilot_common.py`](rigorous-proof/nl0/scripts/pilot_common.py)
+for the Lean environment.
+
+### What `toolchain/` contains
+
+[`rigorous-proof/toolchain/`](rigorous-proof/toolchain/) stores environment
+reproducibility records, not the Lean executable, Mathlib source or compiled
+library cache:
+
+- [`lock.json`](rigorous-proof/toolchain/lock.json) pins the Lean version,
+  Mathlib commit, dependency revisions and dependency-manifest hash. Startup
+  checks compare the installed environment against these requirements and
+  reject tracked source changes. Local installation paths are resolved by
+  `nl0/scripts/runtime_config.py`, using the defaults and overrides above.
+  Historical model observations in this record do not select a run's model;
+  phase defaults and explicit job profiles do that.
+- [`migration.json`](rigorous-proof/toolchain/migration.json) records which
+  source repository/commit this harness was imported from and the original
+  source checks and execution boundary. It is historical provenance, not an
+  installer or an automatic toolchain-upgrade script.
+
+Actual Lean/Mathlib installations remain outside Yui. Editing the lock does
+not install the corresponding versions; a version upgrade requires preparing
+and validating a matching environment separately.
+
+### Execution and cleanup
 
 Full and translation requests require an explicitly supplied or confirmed
 positive proof-worker count N (`--max-concurrency N`). Missing counts and
@@ -89,19 +152,57 @@ Cleanup previews unless `--apply` is supplied. It targets only explicitly
 selected owned run directories, confirms process exit and preserves original
 inputs, the installed skill and the shared toolchain. See the operator instructions.
 
+## Optional personal Mathlib library
+
+After completing a rigorous-proof workflow, users may choose to add useful
+Mathlib theorems from its retained native-query receipts to the separate
+[`library/`](library/README.md). Over time, this can form a convenient theorem
+search catalog for their own fields, with reusable verified signature metadata.
+The repository provides only three demonstration entries, not a comprehensive
+Mathlib index or a source of preapproved mathematical answers.
+
+The catalog is optional: normal Mathlib search, source reading and native
+queries work without it. Yui looks beside the installed `rigorous-proof/`
+directory by default; `YUI_LIBRARY_ROOT` can select another catalog directory.
+Runs never update it automatically. See the [maintenance guide](library/README.md)
+for finding a run's source receipts, explicitly importing selected declarations,
+adding search tags, validating evidence and preserving version bindings.
+
+## Optional reusable Lean strategies
+
+After a rigorous-proof workflow, users may also choose to extract generalizable
+Lean implementation strategies from its work records and maintain
+[`rigorous-proof/nl02lean/bank/`](rigorous-proof/nl02lean/bank/rule.md).
+Follow its [`rule.md`](rigorous-proof/nl02lean/bank/rule.md): record prerequisites,
+failure conditions and verification, remove case-specific names and proof
+material, and retain only general procedures or broad-field strategies.
+The live bank supplies advice, not theorem permissions or accepted proofs.
+Its current entries are generalized guidance with no claimed performance
+validation. This maintenance is optional and never automatic; normal full
+workflows keep strategy lookup disabled.
+
 ## Repository and evidence
 
 | Path | Contents |
 | --- | --- |
 | `rigorous-proof/` | Complete skill, runtime, shared controllers and software controls |
+| `rigorous-proof/nl0/` | Stage one: NL0/Audit A rules (`references/`), programs (`scripts/`) and templates (`templates/`) |
+| `rigorous-proof/nl02lean/` | Stage two: Lean/Audit B rules, programs, templates and optional strategy bank |
+| `rigorous-proof/tests/` | One harness-wide software suite covering shared runtime, NL0, Lean and cross-stage behavior; see the [test guide](rigorous-proof/tests/README.md) |
+| `rigorous-proof/toolchain/` | Version lock and historical source-migration records; actual tools are installed separately |
+| `library/` | Optional user-maintained Mathlib catalog, three demonstrations and maintenance guide |
 | `test/` | Three mathematical examples and their archived proof/audit runs |
 | `benchmark/` | Original paper input; temporary benchmark outputs have been removed |
 
-The NL0/Audit A mathematical rules remain at the frozen
-[`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) baseline.
-Its old paths/hashes describe that historical snapshot; current runs bind their
-actual installed runtime separately. Operational integration does not relabel
-historical reviews or manufacture new mathematical results.
+The [`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) file records
+a historical baseline, including its old paths and hashes. Current runs bind
+their actual installed rules and runtime separately. The current elementary
+profile keeps logic, finite calculations and core typed syntax; it no longer
+contains a domain vocabulary. Each problem declares its own objects and notation.
+Structural prechecks validate explicit records and references, while Audit A
+checks mathematical meaning, hidden hypotheses and theorem applications across
+all subjects. These changes do not relabel historical reviews or manufacture
+new mathematical results.
 
 No paper-scale benchmark or speed advantage is claimed. Future comparisons must
 include preparation, audits, repairs, all-agent tokens, actual concurrency and

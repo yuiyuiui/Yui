@@ -7,8 +7,8 @@ import shutil
 import sys
 
 CORE=Path(__file__).resolve().parents[2]
-sys.path.insert(0,str(CORE/'scripts'))
-sys.path.insert(0,str(CORE/'translation/scripts'))
+sys.path.insert(0,str(CORE/'nl0/scripts'))
+sys.path.insert(0,str(CORE/'nl02lean/scripts'))
 import nl0
 import concurrency
 from clean_stage import ArtifactStage

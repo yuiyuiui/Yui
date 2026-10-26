@@ -1,11 +1,6 @@
 """External-source staging/coverage controls using an explicitly synthetic text."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
-from copy import deepcopy
 from pathlib import Path
 import shutil
 import tempfile

@@ -1,4 +1,5 @@
 """Source query output preservation; no Lean subprocess or model is needed."""
+import harness_support
 import importlib.util
 import json
 import tempfile
@@ -7,7 +8,7 @@ from pathlib import Path
 
 
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location("probe_preservation",ROOT/"scripts/probe_mathlib.py")
+spec=importlib.util.spec_from_file_location("probe_preservation",ROOT/"nl0/scripts/probe_mathlib.py")
 probe=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
 

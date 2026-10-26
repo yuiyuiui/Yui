@@ -1,17 +1,16 @@
 """Remote-failure continuation and cancellation controls; no provider calls."""
+import harness_support
 from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
 import queue
-import sys
 import tempfile
 import time
 import unittest
 from unittest.mock import Mock, patch
 
 CORE=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts')]
 import remote_retry as retry
 import run_pilot
 import execution_state

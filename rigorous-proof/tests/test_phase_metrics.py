@@ -1,11 +1,10 @@
 """Observable accounting controls; no inference-speed claim or model call."""
+import harness_support
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from phase_metrics import summarize
 
 

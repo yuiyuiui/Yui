@@ -1,4 +1,5 @@
 """v2 accounting and v3 receipt regressions; no model-detection claim is made."""
+import harness_support
 import copy
 import importlib.util
 import json
@@ -11,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = importlib.util.spec_from_file_location("closed_nl0", ROOT / "scripts/nl0.py")
+MODULE = importlib.util.spec_from_file_location("closed_nl0", ROOT / "nl0/scripts/nl0.py")
 nl0 = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(nl0)
 
@@ -303,7 +304,7 @@ class ClosureChecks(unittest.TestCase):
     def test_cli_audit_template_refuses_overwrite(self):
         self.write()
         out = self.base / "fresh-audit.json"
-        cmd = [sys.executable, "-B", str(ROOT / "scripts/nl0.py"), "audit-template",
+        cmd = [sys.executable, "-B", str(ROOT / "nl0/scripts/nl0.py"), "audit-template",
                str(self.base / "nl0.json"), "--spec", str(self.base / "spec.json"), "--out", str(out)]
         first = subprocess.run(cmd, capture_output=True, text=True)
         self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
@@ -319,7 +320,7 @@ class ClosureChecks(unittest.TestCase):
         self.assertFalse(self.data(self.template(), inspect=True)[0]["audit_receipt_valid"])
 
     def test_control_preparation_does_not_run_or_predetermine_a_review(self):
-        module = importlib.util.spec_from_file_location("review_cases", ROOT / "scripts/prepare-review-cases.py")
+        module = importlib.util.spec_from_file_location("review_cases", ROOT / "nl0/scripts/prepare-review-cases.py")
         preparer = importlib.util.module_from_spec(module)
         module.loader.exec_module(preparer)
         destination = self.base / "controls"

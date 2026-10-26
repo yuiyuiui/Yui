@@ -1,10 +1,8 @@
 """Fixed language metadata is not a source of author-granted theorems."""
+import harness_support
 from copy import deepcopy
-from pathlib import Path
-import sys
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import foundations
 
 
@@ -26,7 +24,7 @@ class FixedFoundationTests(unittest.TestCase):
             self.assertEqual(logic,before)
 
     def test_project_objects_and_local_capture_cannot_hide_in_primitives(self):
-        for symbol in ['u_t','1_Q','ParameterDependentSpace']:
+        for symbol in ['u_t','1_Q','ParameterDependentSpace','norm','∂','∫','Integrable','AEStronglyMeasurable']:
             with self.assertRaisesRegex(ValueError,'FOUNDATION_PRIMITIVE'):
                 foundations.bind_author({'primitives':[{'symbol':symbol,'type':'function',
                     'meaning':'A task object depending on a locally chosen Q.'}]})
@@ -45,6 +43,15 @@ class FixedFoundationTests(unittest.TestCase):
         self.assertEqual(len(packet['calculations']),len(foundations.CALCULATIONS))
         self.assertIn('FTC',repr(old))
         with self.assertRaises(ValueError):foundations.require_canonical(old)
+
+    def test_legacy_domain_metadata_needs_explicit_migration_before_new_audit(self):
+        logic={'calculations':list(foundations.CALCULATIONS),
+               'primitives':list(foundations.PRIMITIVES.values())+[
+                   {'symbol':'norm','type':'norm notation','meaning':'Legacy domain metadata.'}]}
+        before=deepcopy(logic)
+        with self.assertRaisesRegex(ValueError,'FOUNDATION_PRIMITIVE'):
+            foundations.require_canonical(logic)
+        self.assertEqual(logic,before)
 
 
 if __name__=='__main__':unittest.main()

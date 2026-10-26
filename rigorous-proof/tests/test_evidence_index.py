@@ -1,23 +1,21 @@
 """Real pinned-source checks with synthetic review judgments, not proof audits."""
+import harness_support
 from copy import deepcopy
-import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts'),str(CORE/'tests')]
 import audit_a_campaign as campaign
 import audit_reuse as reuse
 import background
-import test_audit_reuse as fixtures
+from audit_a_fixtures import AuditReuseFixture
 from artifact_validation import signature_probe
 
 
-class EvidenceIndexTests(unittest.TestCase):
+class EvidenceIndexTests(AuditReuseFixture, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.probes=tempfile.TemporaryDirectory(prefix='yui-index-probes-')
@@ -26,8 +24,6 @@ class EvidenceIndexTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):cls.probes.cleanup()
-    def setUp(self):fixtures.AuditReuseTests.setUp(self)
-    def tearDown(self):fixtures.AuditReuseTests.tearDown(self)
 
     def add_notes(self,order=('A','B','B','C')):
         stage=self.campaign/'R001/stage';sources={}

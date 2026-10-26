@@ -1,7 +1,7 @@
 """Adversarial request/tool-boundary controls; no personal context is dispatched."""
+import harness_support
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -9,7 +9,6 @@ import threading
 import time
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import run_pilot as carrier
 from clean_stage import ArtifactStage
 
@@ -186,7 +185,7 @@ class IsolationTests(unittest.TestCase):
         direct=ArtifactStage(self.root/'direct-author','TASK',phase='nl0-authoring',kind='nl0',case_id='neutral',arm='direct',inputs=manifest,library=False)
         reviewer=ArtifactStage(self.root/'reviewer','TASK',phase='audit-a-packet-replay',library=False)
         try:
-            template=(Path(__file__).parents[1]/'templates/authoring.md').read_text()
+            template=(Path(__file__).parents[1]/'nl0/templates/authoring.md').read_text()
             self.assertIn(template,yui.prompt())
             self.assertNotIn(template,direct.prompt())
             self.assertNotIn('read_yui',direct.tool_names)
@@ -208,7 +207,29 @@ class IsolationTests(unittest.TestCase):
             metadata.pop('acceptance_contract');record.write_text(json.dumps(metadata))
             self.assertIn({'check':'shared_acceptance_authority_missing'},exposure.audit_stage(yui.logs)['errors'])
             record.write_text(saved)
-            archived=yui.logs/'harness-snapshot/references/audit-a.md'
+            archived=yui.logs/'harness-snapshot/nl0/references/audit-a.md'
+            original=archived.read_text()
+            legacy=yui.logs/'harness-snapshot/references/audit-a.md'
+            legacy.parent.mkdir(parents=True,exist_ok=True)
+            archived.rename(legacy)
+            metadata=json.loads(saved);metadata['acceptance_contract']['source']='references/audit-a.md'
+            record.write_text(json.dumps(metadata))
+            legacy_system=yui.system.replace('nl0/references/audit-a.md','references/audit-a.md')
+            (yui.logs/'system.txt').write_text(legacy_system+'\n')
+            requests=yui.logs/'requests.jsonl';original_requests=requests.read_text()
+            rows=[json.loads(line) for line in original_requests.splitlines()]
+            for row in rows:
+                row['sent_payload']['instructions']=legacy_system
+                row['sent_body_sha256']=hashlib.sha256(json.dumps(row['sent_payload'],ensure_ascii=False).encode()).hexdigest()
+            requests.write_text(''.join(json.dumps(row)+'\n' for row in rows))
+            self.assertEqual(exposure.audit_stage(yui.logs)['status'],'TRANSMITTED-EXPOSURE-CHECK-PASSED')
+            legacy.write_text(original+'\nSynthetic legacy archival tamper.\n')
+            self.assertIn({'check':'shared_acceptance_authority_binding'},exposure.audit_stage(yui.logs)['errors'])
+            legacy.write_text(original)
+            legacy.rename(archived)
+            record.write_text(saved)
+            (yui.logs/'system.txt').write_text(yui.system+'\n')
+            requests.write_text(original_requests)
             archived.write_text(archived.read_text()+'\nSynthetic archival tamper.\n')
             self.assertIn({'check':'shared_acceptance_authority_binding'},exposure.audit_stage(yui.logs)['errors'])
         finally:

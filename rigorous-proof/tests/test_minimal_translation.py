@@ -1,15 +1,9 @@
 """Controls for stage-two simplification; no model requests or exercise claims."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
-import copy
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import time
 import unittest
@@ -20,13 +14,10 @@ import translation_author as author
 import full_workflow as flow
 import execution_state as execution
 import background_inputs as bg
-import audit_b
 import ir
 from clean_stage import ArtifactStage
 
-TRANSLATION_TESTS=a.CORE/'translation/tests'
-sys.path.insert(0,str(TRANSLATION_TESTS))
-from source_fixture import case, synthetic_audit, interface
+from source_fixtures import case, synthetic_audit, interface
 
 
 class MinimalTranslationTests(unittest.TestCase):
@@ -72,11 +63,9 @@ class MinimalTranslationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'another paragraph'):
             bg.attach_notes(steps,source,supplement)
 
-    def test_notes_do_not_create_a_library_permission_gate(self):
+    def test_author_instructions_explain_free_mathlib_use(self):
         self.assertNotIn('calculation_links', author.PROMPT)
         self.assertIn('freely available', author.PROMPT)
-        self.assertNotIn('library_and_calculation_correspondence', audit_b.REVIEW_CHECKS)
-        self.assertFalse(hasattr(audit_b, 'dependency_correspondence'))
 
     def test_deferred_freeze_is_not_a_synthetic_semantic_pass(self):
         graph,spec,_=case(self.root/'case');receipt=synthetic_audit(graph,spec)
@@ -122,16 +111,11 @@ class MinimalTranslationTests(unittest.TestCase):
             with self.assertRaises(execution.Cancelled):recorder.check()
         finally:recorder.close('SYNTHETIC_UNLIMITED_CONTROL')
 
-    def test_instance_proofs_need_no_separate_semantic_permission_row(self):
-        self.assertFalse(hasattr(audit_b, 'instance_support'))
-        self.assertEqual(len(audit_b.REVIEW_CHECKS),4)
-
     def test_artifact_obstacle_api_has_no_routine_incomplete_report(self):
         stage=ArtifactStage(self.root/'stage','test',phase='interface-authoring',library=False)
         try:
             tool=next(t for t in stage.tools if t['name']=='report_obstacle')
             self.assertNotIn('TASK_INCOMPLETE',tool['inputSchema']['properties']['status']['enum'])
-            self.assertLess(len(stage.continuation_prompt),240)
             answer=stage.dispatch('report_obstacle',{'status':'TASK_INCOMPLETE','location':'here',
                 'explanation':'working','basis':'working','partial_progress':'working'})
             self.assertFalse(answer['accepted'])

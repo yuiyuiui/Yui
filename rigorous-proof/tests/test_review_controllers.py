@@ -1,10 +1,6 @@
 """Controller integrity tests with synthetic judgments; no mathematical audit is run."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
 import copy
 import json
 import importlib.util
@@ -201,7 +197,7 @@ class ReviewControllerTests(unittest.TestCase):
         self.assertNotIn('expected_verdict',a.PACKET_MATH)
 
     def locator_controls(self):
-        spec=importlib.util.spec_from_file_location('locator_controls',a.CORE/'scripts/prepare-review-cases.py')
+        spec=importlib.util.spec_from_file_location('locator_controls',a.CORE/'nl0/scripts/prepare-review-cases.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         return module
 
@@ -315,7 +311,7 @@ class ReviewControllerTests(unittest.TestCase):
         out=self.root/'interface'
         # The neutral fixture has no actual audit. Verify the acceptance guard,
         # then stage controller-only type data without fabricating a PASS receipt.
-        with self.assertRaisesRegex(ValueError,'AUDIT-FAIL|STALE-PACKET'):
+        with self.assertRaisesRegex(ValueError,'Accepted current Audit A is required'):
             t.prepare(self.fixture,self.problem,out)
         (out/'inputs').mkdir(parents=True)
         for name in ['spec.json','nl0.json']:

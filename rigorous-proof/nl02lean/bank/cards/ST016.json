@@ -1,0 +1,42 @@
+{
+  "id": "ST016",
+  "revision": 2,
+  "title": "Freeze conditional interfaces before parallel proof construction",
+  "family": "interface",
+  "domains": [
+    "general"
+  ],
+  "tags": [
+    "parallel",
+    "contract",
+    "dependency"
+  ],
+  "obstacle": "Independent proof bodies must be assembled without relying on hidden state.",
+  "preconditions": [
+    "stable_interfaces",
+    "direct_inputs_complete"
+  ],
+  "contraindications": [
+    "interface_changing_during_construction"
+  ],
+  "procedure": [
+    "Freeze shared definitions and each typed input and output.",
+    "Provide each proof task its conditional goal and complete permitted direct inputs.",
+    "Check the bodies independently, substitute actual upstream proofs, and recheck the assembled theorem."
+  ],
+  "verification": "Compile the complete assembled artifact; local conditional checks alone are insufficient.",
+  "positive_example": "Implement independent conditional bodies with unchanged signatures.",
+  "negative_example": "Change a producer signature while consumers still use a previously frozen version.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "status": "GENERAL_GUIDANCE",
+  "evidence": [
+    {
+      "kind": "design_rule",
+      "path": "rule.md",
+      "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+      "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+    }
+  ]
+}

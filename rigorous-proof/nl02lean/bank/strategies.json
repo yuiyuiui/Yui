@@ -1,0 +1,616 @@
+[
+  {
+    "id": "ST001",
+    "revision": 2,
+    "title": "Transport a relation through an explicit conversion",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "conversion",
+      "congruence"
+    ],
+    "obstacle": "The input and target use different representations of the same intended objects.",
+    "preconditions": [
+      "source_relation",
+      "conversion_defined"
+    ],
+    "contraindications": [
+      "conversion_loses_required_information"
+    ],
+    "procedure": [
+      "State the source and destination types and the conversion explicitly.",
+      "Prove that this conversion preserves the particular relation needed by the target.",
+      "Apply the resulting bridge or congruence lemma at the exact target type."
+    ],
+    "verification": "Check the bridge and its application in Lean; verify that no converse or injectivity was assumed.",
+    "positive_example": "Transport an equality through a specified function using congruence.",
+    "negative_example": "Infer equality of original objects from equal images without injectivity.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST002",
+    "revision": 2,
+    "title": "Distinguish quotient objects from their representatives",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "quotient",
+      "representative"
+    ],
+    "obstacle": "A statement about equivalence classes is being used as a statement about chosen representatives.",
+    "preconditions": [
+      "equivalence_relation_explicit",
+      "representatives_identified"
+    ],
+    "contraindications": [
+      "representative_property_not_invariant"
+    ],
+    "procedure": [
+      "Identify which statements concern classes and which concern representatives.",
+      "Prove invariance before descending a construction, or supply the additional hypotheses needed to choose and compare representatives.",
+      "Keep class equality and representative equality as separate typed claims."
+    ],
+    "verification": "Lean-check the descended construction or representative bridge with all invariance or uniqueness hypotheses explicit.",
+    "positive_example": "Descend a function after proving it has equal values on equivalent inputs.",
+    "negative_example": "Evaluate an arbitrary representative-dependent function on a quotient class.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST003",
+    "revision": 2,
+    "title": "Isolate changes of convention in a reusable bridge",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "convention",
+      "normalization"
+    ],
+    "obstacle": "Two definitions express related constructions under different conventions.",
+    "preconditions": [
+      "both_conventions_explicit"
+    ],
+    "contraindications": [
+      "unproved_transport_identity"
+    ],
+    "procedure": [
+      "Write the definitions and the proposed map between their data.",
+      "Prove the required identity with every scale, sign, ordering and domain condition explicit.",
+      "Reuse that typed identity in the main proof instead of treating conventions as definitionally equal."
+    ],
+    "verification": "Compile the bridge and compare both endpoints with the stated definitions.",
+    "positive_example": "Prove a conversion between two explicit coordinate conventions.",
+    "negative_example": "Replace one convention by another based only on similar notation.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST004",
+    "revision": 2,
+    "title": "Expose a suitable algebraic form before automation",
+    "family": "calculation",
+    "domains": [
+      "algebra"
+    ],
+    "tags": [
+      "algebra",
+      "normalization",
+      "coercion"
+    ],
+    "obstacle": "Arithmetic automation cannot match the current expression to its supported form.",
+    "preconditions": [
+      "expressions_well_typed"
+    ],
+    "contraindications": [
+      "missing_algebraic_side_condition"
+    ],
+    "procedure": [
+      "Prove required side conditions such as signs or nonzero denominators.",
+      "Unfold only wrappers that obstruct the intended algebraic representation.",
+      "Resolve casts explicitly, normalize the expression, and use automation on the resulting algebraic goal."
+    ],
+    "verification": "Compile the normalized equality or inequality under the original assumptions.",
+    "positive_example": "Normalize a polynomial identity after aligning coefficient types.",
+    "negative_example": "Cancel a denominator without establishing that it is nonzero.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST005",
+    "revision": 2,
+    "title": "Separate approximation from passage to a limit",
+    "family": "analysis",
+    "domains": [
+      "analysis"
+    ],
+    "tags": [
+      "approximation",
+      "limit",
+      "continuity"
+    ],
+    "obstacle": "An infinite construction is easier to compare on finite or otherwise controlled approximants.",
+    "preconditions": [
+      "approximants_defined",
+      "required_convergence_mode_identified"
+    ],
+    "contraindications": [
+      "unjustified_limit_exchange"
+    ],
+    "procedure": [
+      "Prove the needed relation for the approximants.",
+      "Establish convergence in the topology required by the chosen operation.",
+      "Use an applicable continuity or limit theorem with its hypotheses proved, then identify the limit."
+    ],
+    "verification": "Check the approximating relation, convergence hypotheses and exact limit theorem separately in Lean.",
+    "positive_example": "Pass a proved relation through a continuous map after proving convergence.",
+    "negative_example": "Commute an arbitrary operation with a limit from pointwise convergence alone.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST008",
+    "revision": 2,
+    "title": "Prove domain and side conditions before applying a partial construction",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "domain",
+      "side_conditions"
+    ],
+    "obstacle": "A function or theorem is available only for data satisfying a specified domain condition.",
+    "preconditions": [
+      "domain_condition_explicit"
+    ],
+    "contraindications": [
+      "condition_assumed_from_notation"
+    ],
+    "procedure": [
+      "Read the complete domain and hypotheses of the intended application.",
+      "Prove membership and other required conditions from the current permitted inputs.",
+      "Apply the construction to the qualified data and retain the condition in later interface transfers."
+    ],
+    "verification": "Compile the exact application without introducing additional assumptions.",
+    "positive_example": "Construct an element of a subtype only after proving its predicate.",
+    "negative_example": "Treat a partially defined construction as applicable to arbitrary data.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST009",
+    "revision": 2,
+    "title": "Preserve quantifier order when strengthening convergence",
+    "family": "analysis",
+    "domains": [
+      "analysis"
+    ],
+    "tags": [
+      "uniformity",
+      "quantifiers"
+    ],
+    "obstacle": "A pointwise statement is being used to support a conclusion uniform over a family.",
+    "preconditions": [
+      "desired_quantifiers_explicit"
+    ],
+    "contraindications": [
+      "pointwise_implies_uniform_without_proof"
+    ],
+    "procedure": [
+      "Write the pointwise and uniform quantifiers side by side.",
+      "Identify and prove the additional control needed for one choice to serve the whole family.",
+      "Only use the uniform statement after proving it in the target topology."
+    ],
+    "verification": "Check that the final witness or threshold has exactly the permitted parameter dependencies.",
+    "positive_example": "Prove a single threshold works for every member of a finite family.",
+    "negative_example": "Move a threshold outside a universal quantifier when it still depends on that variable.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST012",
+    "revision": 2,
+    "title": "Track witness and constant dependencies before specialization",
+    "family": "interface",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "constants",
+      "quantifiers",
+      "dependency"
+    ],
+    "obstacle": "A chosen witness or constant may depend on data that the target requires it to be independent of.",
+    "preconditions": [
+      "target_quantifiers_explicit"
+    ],
+    "contraindications": [
+      "hidden_parameter_dependency"
+    ],
+    "procedure": [
+      "Record the order in which parameters and witnesses are chosen.",
+      "Prove the quantified statement before substituting special values.",
+      "Inspect each specialization and the exported signature for additional dependencies."
+    ],
+    "verification": "Compare the complete binder order and dependency graph with the target.",
+    "positive_example": "Choose a witness after the variables on which it is allowed to depend.",
+    "negative_example": "Promote a family of parameter-dependent constants to one universal constant.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST013",
+    "revision": 2,
+    "title": "Keep external statements faithful and derive local consequences internally",
+    "family": "provenance",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "external",
+      "source",
+      "signature"
+    ],
+    "obstacle": "A cited result is being packaged into a formal premise for a different setting.",
+    "preconditions": [
+      "source_statement_verified"
+    ],
+    "contraindications": [
+      "local_bridge_hidden_in_external_premise"
+    ],
+    "procedure": [
+      "Restate every source hypothesis, quantifier and conclusion field.",
+      "Compare the typed external premise with that statement.",
+      "Prove specialization and representation bridges internally from permitted inputs."
+    ],
+    "verification": "Check source correspondence and each bridge separately; compilation alone does not verify attribution.",
+    "positive_example": "Instantiate a verified universal source theorem at admissible data.",
+    "negative_example": "Add the desired application result as an unmentioned field of the external premise.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST014",
+    "revision": 2,
+    "title": "Prove reindexing before transferring an aggregate",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "index",
+      "reindexing",
+      "aggregate"
+    ],
+    "obstacle": "A sum, supremum or other indexed construction is being expressed using a different index type.",
+    "preconditions": [
+      "index_map_explicit"
+    ],
+    "contraindications": [
+      "missing_indices_or_multiplicity"
+    ],
+    "procedure": [
+      "State the index map and the exact coverage or multiplicity needed.",
+      "Prove the term correspondence and handle empty or exceptional indices.",
+      "Apply the aggregate reindexing theorem with its convergence or order hypotheses."
+    ],
+    "verification": "Compile the aggregate identity and inspect its endpoint and convergence conventions.",
+    "positive_example": "Reindex a finite sum through a proved bijection.",
+    "negative_example": "Drop repeated or missing terms while claiming an unchanged aggregate.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST015",
+    "revision": 2,
+    "title": "Verify the actual exported theorem signature",
+    "family": "interface",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "signature",
+      "root",
+      "assembly"
+    ],
+    "obstacle": "A convenient wrapper may hide extra premises or omit part of the requested conclusion.",
+    "preconditions": [
+      "frozen_target_signature"
+    ],
+    "contraindications": [
+      "extra_root_hypothesis"
+    ],
+    "procedure": [
+      "Inspect the actual exported declaration, including implicit and structure-valued arguments.",
+      "Expand the proposition fields needed to compare it with the full target.",
+      "Derive necessary prerequisites from allowed inputs and assemble the intended theorem."
+    ],
+    "verification": "Check the exported signature against every target hypothesis and conclusion, then inspect its trust dependencies.",
+    "positive_example": "Derive an intermediate prerequisite inside the theorem from existing hypotheses.",
+    "negative_example": "Expose that prerequisite as a new assumption of the exported theorem.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST016",
+    "revision": 2,
+    "title": "Freeze conditional interfaces before parallel proof construction",
+    "family": "interface",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "parallel",
+      "contract",
+      "dependency"
+    ],
+    "obstacle": "Independent proof bodies must be assembled without relying on hidden state.",
+    "preconditions": [
+      "stable_interfaces",
+      "direct_inputs_complete"
+    ],
+    "contraindications": [
+      "interface_changing_during_construction"
+    ],
+    "procedure": [
+      "Freeze shared definitions and each typed input and output.",
+      "Provide each proof task its conditional goal and complete permitted direct inputs.",
+      "Check the bodies independently, substitute actual upstream proofs, and recheck the assembled theorem."
+    ],
+    "verification": "Compile the complete assembled artifact; local conditional checks alone are insufficient.",
+    "positive_example": "Implement independent conditional bodies with unchanged signatures.",
+    "negative_example": "Change a producer signature while consumers still use a previously frozen version.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST017",
+    "revision": 2,
+    "title": "Inspect the pinned library signature before integration",
+    "family": "representation",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "API",
+      "typeclass",
+      "version"
+    ],
+    "obstacle": "A remembered library call does not match its actual type or required instances.",
+    "preconditions": [
+      "pinned_version_known"
+    ],
+    "contraindications": [
+      "guessed_library_signature"
+    ],
+    "procedure": [
+      "Search the pinned source for the needed statement shape.",
+      "Read the full type, parameters and instances; check a minimal application in the intended context.",
+      "Supply difficult parameters explicitly and integrate the checked application into the larger proof."
+    ],
+    "verification": "Compile the application under the actual project pins and retain the observed type.",
+    "positive_example": "Check an implicit parameter explicitly before integrating a library call.",
+    "negative_example": "Guess an argument order from a theorem name or a different library version.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST018",
+    "revision": 2,
+    "title": "Separate execution health from proof outcome",
+    "family": "execution",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "transport",
+      "environment",
+      "tool"
+    ],
+    "obstacle": "A run ended or stalled without enough evidence to identify the failed layer.",
+    "preconditions": [
+      "execution_evidence_available"
+    ],
+    "contraindications": [
+      "failure_attribution_without_evidence"
+    ],
+    "procedure": [
+      "Inspect the actual tool, transport and controller result for the failed operation.",
+      "Record task outcome separately from execution health, including unknowns.",
+      "Apply the configured recovery policy only to positively identified recoverable faults."
+    ],
+    "verification": "Tie the stated fault to recorded evidence; elapsed time alone does not establish either a proof gap or healthy search.",
+    "positive_example": "Report a provider error separately from an unfinished proof.",
+    "negative_example": "Call a transport failure a mathematical rejection or claim a timeout when no limit existed.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  },
+  {
+    "id": "ST019",
+    "revision": 2,
+    "title": "Export every fact needed by a downstream proof",
+    "family": "interface",
+    "domains": [
+      "general"
+    ],
+    "tags": [
+      "export",
+      "closure",
+      "dependency"
+    ],
+    "obstacle": "A downstream proof requires a formula that appears only inside a producer proof body.",
+    "preconditions": [
+      "consumer_requirement_identified"
+    ],
+    "contraindications": [
+      "producer_body_used_as_hidden_input"
+    ],
+    "procedure": [
+      "Identify the exact downstream formula, binders and conditions.",
+      "If absent from the public interface, revise the source and obtain the required review of the changed boundary.",
+      "Regenerate dependent packets and typed interfaces; use only the exported fact."
+    ],
+    "verification": "Replay the consumer from its declared direct inputs without consulting producer bodies.",
+    "positive_example": "Export a proved intermediate identity with its hypotheses before using it elsewhere.",
+    "negative_example": "Import a formula remembered from a producer proof that is absent from its output.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "rule.md",
+        "sha256": "b959de9b795e0530241e25c44afea8e7ad39f0d5ff4ae368003c16d2db5b0e40",
+        "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      }
+    ]
+  }
+]

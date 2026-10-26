@@ -1,13 +1,12 @@
 """Stage-specific model isolation and carrier checks, without model requests."""
+import harness_support
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import runtime_config
 import run_pilot
 from clean_stage import ArtifactStage

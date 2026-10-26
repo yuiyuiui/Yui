@@ -32,11 +32,11 @@ def main():
     summary_path.write_text(json.dumps({"status": "RUNNING", "started_at": started}, indent=2) + "\n")
     commands = [
         ("skill-validation", ["/Users/syyui/.codex/bin/validate-skill", str(ROOT)]),
-        ("graph-check", [sys.executable, str(ROOT / "scripts/nl0.py"), "check", str(CASE / "nl0.json"),
+        ("graph-check", [sys.executable, str(ROOT / "nl0/scripts/nl0.py"), "check", str(CASE / "nl0.json"),
                          "--spec", str(CASE / "spec.json"), "--audit", str(CASE / "audit-a.json")]),
-        ("render", [sys.executable, str(ROOT / "scripts/nl0.py"), "render", str(CASE / "nl0.json"),
+        ("render", [sys.executable, str(ROOT / "nl0/scripts/nl0.py"), "render", str(CASE / "nl0.json"),
                     "--spec", str(CASE / "spec.json"), "--out", str(CASE / "views")]),
-        ("R015.packet", [sys.executable, str(ROOT / "scripts/nl0.py"), "packet", str(CASE / "nl0.json"),
+        ("R015.packet", [sys.executable, str(ROOT / "nl0/scripts/nl0.py"), "packet", str(CASE / "nl0.json"),
                          "--spec", str(CASE / "spec.json"), "--audit", str(CASE / "audit-a.json"),
                          "--inference", "R015"]),
         ("tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"]),

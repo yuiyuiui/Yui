@@ -1,14 +1,9 @@
 """Control preparation/type checks only; no semantic model is called."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
 import interface_controls as controls
 import interface_review as review

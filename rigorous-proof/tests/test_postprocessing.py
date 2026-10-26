@@ -1,14 +1,9 @@
 """Postprocessing feedback/isolation and exact native-check reuse; no models."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -16,8 +11,7 @@ from unittest.mock import patch
 
 import audit_b_mapping as mapping
 
-sys.path.insert(0,str(mapping.CORE/'translation/tests'))
-from test_audit_b import fixture
+from audit_b_fixtures import fixture
 
 
 class PostprocessingTests(unittest.TestCase):

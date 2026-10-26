@@ -1,7 +1,7 @@
 """File/ownership/cancellation controls. These never call a model."""
+import harness_support
 from concurrent.futures import ThreadPoolExecutor
 import json
-import os
 from pathlib import Path
 import signal
 import subprocess
@@ -12,9 +12,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-SCRIPTS=Path(__file__).resolve().parents[1]/'scripts'
-sys.path.insert(0,str(SCRIPTS))
-sys.path.insert(0,str(SCRIPTS.parent/'translation/scripts'))
+SCRIPTS=Path(__file__).resolve().parents[1]/'nl0/scripts'
 import execution_state as e
 import concurrency
 import pilot_common

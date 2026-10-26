@@ -1,13 +1,11 @@
 """Actual author-contract compatibility of mechanically routed review diagnostics."""
+import harness_support
 import json
 from pathlib import Path
-import shutil
-import sys
 import tempfile
 import unittest
 
 CORE=Path(__file__).resolve().parents[1]
-for path in (CORE/'scripts',CORE/'translation/scripts'):sys.path.insert(0,str(path))
 from case_runner import repair_obligations
 from artifact_validation import NL0Contract
 from acceptance import current

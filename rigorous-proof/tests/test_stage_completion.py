@@ -1,17 +1,16 @@
 """Completion protocol controls; synthetic JSON is not a mathematical proof."""
+import harness_support
 import http.client
 import io
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import time
 import threading
 import unittest
 from unittest.mock import Mock
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from clean_stage import ArtifactStage
 from output_guard import ProviderWaitGuard
 

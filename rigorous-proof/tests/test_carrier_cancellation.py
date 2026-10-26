@@ -1,7 +1,7 @@
 """Actual local JSON-RPC cancellation with a fake carrier; no provider calls."""
+import harness_support
 import json
 from pathlib import Path
-import queue
 import subprocess
 import sys
 import tempfile
@@ -9,7 +9,6 @@ import threading
 import time
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from clean_stage import ArtifactStage
 import execution_state as e
 import concurrency

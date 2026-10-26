@@ -1,10 +1,8 @@
 """Read pagination preserves content and does not relax mutation boundaries."""
-from pathlib import Path
-import sys
+import harness_support
 import unittest
 import json
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from clean_stage import read_page
 from artifact_validation import own_text_lines
 from read_views import read_json, MAX_TOOL_BYTES

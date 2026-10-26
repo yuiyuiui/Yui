@@ -9,7 +9,7 @@ import shutil
 import sys
 
 CORE=Path(__file__).resolve().parents[2]
-for directory in (CORE/'scripts',CORE/'translation/scripts'):
+for directory in (CORE/'nl0/scripts',CORE/'nl02lean/scripts'):
     sys.path.insert(0,str(directory))
 
 import audit_a_campaign as a

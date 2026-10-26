@@ -1,13 +1,12 @@
 """Preprocessing dispatch boundaries with controlled executors, not actual reviews."""
+import harness_support
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
-for folder in (CORE/'scripts',CORE/'translation/scripts'):sys.path.insert(0,str(folder))
 import source_refactor as r
 
 
@@ -17,8 +16,7 @@ class SourceRefactorDriverTests(unittest.TestCase):
         import ir
         import execution_state
         import concurrency
-        sys.path.insert(0,str(CORE/'translation/tests'))
-        from source_fixture import case,interface
+        from source_fixtures import case,interface
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);graph,spec,_=case(root/'source');cp,pp,*_=interface(graph,spec,root/'typed')
             recorder=execution_state.Recorder(root/'record','neutral',concurrency.resolve(1))
@@ -37,8 +35,7 @@ class SourceRefactorDriverTests(unittest.TestCase):
     def test_model_extraction_identifier_cannot_escape_the_owned_directory(self):
         import copy
         from runtime_config import load_lock
-        sys.path.insert(0,str(CORE/'translation/tests'))
-        from source_fixture import case
+        from source_fixtures import case
         with tempfile.TemporaryDirectory() as tmp:
             graph,_,patch=case(Path(tmp)/'source')
             data=json.loads(patch.read_text());data['candidates'][0]['id']='../../escape'

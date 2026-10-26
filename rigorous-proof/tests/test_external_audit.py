@@ -1,4 +1,5 @@
 """Metadata-only fixtures: these tests do not authenticate a mathematical source."""
+import harness_support
 import copy
 import importlib.util
 import json
@@ -8,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = importlib.util.spec_from_file_location("external_nl0", ROOT / "scripts/nl0.py")
+MODULE = importlib.util.spec_from_file_location("external_nl0", ROOT / "nl0/scripts/nl0.py")
 nl0 = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(nl0)
 

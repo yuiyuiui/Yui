@@ -1,13 +1,12 @@
 """Security and binding controls for structural NL0 authoring; not mathematical certification."""
+import harness_support
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 import os
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from artifact_validation import NL0Contract, signature_probe, expand_submission, preflight, own_text_lines, resolve_own
 
 
@@ -95,7 +94,7 @@ class ArtifactValidationTests(unittest.TestCase):
 
     def test_guarded_definition_template_separates_guard_producer_from_object_use(self):
         import re
-        text=(Path(__file__).parents[1]/'templates/guarded-definition-example.md').read_text()
+        text=(Path(__file__).parents[1]/'nl0/templates/guarded-definition-example.md').read_text()
         value=json.loads(re.search(r'```json\n(.*?)\n```',text,re.S).group(1))
         contract=NL0Contract(self.root/'guarded',{'neutral.txt':'Unique Q witness and its equality to a.'})
         self.assertFalse(contract(value)['mathematical_acceptance'])
@@ -313,31 +312,35 @@ class ArtifactValidationTests(unittest.TestCase):
         value['graph']['inferences'][1]['locals'][0]['end']='S001'
         with self.assertRaisesRegex(ValueError,'UNDECLARED-OBJECT'):contract(value)
 
-    def test_original_hypotheses_cannot_hide_in_parameter_refinements(self):
+    def test_parameter_type_words_do_not_trigger_field_specific_guesses(self):
         fixture=Path(__file__).parent/'fixtures/closed-addition'
         value={'spec':json.loads((fixture/'spec.json').read_text()),'graph':json.loads((fixture/'nl0.json').read_text())}
-        value['spec']['parameters'][0]['type']='natural number with a=b'
-        contract=NL0Contract(self.root/'hidden-H',{'problem.txt':'Synthetic fixture only.'})
-        with self.assertRaisesRegex(ValueError,'PARAMETER-REFINEMENT'):contract(value)
-        self.assertEqual(value['spec']['parameters'][0]['type'],'natural number with a=b')
+        for label in ['irreducible representation', 'compact space', 'prime ideal',
+                      'admissible object', 'sheaf of modules on a scheme']:
+            value['spec']['parameters'][0]['type']=label
+            self.assertEqual(preflight(value['spec'],value['graph']),[])
 
-    def test_named_analysis_calls_need_explicit_grounding_before_final_author_submission(self):
+    def test_prose_theorem_names_are_semantic_review_not_structural_acceptance(self):
         fixture=Path(__file__).parent/'fixtures/closed-addition'
         spec=json.loads((fixture/'spec.json').read_text());graph=json.loads((fixture/'nl0.json').read_text())
         s=graph['inferences'][0]['argument'][0]
-        s['text']='By the mean value theorem, the conclusion follows.'
-        self.assertTrue(any('NAMED_RESULT_GROUNDING' in error for error in preflight(spec,graph)))
-        s['text']='H001 gives a=b. Equality symmetry gives b=a.'
-        self.assertEqual(preflight(spec,graph),[])
+        for name in ['mean value theorem', 'Tonelli theorem', 'Nakayama lemma']:
+            s['text']=f'By the {name}, the conclusion follows.'
+            self.assertEqual(preflight(spec,graph),[])
+        contract=NL0Contract(self.root/'semantic-boundary',{'problem.txt':'Synthetic fixture only.'})
+        result=contract({'spec':spec,'graph':graph})
+        self.assertFalse(result['mathematical_acceptance'])
 
-    def test_unrelated_listed_N_cannot_authorize_a_bare_named_theorem(self):
+    def test_domain_notation_uses_the_same_declarations_as_any_other_object(self):
         fixture=Path(__file__).parent/'fixtures/closed-addition'
         spec=json.loads((fixture/'spec.json').read_text());graph=json.loads((fixture/'nl0.json').read_text())
-        s=graph['inferences'][1]['argument'][1]
-        s.update(text='N001 gives b=a. By Tonelli, the conclusion follows.',uses=['N001'])
-        self.assertTrue(any('NAMED_RESULT_GROUNDING' in error for error in preflight(spec,graph)))
-        s['text']='Applying the Tonelli theorem N001 gives the conclusion.'
-        self.assertEqual(preflight(spec,graph),[])  # Audit A must still reject this wrong identity.
+        graph['inferences'][0]['argument'][0]['objects'].append('norm')
+        contract=NL0Contract(self.root/'domain-notation',{'problem.txt':'Synthetic fixture only.'})
+        with self.assertRaisesRegex(ValueError,'undeclared.*norm'):contract({'spec':spec,'graph':graph})
+        spec['definitions'].append(dict(id='D001',symbol='norm',type='function on the stated module',
+            definition='norm is the specified size function.',depends_on=[],requires=[],binders=[],objects=[]))
+        graph['inferences'][0]['definitions'].append('D001')
+        self.assertFalse(contract({'spec':spec,'graph':graph})['mathematical_acceptance'])
 
     def test_unknown_library_name_is_not_misreported_as_an_available_definition(self):
         with patch('artifact_validation.run_lean',return_value={
@@ -372,7 +375,7 @@ class ArtifactValidationTests(unittest.TestCase):
 
     def test_literal_definition_copy_preserves_bytes_and_full_canonical_checks(self):
         import re
-        text=(Path(__file__).parents[1]/'templates/guarded-definition-example.md').read_text()
+        text=(Path(__file__).parents[1]/'nl0/templates/guarded-definition-example.md').read_text()
         value=json.loads(re.search(r'```json\n(.*?)\n```',text,re.S).group(1))
         definition=value['spec']['definitions'][0]['definition']+'\r\n'
         value['spec']['definitions'][0]['definition']={'from_task':'input.txt','start_line':2,'end_line':2}
@@ -452,7 +455,7 @@ class ArtifactValidationTests(unittest.TestCase):
             local['scope']=label;self.assertEqual(preflight(value['spec'],value['graph']),[])
 
     def test_one_explicit_source_use_synchronizes_views_without_rewriting_proof(self):
-        template=Path(__file__).parents[1]/'templates/source-application-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/source-application-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         r=value['graph']['inferences'][0];app=r['applications'].pop()
         r['inputs']=[];r['argument'][0]['uses']=[]
@@ -483,7 +486,7 @@ class ArtifactValidationTests(unittest.TestCase):
             signature_probe(self.root,'M001','Nat.add_zero','../Other',1)
 
     def test_model_visible_example_matches_the_authoring_contract(self):
-        template=Path(__file__).parents[1]/'templates/submission-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/submission-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         contract=NL0Contract(self.root/'example',{'problem.txt':'Neutral format example.'},
                              case_id=value['spec']['case_id'])
@@ -493,7 +496,7 @@ class ArtifactValidationTests(unittest.TestCase):
             contract(value)
 
     def test_model_visible_source_example_registers_actual_evidence_and_explicit_H(self):
-        template=Path(__file__).parents[1]/'templates/source-application-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/source-application-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         contract=NL0Contract(self.root/'source-example',{'neutral-problem.txt':'If a=b, compactness transfers from {a} to {b}.'},
                              case_id=value['spec']['case_id'])
@@ -505,7 +508,7 @@ class ArtifactValidationTests(unittest.TestCase):
         self.assertTrue(value['graph']['propositions'][1]['source']['evidence'])
 
     def test_source_renumbering_reuses_only_actual_metadata_and_remains_stable(self):
-        template=Path(__file__).parents[1]/'templates/source-application-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/source-application-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         contract=NL0Contract(self.root/'renumbered',{'neutral-problem.txt':'If a=b, compactness transfers from {a} to {b}.'})
         signature_probe(contract.directory,'M017','isCompact_singleton','Mathlib.Topology.Compactness.Compact',1)
@@ -522,7 +525,7 @@ class ArtifactValidationTests(unittest.TestCase):
 
     def test_report_level_alias_cannot_bind_an_absent_native_source_row(self):
         from runtime_config import load_lock
-        template=Path(__file__).parents[1]/'templates/source-application-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/source-application-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         contract=NL0Contract(self.root/'empty-report',{'neutral-problem.txt':'Neutral source control.'})
         path=contract.directory/'library/empty/library-sources.json';path.parent.mkdir(parents=True)
@@ -532,7 +535,7 @@ class ArtifactValidationTests(unittest.TestCase):
             contract(value)
 
     def test_source_ID_cannot_escape_case_before_metadata_rebinding(self):
-        template=Path(__file__).parents[1]/'templates/source-application-example.md'
+        template=Path(__file__).parents[1]/'nl0/templates/source-application-example.md'
         value=json.loads(template.read_text().split('```json\n',1)[1].split('\n```',1)[0])
         value['graph']['propositions'][1]['id']='M001/../../outside'
         contract=NL0Contract(self.root/'unsafe-source-ID',{'problem.txt':'Neutral data control.'})

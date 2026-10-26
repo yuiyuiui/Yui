@@ -1,9 +1,7 @@
 """Shared author/audit coverage and authority binding, without model calls."""
-from pathlib import Path
-import sys
+import harness_support
 import unittest
 
-sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
 import acceptance
 import nl0
 

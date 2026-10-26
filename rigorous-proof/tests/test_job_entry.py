@@ -1,4 +1,6 @@
 """Standalone installation, profile and repair-wiring controls. No model is invoked."""
+import harness_support
+from harness_support import PROFILES
 import argparse
 from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor
@@ -12,8 +14,6 @@ import unittest
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
-for path in (CORE/'scripts',CORE/'translation/scripts'):
-    sys.path.insert(0,str(path))
 import jobs
 import entrypoint
 import runtime_config as config
@@ -23,8 +23,6 @@ import full_workflow
 import execution_state
 from execution_health import StageFailure
 
-PROFILES={'nl0':{'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard','automatic_fallback':False},
-          'lean':{'id':'gpt-6-luna','reasoning_effort':'medium','speed':'standard','automatic_fallback':False}}
 
 
 class JobEntryTests(unittest.TestCase):
@@ -47,6 +45,17 @@ class JobEntryTests(unittest.TestCase):
         job=self.job(materials=[extra]);root=Path(job['root'])
         self.assertEqual(len(job['documents']),2)
         self.assertNotIn('DO NOT EXPOSE',''.join(p.read_text() for p in (root/'inputs').iterdir()))
+
+    def test_job_binds_optional_library_selection_even_when_absent(self):
+        import os
+        with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(self.root/'catalog-one')}):
+            job=self.job();jobs.validate(job)
+            self.assertEqual(job['library_catalog']['files'],[])
+            with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(self.root/'catalog-two')}):
+                with self.assertRaisesRegex(ValueError,'library selection'):jobs.validate(job)
+            catalog=self.root/'catalog-one';catalog.mkdir()
+            (catalog/'foundations.json').write_text('{"version":1,"entries":[]}')
+            with self.assertRaisesRegex(ValueError,'library selection'):jobs.validate(job)
 
     def test_job_binds_original_inputs_and_cannot_write_into_installation(self):
         job=self.job();self.problem.write_text('Changed after freeze')
@@ -84,7 +93,7 @@ class JobEntryTests(unittest.TestCase):
         self.assertEqual(config.model_profile('proof')['selection_origin'],'installation_defaults')
 
     def test_missing_profiles_request_configuration_without_model_or_output(self):
-        command=[sys.executable,'-B',str(CORE/'scripts/yui.py'),'prepare',str(self.problem),'--track','full']
+        command=[sys.executable,'-B',str(CORE/'nl0/scripts/yui.py'),'prepare',str(self.problem),'--track','full']
         r=subprocess.run(command,capture_output=True,text=True)
         self.assertNotEqual(r.returncode,0);self.assertIn('Ask once',r.stdout)
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
@@ -151,7 +160,7 @@ class JobEntryTests(unittest.TestCase):
         self.assertEqual(result['proof_concurrency']['effective'],3)
 
     def test_public_cli_model_defaults_do_not_supply_missing_workers(self):
-        result=subprocess.run([sys.executable,'-B',str(CORE/'scripts/yui.py'),
+        result=subprocess.run([sys.executable,'-B',str(CORE/'nl0/scripts/yui.py'),
             'prepare',str(self.problem),'--track','full','--use-config-profiles'],
             capture_output=True,text=True)
         self.assertNotEqual(result.returncode,0)
@@ -236,7 +245,7 @@ class JobEntryTests(unittest.TestCase):
     def test_standalone_copy_prepares_and_reports_without_repository_or_test_support(self):
         install=self.root/'installed-skill'
         shutil.copytree(CORE,install,ignore=shutil.ignore_patterns('__pycache__','results','.git'))
-        command=[sys.executable,'-B',str(install/'scripts/yui.py')]
+        command=[sys.executable,'-B',str(install/'nl0/scripts/yui.py')]
         result=subprocess.run(command+['prepare',str(self.problem),'--track','nl0',
             '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr+result.stdout)

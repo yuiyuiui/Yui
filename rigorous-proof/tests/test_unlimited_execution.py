@@ -1,13 +1,12 @@
 """Unlimited execution controls; no model calls or mathematical verdicts."""
+import harness_support
 import json
 from pathlib import Path
 import queue
-import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import runtime_config
 from output_guard import ProviderWaitGuard
 from run_pilot import Trial

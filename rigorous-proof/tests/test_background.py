@@ -1,14 +1,13 @@
 """Supplement/provenance controls. Synthetic judgments are not proof certification."""
+import harness_support
 import copy
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT/'scripts'))
 import background
 import foundations
 import nl0
@@ -128,7 +127,6 @@ class BackgroundTests(unittest.TestCase):
         self.assertEqual(set(background.effective(self.accepted())[0]),set(self.data[3]))
 
     def test_translation_and_audit_b_cannot_drop_the_accepted_supplement(self):
-        sys.path.insert(0,str(ROOT/'translation/scripts'))
         import ir, workflow, audit_b
         data=self.accepted();props,_=background.effective(data)
         cp=self.base/'contract.json';pp=self.base/'plan.json';rp=self.base/'interface-review.json'
@@ -171,7 +169,6 @@ class BackgroundTests(unittest.TestCase):
 
     def test_exercise_translation_adapter_keeps_notes_without_promoting_ports(self):
         self.accepted()
-        sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'translation/scripts'))
         import translation_author as author
         import interface_review
         out=self.base/'translation-adapter'
@@ -243,7 +240,6 @@ class BackgroundTests(unittest.TestCase):
         finally:shutil.rmtree(stage.work,ignore_errors=True)
 
     def test_zero_extraction_preserves_notes_and_their_source_evidence(self):
-        sys.path.insert(0,str(ROOT/'translation/scripts'))
         import source_preparation as source
         self.accepted()
         patch={'version':source.VERSION,'baseline_graph_sha256':nl0.sha(self.base/'nl0.json'),

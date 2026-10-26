@@ -1,11 +1,9 @@
 """Literal task-line bindings; no mathematical acceptance is produced."""
+import harness_support
 from copy import deepcopy
 import hashlib
-from pathlib import Path
-import sys
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from task_proof_text import materialize
 
 

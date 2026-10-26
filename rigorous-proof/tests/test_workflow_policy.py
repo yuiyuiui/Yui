@@ -1,11 +1,6 @@
 """End-to-end wiring controls with mocked model gates, never exercise passes."""
+import harness_support
 
-import sys as _test_sys
-from pathlib import Path as _TestPath
-_test_core = _TestPath(__file__).resolve().parents[1]
-for _test_path in (_test_core/"scripts", _test_core/"translation/scripts", _test_core/"tests/tooling"):
-    _test_sys.path.insert(0,str(_test_path))
-import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,7 +8,6 @@ import shutil
 from unittest.mock import patch
 
 import audit_a_campaign as a
-import case_runner
 import full_workflow as f
 from execution_health import StageFailure
 import execution_state as e

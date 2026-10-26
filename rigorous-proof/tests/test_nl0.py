@@ -1,4 +1,5 @@
 """Behavioral regression tests on the actual Koch graph and corrupted copies."""
+import harness_support
 import copy
 import importlib.util
 import json
@@ -10,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE = ROOT / "tests/fixtures/legacy/bench_case_6"
-MODULE_SPEC = importlib.util.spec_from_file_location("nl0", ROOT / "scripts/nl0.py")
+MODULE_SPEC = importlib.util.spec_from_file_location("nl0", ROOT / "nl0/scripts/nl0.py")
 nl0 = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(nl0)
 

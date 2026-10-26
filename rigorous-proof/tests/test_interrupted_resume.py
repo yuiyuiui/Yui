@@ -1,4 +1,5 @@
 """New-run service recovery controls; synthetic fixtures are not audits."""
+import harness_support
 import argparse
 import json
 from pathlib import Path
@@ -10,7 +11,6 @@ import unittest
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
-sys.path[:0]=[str(CORE/'scripts'),str(CORE/'translation/scripts')]
 import jobs
 import interrupted
 import case_runner
@@ -117,7 +117,7 @@ class InterruptedResumeTests(unittest.TestCase):
         self.write(self.run/'execution-status.json',{'controller':{
             'pid':2147483647,'pgid':2147483647,'started':'SYNTHETIC exited owner','state':'EXITED'},
             'processes':{}})
-        result=subprocess.run([sys.executable,'-B',str(CORE/'scripts/yui.py'),'resume',
+        result=subprocess.run([sys.executable,'-B',str(CORE/'nl0/scripts/yui.py'),'resume',
             str(self.run),'--prepare-only'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr+result.stdout)
         prepared=json.loads(result.stdout)

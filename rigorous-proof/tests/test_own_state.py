@@ -1,14 +1,13 @@
 """Synthetic controller provenance checks, never a model/mathematical pass."""
+import harness_support
 from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from clean_stage import ArtifactStage
 import own_state
 import exposure
