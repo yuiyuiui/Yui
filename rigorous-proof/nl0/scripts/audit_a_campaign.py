@@ -221,7 +221,10 @@ or target reference proof is supplied. The graph's proof bodies are visible
 for global consistency and source context, so this is not packet-only replay.
 Packet applicability still has its own owner.
 For an E with verification.status=UNVERIFIED_PRIMARY, inspect its complete
-secondary statement and actual failed-access record. Keep unavailable primary
+secondary statement and actual failed-access record. Follow source-retrieval.md
+for missing originals; ordered locators and browser success alone do not
+establish document identity, matching edition or theorem fidelity. Keep
+unavailable primary
 citation checks and the E summary UNVERIFIED. Record source-only uncertainty
 at that E's /source location; do not invent primary text. Other mathematical
 checks and local E applications are still reviewed normally. The controller

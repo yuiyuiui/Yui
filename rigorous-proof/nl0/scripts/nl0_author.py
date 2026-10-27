@@ -20,7 +20,12 @@ If target-selection.json is supplied, preserve its full_target exactly and
 cover every selected claim, including each claim's own hypotheses. For several
 independent targets, prove their conjunction without silently combining their
 assumptions into a weaker joint statement.
-Use public source search/read tools for missing external primary texts. If an
+Read nl0/references/source-retrieval.md and use the ordered source tools for
+missing external primary texts: arxiv first, google full text, google DOI
+discovery, then scihub with a confirmed DOI. Retry JavaScript/verification pages
+with browser:true for actual readback; preserve failed access rather than
+repeating unchanged blocked searches. Check the original edition and complete
+theorem context, not just its title or a search snippet. If an
 original is inaccessible, defer_primary_source may retain a complete exact
 secondary statement as an UNVERIFIED_PRIMARY assumption. Preserve its warning,
 do not invent a missing statement, and do not defer a known contradiction.

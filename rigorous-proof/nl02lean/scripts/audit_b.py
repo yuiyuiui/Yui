@@ -226,7 +226,8 @@ def prepare_review_reuse(original,out):
         shutil.copyfile(original/name,out/name)
     runtime={}
     core=HERE.parent
-    for p in [*(core/'nl0/scripts').glob('*.py'),*(HERE/'scripts').glob('*.py'),core/'config.json',
+    for p in [*(core/'nl0/scripts').glob('*.py'),*(core/'nl0/scripts').glob('*.mjs'),
+              *(HERE/'scripts').glob('*.py'),core/'config.json',
               core/'SKILL.md',*(HERE/'references').glob('*.md'),*(HERE/'templates').glob('*.md')]:
         relative=p.relative_to(core);dest=out/'review-runtime'/relative
         dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dest)

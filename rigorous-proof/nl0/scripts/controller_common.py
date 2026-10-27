@@ -33,7 +33,7 @@ def runtime_bindings():
     for folder in ('nl0/scripts', 'nl0/references', 'nl0/templates', 'nl02lean/scripts',
                    'nl02lean/references', 'nl02lean/templates'):
         paths.extend(p for p in (CORE/folder).rglob('*')
-                     if p.is_file() and p.suffix in {'.py', '.lean', '.json', '.md'})
+                     if p.is_file() and p.suffix in {'.py', '.mjs', '.lean', '.json', '.md'})
     from library_catalog import catalog_files
     paths.extend(catalog_files())
     return [bind(p) for p in sorted(set(paths))]

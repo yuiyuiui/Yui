@@ -33,6 +33,10 @@ when continuing to observe its owned run explicitly, and retain working cancel
 instructions. A frozen author/proof/reviewer stage performs only its assigned
 role; it does not redispatch the whole workflow.
 
+For missing external originals, follow [ordered source retrieval](nl0/references/source-retrieval.md):
+arXiv, Google full-text search, Google DOI discovery, then confirmed-DOI Sci-Hub
+lookup with ordinary browser readback when needed. Reuse an already available
+adequate primary source; retrieval alone does not establish theorem fidelity.
 At invocation disclose the [conditional-source policy](nl0/references/conditional-sources.md):
 inaccessible primary texts can permit continued work from complete explicit
 secondary statements, but the final result remains conditional. Show each

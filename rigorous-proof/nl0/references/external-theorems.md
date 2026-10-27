@@ -16,10 +16,11 @@ alone does not establish identity. Books, papers and reliable preprints can
 qualify; a DOI and journal publication are not universal requirements. Record
 the source category and grounds for treating it as an admissible source.
 
-For inaccessible text, use the [public retrieval and conditional-source
-procedure](conditional-sources.md). Try Google, arXiv, author/institutional
-repositories and accessible publisher text. Do not bypass access controls or
-human verification. Unavailable checks remain UNVERIFIED. A complete explicit
+For missing originals, follow [ordered source retrieval](source-retrieval.md):
+arXiv, Google full text, Google DOI discovery and confirmed-DOI Sci-Hub lookup.
+Use normal browser readback when needed; unresolved access and verification
+failures remain recorded. Then use the [conditional-source
+procedure](conditional-sources.md) for unavailable text. Unavailable checks remain UNVERIFIED. A complete explicit
 secondary statement can support a disclosed conditional run, not an ordinary
 source-verification PASS.
 

@@ -1,11 +1,13 @@
 # Explicit continuation with unverified primary sources
 
-Try the actual source before deferring it. The author and global reviewer have
-`search_external_sources` (Google and arXiv locators) and
-`read_external_source` (public HTTPS document readback). The controller preserves
+Try the actual source before deferring it. Follow [ordered retrieval](source-retrieval.md):
+arXiv first, Google full text, Google DOI discovery, then Sci-Hub with a confirmed
+DOI. The author and global reviewer have `search_external_sources` with an
+explicit engine and `read_external_source` with optional `browser=true`.
+The controller preserves
 actual access records and document/text hashes. A search result, HTTP success
 or readable abstract alone is not theorem verification. Browser-only pages,
-CAPTCHAs, paywalls and access failures are recorded; they are not bypassed.
+unresolved challenges, paywalls and access failures are recorded.
 The invoking agent may use its ordinary source tools or ask for human access
 when needed, while keeping every supplied document explicit and hash-bound.
 The reader returns case-relative `evidence` and `primary_evidence_candidates`
@@ -14,16 +16,16 @@ not a judgment of authenticity: only designate the actual original source as
 primary, and retain the access record alongside it. PDF staging uses pdftotext
 when available, otherwise pypdf; neither extraction establishes theorem fidelity.
 
-If ordinary HTTPS requests return `BROWSER_REQUIRED`, the invoking agent may
-try the same query in the host's built-in browser. When the user requests it,
-ordinary searches on [Sci-Hub](https://sci-hub.box/) can use that browser route
-as well. Use a host-provided page-reading tool when available; merely opening
-or queuing a tab is not evidence that search results or a paper were read.
-Do not silently substitute a metered third-party browser service, automate
-CAPTCHA, or bypass an access restriction. A downloaded paper can be an explicit
-source input before dispatch, or part of a new reviewed source revision.
-Never change an active run's frozen input files to insert a browser result.
-The isolated CLI stages themselves do not control the desktop browser.
+For JavaScript or verification pages, retry the source tool with `browser=true`.
+Its trusted helper uses a fresh local Chrome context and ordinary site controls,
+including the site's own ALTCHA button, without personal cookies or a paid
+service. Unsupported challenges stay `HUMAN_ACCESS_REQUIRED`; missing browser
+tools and browser errors remain recorded failures. The invoking agent may use
+an actual built-in-browser control tool before dispatch; merely opening or
+queuing a tab is not evidence that results or a paper were read. A downloaded
+paper can be an explicit source input before dispatch, or part of a new reviewed
+source revision. Never change an active run's frozen input files to insert a
+browser result. The isolated CLI stages do not control the user's desktop tabs.
 
 If the primary text remains unavailable, continue only from a complete external
 statement actually present in a supplied secondary source. Call

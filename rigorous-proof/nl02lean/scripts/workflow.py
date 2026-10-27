@@ -123,6 +123,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     copied, _ = run_graph.package(contract, plan, out)
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'nl0/scripts').glob('*.py'),
+                   *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
         ir.ROOT/'SKILL.md',ir.ROOT/'config.json',ir.ROOT/'toolchain/lock.json',
         *(ir.ROOT/'nl0/references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
         *(ir.ROOT/'nl0/templates').glob('*.md'),*(ir.HERE/'templates').glob('*.md')]

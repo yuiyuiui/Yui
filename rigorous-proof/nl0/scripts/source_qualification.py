@@ -36,8 +36,8 @@ def deferred(pid,source,base):
         if not access_path.is_relative_to(Path(base).resolve()/'external-sources') or not access_path.name.startswith('access-'):
             raise ValueError('Expected an own source-access record')
         access=json.loads(access_path.read_text())
-        if access.get('version')!='yui-source-access-1' or access.get('origin')!='controller_https' or access.get('status') not in {
-                'HTTP_ERROR','HUMAN_ACCESS_REQUIRED','BROWSER_REQUIRED','UNAVAILABLE','NO_EXTRACTABLE_TEXT'}:
+        from source_access import failed_access
+        if not failed_access(access):
             raise ValueError('Source deferral is not supported by recorded unavailable access')
         attempts.append({key:access.get(key) for key in ('url','status','http_status','reason')})
     return {'source_id':pid,'statement':source['statement'],'record':qualification['record'],

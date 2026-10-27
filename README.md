@@ -217,9 +217,19 @@ and proceeds without an extra user question. Multiple independent plausible
 targets require clarification. The [target-selection contract](rigorous-proof/nl0/references/target-selection.md)
 binds the selected statements to the supplied document before model dispatch.
 
-Public external-source tools attempt Google/arXiv search and HTTPS readback.
-Browser-only pages, access failures and human verification are reported, not
-bypassed. When the full primary text is unavailable but a complete explicit
+Missing external originals follow the [ordered source procedure](rigorous-proof/nl0/references/source-retrieval.md):
+arXiv full text first, Google full-text search, Google DOI discovery, then
+Sci-Hub lookup with the confirmed DOI. Already supplied adequate originals are
+reused. The author and global reviewer receive explicit engine selection and
+an optional normal local-Chrome readback tool for JavaScript/verification pages.
+This does not require controlling the user's visible in-app browser. It uses
+an existing Node/Playwright/Chrome installation, a fresh browser profile and
+ordinary site controls; the linked guide documents discovery and environment
+overrides. No browser package or paid service is installed automatically.
+Missing tools, unresolved verification, redirects and access failures are
+retained as actual receipts. Downloads preserve original bytes, version and
+hashes; the relevant theorem, definitions and hypotheses still require review.
+When the full primary text is unavailable but a complete explicit
 secondary statement exists, the [conditional-source route](rigorous-proof/nl0/references/conditional-sources.md)
 can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
 never ordinary full PASS; actual mathematical failures remain blocking.

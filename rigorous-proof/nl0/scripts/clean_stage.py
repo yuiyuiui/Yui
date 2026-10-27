@@ -86,11 +86,13 @@ class ArtifactStage(pilot.Stage):
         self.tools = [dict(t) for t in pilot.carrier.TOOLS[:2]] if library else []
         if library:
             self.tools += [pilot.carrier.tool('search_external_sources',
-                'Search public source locators using Google and arXiv. Results are not theorem evidence; read the actual document. No login, CAPTCHA solving or paywall bypass.',
-                {'query':{'type':'string'}},['query']),
+                'Follow source-retrieval.md: arxiv first (default; an exact arXiv ID is allowed), then google title/author search, then google title/author DOI search, then scihub with a confirmed DOI. Use browser:true for normal local-browser readback of JavaScript/verification pages. Results and DOI strings are locators, not source/theorem approval. Record failed access and continue conditionally when the original stays unavailable.',
+                {'query':{'type':'string'},'engine':{'type':'string','enum':['arxiv','google','scihub']},
+                 'browser':{'type':'boolean'}},['query']),
                 pilot.carrier.tool('read_external_source',
-                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue the same cached text. Report inaccessible or human-verification pages without bypassing them.',
-                {'url':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'}},['url'])]
+                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue cached text. Retry with browser:true for a normal isolated local Chrome session if HTTPS needs JavaScript or verification. The optional browser uses ordinary site controls; unsupported challenges remain explicit failures. Verify full PDF identity, version, theorem and context yourself.',
+                {'url':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'},
+                 'browser':{'type':'boolean'}},['url'])]
         if kind=='nl0':
             self.tools.append(pilot.carrier.tool('defer_primary_source',
                 'After actual unavailable primary-source access, preserve a complete exact secondary quotation as an explicitly unverified external assumption. The statement must match the quote in a supplied input. Returns the verification record for E.source.verification; this never grants ordinary Audit A PASS.',
@@ -410,7 +412,10 @@ class ArtifactStage(pilot.Stage):
             if name in {'search_external_sources','read_external_source','defer_primary_source'}:
                 import source_access
                 base=self.validator.directory if self.artifact_kind=='nl0' else self.logs
-                if name=='search_external_sources':result=source_access.search(base/'external-sources',args['query'])
+                if name=='search_external_sources':
+                    result=source_access.search(base/'external-sources',**args)
+                    result['access_records']=[{'path':str(Path(row['record']['path']).resolve().relative_to(base.resolve())),
+                                               'sha256':row['record']['sha256']} for row in result['attempts']]
                 elif name=='read_external_source':
                     result=source_access.read(base/'external-sources',**args)
                     result.update(source_access.evidence_references(result,base))

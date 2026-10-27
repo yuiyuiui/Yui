@@ -39,6 +39,10 @@ class SourceQualificationTests(unittest.TestCase):
         r['applications']=[{'id':'A001','input':'E001','at':'S001','bindings':'Synthetic fixed parameters.',
                             'hypothesis_checks':[]}]
         self.write_source()
+        self.make_audit()
+
+    def make_audit(self):
+        """Fresh synthetic reviews for this control's current graph/packets."""
         data=nl0.validate(self.root/'nl0.json',self.root/'spec.json')
         self.audit=nl0.closure.audit_template(data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
         def mark(v):
@@ -192,6 +196,27 @@ class SourceQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'own source-access'):
             source_access.defer(self.root,source_id='E002',statement='a=b.',input_id='secondary.txt',quote='a=b.',
                 inputs={'secondary.txt':'a=b.'},attempts=['inputs/access-forged.json'])
+
+    def test_browser_failures_support_only_the_same_bound_conditional_route(self):
+        from controller_common import bind
+        original=self.graph['propositions'][0]['source']['verification']['record']
+        deferred_path=self.root/original['path']
+        for status in ['HUMAN_ACCESS_REQUIRED','BROWSER_UNAVAILABLE','BROWSER_ERROR']:
+            with self.subTest(status=status):
+                self.access.write_text(json.dumps({'version':source_access.VERSION,'origin':'controller_browser',
+                    'url':'https://example.org/unavailable','status':status}))
+                record=json.loads(deferred_path.read_text());old_attempt=record['attempts'][0]
+                new_attempt={'path':old_attempt['path'],'sha256':bind(self.access)['sha256']}
+                record['attempts']=[new_attempt];deferred_path.write_text(json.dumps(record))
+                new_ref={'path':original['path'],'sha256':bind(deferred_path)['sha256']}
+                source=self.graph['propositions'][0]['source']
+                source['evidence']=[new_ref,record['basis'],new_attempt]
+                source['verification']['record']=new_ref
+                self.write_source();self.make_audit()
+                result=self.data()[0]
+                self.assertTrue(result['current_conditional_receipt_valid'])
+                self.assertFalse(result['current_standard_receipt_valid'])
+                self.assertEqual(sq.publish(self.root,self.data())['warnings'][0]['access_outcomes'][0]['status'],status)
 
 
 if __name__=='__main__':unittest.main()
