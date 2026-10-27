@@ -49,21 +49,10 @@ Three supplied examples are ordinary inputs to the same runtime:
 | Lie algebras and representations | [Admissible lattice reduction](test/lie-module-irreducibility/problem.md) |
 | PDE | [Sphere-valued wave-map energy](test/wave-map-energy/problem.md) |
 
-Each example also includes its latest completed `rigorous-proof/` result. The
-runs below contain the final standalone Lean file, actual Audit A/B reports,
-execution records and the result reported by the workflow:
-
-| Example | Completed run | Standalone Lean file |
-| --- | --- | --- |
-| Geometry and measure | [Result](test/geometry-product-dimension/rigorous-proof/20261026T133531Z-7b8941cddb/case-result.json) | [Proof.lean](test/geometry-product-dimension/rigorous-proof/20261026T133531Z-7b8941cddb/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
-| Lie algebras and representations | [Result](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/case-result.json) | [Proof.lean](test/lie-module-irreducibility/rigorous-proof/20261026T100241Z-0a0dbbcb5b/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
-| PDE | [Result](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/case-result.json) | [Proof.lean](test/wave-map-energy/rigorous-proof/20261026T100247Z-61293f4243/nl0-to-lean/0001/workflow/audit-b/Proof.lean) |
-
-Only the latest completed run is kept for each example; earlier attempts remain
-in Git history. Consult each run's actual result and gate reports for its
-acceptance scope. These historical archives contain machine-specific paths and
-runtime bindings. Preserved evidence, dependency copies and relocation notes
-retain the completed run's provenance without rewriting the original receipts.
+Each invocation creates a new `rigorous-proof/<run-id>/` beside its original
+problem. Read that run's `case-result.json` and gate reports for its actual
+acceptance scope. Previous test-result directories have been removed from the
+current tree; their original records remain available in Git history.
 
 ## Runtime
 
@@ -225,7 +214,7 @@ workflows keep strategy lookup disabled.
 | `rigorous-proof/tests/` | One harness-wide software suite covering shared runtime, NL0, Lean and cross-stage behavior; see the [test guide](rigorous-proof/tests/README.md) |
 | `rigorous-proof/toolchain/` | Version lock and historical source-migration records; actual tools are installed separately |
 | `library/` | Optional user-maintained Mathlib catalog, three demonstrations and maintenance guide |
-| `test/` | Three mathematical examples and their archived proof/audit runs |
+| `test/` | Three original mathematical examples; workflow outputs are generated beside each problem |
 | `benchmark/` | Original paper input; temporary benchmark outputs have been removed |
 
 The [`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) file records
