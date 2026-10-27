@@ -223,37 +223,28 @@ of these verdicts from a historical audit or a successful Lean build.
 
 ### Paywalled or inaccessible primary text
 
-If a paywalled paper cannot be downloaded or read in full, first search Google
-using its title, DOI and authors for a downloadable copy or a full-text viewing
-resource, including author manuscripts and repositories. If that does not
-provide the text, search Sci-Hub using the DOI or article URL and attempt to
-download or view it through the user's browser. The user-provided entry point
-is https://sci-hub.box/. Follow this order: Google, then Sci-Hub.
+Search public sources using the title, DOI and authors: Google, arXiv,
+author manuscripts, institutional repositories and accessible publisher text.
+Use actual source readback, not a search snippet. A different readable version
+must be identified honestly and checked against its own statement and context.
+A page requiring JavaScript, login, payment or human verification is an access
+limitation; do not bypass it or treat the page as the theorem text.
 
-A readable full-text version is sufficient; downloading a PDF is not required
-when the theorem and its governing context can be inspected directly. Apply
-the normal identity, version, statement and context checks to any obtained
-copy. Record the version actually inspected, rather than treating a preprint
-as a verified copy of an inaccessible published edition.
+When the primary text remains inaccessible, follow the exact
+[conditional-source contract](conditional-sources.md). A complete statement
+actually quoted in a supplied secondary source may remain an explicit E
+assumption with a bound access-failure record. Keep its source review and
+unperformed citation checks UNVERIFIED. Every mathematical/application check
+must still be performed, and actual mismatches remain FAIL. Same-author closing
+readiness may disclose this source uncertainty separately from mathematical
+or inventory defects; it is not a verified-source claim.
 
-If the necessary text remains inaccessible after both searches, record the E
-ID, bibliographic identifier, attempted searches/access routes and outcomes,
-and the citation checks that could not be performed. Skip those blocked
-citation-correctness checks and continue the remaining NL0/Audit A work. Keep
-completed checks and their evidence; mark the unperformed checks and the
-source's overall review UNVERIFIED, explaining the access limitation in the
-notes. Do not record a skipped check as PASS or infer an incorrect citation
-merely from lack of access. Any downstream judgments depending on the source
-must disclose that unresolved source verification.
-
-In the final user-facing report, explicitly list every such E, what remains
-unchecked, the retrieval attempts and the text needed to complete the review.
-Do not leave this notification only in a machine-readable log. An access
-failure alone is not a substantive mathematical gap and does not require
-halting all other work, but the incomplete audit cannot receive an unqualified
-DRAFT-AUDIT-PASSED verdict. Use the existing UNVERIFIED verdict and
-`inspect-audit` for complete unresolved records; do not invent evidence or
-primary-source contents to satisfy a mechanical gate.
+Continue the remaining work under that declared condition. A conditional A
+receipt can enter Lean work, but cannot be labeled DRAFT-AUDIT-PASSED. If local
+proofs, assembly and independent endpoint review succeed, the final status is
+WORKFLOW-CONDITIONAL with warn.json/warn.md and an explicit user-facing list of
+unchecked sources. A missing complete statement remains a missing input; do not
+invent it. Full acceptance requires actual primary-source verification.
 
 ## A3. Structure
 
@@ -380,7 +371,7 @@ and P closes without extra assumptions. Say “same-context self-audit” when
 that is the execution mode. `nl0.py --audit` verifies the hash-bound review
 record's completeness, not the truth of the reviewer statements. Preserve any
 FAIL/UNVERIFIED report and identify the first gap; do not erase it after repair.
-For access-limited sources, finish with an explicit pending-citation list and
-an incomplete/UNVERIFIED audit outcome while reporting the other completed
-checks. Skipping unavailable citation checks does not waive them for a future
-whole-proof pass.
+For access-limited sources, retain an explicit pending-citation list and
+UNVERIFIED source judgments. A complete otherwise-passing review may authorize
+only the [conditional continuation](conditional-sources.md); it is not an
+unqualified whole-proof pass.

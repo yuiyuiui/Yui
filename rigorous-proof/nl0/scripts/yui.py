@@ -38,13 +38,13 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
-    if args.command in {'prepare','run','execute','resume','status','cancel','cleanup'}:
+    if args.command in {'prepare','run','execute','resume','status','cancel','cleanup','targets'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))
             if result.get('status') in {'BLOCKED','VALIDATION_FAILED'}:return 1
             if args.command in {'run','execute','resume'} and result.get('outcomes'):
-                return 0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in result['outcomes'].values()) else 1
+                return 0 if all(r.get('completion',{}).get('workflow_completed',r.get('completion',{}).get('acceptance_target_satisfied')) for r in result['outcomes'].values()) else 1
             return 0
         except (OSError,ValueError,KeyError) as error:
             print(json.dumps({'status':'REQUEST_NOT_STARTED_OR_BLOCKED','error':str(error)},indent=2));return 1
@@ -89,7 +89,7 @@ def main():
                                kind=args.kind, case_id=args.case_id, library=not args.no_library)
         result, artifact = worker.execute()
         print(json.dumps({'stage': result, 'concurrency': budget.report()}, indent=2))
-        blocked = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}
+        blocked = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}
         return 0 if artifact is not None and artifact.get('status') not in blocked and result.get('measurement_valid') else 1
     return 0
 

@@ -141,5 +141,8 @@ They cannot be silently relabeled or accepted as version-2 reviews. Start a
 new bound audit when policy, source, code or evidence changes. Pending templates
 never pass. A whole accepted source plus mechanical gates and complete actual
 semantic review yields `AUDIT-B-PASSED`; a fragment yields at most the explicitly
-scoped development verdict. Neither proves external publications in Lean or
+scoped development verdict. A whole source with an actual conditional Audit A
+can yield `AUDIT-B-CONDITIONAL` after all the same native and semantic checks.
+It retains the exact source warnings and never upgrades them to full PASS.
+Neither proves external publications in Lean or
 establishes formalizer speedup. Preserve failures and report actual costs.

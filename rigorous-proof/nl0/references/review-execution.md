@@ -5,13 +5,17 @@ not change NL0's mathematical standard or prove a reviewer's judgment correct.
 
 ## Per-case roles
 
-Use one NL0 author and one serial preparation/review lane. Audit A's global
-review and fresh packet contexts execute successively, never in a concurrent
-review pool. Interface work and Audit B are serial too. Only the frozen Lean
-proof queue uses `auto|N` proof slots. Python owns no proof slot. Independent
-cases may overlap; their mutable proof stores and mathematical inputs do not.
-`concurrency.CaseBudgets` supplies these two budgets and one shared all-stage
-ledger. A dispatch guard rejects proof/review overlap inside a case.
+Use one serial NL0 author and one serial preparation/global-review lane.
+Finish the global Audit A stage first, then review frozen R packets in up to
+N independent fresh contexts. Each packet keeps its own directory, source
+hash, profile, tool evidence and result. Submit the same frozen version to all
+reviewers; never share sibling judgments or proof bodies. Collect by stable
+job ID, independent of finish order. Retain completed results if a sibling
+fails. Actual source revisions get new packets and invalidate affected work.
+Interface work, assembly and Audit B stay serial. Local Lean proof work uses
+the same confirmed N in a separate later phase. `concurrency.CaseBudgets`
+records all three lanes in one ledger and rejects phase overlap. Independent
+cases may overlap; their mutable stores and mathematical inputs do not.
 
 ## Preserve work at its actual boundary
 

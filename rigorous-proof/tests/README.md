@@ -28,8 +28,10 @@ they never certify a mathematical proof or substitute for an independent audit.
 | Behavior | Representative test modules |
 | --- | --- |
 | Entry points, profiles, scheduling, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_model_profiles`, `test_remote_retry`, `test_cleanup_tests` |
+| Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
 | Model isolation, task/proof state, transport health and usage accounting | `test_isolation`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
 | NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |
+| Global-before-local Audit A scheduling and isolated R-review slots | `test_parallel_audit` |
 | Accepted-source preparation and stage handoff | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy` |
 | Conditional Lean tasks, concurrency, reuse and assembly | `test_translation`, `test_concurrency`, `test_execution_queue`, `test_shared_parallel`, `test_proof_reuse`, `test_assembly` |
 | General advice retrieval, evidence scope and maintenance | `test_strategy_bank` |

@@ -11,15 +11,20 @@ invalidation rules; completing stage one does not require stage two.
 
 ## Select a stage
 
+Before dispatch, follow [target selection](nl0/references/target-selection.md).
+Resolve a clear intended theorem yourself without asking again; ask the user
+only when the intended target remains ambiguous. Freeze the complete selected
+statement(s), including standing assumptions, as an explicit job input.
+
 The invoking agent owns request/configuration collection and dispatch. Follow
 [installed operation](nl0/references/operation.md) to identify explicit proof inputs,
 ask once for missing active-phase model/reasoning/speed settings and, for a
-full or translation request, an explicit per-case proof-worker count, then call
+NL0, full or translation request, an explicit per-case worker count N, then call
 `nl0/scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
 the user; do not call a separate intent-classification model. Do not silently
 choose a worker count from defaults or `auto`; obtain a positive integer or
-the user's explicit confirmation of a proposed number. NL0-only requests need
-no proof-worker question. NL0/Audit A and
+the user's explicit confirmation of a proposed number. N bounds local R-node
+reviews and, in a separate phase, local Lean proofs. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
 For an ordinary foreground request, follow execution through its actual final
@@ -27,6 +32,12 @@ result; `DISPATCHED` is not completion. Use detached execution when requested or
 when continuing to observe its owned run explicitly, and retain working cancel
 instructions. A frozen author/proof/reviewer stage performs only its assigned
 role; it does not redispatch the whole workflow.
+
+At invocation disclose the [conditional-source policy](nl0/references/conditional-sources.md):
+inaccessible primary texts can permit continued work from complete explicit
+secondary statements, but the final result remains conditional. Show each
+actual warning and include warn.json/warn.md in the final report. Never label
+unverified sources or a qualified workflow as an ordinary full PASS.
 
 Default permanent output is `<problem-directory>/rigorous-proof/<run-id>/`,
 outside the installed skill. Multiple problems own separate outputs, contexts,
@@ -47,7 +58,7 @@ for backoff, cancellation and explicit continuation of an already exited run.
    and [logical packaging](nl0/references/logical-rules.md) for local assumptions.
    Use `nl0/scripts/nl0.py`; its explicit accounting is not a mathematical prover.
    Controllers and reviewers follow [completion and local repair](nl0/references/review-execution.md)
-   for serial audit coverage, exact evidence inheritance and stage boundaries.
+   for global-first parallel R coverage, exact evidence inheritance and stage boundaries.
 2. **Translate an accepted NL0 and run Audit B.** Verify the supplied Audit A
    authority and exact source version first; do not reconstruct or re-audit an
    unchanged proof. Start with [minimal translation](nl02lean/references/minimal-translation.md).
@@ -100,7 +111,7 @@ Codex conversations, native subagents, Yui jobs, worker slots and controllers.
 Use the logical phase names **NL0 worker**, **preprocessing worker**,
 **formalization workers (N slots)** and **postprocessing worker**. A logical
 worker may contain several separate author/reviewer threads and program steps;
-N limits only concurrent local Lean proof jobs.
+N limits concurrent local R reviews and local Lean proof jobs in their separate phases.
 Report executor termination separately from mathematical acceptance.
 
 Read [isolation](nl0/references/isolation.md) and [measurement](nl0/references/measurement.md)
@@ -120,10 +131,10 @@ defaults only when explicitly selected. The current isolated carrier supports
 Standard speed and checks model/effort availability without fallback. Freeze
 and record each stage's selected profile;
 never silently substitute a stronger model or fallback.
-Resolve default concurrency
-before dispatch and record its basis; do not claim an unknown backend maximum.
-The concurrency parameter limits Lean proof jobs only. NL0 authoring,
-preparation, Audit A, interface work and Audit B use one serial lane per case.
+Resolve the confirmed concurrency before dispatch and record its basis; do not
+claim an unknown backend maximum. N limits local R-node reviews, then local
+Lean proof jobs in a later phase. NL0 authoring, global Audit A, preparation,
+interface work, assembly and Audit B use one serial lane per case.
 Count root/controller, worker, review and retry calls. Cached/reasoning tokens
 are subsets of input/output totals, not extra tokens. Missing usage is unknown.
 

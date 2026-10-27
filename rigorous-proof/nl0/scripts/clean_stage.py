@@ -21,7 +21,8 @@ class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None):
         logs=Path(logs).resolve()
-        budget = pilot.concurrency.serial_budget(budget)
+        if not (phase=='audit-a-packet-replay' and budget is not None and budget.role=='audit_r'):
+            budget = pilot.concurrency.serial_budget(budget)
         super().__init__(logs, logs / 'unused-contract.json', phase, timeout, budget=budget)
         if arm not in {'yui', 'direct'}:
             raise ValueError('Unknown instruction arm')
@@ -83,6 +84,19 @@ class ArtifactStage(pilot.Stage):
         if self.acceptance_authority:
             self.system += '\n\n'+self.acceptance_authority.instructions()
         self.tools = [dict(t) for t in pilot.carrier.TOOLS[:2]] if library else []
+        if library:
+            self.tools += [pilot.carrier.tool('search_external_sources',
+                'Search public source locators using Google and arXiv. Results are not theorem evidence; read the actual document. No login, CAPTCHA solving or paywall bypass.',
+                {'query':{'type':'string'}},['query']),
+                pilot.carrier.tool('read_external_source',
+                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue the same cached text. Report inaccessible or human-verification pages without bypassing them.',
+                {'url':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'}},['url'])]
+        if kind=='nl0':
+            self.tools.append(pilot.carrier.tool('defer_primary_source',
+                'After actual unavailable primary-source access, preserve a complete exact secondary quotation as an explicitly unverified external assumption. The statement must match the quote in a supplied input. Returns the verification record for E.source.verification; this never grants ordinary Audit A PASS.',
+                {'source_id':{'type':'string'},'statement':{'type':'string'},'input_id':{'type':'string'},
+                 'quote':{'type':'string'},'attempts':{'type':'array','items':{'type':'string'}}},
+                ['source_id','statement','input_id','quote','attempts']))
         if self.background_review and not library:
             self.tools += [dict(t) for t in pilot.carrier.TOOLS[:2]]
         if self.task_inputs:
@@ -99,8 +113,8 @@ class ArtifactStage(pilot.Stage):
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
-                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; SOURCE_UNAVAILABLE/INPUT_CONFLICT stop for an actual access/input obstacle. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
-                           {'status':{'type':'string','enum':['SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT']},
+                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. In NL0, use source retrieval and explicit conditional deferral for unavailable primary texts; MISSING_SOURCE_STATEMENT requires that no complete secondary statement can be obtained. Other stages may report SOURCE_UNAVAILABLE for an actual access obstacle. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
+                           {'status':{'type':'string','enum':['SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT']},
                             **{key:{'type':'string'} for key in ['location','explanation','basis','partial_progress']}},
                            ['status','location','explanation','basis','partial_progress'])]
         if kind=='nl0':
@@ -393,7 +407,20 @@ class ArtifactStage(pilot.Stage):
                 raise PermissionError('Tool is not allowed')
             if self.accepted is not None:
                 raise ValueError('Stage is already complete')
-            if name == 'report_obstacle':
+            if name in {'search_external_sources','read_external_source','defer_primary_source'}:
+                import source_access
+                base=self.validator.directory if self.artifact_kind=='nl0' else self.logs
+                if name=='search_external_sources':result=source_access.search(base/'external-sources',args['query'])
+                elif name=='read_external_source':
+                    result=source_access.read(base/'external-sources',**args)
+                    result.update(source_access.evidence_references(result,base))
+                else:
+                    reference=source_access.defer(base,inputs=self.task_inputs,**args)
+                    result={'verification':{'status':'UNVERIFIED_PRIMARY','record':{
+                        'path':reference['path'],'sha256':reference['sha256']}},
+                        'primary_evidence':[],'qualification':reference['qualification'],
+                        'warning':'The completed result will remain conditional until original-source checks pass.'}
+            elif name == 'report_obstacle':
                 value = (json.loads(args['obstacle_json'], object_pairs_hook=pilot.ir.unique)
                          if set(args)=={'obstacle_json'} else deepcopy(args))
                 if not isinstance(value,dict) or set(value) != {'status','location','explanation','basis','partial_progress'}:
@@ -405,7 +432,10 @@ class ArtifactStage(pilot.Stage):
                 if value['status']=='TASK_INCOMPLETE' and self.artifact_kind=='nl0':
                     raise ValueError('AUTHOR_ACTION_REQUIRED: unfinished drafting is not an obstacle. '
                         'Continue a concrete source lookup, draft or local edit.')
-                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
+                if value['status']=='SOURCE_UNAVAILABLE' and self.artifact_kind=='nl0':
+                    raise ValueError('PRIMARY_SOURCE_DEFERRED: use source search/read and defer_primary_source when a complete secondary statement exists. '
+                        'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
+                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}:
                     raise ValueError('Unknown obstacle status')
                 if any(not isinstance(value[k],str) or not value[k].strip() for k in ['location','explanation','basis','partial_progress']):
                     raise ValueError('Every obstacle field needs a substantive explanation')

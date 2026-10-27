@@ -518,6 +518,10 @@ class NL0Contract:
             'scope':'Exact declared same-stage input text only. Copying does not establish object/dependency closure or mathematical correctness.',
             'bindings':copied})
         foundations.bind_author(spec.get('logic'))
+        if 'target-selection.json' in self.documents:
+            selected=json.loads(self.documents['target-selection.json'])
+            if spec.get('full_target')!=selected['full_target']:
+                raise ValueError('TARGET_SELECTION: full_target must preserve the complete selected target verbatim')
         if self.case_id is not None:
             for name,document in [('spec',spec),('graph',graph)]:
                 if 'case_id' in document and document['case_id']!=self.case_id:
@@ -564,6 +568,12 @@ class NL0Contract:
                         '. They must match exactly. You may omit source.statement to serialize a copy '
                         'of the primary statement; actual source fidelity is reviewed against the probe/primary document.')
             if proposition.get('kind') != 'mathlib':
+                if proposition.get('kind')=='external' and source.get('verification'):
+                    from source_qualification import load_bound
+                    reference=source['verification']['record']
+                    deferred=json.loads(load_bound(self.directory,reference).read_text())
+                    source['evidence']=list({(row['path'],row['sha256']):row for row in
+                        [*source.get('evidence',[]),reference,deferred['basis'],*deferred['attempts']]}.values())
                 continue
             identifier, source = proposition.get('id'), proposition.get('source', {})
             if not isinstance(source, dict):
@@ -636,6 +646,8 @@ class NL0Contract:
             staged_spec.unlink(missing_ok=True)
             staged_graph.unlink(missing_ok=True)
         publish_valid_pair(self.directory, spec, graph)
+        import source_qualification
+        source_qualification.publish(self.directory,nl0.validate(self.directory/'nl0.json',self.directory/'spec.json'))
         self.last_valid_candidate=self.attempt
         self.valid_drafts[self.attempt]=deepcopy(expanded)
         self.last_check={'candidate':self.attempt,'status':'STRUCTURE_PASSED','mathematical_acceptance':False}

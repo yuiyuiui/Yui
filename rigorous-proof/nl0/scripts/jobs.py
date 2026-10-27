@@ -45,15 +45,9 @@ def input_file(path):
 def stage_document(source, destination):
     """Only explicitly named documents are staged; directories are never scanned."""
     if source.suffix.lower() == '.pdf':
-        tool = shutil.which('pdftotext')
-        if not tool:
-            raise ValueError('PDF input requires pdftotext, or an explicitly supplied text extraction')
-        result = subprocess.run([tool,'-layout',str(source),str(destination)],capture_output=True,text=True)
-        if result.returncode:
-            raise ValueError('PDF extraction failed: '+result.stderr[-2000:])
-        if not destination.read_text().strip():
-            raise ValueError('PDF has no extractable text; supply a checked text transcription')
-        return 'pdftotext-layout'
+        from target_selection import text
+        destination.write_text(text(source))
+        return 'pdftotext-layout' if shutil.which('pdftotext') else 'pypdf-text'
     source.read_text(encoding='utf-8')
     shutil.copyfile(source,destination)
     return 'exact_utf8_bytes'
@@ -61,7 +55,7 @@ def stage_document(source, destination):
 
 def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
-            resume=None, resume_bindings=()):
+            resume=None, resume_bindings=(), target=None):
     import concurrency
     from runtime_config import time_limit
     if track not in TRACKS or policy not in {'normal','first-pass'}:
@@ -96,7 +90,8 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         if authority:
             import source_preparation
             data,source_files=source_preparation.read_source(**authority)
-            if not data[0]['current_standard_receipt_valid']:raise ValueError('Translation requires actual accepted Audit A authority')
+            from source_qualification import usable
+            if not usable(data[0]):raise ValueError('Translation requires actual accepted Audit A authority')
         audit_files=[]
         if audit:
             for name in ('Proof.lean','compiler.json','mechanical.json','mapping.json'):
@@ -108,6 +103,13 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
             method=stage_document(p,inputs/name)
             documents.append({'id':name,'path':name,'sha256':bind(inputs/name)['sha256'],
                               'original':bind(p),'extraction':method})
+        if target:
+            from target_selection import validate as validate_target
+            validate_target(target)
+            if target['document']!=bind(problem):raise ValueError('Selected target is not from this problem')
+            write(inputs/'target-selection.json',target)
+            documents.append({'id':'target-selection.json','path':'target-selection.json',
+                'sha256':bind(inputs/'target-selection.json')['sha256'],'original':bind(problem),'extraction':'target-selection'})
         if authority and documents[0]['sha256'] not in {row['sha256'] for row in data[2]['inputs']}:
             raise ValueError('Primary proof differs from the accepted NL0 inputs; do not translate a different problem under its receipt')
         write(inputs/'inputs.json',{'inputs':[{k:row[k] for k in ('id','path','sha256')} for row in documents]})
@@ -119,6 +121,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
              'time_budget_seconds':time_budget_seconds,'runtime':runtime_bindings(),
              'library_catalog':library_catalog.binding()}
+        if target:job['target_selection']=target
         if resume:
             job['resume']=resume
             job['authority_bindings'].extend(resume_bindings)
@@ -139,6 +142,7 @@ def validate(job, *, verify_runtime=True):
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'resume' in job:expected.add('resume')
     if 'library_catalog' in job:expected.add('library_catalog')
+    if 'target_selection' in job:expected.add('target_selection')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
     from runtime_config import time_limit
@@ -164,6 +168,11 @@ def validate(job, *, verify_runtime=True):
             raise ValueError('Frozen task input changed or escaped its directory')
         verify_bindings([row['original']])
     verify_bindings(job['authority_bindings'])
+    if 'target_selection' in job:
+        from target_selection import validate as validate_target
+        validate_target(job['target_selection'])
+        if json.loads((root/'inputs/target-selection.json').read_text())!=job['target_selection']:
+            raise ValueError('Frozen target selection changed')
     if 'resume' in job:
         from interrupted import validate_descriptor
         validate_descriptor(job)

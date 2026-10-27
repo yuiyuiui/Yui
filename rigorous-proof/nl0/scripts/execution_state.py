@@ -140,7 +140,7 @@ class Recorder:
             'controller': {**owner, 'ppid': os.getppid(), 'state': 'RUNNING'}, 'phase': phase,
             'bindings': {}, 'model': {'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']}, 'model_selection':profile,
             'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0,
-                'roles': {}, 'proof_limit_scope': 'Lean proof jobs only'},
+                'roles': {}, 'proof_limit_scope': 'Local R reviews and Lean proof jobs use the same N in separate phases'},
             'tasks': {}, 'processes': {}, 'usage': {},
             'cancellation': {'requests':[], 'cleanup':'NOT_REQUESTED'}, 'result': {'status':'RUNNING'}}
         self.state['time_budget'] = {'scope':'whole_case_wall_clock','seconds':time_budget_seconds,
@@ -212,10 +212,10 @@ class Recorder:
         with self.lock:
             c = self.state['concurrency']
             roles = c['roles']
-            opposite = 'preparation_review' if role == 'proof' else 'proof'
-            if delta > 0 and role in {'proof', 'preparation_review'}:
-                if roles.get(opposite, {}).get('active', 0):
-                    raise ValueError('Proof work cannot overlap preparation/review in the same case')
+            phase_roles={'proof','preparation_review','audit_r'}
+            if delta > 0 and role in phase_roles:
+                if any(roles.get(other,{}).get('active',0) for other in phase_roles-{role}):
+                    raise ValueError('Model phases cannot overlap in the same case')
                 if role == 'preparation_review' and roles.get(role, {}).get('active', 0):
                     raise ValueError('Only one preparation/review context may execute per case')
             row = roles.setdefault(role, {'active': 0, 'observed_peak': 0})

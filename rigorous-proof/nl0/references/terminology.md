@@ -40,7 +40,8 @@ histories, remove review independence or create an additional model agent.
 | **Formalization workers (N slots)** | Execute the frozen local Lean proof queue with at most N simultaneous proof jobs. A free slot claims the next job. Each model-backed attempt creates a fresh thread; compatible checked reuse may avoid creating one. Shared Lean lemma and representation-conversion proof bodies belong in this queue. Local Lean acceptance does not by itself establish whole-case Audit B acceptance. |
 | **Postprocessing worker** | Assemble actual local proofs and discharge internal dependencies; perform Lean builds; complete the Audit B source/formal mapping and permitted mathlib instantiations; obtain a fresh semantic Audit B review; validate the final receipt and preserve the report and process-exit evidence. It completes successfully only after full Audit B acceptance. |
 
-The ordinary full-workflow order is:
+Within the NL0 worker, the author and global Audit A are serial; frozen R-node
+reviews then use the confirmed N independently. The ordinary full-workflow order is:
 
 ```text
 NL0 worker
@@ -99,7 +100,7 @@ User-facing main agent / run operator
     Python case controller
       isolated NL0 author session
       isolated Audit A reviewer sessions, successively
-      later: isolated Lean proof sessions, up to the proof-worker budget
+      first: isolated R reviews after global A, up to N; later: isolated Lean proof sessions, up to N
 ```
 
 The second diagram describes workflow ownership and stage order, not a native
@@ -121,9 +122,9 @@ This implementation fact must be rechecked if the carrier changes.
 - **Per-case proof concurrency:** `max_concurrency=auto|N` limits simultaneous
   Lean proof jobs in that case, exposed as N formalization worker slots. The
   Python controller occupies no proof slot.
-  NL0 authoring, Audit A and other preparation/review work use the case's
-  separate serial lane. The proof budget does not authorize concurrent Audit A
-  reviewers within one case.
+  NL0 authoring, global Audit A and other preparation work use the case's
+  serial lane. Local R reviews use a separate N-slot lane before proof work;
+  different model phases cannot overlap within one case.
 - **Observed concurrency:** the overlap actually measured, which can be below
   any configured bound. Three ready cases with five available proof slots each
   permit up to fifteen simultaneous proof jobs only when backend capacity and
@@ -168,7 +169,7 @@ logs when work ends without acceptance; do not report process exit as success.
   its configuration defaults to a different runtime.
 - [Yui execution protocol](../../nl02lean/references/execution-protocol.md),
   queue slots, fresh attempts, file-based control and process ownership.
-- [Yui review execution](review-execution.md), serial preparation/review lanes
+- [Yui review execution](review-execution.md), serial global work and parallel R reviews
   and mathematical acceptance boundaries.
 
 Official documentation and the current carrier were checked on 2026-10-24.

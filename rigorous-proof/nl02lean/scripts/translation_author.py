@@ -104,7 +104,8 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
     case,problem,out=[Path(p).resolve() for p in (case,problem,out)]
     authority=authority or {'graph':str(case/'nl0.json'),'spec':str(case/'spec.json'),'audit_a':str(case/'audit-a.json')}
     data,source_files=source_preparation.read_source(**authority)
-    if not data[0]['current_standard_receipt_valid']:raise ValueError('Accepted current Audit A is required before interface authoring')
+    from source_qualification import usable
+    if not usable(data[0]):raise ValueError('Accepted current Audit A is required before interface authoring')
     out.mkdir(parents=True,exist_ok=False)
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
     inputs=out/'inputs';inputs.mkdir()
@@ -152,7 +153,8 @@ class InterfaceContract:
         authority=json.loads((self.out/'authority.json').read_text());case=Path(authority['case'])
         self.source_data=source_preparation.read_source(**authority.get('source_authority',{
             'graph':str(case/'nl0.json'),'spec':str(case/'spec.json'),'audit_a':str(case/'audit-a.json')}))[0]
-        if not self.source_data[0]['current_standard_receipt_valid']:
+        from source_qualification import usable
+        if not usable(self.source_data[0]):
             raise ValueError('Interface authoring requires current accepted Audit A')
         self.source_bindings=authority.get('source_bindings') or [authority[k] for k in ('graph','spec','audit_a')]
 

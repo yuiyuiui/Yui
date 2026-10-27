@@ -100,7 +100,7 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
     return source
 
 
-def nl0_work(job, recorder, budget, progress):
+def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
     restored=None
     if (job.get('resume') or {}).get('mode')=='audit-a':
@@ -117,8 +117,9 @@ def nl0_work(job, recorder, budget, progress):
         key=source_key(source)
         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
         seen.add(key)
-        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=root/'inputs',reuse_from=prior)
-        if audited['full_acceptance']:
+        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=root/'inputs',reuse_from=prior,
+                               audit_budget=audit_budget)
+        if audited['full_acceptance'] or audited.get('conditional_acceptance'):
             return {'graph':str(source/'nl0.json'),'spec':str(source/'spec.json'),'audit_a':str(source/'audit-a.json')}
         if job['policy']=='first-pass':
             raise StageFailure('AUDIT_A_NONPASS','The first actual Audit A did not pass',phase='audit-a',evidence=audit/'inspection.json')
@@ -139,7 +140,7 @@ def translation_work(job, authority, budgets, progress):
             result=f.translate(job['case'],source,directory/'interface',directory/'workflow',budgets.serial,progress,
                 proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
                 prior_interface=prior_interface,diagnostics=diagnostics)
-            write(root/'audit-b'/f'{attempt:04d}.json',{'status':'AUDIT-B-PASSED',
+            write(root/'audit-b'/f'{attempt:04d}.json',{'status':'AUDIT-B-PASSED' if result['status']=='WORKFLOW-PASSED' else 'AUDIT-B-CONDITIONAL',
                 'review':bind(directory/'audit-b-review/review.json'),'workflow':str(directory/'workflow')})
             return result
         except StageFailure as error:
@@ -175,10 +176,16 @@ def execute(job, root=None):
                     import audit_b_continuation
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)
                 else:
-                    authority=(nl0_work(job,recorder,budgets.serial,progress) if job['track'] in {'nl0','full'} else
+                    authority=(nl0_work(job,recorder,budgets.serial,progress,audit_budget=budgets.audit) if job['track'] in {'nl0','full'} else
                                job['source_authority'])
-                    source_preparation.read_source(**authority);write(root/'source-selection.json',authority)
-                    result=({'status':'DRAFT-AUDIT-PASSED','source':authority,'acceptance_scope':'NL0_AND_AUDIT_A_ONLY'}
+                    selected_data=source_preparation.read_source(**authority)[0]
+                    write(root/'source-selection.json',authority)
+                    selected=selected_data[0]
+                    if selected.get('source_warnings'):
+                        import source_qualification
+                        source_qualification.publish(root,selected_data)
+                    result=({'status':'DRAFT-AUDIT-PASSED' if selected['current_standard_receipt_valid'] else 'DRAFT-AUDIT-CONDITIONAL',
+                             'source':authority,'acceptance_scope':'NL0_AND_AUDIT_A_ONLY'}
                             if job['track']=='nl0' else translation_work(job,authority,budgets,progress))
         except execution.Cancelled as error:
             result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','error':str(error)}
@@ -197,8 +204,11 @@ def execute(job, root=None):
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
+            conditional=result.get('status') in {'DRAFT-AUDIT-CONDITIONAL','WORKFLOW-CONDITIONAL','AUDIT-B-CONDITIONAL'}
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
-                completion={'acceptance_target_satisfied':passed,'follow_up_required':not passed},time_budget_seconds=job['time_budget_seconds'])
+                completion={'acceptance_target_satisfied':passed,'workflow_completed':passed or conditional,
+                            'follow_up_required':not passed},time_budget_seconds=job['time_budget_seconds'])
+            if (root/'warn.json').is_file():result['warnings']=json.loads((root/'warn.json').read_text())
             recorder.close(result.get('status','EXECUTION_FAULT'),outcome=result);result['usage']=recorder.state['usage']
             write(root/'case-result.json',{'job':bind(root/'job.json'),'result':result,'concurrency':budgets.report()})
         return result
@@ -207,4 +217,4 @@ def execute(job, root=None):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--job',type=Path,required=True)
     args=parser.parse_args();result=execute(json.loads(args.job.read_text()))
-    raise SystemExit(0 if result['completion']['acceptance_target_satisfied'] else 1)
+    raise SystemExit(0 if result['completion']['workflow_completed'] else 1)

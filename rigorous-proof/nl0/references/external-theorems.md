@@ -16,12 +16,12 @@ alone does not establish identity. Books, papers and reliable preprints can
 qualify; a DOI and journal publication are not universal requirements. Record
 the source category and grounds for treating it as an admissible source.
 
-For paywalled or inaccessible text, use Audit A's
-[Google-then-Sci-Hub retrieval procedure](audit-a.md#paywalled-or-inaccessible-primary-text).
-If access still fails, skip the blocked citation checks with an explicit
-UNVERIFIED record, continue the remaining work, and notify the user in the
-final report. This is a deferred check, not a source-verification pass. Do not
-replace unavailable primary text with model recollection or a search summary.
+For inaccessible text, use the [public retrieval and conditional-source
+procedure](conditional-sources.md). Try Google, arXiv, author/institutional
+repositories and accessible publisher text. Do not bypass access controls or
+human verification. Unavailable checks remain UNVERIFIED. A complete explicit
+secondary statement can support a disclosed conditional run, not an ordinary
+source-verification PASS.
 
 ## 2. Occurrence of the result
 
@@ -107,8 +107,10 @@ Retain failed records and the exact reason, source location and affected nodes.
 ## 9. Acceptance, invalidation and trust boundary
 
 Every retained E check and every application must PASS before the graph can
-receive DRAFT-AUDIT-PASSED. A load-bearing FAIL/UNVERIFIED blocks descendants
-and whole-proof acceptance; diagnostic review may continue. Never replace a
+receive DRAFT-AUDIT-PASSED. A load-bearing FAIL blocks acceptance. Source-verification UNVERIFIED can
+support only the explicitly qualified continuation above; other unresolved
+mathematical checks still block it. Ordinary whole-proof acceptance requires
+every retained check to pass. Never replace a
 missing verification with a historical audit or a Lean build. Changes to the
 source/version, statement, definitions, bindings or condition proofs invalidate
 affected reviews; bind the replacement whole receipt to new canonical hashes.
@@ -116,8 +118,8 @@ affected reviews; bind the replacement whole receipt to new canonical hashes.
 An inaccessible source suspends its citation verification, not the rest of
 the workflow: continue available checks and explicitly conditional reasoning,
 then report the unfinished citation checks and the UNVERIFIED overall audit
-outcome. Descendants cannot receive an unconditional pass based on that
-source, and source inaccessibility alone is not a finding of mathematical error.
+outcome. Descendants can be proved only relative to the explicit E assumption; the
+whole result cannot receive an unconditional pass based on that source, and source inaccessibility alone is not a finding of mathematical error.
 
 List all external dependencies in the final verdict. This audit is relative
 to those identified theorems; it does not independently reprove their published

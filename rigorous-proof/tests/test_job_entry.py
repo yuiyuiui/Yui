@@ -114,16 +114,18 @@ class JobEntryTests(unittest.TestCase):
                         prepare.assert_not_called();launch.assert_not_called()
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
 
-    def test_nl0_public_entry_needs_only_its_profile(self):
+    def test_nl0_public_entry_needs_its_profile_and_local_review_capacity(self):
         parser=argparse.ArgumentParser()
         entrypoint.parsers(parser.add_subparsers(dest='command'))
         args=parser.parse_args(['prepare',str(self.problem),'--track','nl0',
-            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard'])
+            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
+            '--max-concurrency','3','--target','An explicit synthetic target.'])
         result=entrypoint.dispatch(args)
         self.assertIsNone(result['proof_concurrency'])
         job=json.loads((Path(result['runs'][0])/'job.json').read_text())
         self.assertEqual(job['track'],'nl0')
         self.assertEqual(job['profiles']['nl0'],PROFILES['nl0'])
+        self.assertEqual(result['audit_r_concurrency']['effective'],3)
 
     def test_full_public_entry_freezes_both_profiles_and_confirmed_workers(self):
         parser=argparse.ArgumentParser()
@@ -131,7 +133,7 @@ class JobEntryTests(unittest.TestCase):
         args=parser.parse_args(['prepare',str(self.problem),'--track','full',
             '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
             '--lean-model','gpt-6-luna','--lean-effort','medium','--lean-speed','standard',
-            '--max-concurrency','5'])
+            '--max-concurrency','5','--target','An explicit synthetic target.'])
         result=entrypoint.dispatch(args)
         job=json.loads((Path(result['runs'][0])/'job.json').read_text())
         self.assertEqual(job['profiles'],PROFILES)
@@ -182,12 +184,15 @@ class JobEntryTests(unittest.TestCase):
             with self.subTest(command=command):
                 if command=='run':
                     argv=['run',str(self.problem),'--track','nl0',
-                          '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard']
+                          '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
+                          '--max-concurrency','2','--target','An explicit synthetic target.']
                 else:
                     argv=['execute',self.job()['root']]
                 args=parser.parse_args(argv+['--detach','--case-concurrency','3'])
                 with patch.object(entrypoint,'launch',return_value={'status':'LAUNCH_CONTROL_ONLY'}) as launcher:
-                    self.assertEqual(entrypoint.dispatch(args),{'status':'LAUNCH_CONTROL_ONLY'})
+                    result=entrypoint.dispatch(args)
+                    self.assertEqual(result['status'],'LAUNCH_CONTROL_ONLY')
+                    if command=='run':self.assertIn('source_policy_notice',result)
                 launcher.assert_called_once()
                 self.assertEqual(launcher.call_args.kwargs,{'detached':True,'case_concurrency':3})
                 self.assertEqual(len(launcher.call_args.args[0]),1)
@@ -247,7 +252,8 @@ class JobEntryTests(unittest.TestCase):
         shutil.copytree(CORE,install,ignore=shutil.ignore_patterns('__pycache__','results','.git'))
         command=[sys.executable,'-B',str(install/'nl0/scripts/yui.py')]
         result=subprocess.run(command+['prepare',str(self.problem),'--track','nl0',
-            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard'],capture_output=True,text=True)
+            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
+            '--max-concurrency','2','--target','An explicit synthetic target.'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stderr+result.stdout)
         prepared=json.loads(result.stdout);run=Path(prepared['runs'][0])
         status=subprocess.run(command+['status',str(run)],capture_output=True,text=True)

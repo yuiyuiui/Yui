@@ -295,7 +295,7 @@ class Stage(carrier.Trial):
         self.execution_task=execution.current()[1] or self.step or 'stage-'+hashlib.sha256(str(self.logs).encode()).hexdigest()[:12]
         recorder=self.execution
         if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode,
-            role='proof' if self.mode=='proof' else 'preparation_review',model=self.model,
+            role=getattr(self.budget,'role',None) or ('proof' if self.mode=='proof' else 'preparation_review'),model=self.model,
             model_selection=self.model_selection)
         queued = time.monotonic()
         limiter = self.budget or STAGE_LIMITER
@@ -376,7 +376,7 @@ class Stage(carrier.Trial):
                     model_started_at_utc=execution.now(),model_thread_id=self.thread_id)
             self.solve_turns(user)
             result['status'] = 'ACCEPTED' if self.accepted else 'NO_ACCEPTED_ARTIFACT'
-            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'}:
+            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
             if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE':
@@ -426,7 +426,7 @@ class Stage(carrier.Trial):
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
                 result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
-                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','INPUT_CONFLICT'} else
+                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'} else
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error

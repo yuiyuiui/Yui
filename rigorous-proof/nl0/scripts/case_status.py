@@ -32,6 +32,8 @@ def project(source, *, interface=None, interface_review=None, workflow=None):
         try:
             inspected=nl0.validate(source/'nl0.json',source/'spec.json',source/name,allow_unresolved=True)[0]
             value['gates']['audit_a']='PASSED' if name=='audit-a.json' and inspected['current_standard_receipt_valid'] else 'NOT_PASSED'
+            if inspected.get('current_conditional_receipt_valid'):value['gates']['audit_a']='CONDITIONAL'
+            value['warnings']=inspected.get('source_warnings',[])
             value['bindings']['audit_a']=binding(source/name)
             value['audit_a_unresolved']=inspected.get('unresolved_reviews',[])
         except ValueError as error:value['findings'].append({'gate':'audit_a','error':str(error)})
@@ -69,10 +71,12 @@ def project(source, *, interface=None, interface_review=None, workflow=None):
             proof=workflow/'proof-run/report.json'
             if proof.is_file():value['gates']['lean_assembly']=load(proof).get('status','NOT_PASSED')
             final=workflow/'report.json'
-            if final.is_file() and load(final).get('status')=='WORKFLOW-PASSED':
+            if final.is_file() and load(final).get('status') in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL'}:
                 # The stored result must still pass the existing bound-input gate.
                 report=load(final)
                 for item in report['bindings']:
                     if binding(item['path'])!=item:raise ValueError('Final workflow evidence changed')
-                value['gates']['audit_b']='PASSED';value['full_acceptance']=True
+                full=report['status']=='WORKFLOW-PASSED'
+                value['gates']['audit_b']='PASSED' if full else 'CONDITIONAL'
+                value['full_acceptance']=full
     return value

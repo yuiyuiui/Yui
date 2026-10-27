@@ -37,8 +37,13 @@ producers and cuts still require actual independent reviews before acceptance.
 def run(authority, out, budget):
     out=Path(out);out.mkdir(parents=True,exist_ok=False)
     data,_=source.read_source(**authority)
-    if not data[0]['current_standard_receipt_valid']:
+    from source_qualification import usable
+    if not usable(data[0]):
         raise ValueError('Source factoring requires accepted Audit A authority')
+    if data[0].get('current_conditional_receipt_valid'):
+        write(out/'selection.json',{'unchanged':True,'authority':authority,
+            'reason':'Preserve the exact conditionally audited source and its unresolved primary-source qualifications.'})
+        return authority
     inputs=out/'inputs';inputs.mkdir()
     inventory=source.inventory(**authority);inventory.pop('background_supplement',None)
     inventory['consumers_with_background_notes']=sorted(rid for rid,notes in data[0].get('background_notes',{}).items() if notes)

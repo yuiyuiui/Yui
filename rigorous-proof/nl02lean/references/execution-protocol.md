@@ -14,13 +14,13 @@ conversation. The upstream NL0 worker covers NL0 authoring and Audit A.
 
 Keep concurrent cases separate from `max_concurrency=auto|N` inside one case.
 The batch starts explicitly requested independent Python case owners, each with its
-own serial preparation/review budget, proof Budget, output and mutable state. Three cases with N=2
+own serial preparation/global-review budget, R-review budget, proof budget, output and mutable state. Three cases with N=2
 can overlap six proof workers. Python coordinators consume no model slot.
 Unknown CLI limits use the disclosed fallback two, not a claimed maximum.
 Share immutable rules/toolchains, not cross-case prompts, drafts or proof stores.
-Within each case, NL0 authoring, Audit A (including successive fresh packet
-contexts), interface work and Audit B are serial. They never borrow the proof
-worker limit or overlap that case's proof work. All roles share one usage ledger.
+Within each case, NL0 authoring, global Audit A, interface work and Audit B
+are serial. Frozen local R reviews use the confirmed N concurrently, followed
+later by up to N local Lean proofs. These phases cannot overlap in one case. All roles share one usage ledger.
 
 1. Retain source/Audit A and interface/plan freeze checks. All types must
    elaborate before model dispatch. Changes need a new accepted revision/run.
@@ -77,7 +77,8 @@ actual latest Lean checks and log paths; owned processes; usage; cancellation;
 and result/health qualifications. `LOCAL_CHECKED` is not Audit B. `FINISHED` for
 a text/review stage is only stage completion. Waiting for a model slot differs
 from actual `MODEL_RUNNING` or `LEAN_CHECKING` activity.
-`concurrency.roles` separates preparation/review and proof peaks; `proof_counts`
+`concurrency.roles` separates serial preparation/global-review, local R-review
+and proof peaks; `proof_counts`
 counts only actual proof tasks. A total model-stage peak is not proof utilization.
 
 - Events update memory; ordinary writes coalesce to at most once per second,

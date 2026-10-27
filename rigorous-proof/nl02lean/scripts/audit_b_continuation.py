@@ -19,8 +19,9 @@ def run(original, out, *, budget=None):
     unchanged=before==bind(original/'Proof.lean')['sha256']==bind(out/'native/Proof.lean')['sha256']
     if not unchanged:raise ValueError('Inherited proof bytes changed')
     checked=audit_b.check(out/'native',out/'review/review.json') if result['all_checks_passed'] else None
-    report={'status':'AUDIT-B-PASSED' if checked else result['review_status'],
-        'actual_audit_b_verdict':'PASS' if checked else 'FAIL_OR_UNVERIFIED',
+    report={'status':checked['status'] if checked else result['review_status'],
+        'actual_audit_b_verdict':('CONDITIONAL' if checked['status']=='AUDIT-B-CONDITIONAL' else 'PASS') if checked else 'FAIL_OR_UNVERIFIED',
+        'source_warnings':checked.get('source_warnings',[]) if checked else [],
         'native_checks_rerun':False,'semantic_review_inherited':False,
         'original_and_copied_proof_unchanged':True,'check':checked,'review':result}
     write(out/'result.json',report)

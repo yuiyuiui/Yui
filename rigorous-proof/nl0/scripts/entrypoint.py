@@ -17,8 +17,10 @@ def parsers(commands):
         p.add_argument('--track',choices=sorted(jobs.TRACKS),required=True)
         p.add_argument('--material',action='append',type=Path,default=[])
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
+        p.add_argument('--target',help='Complete requested statement or semicolon-separated theorem labels')
+        p.add_argument('--target-file',type=Path,help='Source-bound, reviewed target-selection JSON')
         p.add_argument('--max-concurrency',metavar='N',
-                       help='User-confirmed positive proof-worker count per case; required for full/translate')
+                       help='Confirmed N for local R reviews and local Lean proofs; required for nl0/full/translate')
         p.add_argument('--case-concurrency',type=int)
         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
         p.add_argument('--time-budget-seconds',type=int)
@@ -28,6 +30,8 @@ def parsers(commands):
         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
     p=commands.add_parser('execute',help='Execute already prepared, unchanged run jobs')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
+    p=commands.add_parser('targets',help='Inspect theorem candidates without starting mathematical work')
+    p.add_argument('problem',type=Path)
     p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
@@ -56,12 +60,12 @@ def profiles(args):
 
 
 def proof_workers(args):
-    """Require explicit proof capacity only for tracks that construct proofs."""
+    """Require explicit local-review/proof capacity for the active track."""
     requested=args.max_concurrency
-    if args.track not in {'full','translate'}:
+    if args.track not in {'nl0','full','translate'}:
         return 'auto' if requested is None else requested
     if requested is None or requested=='auto':
-        raise ValueError('Ask once for an explicit positive proof-worker count per case, '
+        raise ValueError('Ask once for an explicit positive worker count per case, '
                          'or confirmation of a proposed number, then supply --max-concurrency N; '
                          'model-profile defaults do not select this count')
     import concurrency
@@ -104,6 +108,9 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command=='targets':
+        import target_selection
+        return target_selection.inspect(args.problem)
     if args.command=='resume':
         import interrupted
         prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
@@ -113,16 +120,29 @@ def dispatch(args):
     if args.command in {'prepare','run'}:
         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
+        import target_selection
         chosen=profiles(args);workers=proof_workers(args);prepared=[]
+        selections={}
+        if args.track in {'nl0','full'}:
+            for problem in args.problems:
+                selection=target_selection.resolve(problem,requested=getattr(args,'target',None),selection_file=getattr(args,'target_file',None))
+                if selection['status']!='SELECTED':return selection
+                selections[str(problem)]=selection
         for problem in args.problems:
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
-                policy=args.policy,time_budget_seconds=args.time_budget_seconds))
+                policy=args.policy,time_budget_seconds=args.time_budget_seconds,
+                target=selections.get(str(problem))))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),
                  'concurrent_cases':args.case_concurrency or len(prepared)}
-        return summary if args.command=='prepare' else launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+        summary['source_policy_notice']='Unavailable primary sources can produce only an explicitly conditional result with warn.json/warn.md, never an unqualified PASS.'
+        summary['audit_r_concurrency']=__import__('concurrency').resolve(workers) if args.track in {'nl0','full'} else None
+        if args.command=='prepare':return summary
+        launched=launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
+        launched['source_policy_notice']=summary['source_policy_notice']
+        return launched
     if args.command=='execute':
         prepared=[jobs.validate(json.loads((p/'job.json').read_text())) for p in args.runs]
         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)

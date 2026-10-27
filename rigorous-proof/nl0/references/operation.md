@@ -12,7 +12,7 @@ The invoking agent identifies the explicit proof files and requested track:
 scope; never add Lean work to an explicitly NL0-only request. Read only explicitly
 provided files and relevant rules. A directory input selects its `problem.md`,
 not all neighboring documents. Extra sources are explicit `--material` inputs.
-Text/TeX/Markdown is copied exactly; PDF extraction uses `pdftotext -layout` and
+Text/TeX/Markdown is copied exactly; PDF extraction uses `pdftotext -layout` or a disclosed pypdf fallback and
 binds both original bytes and extracted text. An unreadable/scanned PDF needs an
 explicitly checked text transcription before model execution.
 The invoking agent checks that mathematical notation survives extraction before
@@ -36,7 +36,7 @@ A phase profile means model, reasoning effort and speed:
 
 | Requested track | Required user settings |
 | --- | --- |
-| NL0 and Audit A only (`nl0`) | NL0 phase profile |
+| NL0 and Audit A only (`nl0`) | NL0 phase profile and R-review worker count N |
 | Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile and per-case proof-worker count N |
 | Complete workflow (`full`) | NL0 phase profile, Lean phase profile and per-case proof-worker count N |
 
@@ -53,11 +53,12 @@ An `audit-b`-only continuation has no proof queue and needs only its Lean phase
 profile, not N. `execute` and supported `resume` reuse an existing job's frozen
 settings; they do not recollect values or change a historical worker count.
 These configuration questions do not change the scheduling architecture:
-NL0, Audit A, preparation, assembly and Audit B remain serial within each case.
+The NL0 author, global Audit A, preparation, assembly and Audit B remain serial.
+Local R reviews and later Lean proofs each use N independent slots, in separate phases.
 
 ## Entry commands
 
-The user need not type commands or prepare intermediate files. After collecting
+The user need not type commands or prepare intermediate files. After [resolving the target](target-selection.md) and collecting
 configuration, the invoking agent calls the installed entry. For example:
 
 ```sh
@@ -65,7 +66,7 @@ python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py run /papers/example/proof.
   --track full \
   --nl0-model gpt-6.1-sol --nl0-effort high --nl0-speed standard \
   --lean-model gpt-6-luna --lean-effort high --lean-speed standard \
-  --max-concurrency 5
+  --max-concurrency 5 --target-file /papers/example/target-selection.json
 ```
 
 Supply several problem paths to run independent cases together. For different
@@ -80,13 +81,13 @@ profile and the confirmed `--max-concurrency N`. For audit-only pass
 An audit-only continuation discloses inherited native evidence and does not
 claim a new proof, compilation or cold workflow result.
 
-The public `run`/`prepare` entry requires `--max-concurrency N` for full and
-translation tracks. It limits local Lean proof jobs per case, not all model
-stages. Low-level controllers retain `auto` for compatibility with existing
+The public `run`/`prepare` entry requires `--max-concurrency N` for NL0, full and
+translation tracks. It limits local R reviews and local Lean proof jobs per case
+in separate phases, not all model stages. Low-level controllers retain `auto` for compatibility with existing
 jobs; this is not a substitute for user confirmation at the public entry.
 `--case-concurrency K` separately limits independent cases;
-by default the explicitly requested cases may run concurrently. Preparation and
-reviews remain serial within each case. Python controllers occupy no model slot.
+by default the explicitly requested cases may run concurrently. The author, global review, preparation, assembly and Audit B
+remain serial within each case. Python controllers occupy no model slot.
 Backend/account limits may lower observed concurrency; retain actual outcomes.
 
 ## Local output ownership
@@ -244,3 +245,5 @@ requires macOS sandbox-exec, an authenticated compatible Codex carrier, Python,
 ripgrep and the pinned Lean/Mathlib environment. Missing prerequisites fail
 explicitly; no unrestricted execution fallback is silently used. Selftests use
 neutral fixtures and controlled executors, not a new mathematical benchmark.
+
+At invocation and on actual source deferrals, display the [source qualification notice](conditional-sources.md). A conditional completion is not an ordinary PASS.

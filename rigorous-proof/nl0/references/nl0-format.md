@@ -233,6 +233,11 @@ conditions, separately from the project's restatement. `version_check` states
 the check date, scope, findings and effect; `qualification` explains source
 category and proved-result eligibility. Read the full
 [external-theorem review standard](external-theorems.md).
+The explicit [conditional-source route](conditional-sources.md) additionally
+allows `verification: {status: "UNVERIFIED_PRIMARY", record: {path, sha256}}`.
+Only with that validated record may `primary_evidence` be empty. The record
+binds the exact complete secondary statement and actual failed retrievals;
+Audit A remains source-unverified and the final workflow stays conditional.
 A DOI/URL alone is insufficient. Include an
 accessible local primary document and precise excerpt/location evidence. Do not call
 the target work's unproved internal lemma an imported E. Existing internally

@@ -16,6 +16,16 @@ inspection before definitive submission. This is not independent Audit A.
 Submit the actual complete artifact, not a plan. Report a substantive gap only
 for a concrete unsupported implication, not ordinary unfinished bookkeeping.
 No previous results, other cases or hidden reference answers are supplied.
+If target-selection.json is supplied, preserve its full_target exactly and
+cover every selected claim, including each claim's own hypotheses. For several
+independent targets, prove their conjunction without silently combining their
+assumptions into a weaker joint statement.
+Use public source search/read tools for missing external primary texts. If an
+original is inaccessible, defer_primary_source may retain a complete exact
+secondary statement as an UNVERIFIED_PRIMARY assumption. Preserve its warning,
+do not invent a missing statement, and do not defer a known contradiction.
+Declared primary-source uncertainty is separate from an unfinished mathematical
+argument; only the latter prevents the same-author mathematical closing check.
 '''
 
 

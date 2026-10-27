@@ -171,7 +171,8 @@ cap when available, otherwise the CLI's disclosed fallback two. A positive N is
 user-controlled, constrained only by a known backend hard limit. Print requested,
 effective and reason; record observed peak, per-stage queue/start/end and total
 time. The proof budget covers proof jobs, retries and their optional diagnostics;
-preparation and reviews use a separate serial lane. One case ledger includes
+translation preparation and Audit B use a separate serial lane. Earlier
+local Audit A R reviews have a separate N-slot lane. One case ledger includes
 all phases. This is not account-wide distributed rate control.
 Other cases own separate budgets. Python coordination consumes no model slot.
 Free slots take the next queued job with a fresh model context for that node.

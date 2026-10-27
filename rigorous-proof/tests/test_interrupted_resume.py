@@ -56,6 +56,23 @@ class InterruptedResumeTests(unittest.TestCase):
         self.assertEqual(json.loads((self.stage/'result.json').read_text()),self.failure)
         self.assertIsNone(job['time_budget_seconds'])
 
+    def test_resume_preserves_selected_target_without_repeating_the_original_material(self):
+        import target_selection
+        selected=target_selection.select(self.problem,[{'id':'chosen','label':'Selected claim',
+            'statement':'Synthetic target that must not change on continuation.','start_line':1}])
+        extra=self.root/'secondary.txt';extra.write_text('Explicit additional source.')
+        old=jobs.prepare(self.problem,track='full',profiles=PROFILES,target=selected,materials=[extra])
+        run=Path(old['root']);stage=run/'nl0/0001/stage'
+        self.write(stage/'result.json',self.failure);self.failed_turn(stage)
+        self.write(run/'case-result.json',{'result':{'status':'AUTHOR_ARTIFACT_INELIGIBLE',
+            'evidence':str(stage/'result.json'),'completion':{'acceptance_target_satisfied':False}}})
+        with patch.object(interrupted,'inspect',return_value=EXITED):new=interrupted.prepare(run)
+        self.assertEqual(new['target_selection'],selected)
+        self.assertEqual(len(new['documents']),3)
+        self.assertEqual([r['extraction'] for r in new['documents']].count('target-selection'),1)
+        del new['target_selection']
+        with self.assertRaisesRegex(ValueError,'selected target'):interrupted.validate_descriptor(new)
+
     def test_active_owner_or_residual_child_blocks_resumption(self):
         for inspection in [{'controller_identity_matches':True,'residual_owned_processes':[]},
                            {'controller_identity_matches':False,'residual_owned_processes':[{'pid':123}]}]:

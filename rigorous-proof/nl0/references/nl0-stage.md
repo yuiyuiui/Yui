@@ -35,8 +35,9 @@ is preserved as unfinished, without an ordinary first-acceptance audit.
 
 The auditor separately performs the execution protocol in Audit A: source
 verification, global review, fresh packet-only replay, actual judgments and
-recorded evidence. Authors do not generate those verdicts. Per-case NL0 and
-Audit A remain serial; three independent cases can run concurrently.
+recorded evidence. Authors do not generate those verdicts. The NL0 author and
+global Audit A are serial. After the global stage, independent frozen R packets
+are reviewed with the confirmed N workers. Separate cases can run concurrently.
 
 ## Execute
 
@@ -78,6 +79,9 @@ example with an unperformed audit, not a new benchmark or certification.
   source, definition, inference, and target obligation. Report whether the
   auditor shared context with the author; never relabel self-audit as an
   independent review or Lean verification.
+- `DRAFT-AUDIT-CONDITIONAL`: complete review relative to explicit external
+  statements whose primary sources remain unverified. Preserve the source
+  warnings and follow the [conditional-source policy](conditional-sources.md).
 - `GAP`, `SOURCE-MISMATCH`, `TARGET-MISMATCH`, `ASSUMPTION-MISMATCH`, `INVALID`,
   or `UNVERIFIED`: identify the exact failing obligation and affected closure.
 

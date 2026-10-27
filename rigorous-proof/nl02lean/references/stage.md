@@ -85,8 +85,9 @@ conditional bodies may run at the same time. Record pending/running/completed
 jobs. An unfinished producer prevents final closure even if its consumers pass.
 Expose `--max-concurrency auto|N` and print the resolved backend/bound/reason
 before dispatch. Unknown CLI hard caps use the disclosed fallback of two, not
-a claimed maximum. Proof jobs share their case proof budget; preparation and
-reviews use a separate serial budget and the same all-stage ledger. Record
+a claimed maximum. Proof jobs share their case proof budget; translation
+preparation and Audit B use a separate serial budget and the same all-stage ledger.
+Earlier local Audit A R reviews have their own N-slot budget. Record
 proof-only utilization separately from review activity, queue time and intervals.
 Legacy integer options are compatibility aliases.
 Here a run is one case, not a multi-case batch. Python coordination does not

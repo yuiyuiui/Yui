@@ -45,6 +45,8 @@ def validate_descriptor(job):
         raise ValueError('Resume cannot change the case identity or model profiles')
     if previous['documents'][0]['sha256']!=job['documents'][0]['sha256']:
         raise ValueError('Resume cannot change the original problem')
+    if previous.get('target_selection')!=job.get('target_selection'):
+        raise ValueError('Resume cannot change or drop the selected target')
     required={str(prior/'job.json'),str(prior/'case-result.json'),str(author/'stage/result.json')}
     for campaign in value['campaigns']:
         path=Path(campaign).resolve()
@@ -175,9 +177,9 @@ def prepare(prior_run, *, repair_evidence=False):
                 'author_directory':str(author),'campaigns':campaigns}
     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],
-        materials=[row['original']['path'] for row in old['documents'][1:]],
+        materials=[row['original']['path'] for row in old['documents'][1:] if row.get('extraction')!='target-selection'],
         time_budget_seconds=remaining,resume=descriptor,
-        resume_bindings=[bind(p) for p in sorted(paths)])
+        resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'))
     write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,
         'new_runtime_bound':True,'partial_reviews_are_not_inherited':True,

@@ -84,15 +84,16 @@ class Budget:
 
 
 class CaseBudgets:
-    """Serial preparation/review and independently bounded proof work per case."""
+    """Serial global work, then bounded local reviews or proofs per case."""
     def __init__(self, requested='auto', *, execution=None):
         self.serial = Budget(serial_configuration(), execution=execution, role='preparation_review')
+        self.audit = Budget(resolve(requested), execution=execution, role='audit_r')
         self.proof = Budget(resolve(requested), execution=execution, role='proof')
 
     def report(self):
-        return {'preparation_review': self.serial.report(), 'proof': self.proof.report(),
-                'proof_limit_applies_to': 'Lean proof jobs only; Python owner occupies no slot',
-                'all_stage_accounting': 'One shared execution ledger includes both roles.'}
+        return {'preparation_review': self.serial.report(), 'audit_r': self.audit.report(), 'proof': self.proof.report(),
+                'proof_limit_applies_to': 'Same N for local R reviews and local Lean proofs in separate phases; owner occupies no slot',
+                'all_stage_accounting': 'One shared execution ledger includes all roles.'}
 
 
 def serial_configuration():

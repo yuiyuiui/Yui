@@ -70,17 +70,19 @@ def nl0_artifact_for_audit(directory):
         'scope':'Eligibility for first independent mathematical review only; not Audit A acceptance or benchmark qualification.'}
 
 
-def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=None,problem=None):
+def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=None,problem=None,audit_budget=None):
     source,directory=Path(source).resolve(),Path(directory).resolve()
     if (source/'audit-a.json').is_file():
         prior=a.nl0.validate(source/'nl0.json',source/'spec.json',source/'audit-a.json',allow_unresolved=True)[0]
-        if prior['current_standard_receipt_valid']:
-            result={'full_acceptance':True,'source_audit_status':prior['audit_status'],
-                    'authority':a.bind(source/'audit-a.json'),'reused_unchanged_acceptance':True}
-            progress(case,'SOURCE_AUDIT_A_PASSED',**result);return result
+        if prior['current_standard_receipt_valid'] or prior.get('current_conditional_receipt_valid'):
+            result={'source_audit_status':prior['audit_status'],
+                    'authority':a.bind(source/'audit-a.json'),'reused_unchanged_acceptance':True,
+                    'full_acceptance':prior['current_standard_receipt_valid'],
+                    'conditional_acceptance':prior.get('current_conditional_receipt_valid',False)}
+            progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else 'SOURCE_AUDIT_A_CONDITIONAL',**result);return result
     a.prepare(source,problem or source/'inputs',directory,reuse_from=reuse_from)
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
-    a.run(directory,stage_seconds(budget),budget=budget)
+    a.run(directory,stage_seconds(budget),budget=budget,audit_budget=audit_budget)
     if budget.execution:budget.execution.check()
     try:
         result=a.collect(directory,controls)
@@ -89,7 +91,9 @@ def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=
             raise
         result={'full_acceptance':False,'review_coverage':'INCOMPLETE','located_blocker':error.result}
         a.write(directory/'inspection.json',result)
-    progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else 'AUDIT_A_FINDINGS',inspection=str(directory/'inspection.json'))
+    progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else
+             'SOURCE_AUDIT_A_CONDITIONAL' if result.get('conditional_acceptance') else 'AUDIT_A_FINDINGS',
+             inspection=str(directory/'inspection.json'),warnings=result.get('source_warnings',[]))
     return result
 
 

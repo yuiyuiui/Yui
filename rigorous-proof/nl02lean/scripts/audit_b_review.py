@@ -35,6 +35,12 @@ summary reports actual recorded checks, never a semantic verdict. If native
 evidence is inherited, it is NOT a new compiler run or previous semantic PASS.
 Review exactly every external E and complete P. The target
 includes ALL parameters, quantifiers, hypotheses, domains and the conclusion.
+If the source inventory discloses unresolved primary-source verification,
+compare Lean premises to the exact explicitly assumed E statements and retain
+that upstream qualification. This review cannot authenticate the unavailable
+publication; only a conditional whole-workflow result is possible. Do not
+weaken any endpoint, add assumptions or treat missing internal proofs as a
+source-access issue.
 The author's explanation helps locate the comparison; independently verify it
 against the source and actual Lean. A claimed direct translation or equivalence
 is not itself evidence of correctness. Check hidden proof fields and edge cases

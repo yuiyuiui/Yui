@@ -194,14 +194,19 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 "author", "title", "version", "identifier", "locator", "notation_map", "errata",
                 "source_kind", "origin", "retrieved_at", "source_statement", "context",
                 "qualification", "version_check"}
-            record(source, common | extra | ({"primary_evidence"} if kind == "external" else set()), f"{key}.source")
+            record(source, common | extra | ({"primary_evidence"} if kind == "external" else set()), f"{key}.source",
+                   optional={'verification'} if kind=='external' else ())
             require(source["statement"] == item["statement"], "SOURCE", f"source restatement mismatch {key}")
             strings(source["hypotheses"], f"{key}.hypotheses")
             evidence(base, source["evidence"])
             for field in extra:
                 string(source[field], f"{key}.{field}")
             if kind == "external":
-                evidence(base, source["primary_evidence"])
+                import source_qualification
+                deferred=source_qualification.deferred(key,source,base)
+                evidence(base, source["primary_evidence"],allow_empty=bool(deferred))
+                require(not deferred or source['verification']['record'] in source['evidence'],
+                        'SOURCE-EVIDENCE','Deferred source record must be included in evidence')
                 require(all(entry in source["evidence"] for entry in source["primary_evidence"]),
                         "SOURCE-EVIDENCE", f"primary evidence not bound in source evidence {key}")
             if kind == "mathlib":
@@ -481,6 +486,10 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                            "AUDIT-RECEIPT-VALID" if current else "LEGACY-AUDIT-RECEIPT-VALID"),
                        "unresolved_reviews": unresolved, "audit_format_version": audit["format_version"],
                        "reviewer": audit["reviewer"]})
+        import source_qualification
+        conditional,warnings=source_qualification.classify(unresolved,propositions,base)
+        result.update(current_conditional_receipt_valid=current and conditional,source_warnings=warnings)
+        if conditional:result['audit_status']='AUDIT-CONDITIONAL-PRIMARY-SOURCES-UNVERIFIED'
         if current:
             notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
             result.update(background_policy=audit.get('background_policy'), background_notes=notes,

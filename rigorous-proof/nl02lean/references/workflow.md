@@ -53,10 +53,11 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
 | Audit B | Independently review external E and complete P meaning using concise correspondence notes; check final export and kernel trust | audit_b.py, audit_probe.lean, located semantic receipt |
 
-Only Lean proof jobs within one case share its disclosed `max_concurrency=auto|N`
-budget. NL0, preparation, Audit A, interface work and Audit B have a separate
-serial lane. Both roles contribute to the same case cost ledger. The CLI's
-unknown hard limit resolves auto to a fallback of two, never a claimed maximum.
+Local R reviews and later Lean proof jobs use the same confirmed N in separate
+phases, each with its own bounded lane. NL0 authoring, global Audit A,
+preparation, interface work, assembly and Audit B use the serial lane. All
+roles contribute to the same case cost ledger. Lower-level frozen-port commands
+may resolve `auto` to a disclosed fallback; public invocation requires N.
 Record requested/effective values, basis, proof/review peaks and queue intervals.
 Independent cases own separate budgets/processes. Free executor slots claim
 pending jobs without waiting for the entire group. See

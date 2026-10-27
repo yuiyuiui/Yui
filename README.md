@@ -140,11 +140,12 @@ and validating a matching environment separately.
 
 ### Execution and cleanup
 
-Full and translation requests require an explicitly supplied or confirmed
-positive proof-worker count N (`--max-concurrency N`). Missing counts and
-`auto` cannot silently select a default at the public entry. NL0-only does not
-ask for a proof-worker count. Independent-case concurrency is separate.
-Preparation and reviews are serial within one case. There is no
+NL0, full and translation requests require an explicitly supplied or confirmed
+positive worker count N (`--max-concurrency N`). Missing counts and
+`auto` cannot silently select a default at the public entry. N controls local
+R-node reviews and local Lean proof work in separate phases. Independent-case
+concurrency is separate. Authors, global review, preparation, assembly and
+Audit B are serial within one case. There is no
 default time/token/call budget. Explicit cancellation is supported; the parent
 chat Stop button is not a verified cancellation of detached CLI processes.
 
@@ -208,3 +209,25 @@ No paper-scale benchmark or speed advantage is claimed. Future comparisons must
 include preparation, audits, repairs, all-agent tokens, actual concurrency and
 execution health, and distinguish original-proof direct baselines from
 fixed-NL0 continuation experiments.
+
+## Target selection and source qualifications
+
+For a clear intended theorem, the invoking agent extracts its complete target
+and proceeds without an extra user question. Multiple independent plausible
+targets require clarification. The [target-selection contract](rigorous-proof/nl0/references/target-selection.md)
+binds the selected statements to the supplied document before model dispatch.
+
+Public external-source tools attempt Google/arXiv search and HTTPS readback.
+Browser-only pages, access failures and human verification are reported, not
+bypassed. When the full primary text is unavailable but a complete explicit
+secondary statement exists, the [conditional-source route](rigorous-proof/nl0/references/conditional-sources.md)
+can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
+never ordinary full PASS; actual mathematical failures remain blocking.
+
+The direct benchmark [prompt](benchmark/pure-model-result/prompt.md) and
+[native continuation runner](benchmark/pure-model-result/runner.py) retain one
+session across incomplete normal turns. The runner checks the complete Lean
+file, exported declaration and trust report, and records CANDIDATE_READY only.
+Independent semantic acceptance remains a separate required assessment.
+The native CLI continuation uses the [documented exec/resume interface](https://learn.chatgpt.com/docs/non-interactive-mode)
+and the locally checked CLI flags. No new benchmark is launched by these edits.

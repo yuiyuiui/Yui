@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import audit_a_campaign as a
 
@@ -50,6 +51,18 @@ class ExternalCampaignTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'conflicts'):a.validate_review(value,self.out/'global',True)
         source['verdict']='UNVERIFIED';source['citation_checks'].pop('literature_identity')
         with self.assertRaisesRegex(ValueError,'criterion'):a.validate_review(value,self.out/'global',True)
+
+    def test_pdf_readback_uses_fallback_instead_of_treating_ascii_pdf_as_prose(self):
+        import source_staging
+        pdf=self.case/'primary.pdf';pdf.write_bytes(b'%PDF-1.7\nsynthetic input for a controlled converter')
+        evidence={'path':pdf.name,'sha256':a.bind(pdf)['sha256']}
+        proposition={'id':'E001','source':{'evidence':[evidence],'primary_evidence':[evidence]}}
+        with patch.object(source_staging.shutil,'which',return_value=None),patch('target_selection.text',return_value='Actual converter readback.'):
+            staged=source_staging.stage_external(self.case,proposition,self.out)
+        document=staged['documents'][0]
+        self.assertEqual(document['readback_kind'],'PDF_TEXT_EXTRACTION')
+        self.assertEqual(document['converter'],'pypdf')
+        self.assertEqual((self.out/document['readback']).read_text(),'Actual converter readback.')
 
     def test_every_external_application_condition_has_its_own_review(self):
         packet=a.nl0.load(self.out/'R001/packet.json')

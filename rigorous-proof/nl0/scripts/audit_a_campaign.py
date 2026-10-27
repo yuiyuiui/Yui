@@ -220,6 +220,12 @@ controls are controller checks, not mathematical premises. No prior verdict
 or target reference proof is supplied. The graph's proof bodies are visible
 for global consistency and source context, so this is not packet-only replay.
 Packet applicability still has its own owner.
+For an E with verification.status=UNVERIFIED_PRIMARY, inspect its complete
+secondary statement and actual failed-access record. Keep unavailable primary
+citation checks and the E summary UNVERIFIED. Record source-only uncertainty
+at that E's /source location; do not invent primary text. Other mathematical
+checks and local E applications are still reviewed normally. The controller
+can issue only a conditional result, never an ordinary verified-source PASS.
 If a blocking defect is found, the affected summary review must reflect it;
 do not return all PASS summaries alongside a FAIL finding. Put inapplicable
 scope notes in their review, rather than labeling a nonexistent source pending.
@@ -409,10 +415,11 @@ def prepare(case, problem, out, *, reuse_from=()):
     return plan
 
 
-def run(out, timeout=None, budget=None):
+def run(out, timeout=None, budget=None, *, audit_budget=None):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
     verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
+    audit_budget=audit_budget or concurrency.Budget(concurrency.resolve(1),execution=budget.execution,role='audit_r')
     def execute(job):
         directory=out/job['id']
         inherited=plan.get('inherited',{})
@@ -452,14 +459,38 @@ def run(out, timeout=None, budget=None):
             finding_validator=lambda finding:validate_finding(finding,directory,None if job['library'] else packet))
         stage=ArtifactStage(directory/'stage',(directory/'prompt.txt').read_text(),
             phase='audit-a-global' if job['library'] else 'audit-a-packet-replay',
-            inputs=directory/'inputs.json',library=job['library'],timeout=timeout,budget=budget,
+            inputs=directory/'inputs.json',library=job['library'],timeout=timeout,
+            budget=budget if job['library'] else audit_budget,
             validator=contract)
         result,artifact=stage.execute()
         return {'id':job['id'],'result':result,'artifact_present':artifact is not None}
-    results=[execute(job) for job in plan['jobs']]
-    report={'results':results,'concurrency':budget.report(),
-            'execution_policy':'One serial Audit A lane; packet contexts remain fresh and separate.'}
-    write(out/'execution.json',report)
+    from concurrent.futures import ThreadPoolExecutor
+    from contextvars import copy_context
+    results=[];failures=[]
+    def failed(job,error):
+        return {'id':job['id'],'status':'REVIEW_EXECUTION_FAILED',
+                'error_type':type(error).__name__,'error':str(error)}
+    try:
+        # Global/source checks complete before any local packet is dispatched.
+        for job in plan['jobs']:
+            if job['library']:
+                try:results.append(execute(job))
+                except Exception as error:
+                    results.append(failed(job,error));raise
+        local=[job for job in plan['jobs'] if not job['library']]
+        with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
+            pending=[(job,pool.submit(copy_context().run,execute,job)) for job in local]
+            for job,future in pending:
+                try:results.append(future.result())
+                except Exception as error:
+                    failures.append(error)
+                    results.append(failed(job,error))
+        verify_global_overview(out,plan)
+    finally:
+        report={'results':results,'concurrency':budget.report(),'r_concurrency':audit_budget.report(),
+                'execution_policy':'Serial global checks; bounded independent R reviews; deterministic collection.'}
+        write(out/'execution.json',report)
+    if failures:raise failures[0]
     return report
 
 
@@ -592,8 +623,10 @@ def collect(out, controls):
             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
                                     read_materials=list(dict.fromkeys(['packet:'+row['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence])))
         receipt['inference_reviews'][rid]=actual
+    import source_qualification
     blocking_global = global_['structure_review']['verdict'] != 'PASS' or any(
-        blocking_finding(f) for f in global_.get('findings', []))
+        blocking_finding(f) and not source_qualification.source_only_finding(f,data,case)
+        for f in global_.get('findings', []))
     destination=case/('audit-a.pending.json' if blocking_global else 'audit-a.json')
     if destination.exists():raise ValueError('Preserve previous audit receipt; use a new source/review version')
     if controls:
@@ -606,6 +639,9 @@ def collect(out, controls):
     inspection['global_findings']=global_.get('findings',[])
     inspection['behavioral_controls']='NOT_RUN' if controls is None else str(controls)
     inspection['full_acceptance']=bool(inspection['current_standard_receipt_valid'] and not blocking_global)
+    inspection['conditional_acceptance']=bool(inspection.get('current_conditional_receipt_valid') and not blocking_global)
+    import source_qualification
+    source_qualification.publish(case,nl0.validate(case/'nl0.json',case/'spec.json',destination,allow_unresolved=True))
     inspection['calibration_qualification']='NOT_RUN' if controls is None else 'PASSED'
     inspection['experiment_qualified']=bool(controls and inspection['full_acceptance'])
     inspection['inherited_items']=sorted(plan.get('inherited',{}))

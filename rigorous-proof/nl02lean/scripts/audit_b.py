@@ -66,6 +66,8 @@ def source_data(cpath, *, graph=None, spec=None, audit_a=None, incremental=None,
             'parameters':s['parameters'],'definitions':list(defs.values()),'logic':s['logic'],
             'inferences':list(inferences.values()),'full_target':s['full_target'],
             'audit_a_current_passed':result['current_standard_receipt_valid'],
+            'audit_a_conditional':result.get('current_conditional_receipt_valid',False),
+            'source_warnings':result.get('source_warnings',[]),
             'audit_a_status':result.get('audit_status','UNVERIFIED'),
             'audit_a_unresolved_reviews':result.get('unresolved_reviews',[]),
             'audit_a_review_disclosure':result.get('reviewer'),
@@ -146,6 +148,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
+             HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
     inputs = out/'input-bytes';inputs.mkdir()
@@ -450,9 +453,11 @@ def check(out,review_path):
             ir.need(path.is_file() and ir.digest(path)==item['sha256'],'stale semantic evidence')
     inventory=ir.load(out/'source-inventory.json')
     certified=inventory['scope']=='whole_structured_nl0' and inventory['audit_a_current_passed']
-    return {'status':'AUDIT-B-PASSED' if certified else 'DEVELOPMENT-AUDIT-B-PASSED',
+    conditional=inventory['scope']=='whole_structured_nl0' and inventory.get('audit_a_conditional',False)
+    return {'status':'AUDIT-B-PASSED' if certified else 'AUDIT-B-CONDITIONAL' if conditional else 'DEVELOPMENT-AUDIT-B-PASSED',
             'checks_passed':True,'policy':correspondence.POLICY,'scope':inventory['scope'],'upstream_audit_a':inventory['audit_a_status'],
             'whole_nl0_and_current_audit_a':certified,'reviewer':reviewer,
+            'source_warnings':inventory.get('source_warnings',[]),
             'kernel_correct_relative_to_declared_externals':True,
             'external_publications_proved_by_lean':False,'semantic_review_automatically_verified':False,
             'receipt_sha256':ir.digest(review_path),'mechanical_sha256':ir.digest(out/'mechanical.json'),

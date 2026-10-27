@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import shutil
 import time
+from source_qualification import usable
 
 import audit_b
 import concurrency
@@ -86,7 +87,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     started = time.monotonic()
     graph, spec, contract, plan, out = [Path(x).resolve() for x in (graph, spec, contract, plan, out)]
     data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
-    ir.need(data[0]['current_standard_receipt_valid'], 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
+    ir.need(usable(data[0]), 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
     c, nodes, _ = ir.validate(contract, ir.load(plan))
     ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
     if data[0].get('background_note_count',0):
@@ -153,7 +154,7 @@ def bound(directory):
     ir.need(manifest['version'] == VERSION, 'unsupported workflow version')
     for row in manifest['bindings'] + manifest['tools'] + manifest['frozen_input_bindings']: source.unchanged(row)
     data,_ = source.read_source(**manifest['authority'])
-    ir.need(data[0]['current_standard_receipt_valid'], 'source acceptance is no longer valid')
+    ir.need(usable(data[0]), 'source acceptance is no longer valid')
     ir.validate(Path(manifest['contract']), ir.load(manifest['plan']))
     return manifest
 
@@ -190,10 +191,10 @@ def finish(directory, review):
     ir.need(ir.digest(out/'proof-run/inputs/contract.json') == ir.digest(manifest['contract'])
             and ir.digest(out/'proof-run/inputs/plan.json') == ir.digest(manifest['plan']), 'proof/audit interface changed after freeze')
     verdict = audit_b.check(out/'audit-b',Path(review).resolve())
-    ir.need(verdict['status'] == 'AUDIT-B-PASSED', 'whole workflow requires whole-proof Audit B acceptance')
+    ir.need(verdict['status'] in {'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}, 'whole workflow requires whole-proof Audit B acceptance')
     proof = ir.load(out/'proof-run/report.json')
     review_path=Path(review).resolve()
-    report = {'version':VERSION,'status':'WORKFLOW-PASSED','audit_b':verdict,
+    report = {'version':VERSION,'status':'WORKFLOW-PASSED' if verdict['status']=='AUDIT-B-PASSED' else 'WORKFLOW-CONDITIONAL','audit_b':verdict,
               'source_status':source.read_source(**manifest['authority'])[0][0]['audit_status'],
               'concurrency':proof['concurrency'],'freeze_seconds':manifest['freeze_seconds'],
               'proof_phase_wall_seconds':proof['runner_wall_seconds'],
