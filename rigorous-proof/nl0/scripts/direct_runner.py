@@ -193,12 +193,50 @@ def run(work,binary,lean,mathlib,*,turn_call=turn,verify_call=verify):
     write(work/'execution-result.json',result);write(status,result);return result
 
 
-def main(default_work=None):
+def prepare_prompt(work,paper,lean,mathlib,renderer):
+    """Render selected input/tool paths without launching or overwriting a run."""
+    work=Path(work).expanduser().resolve()
+    if any((work/name).exists() for name in ('execution-status.json','execution-result.json')):
+        raise ValueError('Existing run metadata must be preserved; choose a fresh output directory')
+    paper,lean,mathlib=[Path(p).expanduser().resolve(strict=True) for p in (paper,lean,mathlib)]
+    if not paper.is_file() or not lean.is_file() or not mathlib.is_dir():
+        raise ValueError('Supply an existing paper, Lean executable and Mathlib directory')
+    value=renderer(paper=paper,lean=lean,mathlib=mathlib)
+    if not isinstance(value,str) or not value.strip():raise ValueError('Prompt renderer returned no text')
+    prompt=work/'prompt.md'
+    if prompt.is_symlink() or (prompt.exists() and prompt.read_text()!=value):
+        raise ValueError('Existing prompt differs; preserve it and choose a fresh output directory')
+    work.mkdir(parents=True,exist_ok=True)
+    if not prompt.exists():
+        with prompt.open('x') as out:out.write(value)
+    return {'status':'PROMPT_PREPARED','work':str(work),'paper':str(paper),'lean':str(lean),
+            'mathlib':str(mathlib),'prompt':str(prompt),
+            'prompt_sha256':hashlib.sha256(prompt.read_bytes()).hexdigest()}
+
+
+def main(default_work=None,*,prompt_factory=None,default_paper=None,argv=None):
+    shared=Path.home()/'formalization-tools/lean-mathlib-v4.32.2'
+    lean_root=Path(os.environ['YUI_LEAN_ROOT']).expanduser() if os.environ.get('YUI_LEAN_ROOT') else (
+        shared/'lean' if (shared/'lean').exists() else Path.home()/'.elan/toolchains/leanprover--lean4---v4.32.2')
+    codex=os.environ.get('YUI_CODEX_BINARY') or shutil.which('codex') or next((p for p in [
+        '/Applications/Codex.app/Contents/Resources/codex',
+        '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'] if Path(p).is_file()),
+        '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex')
     ap=argparse.ArgumentParser();ap.add_argument('--work',type=Path,default=default_work or Path.cwd())
-    ap.add_argument('--codex',type=Path,default=Path('/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'))
-    ap.add_argument('--lean',type=Path,default=Path.home()/'.elan/toolchains/leanprover--lean4---v4.32.2/bin/lean')
-    ap.add_argument('--mathlib',type=Path,default=Path.home()/'formalization-tools/lean-mathlib-v4.32.2/mathlib')
-    args=ap.parse_args();print(json.dumps(run(args.work,args.codex,args.lean,args.mathlib),indent=2))
+    ap.add_argument('--codex',type=Path,default=Path(codex))
+    ap.add_argument('--lean',type=Path,default=lean_root/'bin/lean')
+    ap.add_argument('--mathlib',type=Path,default=Path(os.environ.get('YUI_MATHLIB_ROOT') or str(shared/'mathlib')))
+    if prompt_factory:
+        ap.add_argument('--paper',type=Path,default=default_paper,required=default_paper is None)
+        ap.add_argument('--prepare-only',action='store_true',help='Generate and display prompt paths without starting a model')
+    args=ap.parse_args(argv)
+    for key in ('work','codex','lean','mathlib'):setattr(args,key,getattr(args,key).expanduser().resolve())
+    if prompt_factory:
+        prepared=prepare_prompt(args.work,args.paper,args.lean,args.mathlib,prompt_factory)
+        if args.prepare_only:
+            print(json.dumps(prepared,indent=2));return prepared
+    result=run(args.work,args.codex,args.lean,args.mathlib)
+    print(json.dumps(result,indent=2));return result
 
 
 if __name__=='__main__':main()

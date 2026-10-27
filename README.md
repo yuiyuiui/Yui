@@ -24,9 +24,17 @@ example:
 - “Continue from this accepted NL0 into Lean.”
 
 The invoking agent asks once for all missing settings, retaining already
-specified choices. NL0-only needs its model/reasoning/speed profile. Translation
-from accepted NL0 needs the Lean profile and an explicit per-case proof-worker
-count. A full workflow needs both phase profiles and that worker count.
+specified choices. A phase profile includes the model, reasoning effort and speed.
+
+| Requested track | Settings to supply or confirm |
+| --- | --- |
+| NL0 and Audit A only | NL0 phase profile and R-review worker count N |
+| Accepted NL0 to Lean and Audit B | Lean phase profile and local Lean proof-worker count N |
+| Complete workflow | Both phase profiles and one worker count N, used for R reviews and later Lean proofs in separate phases |
+
+N must be an explicitly supplied or confirmed positive integer, including 1
+for serial local work. Authors, global review, preparation, assembly and Audit B
+remain serial within each case.
 The harness then stages inputs, schedules independent
 roles, handles located local repairs and records actual results. It does not
 require the user to create task packets or dispatch reviewers manually.
@@ -78,6 +86,31 @@ installed separately; they are not bundled with the skill. Configure
 or authentication home are outside their usual locations. Credentials are
 never committed. The current carrier supports Standard speed; unavailable
 models, reasoning levels or speeds fail explicitly, without fallback.
+
+### PDF text extraction
+
+Reading PDF inputs or downloaded PDF sources requires at least one existing
+text-extraction backend:
+
+- `pdftotext` on PATH (provided by Poppler); Yui tries this first.
+- The `pypdf` package installed in the Python interpreter running Yui, used
+  when `pdftotext` is absent.
+
+For example, create a virtual environment for the Python alternative:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install pypdf
+.venv/bin/python -B rigorous-proof/nl0/scripts/yui.py doctor
+```
+
+Use that same `.venv/bin/python` for subsequent Yui commands. Yui does not
+install extraction packages automatically. `doctor` checks the main runtime
+and toolchain; PDF extraction is checked when a PDF is actually read.
+Markdown, text and LaTeX inputs need neither PDF backend unless an external PDF
+must also be read. Scanned/image-only PDFs need OCR or a checked transcription
+before use; Yui has no automatic OCR step. Check extracted mathematical notation,
+especially subscripts and fractions, before freezing it as proof input.
 
 ### Lean and Mathlib locations
 
@@ -234,10 +267,25 @@ secondary statement exists, the [conditional-source route](rigorous-proof/nl0/re
 can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
 never ordinary full PASS; actual mathematical failures remain blocking.
 
-The direct benchmark [prompt](benchmark/pure-model-result/prompt.md) and
-[native continuation runner](benchmark/pure-model-result/runner.py) retain one
-session across incomplete normal turns. The runner checks the complete Lean
-file, exported declaration and trust report, and records CANDIDATE_READY only.
+The direct benchmark keeps its prompt source in
+[`prompt.py`](benchmark/pure-model-result/prompt.py). Its
+[native continuation runner](benchmark/pure-model-result/runner.py) generates
+`prompt.md` inside the selected output directory using the actual paper, Lean
+executable and Mathlib paths. The default paper is resolved relative to the
+runner; tool locations use the current user's defaults and `YUI_LEAN_ROOT`,
+`YUI_MATHLIB_ROOT` and `YUI_CODEX_BINARY` overrides. Explicit `--paper`, `--lean`,
+`--mathlib` and `--codex` arguments take precedence. Preview without a model call:
+
+```sh
+python3 -B benchmark/pure-model-result/runner.py \
+  --work /absolute/path/to/fresh-output --prepare-only
+```
+
+Omitting `--prepare-only` starts the benchmark. A started output directory or
+a conflicting saved prompt is preserved; select a fresh directory for a new run.
+The runner retains one session across incomplete normal turns, checks the
+complete Lean file, exported declaration and trust report, and records
+CANDIDATE_READY only.
 Independent semantic acceptance remains a separate required assessment.
 The native CLI continuation uses the [documented exec/resume interface](https://learn.chatgpt.com/docs/non-interactive-mode)
 and the locally checked CLI flags. No new benchmark is launched by these edits.

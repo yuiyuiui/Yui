@@ -1,11 +1,17 @@
-# Formalize the complete Theorem 1
+"""Render the benchmark task from the selected paper and resolved host tools."""
+from pathlib import Path
+
+
+def render(*,paper,lean,mathlib):
+    paper,lean,mathlib=[Path(p).expanduser().resolve() for p in (paper,lean,mathlib)]
+    return f"""# Formalize the complete Theorem 1
 
 Use only the supplied paper, its cited external results, and the pinned Lean /
 Mathlib installation. Do not inspect Yui's proof rules, strategy bank, other
 benchmark arms, earlier answers, or the repository's `test/` proof archives.
 Do not delegate to another model. Keep every output inside this directory.
 
-Paper: `/Users/syyui/projects/Yui/benchmark/aim-518-kdv-log-loss.pdf`.
+Paper: `{paper}`.
 Target: **Theorem 1 (Logarithm-free convergence)**, including the precise fixed
 unfiltered method defined in Section 2, equations (1) and (2). Read the entire
 statement, its preceding definitions and standing assumptions, and its proof.
@@ -30,9 +36,9 @@ hide an internal missing lemma inside an external assumption, or discard a
 known contradiction. Pinned Mathlib results may be used freely.
 
 Lean installation:
-`/Users/syyui/.elan/toolchains/leanprover--lean4---v4.32.2/bin/lean`.
+`{lean}`.
 Mathlib source and precompiled libraries:
-`/Users/syyui/formalization-tools/lean-mathlib-v4.32.2/mathlib`.
+`{mathlib}`.
 Mathlib commit: `905b95818eb32af7874a58b427f50c1711a5e96c`.
 Use the existing pinned environment; do not run `lake update` or change it.
 
@@ -65,3 +71,4 @@ missing input, unavailable essential source statement, or broken tool requires
 human intervention, record a concrete blocker with evidence and preserve all
 work. User cancellation must be respected. A completed candidate still requires
 independent semantic assessment; your self-report is not such an assessment.
+"""

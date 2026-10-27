@@ -1,5 +1,6 @@
 """Read-only source transport failures are explicit, not source-verification passes."""
 import harness_support
+import importlib.util
 import json
 from pathlib import Path
 import tempfile
@@ -8,6 +9,22 @@ import urllib.error
 from unittest.mock import patch
 import source_access as access
 import shutil
+
+
+def pdf_bytes(sentence):
+    """One valid page with ASCII text; no PDF-generation dependency is needed."""
+    stream=('BT /F1 12 Tf 20 150 Td ('+sentence+') Tj ET').encode('ascii')
+    objects=[b'<< /Type /Catalog /Pages 2 0 R >>',
+        b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 900 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+        b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        b'<< /Length '+str(len(stream)).encode()+b' >>\nstream\n'+stream+b'\nendstream']
+    result=b'%PDF-1.4\n';offsets=[]
+    for number,value in enumerate(objects,1):
+        offsets.append(len(result));result+=str(number).encode()+b' 0 obj\n'+value+b'\nendobj\n'
+    start=len(result);result+=b'xref\n0 6\n0000000000 65535 f \n'
+    result+=b''.join(('%010d 00000 n \n'%offset).encode() for offset in offsets)
+    return result+b'trailer << /Size 6 /Root 1 0 R >>\nstartxref\n'+str(start).encode()+b'\n%%EOF\n'
 
 
 class SourceAccessTests(unittest.TestCase):
@@ -40,6 +57,29 @@ class SourceAccessTests(unittest.TestCase):
                 response.read.return_value=body
                 result=access.read(tmp,'https://example.org')
                 self.assertEqual(result['status'],status);self.assertNotIn('content',result)
+
+    @unittest.skipUnless(shutil.which('pdftotext') or importlib.util.find_spec('pypdf'),
+                         'PDF integration requires pdftotext or pypdf')
+    def test_readable_pdf_challenge_phrases_are_scientific_text_in_both_transports(self):
+        from controller_common import bind
+        for browser in (False,True):
+            for phrase in ('unusual traffic','access denied','verify you are human',
+                           'complete the captcha','checking your browser'):
+                sentence='This paper studies the phrase '+phrase+'.'
+                raw=pdf_bytes(sentence);url='https://example.org/paper.pdf'
+                def capture(directory,url,stem):
+                    document=Path(directory)/(stem+'.browser-document');document.write_bytes(raw)
+                    return {'raw':raw,'document':bind(document),'status':'READABLE','final_url':url}
+                with self.subTest(browser=browser,phrase=phrase),tempfile.TemporaryDirectory() as tmp,\
+                     patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder,\
+                     patch('source_browser.capture',side_effect=capture):
+                    response=builder.return_value.open.return_value.__enter__.return_value
+                    response.read.return_value=raw;response.geturl.return_value=url;response.status=200
+                    result=access.read(tmp,url,browser=browser)
+                    self.assertEqual(result['status'],'READABLE')
+                    self.assertEqual(result['document_kind'],'PDF');self.assertIn(sentence,result['content'])
+                    self.assertEqual(Path(result['document']['path']).read_bytes(),raw)
+                    self.assertEqual(bind(result['text']['path']),result['text'])
 
     def test_readable_source_reuses_bound_bytes_and_rejects_cache_tampering(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:

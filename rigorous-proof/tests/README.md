@@ -23,6 +23,11 @@ start a paper-solving workflow. Native integration cases do run the pinned
 local Lean installation. Synthetic review records exercise validation rules;
 they never certify a mathematical proof or substitute for an independent audit.
 
+The PDF readback regression uses an installed `pdftotext` or `pypdf` backend;
+without either it reports an explicit skip. The optional benchmark relocation
+control runs when the repository's benchmark files are present. Core prompt
+generation controls also run in a standalone skill installation.
+
 ## Responsibility map
 
 | Behavior | Representative test modules |

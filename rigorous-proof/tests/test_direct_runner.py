@@ -4,6 +4,8 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -108,6 +110,78 @@ class DirectRunnerTests(unittest.TestCase):
         result=runner.compile_process([sys.executable,'-c','import time; time.sleep(20)'],
             cwd=self.work,env=os.environ.copy(),cancelled=lambda:time.monotonic()-begin>.2)
         self.assertNotEqual(result.returncode,0);self.assertLess(time.monotonic()-begin,4)
+
+    def prompt_inputs(self):
+        paper=self.work/'selected paper.pdf';paper.write_bytes(b'%PDF-1.7\nsynthetic input')
+        lean=self.work/'tools/bin/lean';lean.parent.mkdir(parents=True);lean.write_text('synthetic executable; never called')
+        mathlib=self.work/'selected mathlib';mathlib.mkdir()
+        return paper,lean,mathlib
+
+    def test_generated_prompt_and_actual_first_turn_use_the_same_selected_paths(self):
+        paper,lean,mathlib=self.prompt_inputs();work=self.work/'fresh run';observed=[]
+        render=lambda **paths:'Selected inputs: '+json.dumps({k:str(v) for k,v in paths.items()})
+        def turn(binary,current,prompt,session,number,env,cancelled):
+            observed.append((binary,current,prompt));return 0,'same-session',[]
+        original_run=runner.run
+        with patch.object(runner,'run',side_effect=lambda *args:original_run(*args,turn_call=turn,
+                verify_call=lambda *args:{'ready':True,'status':'CONTROL_ONLY'})),patch('sys.stdout'):
+            result=runner.main(default_work=work,prompt_factory=render,default_paper=paper,argv=[
+                '--lean',str(lean),'--mathlib',str(mathlib),'--codex',str(self.work/'selected codex')])
+        self.assertEqual(result['status'],'CONTROL_ONLY');self.assertEqual(len(observed),1)
+        self.assertEqual(observed[0][2],(work/'prompt.md').read_text())
+        selected=json.loads(observed[0][2].split(': ',1)[1])
+        self.assertEqual(selected,{'paper':str(paper.resolve()),'lean':str(lean.resolve()),'mathlib':str(mathlib.resolve())})
+        self.assertEqual(observed[0][0],(self.work/'selected codex').resolve())
+
+    def test_prompt_preparation_rejects_missing_inputs_without_creating_an_output(self):
+        paper,lean,mathlib=self.prompt_inputs();work=self.work/'must remain absent'
+        for missing in (paper,lean,mathlib):
+            paths=[self.work/'missing' if p==missing else p for p in (paper,lean,mathlib)]
+            with self.subTest(missing=missing),self.assertRaises(FileNotFoundError):
+                runner.prepare_prompt(work,*paths,renderer=lambda **paths:'No launch')
+            self.assertFalse(work.exists())
+
+    def test_prompt_preparation_preserves_started_runs_and_conflicting_saved_prompts(self):
+        paper,lean,mathlib=self.prompt_inputs();prompt=self.work/'prompt.md';before=prompt.read_bytes()
+        with self.assertRaisesRegex(ValueError,'Existing prompt differs'):
+            runner.prepare_prompt(self.work,paper,lean,mathlib,renderer=lambda **paths:'Different prompt')
+        self.assertEqual(prompt.read_bytes(),before)
+        for name in ('execution-status.json','execution-result.json'):
+            status=self.work/name;status.write_text('{"status":"RECORDED"}')
+            with self.subTest(record=name),self.assertRaisesRegex(ValueError,'Existing run metadata'):
+                runner.prepare_prompt(self.work,paper,lean,mathlib,renderer=lambda **paths:prompt.read_text())
+            self.assertEqual(status.read_text(),'{"status":"RECORDED"}');self.assertEqual(prompt.read_bytes(),before)
+            status.unlink()
+
+    @unittest.skipUnless((harness_support.CORE.parent/'benchmark/pure-model-result').is_dir(),
+                         'The optional repository benchmark is not part of a standalone skill installation')
+    def test_benchmark_prompt_preparation_survives_relocation_and_tool_overrides(self):
+        source=harness_support.CORE.parent/'benchmark/pure-model-result'
+        clone=self.work/'relocated checkout';benchmark=clone/'benchmark/pure-model-result'
+        benchmark.mkdir(parents=True)
+        for name in ('prompt.py','runner.py'):shutil.copyfile(source/name,benchmark/name)
+        driver=clone/'rigorous-proof/nl0/scripts/direct_runner.py';driver.parent.mkdir(parents=True)
+        shutil.copyfile(runner.__file__,driver)
+        default_paper=benchmark.parent/'aim-518-kdv-log-loss.pdf';default_paper.write_bytes(b'%PDF-1.7\nsynthetic input')
+        selected_paper,lean,mathlib=self.prompt_inputs()
+        for mode in ('environment_defaults','explicit_cli'):
+            work=self.work/mode;env=os.environ.copy()
+            env.update(YUI_LEAN_ROOT=str(lean.parent.parent),YUI_MATHLIB_ROOT=str(mathlib),
+                       YUI_CODEX_BINARY=str(self.work/'must-not-be-started'))
+            command=[sys.executable,'-B',str(benchmark/'runner.py'),'--work',str(work),'--prepare-only']
+            if mode=='explicit_cli':
+                env.update(YUI_LEAN_ROOT=str(self.work/'invalid-default'),YUI_MATHLIB_ROOT=str(self.work/'invalid-default'))
+                command+=['--paper',str(selected_paper),'--lean',str(lean),'--mathlib',str(mathlib)]
+            with self.subTest(mode=mode):
+                completed=subprocess.run(command,cwd=self.work,env=env,capture_output=True,text=True)
+                self.assertEqual(completed.returncode,0,completed.stderr)
+                result=json.loads(completed.stdout);self.assertEqual(result['status'],'PROMPT_PREPARED')
+                prompt=Path(result['prompt']).read_text()
+                paper=selected_paper if mode=='explicit_cli' else default_paper
+                self.assertIn('Paper: `'+str(paper.resolve())+'`.',prompt)
+                self.assertIn('`'+str(lean.resolve())+'`.',prompt);self.assertIn('`'+str(mathlib.resolve())+'`.',prompt)
+                self.assertNotIn(str(harness_support.CORE.parent.resolve()),prompt)
+                self.assertFalse((work/'execution-status.json').exists())
 
 
 if __name__=='__main__':unittest.main()

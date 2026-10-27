@@ -116,7 +116,9 @@ def fetch(directory,url,*,browser=False):
             parser.feed(raw.decode('utf-8',errors='replace'))
             text=captured.get('text') or ''.join(parser.parts)
         lower=text.lower()
-        blocked=(any(marker in lower for marker in ['verify you are human','complete the captcha',
+        # These phrases identify HTML access pages, not the subject of a paper.
+        # A successfully extracted PDF may discuss the same phrases verbatim.
+        blocked=not pdf and (any(marker in lower for marker in ['verify you are human','complete the captcha',
             'checking your browser','access denied','unusual traffic','异常流量','你是机器人吗']) or
             urllib.parse.urlsplit(record.get('final_url',url)).path.startswith('/sorry/'))
         needs_browser=not pdf and (b'/httpservice/retry/enablejs' in raw or b'<altcha-widget' in raw)
