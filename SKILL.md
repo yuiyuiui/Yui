@@ -31,11 +31,16 @@ the user's explicit confirmation of a proposed number. N bounds local R-node
 reviews and, in a separate phase, local Lean proofs. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
-For an ordinary foreground request, follow execution through its actual final
-result; `DISPATCHED` is not completion. Use detached execution when requested or
-when continuing to observe its owned run explicitly, and retain working cancel
-instructions. A frozen author/proof/reviewer stage performs only its assigned
-role; it does not redispatch the whole workflow.
+The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md):
+normally dispatch with `--detach`, verify the owned processes, and register one
+host heartbeat for a bounded check every ten minutes. Record the actual schedule
+ID, report that mathematical work is still pending, then end the current
+foreground turn. Never keep the owner active through sleep/poll loops. Each
+scheduled check ends its turn as well. `DISPATCHED` is not workflow completion.
+If host scheduling is unavailable, disclose that and return manual status/cancel
+commands; do not claim that a monitor was registered. Frozen author/proof/reviewer
+stages perform only their assigned roles and never schedule owner monitoring or
+redispatch the workflow.
 
 For missing external originals, follow [ordered source retrieval](nl0/references/source-retrieval.md):
 arXiv, Google full-text search, Google DOI discovery, then confirmed-DOI Sci-Hub

@@ -35,7 +35,7 @@ synthetic inputs, environment-selected tools and explicit CLI overrides.
 
 | Behavior | Representative test modules |
 | --- | --- |
-| Entry points, profiles, scheduling, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_model_profiles`, `test_remote_retry`, `test_cleanup_tests` |
+| Entry points, profiles, scheduling, owner handoffs, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_owner_observation`, `test_model_profiles`, `test_remote_retry`, `test_cleanup_tests` |
 | Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
 | Model isolation, task/proof state, transport health and usage accounting | `test_isolation`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
 | NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |

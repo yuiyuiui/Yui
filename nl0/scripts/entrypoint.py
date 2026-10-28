@@ -37,7 +37,7 @@ def parsers(commands):
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
     p.add_argument('--repair-evidence',action='store_true',
         help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
-    for name in ('status','cancel','cleanup'):
+    for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
         if name=='cancel':p.add_argument('--task',help='One known proof task; requires a single run')
@@ -91,6 +91,8 @@ def launch(prepared, *, detached=False, case_concurrency=None):
     from runtime_config import verify
     verify()
     if detached:
+        from owner_observation import handoff
+        observation=handoff([job['root'] for job in prepared])
         root=Path(prepared[0]['root']);(root/'logs').mkdir(exist_ok=True)
         command=[sys.executable,'-u','-B',str(CORE/'nl0/scripts/queue_controller.py')]
         for job in prepared:command.extend(['--job',str(Path(job['root'])/'job.json')])
@@ -100,14 +102,19 @@ def launch(prepared, *, detached=False, case_concurrency=None):
         from execution_state import identity
         who=identity(process.pid)
         if who is None and process.poll() is None:raise RuntimeError('Cannot verify detached controller identity')
-        for job in prepared:write(Path(job['root'])/'launch.json',{'controller':who,'runs':[p['root'] for p in prepared]})
+        for job in prepared:write(Path(job['root'])/'launch.json',{'controller':who,'runs':[p['root'] for p in prepared],
+            'owner_observation':observation})
         return {'status':'DISPATCHED','controller':who,'runs':[p['root'] for p in prepared],
+                'owner_observation':observation,
                 'scope':'Actual mathematical acceptance is pending; use status/cancel on these run paths'}
     import queue_controller
     return {'status':'EXECUTORS_FINISHED','outcomes':queue_controller.serve(prepared,case_concurrency=case_concurrency)}
 
 
 def dispatch(args):
+    if args.command=='observe':
+        from owner_observation import snapshot
+        return snapshot(args.runs)
     if args.command=='targets':
         import target_selection
         return target_selection.inspect(args.problem)

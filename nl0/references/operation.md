@@ -66,7 +66,7 @@ python3 -B /path/to/Yui/nl0/scripts/yui.py run /papers/example/proof.md \
   --track full \
   --nl0-model gpt-6.1-sol --nl0-effort high --nl0-speed standard \
   --lean-model gpt-6-luna --lean-effort high --lean-speed standard \
-  --max-concurrency 5 --target-file /papers/example/target-selection.json
+  --max-concurrency 5 --target-file /papers/example/target-selection.json --detach
 ```
 
 Supply several problem paths to run independent cases together. For different
@@ -74,6 +74,12 @@ per-case sources, materials or profiles, `prepare` each separately, then use
 `execute RUN_A RUN_B`. `prepare` makes no model/Lean calls. `--detach` starts
 owned background case processes and returns their exact run paths; a parent
 chat Stop is not a verified cancellation of these processes.
+
+The invoking owner then follows [foreground handoff](owner-observation.md):
+register one host heartbeat every ten minutes, save its actual ID and end the
+foreground turn. Detached dispatch returns an explicit pending monitoring
+handoff; it does not itself register a schedule. Do not wait through repeated
+foreground sleeps or status polls.
 
 For translation pass `--track translate --source /accepted/nl0-case`, the Lean
 profile and the confirmed `--max-concurrency N`. For audit-only pass
@@ -218,6 +224,15 @@ retained absolute deadline is rejected. New stages then use the common carrier's
 in-session remote retry throughout the remaining workflow.
 
 ## Observe, stop and clean
+
+Scheduled owners use the compact, read-only observation command once per wake:
+
+```sh
+python3 -B /path/to/Yui/nl0/scripts/yui.py observe /paper/rigorous-proof/RUN
+```
+
+This reports small metadata and exact process identities, without proof bodies
+or new model/Lean calls. Full `status` remains available for located diagnosis.
 
 ```sh
 python3 -B /path/to/Yui/nl0/scripts/yui.py status /paper/rigorous-proof/RUN

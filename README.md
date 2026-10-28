@@ -175,6 +175,23 @@ Cleanup previews unless `--apply` is supplied. It targets only explicitly
 selected owned run directories, confirms process exit and preserves original
 inputs, the installed skill and the shared toolchain. See the operator instructions.
 
+### Foreground turn and ten-minute checks
+
+The invoking owner normally uses detached execution. After dispatch and process
+verification, it registers one host heartbeat covering the exact current runs,
+records the returned automation ID and ends the foreground turn. Each heartbeat
+performs one bounded check every ten minutes, then ends its turn. It reports
+meaningful changes; routine unchanged checks stay quiet unless the user asks
+for a report every time. No foreground sleep/poll loop is used.
+
+`config.json` records this under `owner_observation`. A detached launch returns
+a pending handoff with the observation command and scheduler prompt; it does
+not claim that a schedule exists. The host must register the heartbeat. A host
+without scheduling reports that limitation and returns manual commands instead
+of silently keeping an observer model running. After actual terminal results
+and verified process exits, the owner preserves the report and deletes the
+completed heartbeat. See [the owner protocol](nl0/references/owner-observation.md).
+
 ## Optional personal Mathlib library
 
 After completing a rigorous-proof workflow, users may choose to add useful
