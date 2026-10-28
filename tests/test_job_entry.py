@@ -5,6 +5,7 @@ import argparse
 from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -248,19 +249,35 @@ class JobEntryTests(unittest.TestCase):
         self.assertFalse(execution_state.inspect(Path(job['root']))['inspection']['residual_owned_processes'])
 
     def test_standalone_copy_prepares_and_reports_without_repository_or_test_support(self):
-        install=self.root/'installed-skill'
-        shutil.copytree(CORE,install,ignore=shutil.ignore_patterns('__pycache__','results','.git'))
-        command=[sys.executable,'-B',str(install/'nl0/scripts/yui.py')]
-        result=subprocess.run(command+['prepare',str(self.problem),'--track','nl0',
-            '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
-            '--max-concurrency','2','--target','An explicit synthetic target.'],capture_output=True,text=True)
-        self.assertEqual(result.returncode,0,result.stderr+result.stdout)
-        prepared=json.loads(result.stdout);run=Path(prepared['runs'][0])
-        status=subprocess.run(command+['status',str(run)],capture_output=True,text=True)
-        self.assertEqual(status.returncode,0,status.stderr)
-        self.assertEqual(json.loads(status.stdout)[str(run)]['phase'],'PREPARED_NOT_STARTED')
-        self.assertFalse((install.parent/'test/support').exists())
-        self.assertTrue(all(Path(row['path']).is_relative_to(install) for row in json.loads((run/'job.json').read_text())['runtime']))
+        elsewhere=self.root/'unrelated working directory';elsewhere.mkdir()
+        env=os.environ.copy();env.pop('YUI_LIBRARY_ROOT',None)
+        for include_catalog in (True,False):
+            with self.subTest(include_catalog=include_catalog):
+                parent=self.root/('with catalog' if include_catalog else 'without catalog')
+                install=parent/'renamed skill root'
+                ignored=['__pycache__','results','.git','tests']
+                if not include_catalog:ignored.append('library')
+                shutil.copytree(CORE,install,ignore=shutil.ignore_patterns(*ignored))
+                foreign=parent/'library';foreign.mkdir()
+                (foreign/'foundations.json').write_text('Unrelated sibling; must never be read.')
+                command=[sys.executable,'-B',str(install/'nl0/scripts/yui.py')]
+                result=subprocess.run(command+['prepare',str(self.problem),'--track','nl0',
+                    '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
+                    '--max-concurrency','2','--target','An explicit synthetic target.'],
+                    cwd=elsewhere,env=env,capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stderr+result.stdout)
+                prepared=json.loads(result.stdout);run=Path(prepared['runs'][0])
+                status=subprocess.run(command+['status',str(run)],cwd=elsewhere,env=env,capture_output=True,text=True)
+                self.assertEqual(status.returncode,0,status.stderr)
+                self.assertEqual(json.loads(status.stdout)[str(run)]['phase'],'PREPARED_NOT_STARTED')
+                self.assertFalse((install/'tests').exists())
+                self.assertFalse((install/'rigorous-proof').exists())
+                job=json.loads((run/'job.json').read_text())
+                self.assertTrue(all(Path(row['path']).is_relative_to(install) for row in job['runtime']))
+                catalog=job['library_catalog']
+                self.assertEqual(Path(catalog['path']),install/'library/foundations.json')
+                self.assertEqual(bool(catalog['files']),include_catalog)
+                self.assertTrue(all(Path(row['path']).is_relative_to(install) for row in catalog['files']))
 
 
 if __name__=='__main__':unittest.main()

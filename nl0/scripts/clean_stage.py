@@ -353,7 +353,7 @@ class ArtifactStage(pilot.Stage):
             entry=('\nRead the stage rules on demand; no need to preload the whole skill. ' if phase.startswith('interface')
                    else '\nYui entry: read_yui(path="SKILL.md", start=1, end=200). ')
             self.input_prompt += (entry+
-                'Relevant frozen rule paths (relative to rigorous-proof): '+', '.join(index)+'. '
+                'Relevant frozen rule paths (relative to the installed skill root): '+', '.join(index)+'. '
                 'Other declared Markdown references linked from these remain available through read_yui. '
                 'Reads return explicit pages of at most 250 lines with continuation metadata. Follow relevant links; operator scheduling/control manuals are not proof-worker inputs.')
             if kind == 'nl0':

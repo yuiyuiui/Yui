@@ -62,11 +62,11 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(c.catalog_files(),[])
         self.assertEqual(c.binding()['files'],[])
 
-    def test_default_is_sibling_directory_and_environment_can_override(self):
-        with patch.object(c,'CORE',self.root/'installed/rigorous-proof'):
+    def test_default_is_inside_installed_skill_and_environment_can_override(self):
+        with patch.object(c,'CORE',self.root/'installed/renamed skill root'):
             with patch.dict(os.environ):
                 os.environ.pop('YUI_LIBRARY_ROOT',None)
-                self.assertEqual(c.catalog_path(),self.root/'installed/library/foundations.json')
+                self.assertEqual(c.catalog_path(),self.root/'installed/renamed skill root/library/foundations.json')
             self.assertEqual(c.catalog_path(),self.catalog/'foundations.json')
 
     def test_importing_two_ids_from_one_receipt_preserves_bytes_and_mapping(self):

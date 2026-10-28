@@ -7,26 +7,29 @@ directories contain production code and rules; neither owns a second suite.
 From the repository root, run:
 
 ```sh
-python3 -B rigorous-proof/nl0/scripts/yui.py selftest
+python3 -B nl0/scripts/yui.py selftest
 ```
 
 The command discovers this directory once. Use `selftest --verbose` to list
 individual cases. A focused module can also run independently, for example:
 
 ```sh
-python3 -B -m unittest discover -s rigorous-proof/tests -p test_audit_b.py -v
+python3 -B -m unittest discover -s tests -p test_audit_b.py -v
 ```
 
-These are software controls, separate from the mathematical example runs in
-the repository's `test/` directory. Automatic discovery does not call a model or
+These are software controls, separate from user-supplied mathematical inputs and
+their generated run directories outside this installation. Automatic discovery does not call a model or
 start a paper-solving workflow. Native integration cases do run the pinned
 local Lean installation. Synthetic review records exercise validation rules;
 they never certify a mathematical proof or substitute for an independent audit.
 
 The PDF readback regression uses an installed `pdftotext` or `pypdf` backend;
-without either it reports an explicit skip. The optional benchmark relocation
-control runs when the repository's benchmark files are present. Core prompt
-generation controls also run in a standalone skill installation.
+without either it reports an explicit skip. Installation controls copy the root
+skill to renamed paths containing spaces, omit the tests and optional catalog,
+and prepare/status a synthetic job from an unrelated working directory. They
+need no removed mathematical examples or benchmark files.
+Direct-session prompt preparation is also tested from a relocated copy using
+synthetic inputs, environment-selected tools and explicit CLI overrides.
 
 ## Responsibility map
 
@@ -46,6 +49,10 @@ File names group related behavior; they do not create separate execution suites.
 `harness_support.py` supplies common test paths and synthetic profiles.
 `tooling/*_fixtures.py` contains reusable data builders, with no test cases.
 Static input examples live in `fixtures/`, including `fixtures/lean/`.
+`fixtures/legacy/` preserves historical parser inputs and provenance verbatim,
+including old absolute paths. Its archived smoke runner is not a supported
+entry point and is not executed by discovery; use `selftest` for the current
+portable controls. Tests that need live tool locations resolve the current pins.
 Helpers must not import `test_*.py`; a test must not depend on another test having
 run or imported first. Scripts in `tooling/` that support explicit experiments
 are not executed by unittest discovery.

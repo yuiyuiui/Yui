@@ -153,22 +153,21 @@ class DirectRunnerTests(unittest.TestCase):
             self.assertEqual(status.read_text(),'{"status":"RECORDED"}');self.assertEqual(prompt.read_bytes(),before)
             status.unlink()
 
-    @unittest.skipUnless((harness_support.CORE.parent/'benchmark/pure-model-result').is_dir(),
-                         'The optional repository benchmark is not part of a standalone skill installation')
-    def test_benchmark_prompt_preparation_survives_relocation_and_tool_overrides(self):
-        source=harness_support.CORE.parent/'benchmark/pure-model-result'
-        clone=self.work/'relocated checkout';benchmark=clone/'benchmark/pure-model-result'
-        benchmark.mkdir(parents=True)
-        for name in ('prompt.py','runner.py'):shutil.copyfile(source/name,benchmark/name)
-        driver=clone/'rigorous-proof/nl0/scripts/direct_runner.py';driver.parent.mkdir(parents=True)
+    def test_prompt_preparation_survives_relocation_and_tool_overrides(self):
+        clone=self.work/'relocated skill root'
+        driver=clone/'nl0/scripts/direct_runner.py';driver.parent.mkdir(parents=True)
         shutil.copyfile(runner.__file__,driver)
-        default_paper=benchmark.parent/'aim-518-kdv-log-loss.pdf';default_paper.write_bytes(b'%PDF-1.7\nsynthetic input')
+        default_paper=clone/'supplied paper.pdf';default_paper.write_bytes(b'%PDF-1.7\nsynthetic input')
+        program=('import json; from pathlib import Path; from direct_runner import main; '
+                 'main(prompt_factory=lambda **paths: "Selected inputs: "+'
+                 'json.dumps({k:str(v) for k,v in paths.items()}), '
+                 'default_paper=Path('+repr(str(default_paper))+'))')
         selected_paper,lean,mathlib=self.prompt_inputs()
         for mode in ('environment_defaults','explicit_cli'):
             work=self.work/mode;env=os.environ.copy()
             env.update(YUI_LEAN_ROOT=str(lean.parent.parent),YUI_MATHLIB_ROOT=str(mathlib),
-                       YUI_CODEX_BINARY=str(self.work/'must-not-be-started'))
-            command=[sys.executable,'-B',str(benchmark/'runner.py'),'--work',str(work),'--prepare-only']
+                       YUI_CODEX_BINARY=str(self.work/'must-not-be-started'),PYTHONPATH=str(driver.parent))
+            command=[sys.executable,'-B','-c',program,'--work',str(work),'--prepare-only']
             if mode=='explicit_cli':
                 env.update(YUI_LEAN_ROOT=str(self.work/'invalid-default'),YUI_MATHLIB_ROOT=str(self.work/'invalid-default'))
                 command+=['--paper',str(selected_paper),'--lean',str(lean),'--mathlib',str(mathlib)]
@@ -178,9 +177,8 @@ class DirectRunnerTests(unittest.TestCase):
                 result=json.loads(completed.stdout);self.assertEqual(result['status'],'PROMPT_PREPARED')
                 prompt=Path(result['prompt']).read_text()
                 paper=selected_paper if mode=='explicit_cli' else default_paper
-                self.assertIn('Paper: `'+str(paper.resolve())+'`.',prompt)
-                self.assertIn('`'+str(lean.resolve())+'`.',prompt);self.assertIn('`'+str(mathlib.resolve())+'`.',prompt)
-                self.assertNotIn(str(harness_support.CORE.parent.resolve()),prompt)
+                selected=json.loads(prompt.split(': ',1)[1])
+                self.assertEqual(selected,{'paper':str(paper.resolve()),'lean':str(lean.resolve()),'mathlib':str(mathlib.resolve())})
                 self.assertFalse((work/'execution-status.json').exists())
 
 

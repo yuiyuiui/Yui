@@ -25,7 +25,7 @@ def catalog_path():
     selected=_selected_root.get()
     if selected is not None:return selected/'foundations.json'
     override=os.environ.get('YUI_LIBRARY_ROOT')
-    root=Path(override).expanduser().resolve() if override else CORE.parent/'library'
+    root=Path(override).expanduser().resolve() if override else CORE/'library'
     return root.resolve()/'foundations.json'
 
 

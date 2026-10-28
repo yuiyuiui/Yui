@@ -15,7 +15,6 @@ import shutil
 import sys
 
 CORE = Path(__file__).resolve().parents[2]
-ROOT = CORE.parent
 sys.path.insert(0, str(CORE / 'nl0/scripts'))
 sys.path.insert(0, str(CORE / 'nl02lean/scripts'))
 import nl0

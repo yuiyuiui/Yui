@@ -9,6 +9,10 @@ Use the smallest requested track. Preserve the original problem, hypotheses,
 definitions and proof route. The two stages share one specification and explicit
 invalidation rules; completing stage one does not require stage two.
 
+The installed skill root is the directory containing this `SKILL.md`. Keep
+`config.json`, `nl0/`, `nl02lean/` and `toolchain/` beside it; no enclosing
+`rigorous-proof/` subdirectory or particular checkout name is required.
+
 ## Select a stage
 
 Before dispatch, follow [target selection](nl0/references/target-selection.md).

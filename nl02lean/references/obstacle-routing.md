@@ -51,7 +51,7 @@ must match. Retrieval can miss a useful strategy; no completeness is claimed.
 Run from the Yui repository root:
 
 ```sh
-python3 -B rigorous-proof/nl02lean/scripts/strategy_bank.py query --json \
+python3 -B nl02lean/scripts/strategy_bank.py query --json \
   '{"family":"representation","tags":["conversion","congruence"],"facts":[],"lean_version":"4.32.2"}'
 ```
 

@@ -22,7 +22,7 @@ import tempfile
 import time
 
 CORE = Path(__file__).resolve().parents[2]
-REPO = CORE.parent
+REPO = CORE
 from execution_state import atomic, now, request_cancel
 from run_resources import MARKER, SCHEMA
 
@@ -291,7 +291,7 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
             if root.exists():
                 shutil.rmtree(root); report['removed_roots'].append(str(root))
         caches = []
-        for parent in (() if outputs is not None else (repo/'test', repo/'rigorous-proof')):
+        for parent in (() if outputs is not None else (repo/'nl0', repo/'nl02lean', repo/'tests')):
             for directory, dirs, _ in os.walk(parent, followlinks=False):
                 dirs[:] = [d for d in dirs if not (Path(directory)/d).is_symlink()]
                 if '__pycache__' in dirs:

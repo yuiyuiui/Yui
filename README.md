@@ -15,12 +15,15 @@ mathematics, and a successful compilation alone is not source-fidelity approval.
 
 ## Use
 
-Install/copy the complete `rigorous-proof/` directory as a skill. Then ask, for
-example:
+The repository root is the complete `rigorous-proof` skill: `SKILL.md` sits
+beside `config.json`, `nl0/`, `nl02lean/` and `toolchain/`. Install/copy this root
+directory together with those resources. There is no inner `rigorous-proof/`
+directory to extract, and the checkout or installation directory may be renamed.
+Then ask, for example:
 
 - “Use rigorous-proof on this paper's existing proof, through NL0 and Audit A.”
 - “Use rigorous-proof on this proof, including Lean and Audit B.”
-- “Use rigorous-proof on these three supplied problems concurrently.”
+- “Use rigorous-proof on these supplied proofs concurrently.”
 - “Continue from this accepted NL0 into Lean.”
 
 The invoking agent asks once for all missing settings, retaining already
@@ -41,30 +44,27 @@ require the user to create task packets or dispatch reviewers manually.
 
 Results go beside each problem, under `rigorous-proof/<run-id>/`. The skill
 installation contains code and rules, never a global scientific output tree.
-Three supplied examples are ordinary inputs to the same runtime:
-
-| Example | Original problem and supplied natural-language proof |
-| --- | --- |
-| Geometry and measure | [Hausdorff product dimension](test/geometry-product-dimension/problem.md) |
-| Lie algebras and representations | [Admissible lattice reduction](test/lie-module-irreducibility/problem.md) |
-| PDE | [Sphere-valued wave-map energy](test/wave-map-energy/problem.md) |
-
-Each invocation creates a new `rigorous-proof/<run-id>/` beside its original
-problem. Read that run's `case-result.json` and gate reports for its actual
-acceptance scope. Previous test-result directories have been removed from the
-current tree; their original records remain available in Git history.
+Here `rigorous-proof/` is the generated output-folder name, not a required
+installation directory. Supply your own proof or paper outside the installed
+skill. Mathematical example runs and paper benchmarks are kept separately from
+this software checkout. Read each run's `case-result.json` and gate reports for
+its actual acceptance scope.
 
 ## Runtime
 
-The only directory you need to copy from this repository is `rigorous-proof/`.
-It contains the four mathematical responsibilities, their shared Python
-controllers, software tests, and one skill entry.
-[Operator instructions](rigorous-proof/nl0/references/operation.md)
+The root directory contains the four mathematical responsibilities, their shared
+Python controllers, software tests, and one skill entry. The optional
+`library/` catalog and `tests/` software suite are not required for ordinary
+proof execution. Keep the runtime directories beside `SKILL.md` when installing.
+[Operator instructions](nl0/references/operation.md)
 cover commands, profile selection, local output, repair, status and cleanup.
+The commands below assume the repository or installed skill root is the working
+directory. From another directory, invoke `nl0/scripts/yui.py` using its actual
+installation path; bundled resources are resolved from the script location.
 
 ```sh
-python3 -B rigorous-proof/nl0/scripts/yui.py doctor
-python3 -B rigorous-proof/nl0/scripts/yui.py selftest
+python3 -B nl0/scripts/yui.py doctor
+python3 -B nl0/scripts/yui.py selftest
 ```
 
 The current isolated carrier requires macOS `sandbox-exec`, Python, ripgrep,
@@ -90,7 +90,7 @@ For example, create a virtual environment for the Python alternative:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install pypdf
-.venv/bin/python -B rigorous-proof/nl0/scripts/yui.py doctor
+.venv/bin/python -B nl0/scripts/yui.py doctor
 ```
 
 Use that same `.venv/bin/python` for subsequent Yui commands. Yui does not
@@ -124,34 +124,34 @@ used to launch Yui:
 ```sh
 export YUI_MATHLIB_ROOT="/absolute/path/to/mathlib4"
 export YUI_LEAN_ROOT="/absolute/path/to/lean-4.32.2"
-python3 -B rigorous-proof/nl0/scripts/yui.py doctor
+python3 -B nl0/scripts/yui.py doctor
 ```
 
 The `doctor` command checks the environment and prints the resolved paths under
 `resolved_environment`. Location overrides do not override version requirements:
-[`toolchain/lock.json`](rigorous-proof/toolchain/lock.json) pins the Mathlib
+[`toolchain/lock.json`](toolchain/lock.json) pins the Mathlib
 commit, dependency revisions, dependency manifest and Lean version. Startup
 checks reject incompatible versions or tracked source changes in Mathlib and
 its pinned dependencies. The resolved Mathlib location is then used both for
 source search/read tools and for Lean's compiled-library search paths.
-See [`runtime_config.py`](rigorous-proof/nl0/scripts/runtime_config.py) for path
-selection and checks, and [`pilot_common.py`](rigorous-proof/nl0/scripts/pilot_common.py)
+See [`runtime_config.py`](nl0/scripts/runtime_config.py) for path
+selection and checks, and [`pilot_common.py`](nl0/scripts/pilot_common.py)
 for the Lean environment.
 
 ### What `toolchain/` contains
 
-[`rigorous-proof/toolchain/`](rigorous-proof/toolchain/) stores environment
+[`toolchain/`](toolchain/) stores environment
 reproducibility records, not the Lean executable, Mathlib source or compiled
 library cache:
 
-- [`lock.json`](rigorous-proof/toolchain/lock.json) pins the Lean version,
+- [`lock.json`](toolchain/lock.json) pins the Lean version,
   Mathlib commit, dependency revisions and dependency-manifest hash. Startup
   checks compare the installed environment against these requirements and
   reject tracked source changes. Local installation paths are resolved by
   `nl0/scripts/runtime_config.py`, using the defaults and overrides above.
   Historical model observations in this record do not select a run's model;
   phase defaults and explicit job profiles do that.
-- [`migration.json`](rigorous-proof/toolchain/migration.json) records which
+- [`migration.json`](toolchain/migration.json) records which
   source repository/commit this harness was imported from and the original
   source checks and execution boundary. It is historical provenance, not an
   installer or an automatic toolchain-upgrade script.
@@ -185,8 +185,8 @@ The repository provides only three demonstration entries, not a comprehensive
 Mathlib index or a source of preapproved mathematical answers.
 
 The catalog is optional: normal Mathlib search, source reading and native
-queries work without it. Yui looks beside the installed `rigorous-proof/`
-directory by default; `YUI_LIBRARY_ROOT` can select another catalog directory.
+queries work without it. Yui looks in `library/` inside the installed skill root
+by default; `YUI_LIBRARY_ROOT` can select another catalog directory.
 Runs never update it automatically. See the [maintenance guide](library/README.md)
 for finding a run's source receipts, explicitly importing selected declarations,
 adding search tags, validating evidence and preserving version bindings.
@@ -195,8 +195,8 @@ adding search tags, validating evidence and preserving version bindings.
 
 After a rigorous-proof workflow, users may also choose to extract generalizable
 Lean implementation strategies from its work records and maintain
-[`rigorous-proof/nl02lean/bank/`](rigorous-proof/nl02lean/bank/rule.md).
-Follow its [`rule.md`](rigorous-proof/nl02lean/bank/rule.md): record prerequisites,
+[`nl02lean/bank/`](nl02lean/bank/rule.md).
+Follow its [`rule.md`](nl02lean/bank/rule.md): record prerequisites,
 failure conditions and verification, remove case-specific names and proof
 material, and retain only general procedures or broad-field strategies.
 The live bank supplies advice, not theorem permissions or accepted proofs.
@@ -208,16 +208,15 @@ workflows keep strategy lookup disabled.
 
 | Path | Contents |
 | --- | --- |
-| `rigorous-proof/` | Complete skill, runtime, shared controllers and software controls |
-| `rigorous-proof/nl0/` | Stage one: NL0/Audit A rules (`references/`), programs (`scripts/`) and templates (`templates/`) |
-| `rigorous-proof/nl02lean/` | Stage two: Lean/Audit B rules, programs, templates and optional strategy bank |
-| `rigorous-proof/tests/` | One harness-wide software suite covering shared runtime, NL0, Lean and cross-stage behavior; see the [test guide](rigorous-proof/tests/README.md) |
-| `rigorous-proof/toolchain/` | Version lock and historical source-migration records; actual tools are installed separately |
+| `SKILL.md` | Skill entry and links to the two stages |
+| `config.json` | Default profiles and execution configuration |
+| `nl0/` | Stage one: NL0/Audit A rules (`references/`), programs (`scripts/`) and templates (`templates/`) |
+| `nl02lean/` | Stage two: Lean/Audit B rules, programs, templates and optional strategy bank |
+| `tests/` | One harness-wide software suite covering shared runtime, NL0, Lean and cross-stage behavior; see the [test guide](tests/README.md) |
+| `toolchain/` | Version lock and historical source-migration records; actual tools are installed separately |
 | `library/` | Optional user-maintained Mathlib catalog, three demonstrations and maintenance guide |
-| `test/` | Three original mathematical examples; workflow outputs are generated beside each problem |
-| `benchmark/` | Original paper input; temporary benchmark outputs have been removed |
 
-The [`nl0-audit-a-2026-10-25`](rigorous-proof/NL0_AUDIT_A_FREEZE.json) file records
+The [`nl0-audit-a-2026-10-25`](NL0_AUDIT_A_FREEZE.json) file records
 a historical baseline, including its old paths and hashes. Current runs bind
 their actual installed rules and runtime separately. The current elementary
 profile keeps logic, finite calculations and core typed syntax; it no longer
@@ -236,10 +235,10 @@ fixed-NL0 continuation experiments.
 
 For a clear intended theorem, the invoking agent extracts its complete target
 and proceeds without an extra user question. Multiple independent plausible
-targets require clarification. The [target-selection contract](rigorous-proof/nl0/references/target-selection.md)
+targets require clarification. The [target-selection contract](nl0/references/target-selection.md)
 binds the selected statements to the supplied document before model dispatch.
 
-Missing external originals follow the [ordered source procedure](rigorous-proof/nl0/references/source-retrieval.md):
+Missing external originals follow the [ordered source procedure](nl0/references/source-retrieval.md):
 arXiv full text first, Google full-text search, Google DOI discovery, then
 Sci-Hub lookup with the confirmed DOI. Already supplied adequate originals are
 reused. The author and global reviewer receive explicit engine selection and
@@ -252,29 +251,6 @@ Missing tools, unresolved verification, redirects and access failures are
 retained as actual receipts. Downloads preserve original bytes, version and
 hashes; the relevant theorem, definitions and hypotheses still require review.
 When the full primary text is unavailable but a complete explicit
-secondary statement exists, the [conditional-source route](rigorous-proof/nl0/references/conditional-sources.md)
+secondary statement exists, the [conditional-source route](nl0/references/conditional-sources.md)
 can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
 never ordinary full PASS; actual mathematical failures remain blocking.
-
-The direct benchmark keeps its prompt source in
-[`prompt.py`](benchmark/pure-model-result/prompt.py). Its
-[native continuation runner](benchmark/pure-model-result/runner.py) generates
-`prompt.md` inside the selected output directory using the actual paper, Lean
-executable and Mathlib paths. The default paper is resolved relative to the
-runner; tool locations use the current user's defaults and `YUI_LEAN_ROOT`,
-`YUI_MATHLIB_ROOT` and `YUI_CODEX_BINARY` overrides. Explicit `--paper`, `--lean`,
-`--mathlib` and `--codex` arguments take precedence. Preview without a model call:
-
-```sh
-python3 -B benchmark/pure-model-result/runner.py \
-  --work /absolute/path/to/fresh-output --prepare-only
-```
-
-Omitting `--prepare-only` starts the benchmark. A started output directory or
-a conflicting saved prompt is preserved; select a fresh directory for a new run.
-The runner retains one session across incomplete normal turns, checks the
-complete Lean file, exported declaration and trust report, and records
-CANDIDATE_READY only.
-Independent semantic acceptance remains a separate required assessment.
-The native CLI continuation uses the [documented exec/resume interface](https://learn.chatgpt.com/docs/non-interactive-mode)
-and the locally checked CLI flags. No new benchmark is launched by these edits.

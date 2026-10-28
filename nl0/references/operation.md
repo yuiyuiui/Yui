@@ -62,7 +62,7 @@ The user need not type commands or prepare intermediate files. After [resolving 
 configuration, the invoking agent calls the installed entry. For example:
 
 ```sh
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py run /papers/example/proof.md \
+python3 -B /path/to/Yui/nl0/scripts/yui.py run /papers/example/proof.md \
   --track full \
   --nl0-model gpt-6.1-sol --nl0-effort high --nl0-speed standard \
   --lean-model gpt-6-luna --lean-effort high --lean-speed standard \
@@ -199,7 +199,7 @@ For a run that already exited before this in-session recovery was available,
 the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
 
 ```sh
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
+python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
 ```
 
 This prepares a new owned run, checks that the old processes exited, and binds
@@ -220,11 +220,11 @@ in-session remote retry throughout the remaining workflow.
 ## Observe, stop and clean
 
 ```sh
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py status /paper/rigorous-proof/RUN
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN --task T003
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN
-python3 -B /path/to/rigorous-proof/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN --apply
+python3 -B /path/to/Yui/nl0/scripts/yui.py status /paper/rigorous-proof/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN --task T003
+python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN --apply
 ```
 
 Status writes coalesce to at most once per second, with a five-second liveness

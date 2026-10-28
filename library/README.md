@@ -1,7 +1,7 @@
 # Optional personal Mathlib library
 
-This directory is a user-maintained search catalog outside the `rigorous-proof`
-skill. After a formalization run, you may add useful Mathlib theorems encountered
+This directory is an optional user-maintained search catalog, separate from the
+NL0 and Lean runtime code. After a formalization run, you may add useful Mathlib theorems encountered
 during that work. Over time, the names and search tags can form a convenient
 index for your own mathematical fields. Maintenance is optional and explicit;
 Yui does not harvest completed runs or update this directory automatically.
@@ -30,9 +30,9 @@ remain available when this catalog is absent or has no matching entry.
 - This README is maintenance documentation, not a mathematical input supplied
   to proof authors or reviewers.
 
-By default, Yui looks for `library/foundations.json` beside the installed
-`rigorous-proof/` directory. A standalone skill installation does not require
-this folder. To select a catalog stored elsewhere, set its directory before
+By default, Yui looks for `library/foundations.json` inside the installed skill
+root, beside `SKILL.md` and `config.json`. A standalone skill installation does
+not require this folder. To select a catalog stored elsewhere, set its directory before
 launching Yui:
 
 ```sh
@@ -46,8 +46,8 @@ invalid selected evidence is reported rather than silently trusted.
 Run these commands from the Yui repository root:
 
 ```sh
-python3 -B rigorous-proof/nl0/scripts/library_catalog.py check
-python3 -B rigorous-proof/nl0/scripts/library_catalog.py search "finite sum integral"
+python3 -B nl0/scripts/library_catalog.py check
+python3 -B nl0/scripts/library_catalog.py search "finite sum integral"
 ```
 
 `check` validates the stored hashes and metadata against the currently pinned
@@ -79,7 +79,7 @@ still require checking in the new problem.
    path and `M005` below with the actual receipt and ID selected above:
 
    ```sh
-   python3 -B rigorous-proof/nl0/scripts/library_catalog.py add \
+   python3 -B nl0/scripts/library_catalog.py add \
      --receipt "/absolute/path/to/library-sources.json" \
      --source-id M005 \
      --tag integral --tag finite --tag sum
@@ -106,7 +106,7 @@ The global `--library-root` option can select a different destination for any
 maintenance command, before its subcommand:
 
 ```sh
-python3 -B rigorous-proof/nl0/scripts/library_catalog.py \
+python3 -B nl0/scripts/library_catalog.py \
   --library-root "/absolute/path/to/my-mathlib-library" check
 ```
 
