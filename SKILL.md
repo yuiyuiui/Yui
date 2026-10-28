@@ -61,6 +61,10 @@ Positively identified temporary remote-service failures retry within the same
 isolated thread, preserving its drafts and tool receipts. Keep the selected
 profile and record every fault/wait; use [operational recovery](nl0/references/operation.md#remote-service-recovery)
 for backoff, cancellation and explicit continuation of an already exited run.
+For a previously stopped inherited probe-directory collision, the same operation
+reference documents a separate guarded `--repair-local-tool` continuation after
+verified software repair and explicit owner authorization; it restores the saved
+located author repair rather than restarting the original proof.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.

@@ -107,6 +107,12 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
         import interrupted
         restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
         progress(job['case'],'NL0_RELEASED_SOURCE_RESTORED',directory=str(restored),new_author_model_called=False)
+    elif (job.get('resume') or {}).get('mode')=='author-repair':
+        import interrupted
+        baseline,obligations,prior=interrupted.restore_repair(job)
+        seen.add(source_key(baseline))
+        progress(job['case'],'NL0_REPAIR_CHECKPOINT_RESTORED',baseline=str(baseline),
+                 original_repair=job['resume']['repair_directory'],new_author_required=True)
     while True:
         revision+=1;author=root/'nl0'/f'{revision:04d}';audit=root/'audit-a'/f'{revision:04d}'
         if restored is not None:

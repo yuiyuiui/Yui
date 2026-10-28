@@ -378,6 +378,27 @@ def expand_submission(value, documents, drafts=None):
     return result,provenance
 
 
+def reserve_probe_directory(case, identifier, sequence):
+    """Reserve fresh evidence atomically, including after inherited probes."""
+    if not re.fullmatch(r'M\d{3,}', identifier) or type(sequence) is not int or sequence < 1:
+        raise ValueError('Expected an M source ID and a positive probe sequence')
+    root = Path(case).resolve() / 'library'
+    if root.is_symlink():
+        raise OSError('Probe evidence root must not be a symbolic link')
+    root.mkdir(parents=True, exist_ok=True)
+    while True:
+        out = root / f'{identifier}-{sequence:04d}'
+        try:
+            out.mkdir()
+            return out
+        except FileExistsError:
+            if out.is_symlink() or not out.is_dir():
+                raise OSError('Probe evidence reservation encountered an unsafe occupied path: '+str(out))
+            # A prior receipt, failed query or concurrent caller owns this
+            # directory. Never overwrite it or infer that its query matches.
+            sequence += 1
+
+
 def signature_probe(case, identifier, declaration, module, sequence, *, timeout=None, use_catalog=True, on_native=None):
     """Only validated identifiers enter this trusted, sandboxed query program."""
     case=Path(case).resolve()
@@ -390,8 +411,7 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
         raise ValueError('Expected a dotted Mathlib module name, for example Mathlib.Topology.Basic; '
                          'received '+repr(module)+'. Omit this optional locator hint to resolve the actual native module. Paths and Lean code are not accepted.')
     lock = load_lock()
-    out = Path(case) / 'library' / f'{identifier}-{sequence:04d}'
-    out.mkdir(parents=True, exist_ok=False)
+    out = reserve_probe_directory(case, identifier, sequence)
     if use_catalog:
         from library_catalog import cached_probe
         cached=cached_probe(identifier,declaration,module,lock)

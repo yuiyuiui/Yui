@@ -178,6 +178,37 @@ An unknown program defect preserves the current phase/artifact checkpoint and
 requires a verified software fix; it is not a mathematical rejection, permission
 to rewrite proof rules, or a reason to replay the whole problem from scratch.
 
+### Inherited probe-directory collisions
+
+Library probes reserve a fresh numbered evidence directory atomically. Existing
+normal directories, including inherited receipts and failed probes, are retained
+and skipped. A new query returns its actual newly reserved receipt path and hash;
+an occupied directory never supplies implicit source approval. Unsafe occupied
+paths and unrelated I/O failures remain explicit execution faults, not failed
+mathematical judgments. The stage log retains the failing tool and original
+exception before cleanup, and the case result preserves that execution cause.
+
+For an old run stopped by the former inherited-directory allocator defect, after
+installing and verifying the software repair, an explicitly authorized owner can
+prepare a guarded continuation:
+
+```sh
+python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --repair-local-tool --prepare-only
+```
+
+This narrowly supports a normal-policy NL0 author-repair stage that stopped on
+an actual `probe_library` directory collision before any new draft was submitted.
+It verifies complete owned PID/start/PGID and group exits, the actual terminal
+tool call, the unchanged inherited receipt, the released baseline, frozen input
+manifest and exact located review obligations. Unknown faults, live groups,
+changed evidence, a partial repair draft or changed configuration are rejected.
+The new job starts at the located author-repair boundary; it does not replay
+initial authoring, grant Audit A, revive the exited model thread or discard the
+old run and costs. Changed contexts require fresh independent review under the
+existing exact-scope reuse rules. Inspect the prepared job, then use `execute
+NEW_RUN --detach` and the normal host-monitor handoff. The same guarded resume
+can dispatch directly with `--detach` when prepare-only inspection is not needed.
+
 ## Remote-service recovery
 
 The common model carrier retries positively identified temporary remote errors

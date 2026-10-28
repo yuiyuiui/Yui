@@ -31,8 +31,10 @@ def remote_stop(stage):
 
 def validate_descriptor(job):
     value=job['resume']
-    if (set(value)!={'version','prior_run','mode','author_directory','campaigns'}
-            or value['version']!=VERSION or value['mode'] not in {'author','audit-a'}
+    expected={'version','prior_run','mode','author_directory','campaigns'}
+    if value.get('mode')=='author-repair':expected.add('repair_directory')
+    if (set(value)!=expected
+            or value['version']!=VERSION or value['mode'] not in {'author','audit-a','author-repair'}
             or job['track'] not in {'nl0','full'}):raise ValueError('Unsupported service-resume contract')
     prior=Path(value['prior_run']).resolve();author=Path(value['author_directory']).resolve()
     if prior==Path(job['root']).resolve():
@@ -43,6 +45,8 @@ def validate_descriptor(job):
         raise ValueError('Resume author is outside its bound authority lineage')
     if previous['case']!=job['case'] or previous['profiles']!=job['profiles']:
         raise ValueError('Resume cannot change the case identity or model profiles')
+    if previous['max_concurrency']!=job['max_concurrency'] or previous['policy']!=job['policy']:
+        raise ValueError('Resume cannot change the worker count or execution policy')
     if previous['documents'][0]['sha256']!=job['documents'][0]['sha256']:
         raise ValueError('Resume cannot change the original problem')
     if previous.get('target_selection')!=job.get('target_selection'):
@@ -53,6 +57,13 @@ def validate_descriptor(job):
         if not path.is_relative_to(prior/'audit-a') and str(path) not in inherited.get('campaigns',[]):
             raise ValueError('Resume campaign escapes its bound case lineage')
         required.add(str(path/'campaign.json'))
+    if value['mode']=='author-repair':
+        result=json.loads((prior/'case-result.json').read_text());result=result.get('result',result)
+        boundary=local_tool_boundary(prior,previous,result)
+        if (str(boundary['author'])!=str(author) or str(boundary['repair'])!=value['repair_directory']
+                or boundary['campaigns']!=value['campaigns']):
+            raise ValueError('Resume differs from the verified located author-repair boundary')
+        required.update(str(p) for p in boundary['files'])
     if not required<={row['path'] for row in job['authority_bindings']}:
         raise ValueError('Missing prior-run authority binding')
 
@@ -75,6 +86,88 @@ def audit_boundary(prior,old,campaign):
     campaigns=list(dict.fromkeys([*old.get('resume',{}).get('campaigns',[]),
         *[str(p.parent) for p in sorted((prior/'audit-a').glob('*/campaign.json'))]]))
     return author,source,campaigns
+
+
+def last_tool_call(stage):
+    """Read a bounded metadata suffix, never replay model-generated code."""
+    path=Path(stage)/'events.jsonl'
+    with path.open('rb') as stream:
+        size=stream.seek(0,2);offset=max(0,size-262144);stream.seek(offset)
+        if offset:stream.readline()
+        lines=stream.read().splitlines()
+    for line in reversed(lines):
+        try:event=json.loads(line)
+        except (ValueError,UnicodeError):continue
+        if event.get('method')=='item/tool/call':return event.get('params',{})
+    raise ValueError('No actual terminal tool call for local-tool recovery')
+
+
+def local_tool_boundary(prior,old,result):
+    """Recognize only inherited probe collisions before a repair draft exists."""
+    import re
+    import full_workflow
+    import case_runner
+    import source_preparation
+    from execution_health import record_qualification
+    from owner_observation import snapshot
+    ownership=snapshot([prior])
+    if not ownership['all_terminal'] or not ownership['all_process_exits_verified']:
+        raise ValueError('Local-tool recovery requires verified owned process and group exits')
+    evidence=Path(result.get('evidence') or '').resolve()
+    try:relative=evidence.relative_to(prior)
+    except ValueError:raise ValueError('Local-tool evidence escapes the prior run')
+    if (len(relative.parts)!=4 or relative.parts[0]!='nl0'
+            or relative.parts[2:]!=('stage','result.json') or old['policy']!='normal'):
+        raise ValueError('Local-tool recovery requires a located normal-policy author repair')
+    stage=evidence.parent;repair=stage.parent
+    failure=json.loads(evidence.read_text())
+    if (failure.get('status')!='UNFINISHED' or failure.get('isolation_violation')
+            or failure.get('temporary_workspace_removed') is not True
+            or not record_qualification(failure)['identity_and_input_boundary_verified']
+            or any((stage/name).exists() for name in ['tool-provenance-rejections.jsonl','isolation-violations.jsonl'])
+            or list((stage/'case').glob('candidate-*.json'))):
+        raise ValueError('Unsupported local-tool failure or nonempty draft checkpoint')
+    call=last_tool_call(stage);args=call.get('arguments',{})
+    if isinstance(args,str):args=json.loads(args)
+    identifier=args.get('id','')
+    if call.get('tool')!='probe_library' or not re.fullmatch(r'M\d{3,}',identifier):
+        raise ValueError('The terminal call is not a verified library probe')
+    calls=[json.loads(line) for line in (stage/'tools.jsonl').read_text().splitlines() if line.strip()]
+    sequence=1+sum(row.get('tool') in {'probe_library','probe_background'}
+                   and row.get('result',{}).get('feedback_kind')!='tool_execution_fault' for row in calls)
+    collision=stage/'case/library'/f'{identifier}-{sequence:04d}'
+    expected='FileExistsError: [Errno 17] File exists: '+repr(str(collision))
+    if failure.get('execution_fault')!=expected:
+        raise ValueError('Not the verified inherited probe-directory collision')
+    origin_path=repair/'input-origin.json';origin=json.loads(origin_path.read_text())
+    if origin.get('warm_repair') is not True or origin.get('inputs')!=bind(prior/'inputs/inputs.json'):
+        raise ValueError('No bound original inputs for the interrupted repair')
+    number=int(repair.name)
+    if number<2:raise ValueError('No prior Audit A boundary for local-tool recovery')
+    author,source,campaigns=audit_boundary(prior,old,prior/'audit-a'/f'{number-1:04d}')
+    if origin.get('baseline')!=str(source):raise ValueError('Repair baseline differs from the released source')
+    inputs=repair/'inputs';manifest=inputs/'inputs.json';files={evidence,stage/'events.jsonl',stage/'tools.jsonl',origin_path,manifest,prior/'execution-status.json'}
+    for row in json.loads(manifest.read_text())['inputs']:
+        path=(inputs/row['path']).resolve()
+        if not path.is_relative_to(inputs) or bind(path)['sha256']!=row['sha256']:
+            raise ValueError('Interrupted repair input binding changed')
+        files.add(path)
+    baseline={'spec':json.loads((source/'spec.json').read_text()),'graph':json.loads((source/'nl0.json').read_text())}
+    if json.loads((inputs/'baseline.json').read_text())!=baseline:
+        raise ValueError('Saved repair baseline differs from its actual released author')
+    obligations=json.loads((inputs/'repair-obligations.json').read_text())
+    if obligations!=case_runner.repair_obligations(source,prior/'audit-a'/f'{number-1:04d}') or not obligations['issues']:
+        raise ValueError('Saved repair obligations differ from actual located review findings')
+    original=source/'library'/collision.name/'library-sources.json'
+    copied=collision/'library-sources.json'
+    if (collision.is_symlink() or original.is_symlink() or copied.is_symlink()
+            or original not in source_preparation.evidence_paths(baseline['graph'],source)
+            or not original.is_file() or not copied.is_file()
+            or original.read_bytes()!=copied.read_bytes()):
+        raise ValueError('The occupied probe directory lacks intact inherited evidence')
+    files.update({original,copied})
+    return {'author':author,'source':source,'repair':repair,'campaigns':campaigns,'files':files,
+            'collision':str(collision),'obligations':obligations}
 
 
 def bookkeeping_boundary(prior,old,result):
@@ -105,7 +198,7 @@ def bookkeeping_boundary(prior,old,result):
     return author,source,campaigns,faults
 
 
-def prepare(prior_run, *, repair_evidence=False):
+def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
     """No model calls; reuse only explicit, unchanged, completed review scopes."""
     import full_workflow
     import source_preparation
@@ -119,8 +212,13 @@ def prepare(prior_run, *, repair_evidence=False):
     result=json.loads(result_path.read_text());result=result.get('result',result)
     if old['track'] not in {'nl0','full'} or result.get('completion',{}).get('acceptance_target_satisfied'):
         raise ValueError('Use this recovery only for interrupted NL0/Audit A work')
-    campaigns=[];mode='author';index_faults=[]
-    if repair_evidence:
+    if repair_evidence and repair_local_tool:raise ValueError('Select one explicit repair mode')
+    campaigns=[];mode='author';index_faults=[];local=None
+    if repair_local_tool:
+        local=local_tool_boundary(prior,old,result)
+        author,source,campaigns=local['author'],local['source'],local['campaigns']
+        evidence=Path(result['evidence']);mode='author-repair'
+    elif repair_evidence:
         author,source,campaigns,index_faults=bookkeeping_boundary(prior,old,result)
         evidence=result_path;mode='audit-a'
     else:
@@ -154,9 +252,10 @@ def prepare(prior_run, *, repair_evidence=False):
         remaining=(datetime.fromisoformat(deadline.replace('Z','+00:00'))-datetime.now(timezone.utc)).total_seconds()
         if remaining<=0:raise ValueError('The explicit case deadline is exhausted; resume cannot reset it')
     paths={prior/'job.json',result_path,evidence,author/'stage/result.json'}
-    if repair_evidence:paths.add(prior/'execution-status.json')
+    if local:paths.update(local['files'])
+    elif repair_evidence:paths.add(prior/'execution-status.json')
     else:paths.add(evidence.parent/'events.jsonl')
-    if mode=='audit-a':
+    if mode in {'audit-a','author-repair'}:
         source=author/'stage/case'
         _,files=source_preparation.read_source(source/'nl0.json',source/'spec.json')
         paths.update(files)
@@ -175,6 +274,7 @@ def prepare(prior_run, *, repair_evidence=False):
                 paths.add(previous_case/binding['path']);paths.update(stored.values())
     descriptor={'version':VERSION,'prior_run':str(prior),'mode':mode,
                 'author_directory':str(author),'campaigns':campaigns}
+    if local:descriptor['repair_directory']=str(local['repair'])
     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],
         materials=[row['original']['path'] for row in old['documents'][1:] if row.get('extraction')!='target-selection'],
@@ -184,9 +284,24 @@ def prepare(prior_run, *, repair_evidence=False):
         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,
         'new_runtime_bound':True,'partial_reviews_are_not_inherited':True,
         'prior_judgments_visible_to_fresh_reviewers':False,'old_usage_included_in_new_usage':False,
-        'evidence_index_recovery':index_faults,'recovery_requires_new_model_reviews':not repair_evidence})
+        'evidence_index_recovery':index_faults,'recovery_requires_new_model_reviews':not repair_evidence,
+        **({'local_tool_recovery':{'kind':'INHERITED_PROBE_DIRECTORY_COLLISION','collision':local['collision'],
+             'checkpoint':'RELEASED_BASELINE_AND_LOCATED_REPAIR_OBLIGATIONS',
+             'original_repair_directory':str(local['repair']),'old_partial_usage':result.get('usage'),
+             'qualified_unchanged_scopes_may_be_reused':True}} if local else {})})
     jobs.validate(job)
     return job
+
+
+def restore_repair(job):
+    """Restore an actual located repair, without treating its baseline as PASS."""
+    jobs.validate(job)
+    value=job['resume'];source=Path(value['author_directory'])/'stage/case'
+    original=Path(value['repair_directory'])/'inputs/repair-obligations.json'
+    write(Path(job['root'])/'resumed-repair.json',{'original_source':bind(source/'nl0.json'),
+        'original_spec':bind(source/'spec.json'),'original_obligations':bind(original),
+        'new_author_required':True,'fresh_review_of_changed_context_required':True})
+    return source,json.loads(original.read_text()),list(value['campaigns'])
 
 
 def restore_source(job):

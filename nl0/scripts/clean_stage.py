@@ -395,6 +395,16 @@ class ArtifactStage(pilot.Stage):
         with use_library(self.logs/'harness-snapshot/library'):
             return self._dispatch(name,args)
 
+    def record_tool_fault(self, name, args, error, started):
+        """Retain an actual execution failure before the carrier cleans up."""
+        self.tool_execution_fault = {'tool':name, 'error_type':type(error).__name__,
+            'error':str(error), 'errno':getattr(error,'errno',None),
+            'retryable':False, 'scope':'Local tool execution; no mathematical judgment.'}
+        pilot.carrier.append(self.logs/'tools.jsonl', {'tool':name, 'arguments':args,
+            'result':{'accepted':False, 'stage_complete':False,
+                      'feedback_kind':'tool_execution_fault', **self.tool_execution_fault},
+            'wall_seconds':time.monotonic()-started})
+
     def _dispatch(self, name, args):
         if name in {'search_mathlib', 'read_mathlib'}:
             if name not in self.tool_names or self.accepted is not None:
@@ -540,7 +550,13 @@ class ArtifactStage(pilot.Stage):
                 if name in {'submit_artifact','submit_draft'}:
                     if result['stage_complete']:self.accepted = value
         except (ValueError, KeyError, TypeError, IndexError, PermissionError) as e:
+            if isinstance(e, PermissionError) and e.errno is not None:
+                self.record_tool_fault(name,args,e,started)
+                raise
             result = {'accepted': False, 'error': str(e), 'feedback_kind': 'candidate_rejected'}
+        except Exception as e:
+            self.record_tool_fault(name,args,e,started)
+            raise
         if self.artifact_kind=='nl0' and name in {'check_artifact','submit_artifact','check_draft','submit_draft'}:
             result['candidate_number']=self.validator.attempt or None
             result['revision_note']='Preserve accumulated proof edits with base_candidate and explicit patches, or resubmit the exact draft with accept_candidate. Restarting a frozen base_input requires reset_base:true. Full validation still applies.'

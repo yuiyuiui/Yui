@@ -87,6 +87,20 @@ class WorkflowPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(StageFailure,'matching complete author submit'):
             f.nl0_artifact_for_audit(directory)
 
+    def test_tool_execution_fault_survives_the_missing_submission_gate(self):
+        directory,row=self.submitted_fixture()
+        row.update(status='UNFINISHED',execution_health='FAULT',
+            execution_fault='OSError: Synthetic disk failure',
+            tool_execution_fault={'tool':'probe_library','error_type':'OSError','retryable':False})
+        a.write(directory/'stage/result.json',row)
+        with self.assertRaises(StageFailure) as stopped:f.nl0_artifact_for_audit(directory)
+        result=stopped.exception.result
+        self.assertEqual(result['status'],'EXECUTION_FAULT')
+        self.assertIn('disk failure',result['error'])
+        self.assertEqual(result['tool_execution_fault']['tool'],'probe_library')
+        self.assertTrue(result['checkpoint']['preserve_completed_work'])
+        self.assertFalse(result['checkpoint']['restart_whole_workflow'])
+
     def test_unchanged_accepted_source_does_not_launch_a_new_audit(self):
         (self.source/'audit-a.json').write_text('{}')
         with patch.object(a.nl0,'validate',return_value=({'current_standard_receipt_valid':True,'audit_status':'SYNTHETIC_ONLY'},)),\

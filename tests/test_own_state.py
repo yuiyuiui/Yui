@@ -12,6 +12,7 @@ from clean_stage import ArtifactStage
 import own_state
 import exposure
 from run_pilot import MODEL
+from unittest.mock import patch
 
 
 class OwnStateTests(unittest.TestCase):
@@ -35,6 +36,39 @@ class OwnStateTests(unittest.TestCase):
     def draft(self):
         result=self.worker.dispatch('check_draft',{'artifact':deepcopy(self.value)})
         self.assertTrue(result['accepted']);return result['candidate_number']
+
+    def test_native_tool_io_failure_is_logged_as_execution_not_mathematical_feedback(self):
+        for error in [OSError(5,'Synthetic I/O failure'),PermissionError(13,'Synthetic denied write')]:
+            with patch('artifact_validation.signature_probe',side_effect=error):
+                with self.assertRaises(type(error)):
+                    self.worker.dispatch('probe_library',{'id':'M021','declaration':'Synthetic.source'})
+            row=json.loads((self.worker.logs/'tools.jsonl').read_text().splitlines()[-1])
+            self.assertEqual(row['tool'],'probe_library')
+            self.assertEqual(row['result']['feedback_kind'],'tool_execution_fault')
+            self.assertFalse(row['result']['accepted']);self.assertFalse(row['result']['retryable'])
+            self.assertEqual(self.worker.tool_execution_fault['error_type'],type(error).__name__)
+
+    def test_bad_source_selector_returns_feedback_and_keeps_the_author_active(self):
+        result=self.worker.dispatch('probe_library',{'id':'invalid','declaration':'Synthetic.source'})
+        self.assertFalse(result['accepted'])
+        self.assertEqual(result['feedback_kind'],'candidate_rejected')
+        self.assertIsNone(self.worker.accepted)
+        self.assertFalse(hasattr(self.worker,'tool_execution_fault'))
+
+    def test_actual_tool_failure_reaches_stage_and_case_results_without_a_model(self):
+        import full_workflow
+        from execution_health import StageFailure
+        def failing_start():
+            self.worker.dispatch('probe_library',{'id':'M021','declaration':'Synthetic.source'})
+        with patch('artifact_validation.signature_probe',side_effect=OSError(5,'Synthetic storage failure')), \
+             patch.object(self.worker,'start_process',side_effect=failing_start):
+            result,_=self.worker._execute()
+        self.assertEqual(result['stop_reason'],'LOCAL_TOOL_EXECUTION_FAULT')
+        self.assertEqual(result['tool_execution_fault']['tool'],'probe_library')
+        self.assertEqual(result['api_calls'],0);self.assertEqual(result['lean_calls'],0)
+        with self.assertRaises(StageFailure) as stopped:full_workflow.nl0_artifact_for_audit(self.worker.logs.parent)
+        self.assertEqual(stopped.exception.result['status'],'EXECUTION_FAULT')
+        self.assertTrue(stopped.exception.result['checkpoint']['preserve_completed_work'])
 
     def sent(self):
         user=self.worker.prompt();self.worker.allowed_user_messages.add(user)

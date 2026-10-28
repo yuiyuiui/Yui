@@ -175,6 +175,13 @@ Cleanup previews unless `--apply` is supplied. It targets only explicitly
 selected owned run directories, confirms process exit and preserves original
 inputs, the installed skill and the shared toolchain. See the operator instructions.
 
+For an old author-repair run stopped by the inherited probe-directory allocator
+defect, the verified runtime supports an explicitly authorized
+`resume OLD_RUN --repair-local-tool --prepare-only`. It preserves the released
+baseline, exact recorded repair obligations, prior evidence and costs; it rejects
+live processes, changed evidence and unsupported partial checkpoints. See
+[guarded local-tool recovery](nl0/references/operation.md#inherited-probe-directory-collisions).
+
 ### Foreground turn and ten-minute checks
 
 The invoking owner normally uses detached execution. After dispatch and process

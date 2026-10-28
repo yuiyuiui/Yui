@@ -35,8 +35,11 @@ def parsers(commands):
     p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
-    p.add_argument('--repair-evidence',action='store_true',
+    repairs=p.add_mutually_exclusive_group()
+    repairs.add_argument('--repair-evidence',action='store_true',
         help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
+    repairs.add_argument('--repair-local-tool',action='store_true',
+        help='Continue a verified inherited probe-directory collision from its saved pre-draft author-repair boundary')
     for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
@@ -121,6 +124,7 @@ def dispatch(args):
     if args.command=='resume':
         import interrupted
         prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
+                  interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
                   interrupted.prepare(path) for path in args.runs]
         if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)

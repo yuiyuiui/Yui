@@ -32,6 +32,13 @@ def nl0_artifact_for_audit(directory):
     directory=Path(directory);stage=directory/'stage'
     row=ir.load(stage/'result.json');checked=record_qualification(row)
     if row.get('status')=='CANCELLED':raise execution_state.Cancelled('NL0 author cancelled externally')
+    if row.get('execution_fault'):
+        raise StageFailure('EXECUTION_FAULT',row['execution_fault'],phase='nl0-authoring',
+            evidence=stage/'result.json',details={**checked,
+                'tool_execution_fault':row.get('tool_execution_fault'),
+                'recoverability':'VERIFIED_SOFTWARE_REPAIR_REQUIRED',
+                'checkpoint':{'stage_directory':str(directory),'preserve_completed_work':True,
+                              'restart_whole_workflow':False}})
     def reject(message):
         raise StageFailure(row.get('task_outcome') or 'AUTHOR_ARTIFACT_INELIGIBLE',message,
             evidence=stage/'result.json',details=checked)

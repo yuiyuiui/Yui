@@ -420,6 +420,9 @@ class Stage(carrier.Trial):
                 result['interrupt_error'] = str(stop_error)
         except Exception as e:
             result.update({'status':'UNFINISHED','execution_fault':type(e).__name__+': '+str(e)})
+            if getattr(self,'tool_execution_fault',None):
+                result.update(stop_reason='LOCAL_TOOL_EXECUTION_FAULT',
+                              tool_execution_fault=self.tool_execution_fault)
         finally:
             if getattr(self,'local_protocol_fault',None):
                 result['local_protocol_fault']=self.local_protocol_fault

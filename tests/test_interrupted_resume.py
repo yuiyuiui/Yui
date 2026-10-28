@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager, ExitStack
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
@@ -151,6 +152,113 @@ class InterruptedResumeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'known recoverable evidence-index'):
             with patch.object(interrupted,'inspect',return_value=EXITED):
                 interrupted.prepare(self.run,repair_evidence=True)
+
+    def local_fixture(self):
+        """Synthetic path/repair records; mathematical source gates stay mocked."""
+        import nl0_author
+        source=self.stage/'case';shutil.copytree(CORE/'tests/fixtures/closed-addition',source)
+        probe=source/'library/M021-0001/library-sources.json'
+        self.write(probe,{'synthetic_receipt_only':True})
+        self.write(self.stage/'result.json',{'status':'ACCEPTED','synthetic_fixture_only':True})
+        self.write(self.stage/'accepted.json',{'synthetic_fixture_only':True})
+        self.write(source/'author-check-progress.json',{'synthetic_fixture_only':True})
+        (self.stage/'tools.jsonl').write_text('')
+        campaign=self.run/'audit-a/0001';audit_a_campaign.prepare(source,self.run/'inputs',campaign)
+        reviewed=campaign/'R001/stage';reviewed.mkdir()
+        self.write(reviewed/'accepted.json',{'findings':[{'verdict':'FAIL',
+            'notes':'SYNTHETIC located repair obligation, not an audit.',
+            'locations':['/inference/argument/0/text']}]})
+        self.write(reviewed/'result.json',{'synthetic_fixture_only':True})
+        obligations=case_runner.repair_obligations(source,campaign)
+        repair=self.run/'nl0/0002'
+        nl0_author.prepare(self.run/'inputs',repair,baseline=source,obligations=obligations)
+        stage=repair/'stage';copied=stage/'case/library/M021-0001/library-sources.json'
+        self.write(copied,json.loads(probe.read_text()))
+        error='FileExistsError: [Errno 17] File exists: '+repr(str(copied.parent))
+        self.write(stage/'result.json',{'status':'UNFINISHED','execution_fault':error,
+            'temporary_workspace_removed':True,'isolation_violation':False,'execution_health':'FAULT',
+            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
+                'actual_model_ids':['gpt-6.1-sol'],'standard_tier_verified':True}})
+        self.write(stage/'events.jsonl',{'method':'item/tool/call','params':{
+            'tool':'probe_library','arguments':{'id':'M021','declaration':'Synthetic.query'}}})
+        (stage/'tools.jsonl').write_text('')
+        self.write(self.run/'case-result.json',{'result':{'status':'AUTHOR_ARTIFACT_INELIGIBLE',
+            'evidence':str(stage/'result.json'),'usage':{'status':'PARTIAL'},
+            'completion':{'acceptance_target_satisfied':False}}})
+        self.write(self.run/'execution-status.json',{'controller':{
+            'pid':2147483647,'pgid':2147483647,'started':'SYNTHETIC exited owner','state':'FINALIZED'},'processes':{}})
+        return source,probe,repair,campaign
+
+    @contextmanager
+    def local_source_gates(self,source,probe):
+        # This fixture exercises recovery wiring, not synthetic proof acceptance.
+        import source_preparation
+        import owner_observation
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(interrupted,'inspect',return_value=EXITED))
+            stack.enter_context(patch.object(owner_observation,'process_table',return_value={}))
+            stack.enter_context(patch.object(full_workflow,'nl0_artifact_for_audit',return_value={'synthetic_control_only':True}))
+            stack.enter_context(patch.object(source_preparation,'read_source',return_value=([],[source/'spec.json',source/'nl0.json',probe])))
+            stack.enter_context(patch.object(source_preparation,'evidence_paths',return_value=[probe]))
+            yield
+
+    def test_probe_collision_resume_restores_the_recorded_repair_without_replaying_authoring(self):
+        source,probe,repair,campaign=self.local_fixture()
+        old=(self.run/'case-result.json').read_bytes()
+        with self.local_source_gates(source,probe):
+            job=interrupted.prepare(self.run,repair_local_tool=True);jobs.validate(job)
+            self.assertEqual(job['resume']['mode'],'author-repair')
+            restored,obligations,prior=interrupted.restore_repair(job)
+            self.assertEqual(restored,source);self.assertEqual(prior,[str(campaign)])
+            self.assertEqual(obligations,json.loads((repair/'inputs/repair-obligations.json').read_text()))
+            patched=self.root/'changed-source';shutil.copytree(source,patched)
+            graph=json.loads((patched/'nl0.json').read_text())
+            graph['inferences'][0]['argument'][0]['text']+=' Synthetic repair edit.'
+            self.write(patched/'nl0.json',graph)
+            with patch.object(case_runner,'author_stage',return_value=patched) as author, \
+                 patch.object(full_workflow,'audit_source',return_value={'full_acceptance':True}) as review:
+                case_runner.nl0_work(job,None,None,lambda *args,**kwargs:None)
+            self.assertEqual(author.call_args.kwargs['baseline'],source)
+            self.assertEqual(author.call_args.kwargs['obligations'],obligations)
+            self.assertEqual(review.call_args.kwargs['reuse_from'],prior)
+        self.assertEqual((self.run/'case-result.json').read_bytes(),old)
+        self.assertEqual(job['profiles'],self.old['profiles'])
+        self.assertEqual(job['max_concurrency'],self.old['max_concurrency'])
+
+    def test_probe_recovery_rejects_modified_obligations_and_missing_or_changed_inherited_evidence(self):
+        source,probe,repair,_=self.local_fixture()
+        copied=repair/'stage/case/library/M021-0001/library-sources.json'
+        before=copied.read_bytes();copied.write_text('Changed evidence')
+        with self.local_source_gates(source,probe):
+            with self.assertRaisesRegex(ValueError,'intact inherited'):interrupted.prepare(self.run,repair_local_tool=True)
+            copied.write_bytes(before)
+            obligations=repair/'inputs/repair-obligations.json';value=json.loads(obligations.read_text())
+            value['issues'][0]['note']='Injected different review';self.write(obligations,value)
+            with self.assertRaisesRegex(ValueError,'input binding changed'):interrupted.prepare(self.run,repair_local_tool=True)
+
+    def test_probe_recovery_rejects_unknown_faults_submitted_drafts_and_live_process_groups(self):
+        source,probe,repair,_=self.local_fixture();path=repair/'stage/result.json'
+        original=json.loads(path.read_text())
+        with self.local_source_gates(source,probe):
+            changed={**original,'execution_fault':'OSError: Unknown local failure'};self.write(path,changed)
+            with self.assertRaisesRegex(ValueError,'verified inherited'):interrupted.prepare(self.run,repair_local_tool=True)
+            self.write(path,original);candidate=repair/'stage/case/candidate-0001.json';candidate.write_text('{}')
+            with self.assertRaisesRegex(ValueError,'draft checkpoint'):interrupted.prepare(self.run,repair_local_tool=True)
+            candidate.unlink()
+            import owner_observation
+            with patch.object(owner_observation,'process_table',return_value={1:{'pid':1,'pgid':2147483647,'started':'Unrelated group member'}}):
+                with self.assertRaisesRegex(ValueError,'process and group exits'):interrupted.prepare(self.run,repair_local_tool=True)
+
+    def test_local_recovery_public_prepare_only_preserves_its_explicit_boundary(self):
+        source,probe,repair,_=self.local_fixture()
+        parser=argparse.ArgumentParser();entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['resume',str(self.run),'--repair-local-tool','--prepare-only'])
+        with self.local_source_gates(source,probe),patch.object(entrypoint,'launch') as launch:
+            result=entrypoint.dispatch(args)
+            job=json.loads((Path(result['runs'][0])/'job.json').read_text())
+            self.assertEqual(job['resume']['repair_directory'],str(repair));launch.assert_not_called()
+            job['max_concurrency']=17
+            with self.assertRaisesRegex(ValueError,'worker count'):interrupted.validate_descriptor(job)
 
     def test_author_lineage_remains_exact_across_multiple_continuations(self):
         first=self.prepare()
