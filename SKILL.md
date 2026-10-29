@@ -57,6 +57,10 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
 queues and ledgers. Use normal local repair unless a first-pass measurement is
 explicitly requested. Runtime and software controls are fully inside this skill;
 no repository example/support directory or old test result is required.
+New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
+`runtime/` directory and launch from it. Installation updates cannot silently
+change an active job's bound code; snapshot tampering still fails validation.
+Historical jobs without snapshots retain their original binding checks.
 Each native Lean call defaults to a five-minute wall limit. Yui proof workers
 automatically receive frozen ST020 repair advice after a verified native
 wall/heartbeat limit, through the same failed tool result. Keep the target and
@@ -75,6 +79,15 @@ frozen proof queue stopped only by verified native-process cleanup faults. It
 preserves the exact source/A/interface, rechecks completed local bodies and
 restores only the failed worker's own bound drafts; never use it to resample a
 mathematical nonpass or replace live work.
+
+Normal translation requires a separate independent semantic interface review
+before proof dispatch, in addition to final Audit B. Follow
+[proof diagnosis and reviewed repair](nl02lean/references/proof-repair.md):
+workers can report a structured located obstruction; three normally completed
+turns without a distinct check or relevant lookup retire only that proof round
+for serial diagnosis. Route actual local defects to own-draft repair, and paired
+source/interface mismatches to author correction and fresh independent review.
+No-progress repetition is not mathematical rejection or budget exhaustion.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.

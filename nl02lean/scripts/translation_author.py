@@ -65,6 +65,9 @@ environment is freely available without registration. Prefer direct library use
 to M premise ports; omit M roots unless an intermediate port is useful. Choose a
 coherent Lean representation preserving domains, assumptions, quantifiers and
 the full target. Definitions cannot hide unproved results or stronger assumptions.
+Inspect the actual pinned declarations and the meanings of order/index and
+capability parameters, including overloaded notation and coercions. Explain
+their source meaning rather than relying on remembered symbol conventions.
 Use typed steps for mathematical obligations; no proof bodies are required yet.
 
 Submit an object with header, parameters, premise_types, conclusion_type,
@@ -95,7 +98,8 @@ and explicit JSON-pointer patches. Use check_lean_types for uncertain APIs or
 small type fragments, and check_draft when the full interface is ready. A full
 check runs real Lean type elaboration and source-boundary checks. Continue from
 your saved candidate after errors. Do not stop just to report ordinary progress.
-At acceptance, proof workers start; final Audit B independently checks semantic
+At author acceptance, a separate semantic interface reviewer checks source
+correspondence before proof workers start. Final Audit B independently checks semantic
 faithfulness and the assembled proof. A type check is never a semantic PASS.
 '''
 

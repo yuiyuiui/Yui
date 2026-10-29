@@ -7,13 +7,21 @@ import json
 from pathlib import Path
 
 
+def json_rows(path):
+    """Read one JSONL record at a time, including large retained request logs."""
+    with Path(path).open(encoding='utf-8') as stream:
+        for line in stream:
+            if line.strip():yield json.loads(line)
+
+
 def events(path):
-    for line in Path(path).read_text().splitlines():
-        if line.startswith('data: '):
-            try:
-                yield json.loads(line[6:])
-            except ValueError:
-                continue
+    with Path(path).open(encoding='utf-8') as stream:
+        for line in stream:
+            if line.startswith('data: '):
+                try:
+                    yield json.loads(line[6:])
+                except ValueError:
+                    continue
 
 
 def number(value):
@@ -44,11 +52,8 @@ def summarize_stage(directory, *, phase='unassigned'):
                 phase = json.loads(source.read_text()).get(field, phase)
                 if phase != 'unassigned':
                     break
-    requests = []
     request_path = directory / 'requests.jsonl'
-    if request_path.exists():
-        requests = [json.loads(x) for x in request_path.read_text().splitlines() if x.strip()]
-    numbers = {r['request_number'] for r in requests}
+    numbers = {r['request_number'] for r in json_rows(request_path)} if request_path.exists() else set()
     responses, covered, errors, duplicates = {}, set(), [], []
     tiers = set()
     for path in sorted(directory.glob('response-*.sse')):

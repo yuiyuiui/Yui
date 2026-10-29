@@ -103,6 +103,8 @@ Default permanent output is `<problem-directory>/rigorous-proof/<run-id>/`:
 ```text
 inputs/                  exact declared documents and extraction provenance
 job.json                 immutable request, profiles, runtime/input bindings
+runtime/                 owned allowlisted executable/rules/catalog snapshot
+runtime-manifest.json    original-to-snapshot hashes, no credentials/memories
 .yui-run.json            cleanup ownership marker
 execution-status.json    coalesced status/usage/owned-process record
 nl0/0001/                first author; later numbers are actual local repairs
@@ -123,6 +125,13 @@ cases. OS temporary sandboxes are registered and cleaned on stage exit; they
 are not persistent scientific output. Running several cases adds no files to
 their common parent or the example root. Batch summaries are per-run metadata,
 never worker-visible mathematical inputs.
+
+Prepared jobs launch their queue/case scripts from the retained `runtime/`, not
+the mutable installed checkout. Updates to the installation affect new jobs;
+they do not rewrite active snapshot bindings. Keep runtime dependencies with
+the evidence. Older jobs lacking snapshots retain their original validation.
+Proof round diagnostics and selected retained rounds are documented in
+[proof repair](../../nl02lean/references/proof-repair.md).
 
 ## Completion and repair
 

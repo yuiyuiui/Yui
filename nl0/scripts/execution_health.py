@@ -3,7 +3,7 @@ import json
 import re
 from pathlib import Path
 
-from usage import events
+from usage import events, json_rows
 import remote_retry
 
 
@@ -82,13 +82,13 @@ def require_review_execution(result, path, *, phase=None):
 
 
 def read_rows(path):
-    return [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path.exists() else []
+    if path.exists():yield from json_rows(path)
 
 
 def inspect(directory):
     root=Path(directory)
-    requests=read_rows(root/'requests.jsonl')
-    http=read_rows(root/'http.jsonl')
+    requests={row['request_number'] for row in read_rows(root/'requests.jsonl')}
+    http=list(read_rows(root/'http.jsonl'))
     faults=[]
     for row in read_rows(root/'relay-errors.jsonl'):
         faults.append({'kind':'RELAY_ERROR','request_number':row.get('request_number'),
@@ -123,7 +123,7 @@ def inspect(directory):
                 else:
                     uncertain.append(row)
     known={r.get('request_number') for r in http if r.get('path','').rstrip('/')=='/responses'}
-    missing=sorted({r['request_number'] for r in requests}-known)
+    missing=sorted(requests-known)
     if not requests or missing:
         uncertain.append({'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':missing})
     status='FAULT' if faults else 'UNVERIFIED' if uncertain else 'NO_RECORDED_FAULT'

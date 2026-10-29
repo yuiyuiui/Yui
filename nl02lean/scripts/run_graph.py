@@ -13,6 +13,7 @@ import model_pilot as pilot
 import scheduler
 import concurrency
 import execution_state
+import proof_repair
 from shared_lemmas import Store
 
 
@@ -34,7 +35,7 @@ def package(cpath, ppath, out):
     return inputs/'contract.json', ir.load(inputs/'plan.json')
 
 
-def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None):
+def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None, repair_guidance=None, reviewed_interface=None):
     timeout_seconds = __import__('runtime_config').time_limit(timeout_seconds)
     ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
     ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
@@ -61,14 +62,15 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     try:
         with execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():
             return _run_frozen(cpath,plan,out,shared_store,configuration,worker_budget=budget,
-                timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder,prior_run=prior_run)
+                timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder,prior_run=prior_run,
+                repair_guidance=repair_guidance,reviewed_interface=reviewed_interface)
     finally:
         if owns_recorder:
             status=recorder.state.get('proof_result','EXECUTION_FAULT')
             recorder.close('CANCELLED' if recorder.cancelled() else status)
 
 
-def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None):
+def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None):
     budget=worker_budget
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(pilot.__file__),Path(scheduler.__file__),
@@ -76,7 +78,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              ir.ROOT/'nl0/scripts/run_pilot.py',ir.ROOT/'nl0/scripts/pilot_common.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/usage.py',ir.ROOT/'nl0/scripts/exposure.py',
              ir.ROOT/'nl0/scripts/execution_health.py']
-    files.append(ir.ROOT/'nl0/scripts/execution_state.py')
+    files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__)])
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
@@ -91,10 +93,13 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              'script_sha256':{p.name:ir.digest(p) for p in files},
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
+    repair_control=proof_repair.RoundControl() if arm=='yui' else None
     def worker(sid, packet):
+        if repair_control:repair_control.check()
+        cached=None;checked=None
         if prior_run is not None:
             import proof_reuse
-            cached=proof_reuse.candidate(prior_run,cpath,plan,sid)
+            cached=proof_reuse.candidate(prior_run,cpath,plan,sid,reviewed_interface=reviewed_interface)
             if cached:
                 checked=ir.check(cpath,plan,{sid:cached['body']},only=sid,out=out/'reused'/sid)
                 ir.write(out/'reused'/sid/'origin.json',{k:v for k,v in cached.items() if k!='body'})
@@ -102,14 +107,24 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
                     return {'proof':cached['body'],'model_worker_called':False,
                             'stage':{'status':'SAME_CASE_NATIVE_RECHECKED','previous_run':str(prior_run)}}
         stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm,
-                            timeout_policy=timeout_policy)
+                            timeout_policy=timeout_policy,repair_control=repair_control)
         if prior_run is not None:
             import proof_reuse
             proof_reuse.restore_cleanup_drafts(stage,prior_run)
+            proof_reuse.restore_repair_drafts(stage,prior_run,reviewed_interface=reviewed_interface)
+            if arm=='yui' and cached and checked['exit_code']!=0:
+                advice=pilot.strategy_bank.native_timeout_feedback(checked,
+                    stage.native_timeout_lean_version,stage.native_timeout_snapshot)
+                proof_reuse.retain_recheck_failure(stage,cached,{**checked,**({'repair_advice':advice} if advice else {})})
+        if repair_guidance and sid in repair_guidance:
+            guidance=repair_guidance[sid]
+            stage.system+='\nSerial diagnostic handoff for this own obligation (advice, never a premise):\n'+__import__('json').dumps(guidance,ensure_ascii=False)
+            ir.write(stage.logs/'repair-guidance.json',guidance)
         stage.harness_version = pilot.HARNESS
         result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
-    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)
+    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder,
+                                   repair_control=repair_control)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
     if result['status'] == 'FRAGMENT_ASSEMBLED':

@@ -113,14 +113,16 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         if authority and documents[0]['sha256'] not in {row['sha256'] for row in data[2]['inputs']}:
             raise ValueError('Primary proof differs from the accepted NL0 inputs; do not translate a different problem under its receipt')
         write(inputs/'inputs.json',{'inputs':[{k:row[k] for k in ('id','path','sha256')} for row in documents]})
+        import runtime_snapshot
+        snapshot,runtime,catalog_binding=runtime_snapshot.capture(root,runtime_bindings(),core=CORE)
         job={'version':VERSION,'id':case_id+'-'+run_id,'case':case_id,'run_id':run_id,
              'track':track,'policy':policy,'problem':str(problem),'root':str(root),
              'profiles':profiles,'max_concurrency':max_concurrency,'documents':documents,
              'source':str(Path(source).resolve()) if source else None,
              'audit':str(Path(audit).resolve()) if audit else None,
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
-             'time_budget_seconds':time_budget_seconds,'runtime':runtime_bindings(),
-             'library_catalog':library_catalog.binding()}
+             'time_budget_seconds':time_budget_seconds,'runtime':runtime,
+             'runtime_snapshot':snapshot,'library_catalog':catalog_binding}
         if target:job['target_selection']=target
         if resume:
             job['resume']=resume
@@ -142,6 +144,7 @@ def validate(job, *, verify_runtime=True):
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'resume' in job:expected.add('resume')
     if 'library_catalog' in job:expected.add('library_catalog')
+    if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
@@ -180,7 +183,12 @@ def validate(job, *, verify_runtime=True):
             from interrupted import validate_descriptor
         validate_descriptor(job)
     if verify_runtime:
-        verify_bindings(job['runtime'])
-        if 'library_catalog' in job and job['library_catalog']!=library_catalog.binding():
+        if 'runtime_snapshot' in job:
+            import runtime_snapshot
+            snapshot=runtime_snapshot.validate(job)
+            with library_catalog.use_library(snapshot['library_root']):selected=library_catalog.binding()
+        else:
+            verify_bindings(job['runtime']);selected=library_catalog.binding()
+        if 'library_catalog' in job and job['library_catalog']!=selected:
             raise ValueError('Frozen user library selection or evidence changed')
     return job

@@ -44,12 +44,13 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Stage | Responsibility | Main artifact/tool |
 | --- | --- | --- |
 | Translation-entry source preparation | Extract existing shared derivations through allowlisted local patches; review new producers and substitution cuts, preserving old evidence | source_preparation.py inventory/stage/check; ordinary or incremental Audit A authority |
-| Source/IR freeze | Preserve baseline, accepted source, definitions, complete target/H/E, optional M ports, paragraph/output mapping and project input boundaries | workflow.py freeze; checked source boundaries/types, immutable bindings, semantic status pending Audit B |
-| Interface authoring | Choose source-faithful Lean representations and complete input/output types | contract.json; model proposal plus real type check, semantic review in final Audit B |
+| Source/IR freeze | Preserve baseline, accepted source, definitions, complete target/H/E, optional M ports, paragraph/output mapping and project input boundaries | workflow.py freeze; source/type checks, actual independent interface receipt in normal entry, immutable bindings; final Audit B still required |
+| Interface authoring | Choose source-faithful Lean representations and complete input/output types | contract.json; actual type checks and separate independent pre-proof semantic review |
 | Local planning | Define useful typed T ports, direct input IDs and source correspondence | plan.json; structural/type checks in ir.py |
 | Explicit reuse | Match a reviewed common port against a supplied project source store | shared_lemmas.py, initial index, full conditional types |
 | Local proof work | Fresh worker proves only its own conditional obligation; direct proof by default | Stage in model_pilot.py; fixed search/read/check/submit tools |
 | Bounded execution | Launch independent conditional bodies; deduplicate compatible shared jobs within one graph | scheduler.py; pending/running/results and actual intervals |
+| Located repair | Escalate own obstructions or three completed idle turns, retire the own round and diagnose serially | proof_repair.py, proof_diagnosis.py; local repair or interface author + fresh review, explicit unresolved checkpoint |
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
 | Audit B | Independently review external E and complete P meaning using concise correspondence notes; check final export and kernel trust | audit_b.py, audit_probe.lean, located semantic receipt |
 

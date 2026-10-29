@@ -68,7 +68,7 @@ def project(source, *, interface=None, interface_review=None, workflow=None):
             frozen=controller.bound(workflow)
             if binding(frozen['authority']['graph'])!=value['bindings']['nl0.json']:
                 raise ValueError('Workflow/source revisions differ')
-            proof=workflow/'proof-run/report.json'
+            proof=controller.proof_run(workflow)/'report.json'
             if proof.is_file():value['gates']['lean_assembly']=load(proof).get('status','NOT_PASSED')
             final=workflow/'report.json'
             if final.is_file() and load(final).get('status') in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL'}:

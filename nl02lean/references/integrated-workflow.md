@@ -129,14 +129,16 @@ note locations from the accepted source rather than asking the author to
 transcribe them. The author supplies types and local plans, and can save partial
 JSON before completing the whole interface.
 
-The default freeze uses a mechanically checked binding with
+The lower-level mechanical freeze uses a checked binding with
 `source_graph_sha256`, `contract_sha256`, `plan_sha256`, `paragraph_mapping` and
 `source_outputs`. It checks exact source coverage and direct boundaries and runs
 Lean type elaboration. This binding is **not a semantic review receipt**; the
 recorded semantic status is `PENDING_AUDIT_B`. Actual source/type fidelity is
-reviewed with the completed Lean proof in final Audit B. A separately requested
-interface review remains supported through `--interface-review`; it is not a
-mandatory extra model stage.
+reviewed with the completed Lean proof in final Audit B. Normal full/translation
+entry additionally runs the independent interface reviewer and reads back its
+actual hash-bound PASS before freezing/dispatch. The commands below expose the
+lower-level compatibility path; use `--interface-review` to supply an actual
+review when constructing a workflow manually. See [repair routing](proof-repair.md).
 
 ```sh
 python3 scripts/workflow.py freeze /absolute/new-workflow \

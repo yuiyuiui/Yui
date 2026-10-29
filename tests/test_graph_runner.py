@@ -70,5 +70,23 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(result['worker_calls'],0)
         self.assertEqual(len(list((out/'reused').glob('*/origin.json'))),2)
 
+    def test_rejected_reuse_reaches_own_worker_with_current_failure_and_retained_body(self):
+        import proof_reuse
+        previous=self.temp/'explicit-prior';previous.mkdir();observed={}
+        candidate={'body':'exact True.intro','previous_run':str(previous),
+                   'scope':'Synthetic cache candidate; eligibility tested separately.'}
+        def lookup(prior,cpath,plan,step,**kwargs):return candidate if step=='T001' else None
+        def execute(stage):
+            if stage.step=='T001':
+                row=stage.own_lean_drafts['proof'][1]
+                observed.update(row);self.assertNotEqual(row['check']['exit_code'],0)
+                self.assertEqual(row['proof'],candidate['body']);self.assertIsNone(stage.accepted)
+            else:self.assertEqual(stage.own_lean_drafts,{'proof':{},'auxiliary':{}})
+            shutil.rmtree(stage.work)
+            return {'status':'NEUTRAL_SOFTWARE_CONTROL','api_calls':0},{'proof':LIFT if stage.step=='T001' else SUP}
+        with patch.object(proof_reuse,'candidate',side_effect=lookup),patch.object(run_graph.pilot.Stage,'execute',execute):
+            result=run_graph.run(self.cpath,self.ppath,self.temp/'reuse-repair',prior_run=previous,max_concurrency=1)
+        self.assertEqual(result['status'],'FRAGMENT_ASSEMBLED');self.assertTrue(observed)
+
 
 if __name__ == '__main__': unittest.main()

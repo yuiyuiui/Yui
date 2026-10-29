@@ -66,6 +66,15 @@ queries. Card hashes/revision and unavailable-advice reasons are retained with
 the original failed result. Explicit cancellation and actual execution failures
 retain their stop rules; ordinary candidate rejection permits local repair.
 
+Proof workers also have `report_proof_obstruction`, and three completed turns
+without a distinct candidate check or relevant lookup trigger serial diagnosis.
+This is [repair routing](proof-repair.md), separate from native timeouts and
+provider waits. `REPAIR_REQUESTED` and `REPAIR_WAIT` retire only this case's own
+proof round. Completed bodies and failed drafts remain; no shared interface
+changes until running workers retire. Confirmed interface defects go to the
+author and a fresh independent semantic review. Unchanged evidence after a
+located repair becomes an explicit checkpoint rather than blind resampling.
+
 Only an explicit user request may enable a positive case deadline for a separate
 bounded experiment. It starts with the case process and covers preparation,
 model-slot waiting, proofs, assembly and Audit B without resetting at each
@@ -89,6 +98,10 @@ actual latest Lean checks and log paths; owned processes; usage; cancellation;
 and result/health qualifications. `LOCAL_CHECKED` is not Audit B. `FINISHED` for
 a text/review stage is only stage completion. Waiting for a model slot differs
 from actual `MODEL_RUNNING` or `LEAN_CHECKING` activity.
+Each proof task separately reports distinct action/check counts, completed idle
+turns and last real progress/check timestamps. These are not transport liveness
+or an assertion of mathematical advancement. Later successful rounds are chosen
+by hash-bound `proof-selection.json`; assembly/Audit B use that retained round.
 `concurrency.roles` separates serial preparation/global-review, local R-review
 and proof peaks; `proof_counts`
 counts only actual proof tasks. A total model-stage peak is not proof utilization.

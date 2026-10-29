@@ -99,11 +99,13 @@ def launch(prepared, *, detached=False, case_concurrency=None):
         from owner_observation import handoff
         observation=handoff([job['root'] for job in prepared])
         root=Path(prepared[0]['root']);(root/'logs').mkdir(exist_ok=True)
-        command=[sys.executable,'-u','-B',str(CORE/'nl0/scripts/queue_controller.py')]
+        import runtime_snapshot
+        command=[sys.executable,'-u','-B',str(runtime_snapshot.root_for(prepared[0])/'nl0/scripts/queue_controller.py')]
         for job in prepared:command.extend(['--job',str(Path(job['root'])/'job.json')])
         if case_concurrency is not None:command.extend(['--case-concurrency',str(case_concurrency)])
         with (root/'logs/batch-controller.log').open('w') as log:
-            process=subprocess.Popen(command,stdout=log,stderr=log,start_new_session=True)
+            process=subprocess.Popen(command,stdout=log,stderr=log,start_new_session=True,
+                env=runtime_snapshot.environment(prepared[0]))
         from execution_state import identity
         who=identity(process.pid)
         if who is None and process.poll() is None:raise RuntimeError('Cannot verify detached controller identity')

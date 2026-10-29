@@ -65,14 +65,15 @@ and assembly candidates after actual feedback.
 def prepare(directory,out):
     directory,out=[Path(p).resolve() for p in (directory,out)]
     frozen=workflow.bound(directory)
-    if ir.load(directory/'proof-run/report.json')['status']!='FRAGMENT_ASSEMBLED':raise ValueError('Actual assembled proof required')
+    selected=workflow.proof_run(directory)
+    if ir.load(selected/'report.json')['status']!='FRAGMENT_ASSEMBLED':raise ValueError('Actual assembled proof required')
     if not (directory/'audit-b').exists():workflow.prepare_audit(directory)
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     for name in ['mapping.json','source-inventory.json']:
         shutil.copyfile(directory/'audit-b'/name,inputs/name)
-    for name,path in [('contract.json',directory/'proof-run/inputs/contract.json'),
-                      ('plan.json',directory/'proof-run/inputs/plan.json'),
-                      ('proofs.json',directory/'proof-run/proofs.json'),
+    for name,path in [('contract.json',selected/'inputs/contract.json'),
+                      ('plan.json',selected/'inputs/plan.json'),
+                      ('proofs.json',selected/'proofs.json'),
                       ('spec.json',Path(frozen['authority']['spec'])),
                       ('nl0.json',Path(frozen['authority']['graph']))]:shutil.copyfile(path,inputs/name)
     write(inputs/'source-outputs.json',frozen['source_outputs'])
@@ -89,7 +90,8 @@ class MappingContract:
     def __call__(self,value):
         authority=ir.load(self.out/'authority.json');directory=Path(authority['workflow'])
         frozen=workflow.bound(directory)
-        cpath=directory/'proof-run/inputs/contract.json';ppath=directory/'proof-run/inputs/plan.json'
+        selected=workflow.proof_run(directory)
+        cpath=selected/'inputs/contract.json';ppath=selected/'inputs/plan.json'
         c=ir.contract(cpath);inventory=ir.load(directory/'audit-b/source-inventory.json')
         self.attempt+=1;candidate=self.out/'candidates'/str(self.attempt).zfill(4)
         write(self.out/'drafts'/f'{self.attempt:04d}.json',value)
@@ -108,7 +110,7 @@ class MappingContract:
                 else:
                     cached=None
             if not cached:
-                audit_b.prepare(cpath,ppath,directory/'proof-run/proofs.json',candidate,**{k:Path(v) if v else None for k,v in frozen['authority'].items()})
+                audit_b.prepare(cpath,ppath,selected/'proofs.json',candidate,**{k:Path(v) if v else None for k,v in frozen['authority'].items()})
                 write(candidate/'mapping.json',value)
                 result=audit_b.build(candidate)
             if result['status']!='AUDIT-B-MECHANICAL-PASSED':

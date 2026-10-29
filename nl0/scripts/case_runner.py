@@ -145,7 +145,7 @@ def translation_work(job, authority, budgets, progress):
         checkpoint=job['resume'];authority=checkpoint['source_authority']
     else:
         authority=source_refactor.run(authority,root/'nl0-to-lean/preparation',budgets.serial)
-    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0
+    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0;prior_proof_run=None;rejected_interfaces=set()
     while True:
         attempt+=1;directory=root/'nl0-to-lean'/f'{attempt:04d}'
         current_interface=Path(checkpoint['interface']) if checkpoint else directory/'interface'
@@ -157,11 +157,41 @@ def translation_work(job, authority, budgets, progress):
             else:
                 result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
                     proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
-                    prior_interface=prior_interface,diagnostics=diagnostics)
+                    prior_interface=prior_interface,diagnostics=diagnostics,prior_run=prior_proof_run)
             write(root/'audit-b'/f'{attempt:04d}.json',{'status':'AUDIT-B-PASSED' if result['status']=='WORKFLOW-PASSED' else 'AUDIT-B-CONDITIONAL',
                 'review':bind(directory/'audit-b-review/review.json'),'workflow':str(directory/'workflow')})
             return result
         except StageFailure as error:
+            candidate=current_interface/'stage/accepted.json'
+            if error.result.get('phase') in {'interface-review','interface-repair','audit-b'} and candidate.is_file():
+                key=bind(candidate)['sha256']
+                if key in rejected_interfaces:
+                    raise StageFailure('REPAIR_CYCLE','An already rejected interface reappeared; preserve its evidence instead of resampling review',
+                        phase=error.result['phase'],evidence=candidate) from error
+                rejected_interfaces.add(key)
+            if error.result.get('phase')=='interface-repair' and job['policy']!='first-pass':
+                report=Path(error.result['evidence'])
+                diagnostics=json.loads(report.read_text())
+                prior_proof_run=Path(error.result['prior_proof_run'])
+                checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
+                if not prior_interface.is_file():raise
+                write(root/'repairs'/f'proof-interface-{attempt:04d}.json',{'diagnosis':bind(report),
+                    'route':'interface_author_then_fresh_semantic_review','prior_proof_run':str(prior_proof_run),
+                    'source_unchanged':True,'old_evidence_preserved':True})
+                continue
+            if error.result.get('phase')=='interface-review':
+                report=directory/'interface-review/report.json'
+                if job['policy']=='first-pass' or not report.is_file():raise
+                report_value=json.loads(report.read_text())
+                if report_value.get('review_status')!='MATHEMATICAL_REVIEW_FAILED':raise
+                diagnostics={'report':report_value,
+                    'actual_review':json.loads((directory/'interface-review/stage/accepted.json').read_text()),
+                    'scope':'Repair the located source/interface mismatch; preserve accepted NL0 and its Audit A.'}
+                checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
+                if not prior_interface.is_file():raise
+                write(root/'repairs'/f'interface-{attempt:04d}.json',{'diagnosis':bind(report),
+                    'route':'interface_author_then_fresh_semantic_review','source_unchanged':True})
+                continue
             report=directory/'audit-b-review/report.json'
             if error.result.get('phase')!='audit-b' or job['policy']=='first-pass' or not report.is_file():raise
             report_value=json.loads(report.read_text())

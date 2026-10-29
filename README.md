@@ -50,12 +50,29 @@ skill. Mathematical example runs and paper benchmarks are kept separately from
 this software checkout. Read each run's `case-result.json` and gate reports for
 its actual acceptance scope.
 
+Before parallel Lean work, a separate independent reviewer checks the complete
+source-to-Lean interface, including definitions and library parameter meanings.
+This catches semantic mismatches that still type-check; final Audit B remains
+required. During proof work, workers can escalate located obstructions. Three
+completed turns with no distinct check or relevant lookup trigger serial
+diagnosis instead of blind continuation. Ordinary compiler errors stay local;
+verified interface defects return to their author and fresh independent review.
+Unresolved source issues remain explicit checkpoints. See the generic
+[repair protocol](nl02lean/references/proof-repair.md).
+
 ## Runtime
 
 The root directory contains the four mathematical responsibilities, their shared
 Python controllers, software tests, and one skill entry. The optional
 `library/` catalog and `tests/` software suite are not required for ordinary
 proof execution. Keep the runtime directories beside `SKILL.md` when installing.
+Each new job copies the declared executable, rules, templates, pins and selected
+optional catalog into its owned `runtime/`, with `runtime-manifest.json`. Queue
+and case launchers use that snapshot, so upgrading the installation does not
+invalidate a live workflow. Credentials, personal memories, tests and old
+scientific results are excluded. Keep this snapshot with the run evidence;
+changing a snapshot still invalidates its hashes. Historical unsnapshotted jobs
+keep their original runtime checks and are not silently rewritten.
 [Operator instructions](nl0/references/operation.md)
 cover commands, profile selection, local output, repair, status and cleanup.
 The commands below assume the repository or installed skill root is the working

@@ -50,13 +50,14 @@ class LeanWritingGuidanceTests(unittest.TestCase):
             self.assertIsNone(stage.lean_writing_rules)
             self.assertNotIn('INITIAL_RULE_SENTINEL', stage.system)
 
-    def test_guidance_preserves_math_packet_and_tool_contract(self):
+    def test_guidance_preserves_math_packet_and_common_checking_contract(self):
         proof = self.stage()
         direct = self.stage(arm='direct')
         packet = ir.local_packet(self.cp, self.plan, 'T001')
         self.assertEqual(json.loads(proof.prompt())['packet'], packet)
         self.assertEqual(json.loads(direct.prompt())['packet'], packet)
-        self.assertEqual(proof.tools, direct.tools)
+        self.assertEqual([t for t in proof.tools if t['name']!='report_proof_obstruction'], direct.tools)
+        self.assertNotIn('report_proof_obstruction',direct.tool_names)
         self.assertIsNone(proof.timeout)
         self.assertIsNone(proof.accepted)
         self.assertEqual((proof.api_calls, proof.lean_calls), (0, 0))

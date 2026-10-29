@@ -65,7 +65,8 @@ label. New extraction labels should identify the baseline revision explicitly.
    normalization in the explanation. A strategy suggests operations; it never
    supplies a theorem. Project premises stay explicit; all pinned Mathlib
    theorems may be used without separate registration.
-5. Run structure and type checks. Inspect semantics separately. A plan whose
+5. Run structure and type checks, then obtain the normal workflow's actual
+   independent semantic interface review before proof dispatch. A plan whose
    transition cannot be justified is not rescued by well-formed syntax.
 
 ## IR to Lean
@@ -82,8 +83,9 @@ label. New extraction labels should identify the baseline revision explicitly.
    small checks after inference failures.
 3. Check locally. If it fails, preserve the goal, local context, diagnostic,
    attempted code and hashes. Continue a clear local repair directly. Optional
-   obstacle lookup is available after observed lack of progress; it is not a
-   mandatory model diagnosis pass. A Lean error category is an observation,
+   obstacle lookup is available during local repair; no preliminary diagnosis
+   is required for every ordinary error. Structured obstruction or no-progress
+   escalation follows [proof repair](proof-repair.md). A Lean error category is an observation,
    not a root cause. The optional bank contains general implementation advice;
    it neither supplies missing facts nor promises a performance improvement.
 4. Test the retrieved recipe's preconditions. Prove a missing condition from
@@ -91,7 +93,9 @@ label. New extraction labels should identify the baseline revision explicitly.
    that condition to the target's assumptions. A judged mathematical gap returns
    to NL0/Audit A; elapsed time, search failure or network faults cannot establish
    one. Repeated no-progress retries warrant reconsidering the implementation
-   route or an optional bounded diagnosis, charged to the attempt's budget.
+   route. Three completed turns without distinct checks/lookups trigger serial
+   diagnosis; repeated unchanged evidence after repair remains an explicit
+   checkpoint. Retain all actual costs without inventing a case-time allowance.
 5. Freeze accepted proof bytes bound to contract and plan. Assemble the actual
    local proofs, compile P and print its signature/axioms. Recheck in a fresh
    verifier work directory. Local success without root closure is partial.

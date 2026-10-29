@@ -28,10 +28,13 @@ def cancel_batch(directories):
 
 
 def launch_case(job_file,out):
+    import runtime_snapshot
+    job=json.loads(Path(job_file).read_text())
     out=Path(out);(out/'logs').mkdir(exist_ok=True)
     with (out/'logs/controller.log').open('w') as log:
-        return subprocess.Popen([sys.executable,'-u','-B',str(Path(__file__).with_name('case_runner.py')),
-            '--job',str(job_file)],stdout=log,stderr=log,start_new_session=True)
+        return subprocess.Popen([sys.executable,'-u','-B',str(runtime_snapshot.root_for(job)/'nl0/scripts/case_runner.py'),
+            '--job',str(job_file)],stdout=log,stderr=log,start_new_session=True,
+            env=runtime_snapshot.environment(job))
 
 
 def serve(jobs,*,case_concurrency=None):

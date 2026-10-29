@@ -42,6 +42,8 @@ synthetic inputs, environment-selected tools and explicit CLI overrides.
 | Global-before-local Audit A scheduling and isolated R-review slots | `test_parallel_audit` |
 | Accepted-source preparation and stage handoff | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy` |
 | Conditional Lean tasks, concurrency, reuse and assembly | `test_translation`, `test_concurrency`, `test_execution_queue`, `test_shared_parallel`, `test_proof_reuse`, `test_assembly` |
+| Pre-proof semantic gate, structured obstructions, no-progress diagnosis and retained-round repair | `test_interface_gate`, `test_proof_repair` |
+| Owned executable snapshots and streaming request-history readback | `test_runtime_snapshot`, `test_streaming_audits` |
 | General advice retrieval, evidence scope and maintenance | `test_strategy_bank` |
 | Native signatures, endpoint correspondence and Audit B | `test_signature_comparison`, `test_endpoint_correspondence`, `test_audit_b`, `test_postprocessing` |
 

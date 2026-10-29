@@ -160,6 +160,33 @@ def bound(directory):
     return manifest
 
 
+def select_proof_run(directory,selected):
+    """Select a successful retained round without overwriting earlier evidence."""
+    out=Path(directory).resolve();selected=Path(selected).resolve()
+    ir.need(selected.is_relative_to(out) and selected!=out,'Proof selection must be owned by this workflow')
+    manifest=bound(out)
+    ir.need(ir.load(selected/'report.json')['status']=='FRAGMENT_ASSEMBLED','Cannot select an unfinished proof round')
+    for key in ['contract','plan']:
+        ir.need(ir.digest(selected/f'inputs/{key}.json')==ir.digest(manifest[key]),'Selected proof interface differs from freeze')
+    path=out/'proof-selection.json';ir.need(not path.exists(),'Preserve the existing proof selection')
+    ir.write(path,{'version':VERSION,'directory':str(selected.relative_to(out)),
+        'evidence':[source.binding(selected/name) for name in ['report.json','proofs.json','inputs/contract.json','inputs/plan.json']],
+        'scope':'Current compiled round only; previous proof/diagnostic rounds and their costs remain retained.'})
+    return proof_run(out)
+
+
+def proof_run(directory):
+    out=Path(directory).resolve();selection=out/'proof-selection.json'
+    if not selection.exists():return out/'proof-run'
+    value=ir.load(selection);relative=Path(value['directory']);selected=(out/relative).resolve()
+    ir.need(value['version']==VERSION and not relative.is_absolute() and '..' not in relative.parts
+            and selected.is_relative_to(out) and selected!=out,'Unsafe proof-round selection')
+    expected={selected/name for name in ['report.json','proofs.json','inputs/contract.json','inputs/plan.json']}
+    ir.need({source.unchanged(item) for item in value['evidence']}==expected,'Missing proof-round selection evidence')
+    ir.need(ir.load(selected/'report.json')['status']=='FRAGMENT_ASSEMBLED','Selected proof round is unfinished')
+    return selected
+
+
 def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
     out = Path(directory).resolve(); manifest = bound(out)
     recorder=execution_state.Recorder(out,ir.contract(manifest['contract'])['id'],manifest['concurrency'])
@@ -176,12 +203,13 @@ def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
 
 def prepare_audit(directory):
     out = Path(directory).resolve(); manifest = bound(out)
-    result = ir.load(out/'proof-run/report.json')
+    selected=proof_run(out)
+    result = ir.load(selected/'report.json')
     ir.need(result['status'] == 'FRAGMENT_ASSEMBLED', 'proof graph is unfinished')
-    cpath = out/'proof-run/inputs/contract.json'; ppath = out/'proof-run/inputs/plan.json'
+    cpath = selected/'inputs/contract.json'; ppath = selected/'inputs/plan.json'
     ir.need(ir.digest(cpath) == ir.digest(manifest['contract']) and ir.digest(ppath) == ir.digest(manifest['plan']),
             'proof run uses a different frozen interface or plan')
-    prepared = audit_b.prepare(cpath,ppath,out/'proof-run/proofs.json',out/'audit-b',**manifest['authority'])
+    prepared = audit_b.prepare(cpath,ppath,selected/'proofs.json',out/'audit-b',**manifest['authority'])
     mapping = ir.load(out/'audit-b/mapping.json')
     ir.write(out/'audit-b/mapping.json',mapping)
     return prepared
@@ -189,11 +217,12 @@ def prepare_audit(directory):
 
 def finish(directory, review):
     out = Path(directory).resolve(); manifest = bound(out)
-    ir.need(ir.digest(out/'proof-run/inputs/contract.json') == ir.digest(manifest['contract'])
-            and ir.digest(out/'proof-run/inputs/plan.json') == ir.digest(manifest['plan']), 'proof/audit interface changed after freeze')
+    selected=proof_run(out)
+    ir.need(ir.digest(selected/'inputs/contract.json') == ir.digest(manifest['contract'])
+            and ir.digest(selected/'inputs/plan.json') == ir.digest(manifest['plan']), 'proof/audit interface changed after freeze')
     verdict = audit_b.check(out/'audit-b',Path(review).resolve())
     ir.need(verdict['status'] in {'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}, 'whole workflow requires whole-proof Audit B acceptance')
-    proof = ir.load(out/'proof-run/report.json')
+    proof = ir.load(selected/'report.json')
     review_path=Path(review).resolve()
     report = {'version':VERSION,'status':'WORKFLOW-PASSED' if verdict['status']=='AUDIT-B-PASSED' else 'WORKFLOW-CONDITIONAL','audit_b':verdict,
               'source_status':source.read_source(**manifest['authority'])[0][0]['audit_status'],
@@ -205,8 +234,17 @@ def finish(directory, review):
               'owner_review_seconds':None,'owner_review_cost_status':'UNMEASURED_UNLESS_RECORDED_IN_REVIEW_EVIDENCE',
               'speedup_measured':False,'pure_internal_model_reasoning_seconds':None,
               'note':'Nested compiler/tool time is already included in model-stage wall time; do not add twice.',
-              'bindings':[source.binding(out/'manifest.json'),source.binding(out/'proof-run/report.json'),
-                          source.binding(out/'proof-run/proofs.json'),source.binding(review_path)]}
+              'bindings':[source.binding(out/'manifest.json'),source.binding(selected/'report.json'),
+                          source.binding(selected/'proofs.json'),source.binding(review_path)]}
+    if (out/'proof-selection.json').exists():report['bindings'].append(source.binding(out/'proof-selection.json'))
+    history_path=out/'proof-repair-history.json'
+    if history_path.is_file():
+        history=ir.load(history_path)
+        for item in history['rounds']+history['diagnoses']:source.unchanged(item)
+        report['selected_round_wall_seconds']=report['proof_phase_wall_seconds']
+        report['proof_phase_wall_seconds']=history['wall_seconds']
+        report['proof_phase_timing_scope']='All retained proof rounds and serial diagnoses in this workflow; earlier interface attempts remain in the case ledger.'
+        report['bindings'].append(source.binding(history_path))
     ir.need(not (out/'report.json').exists(), 'preserve completed workflow report; no overwrite')
     ir.write(out/'report.json',report)
     return report

@@ -8,7 +8,7 @@ import re
 from acceptance import AcceptanceContract
 import own_state
 
-from usage import events
+from usage import events, json_rows as request_rows
 
 
 def audit_stage(directory):
@@ -18,7 +18,8 @@ def audit_stage(directory):
     tools = json.loads((directory/'tools.json').read_text())
     expected = [{'type':'function','name':t['name'],'description':t['description'],
                  'parameters':t['inputSchema'],'strict':False} for t in tools]
-    requests = [json.loads(x) for x in (directory/'requests.jsonl').read_text().splitlines() if x.strip()]
+    requests = request_rows(directory/'requests.jsonl')
+    requests_checked=0
     manifest_path=directory/'execution-manifest.json'
     manifest=json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     requested_model=manifest.get('model') or json.loads((Path(__file__).resolve().parents[2]/'config.json').read_text())['model']['id']
@@ -50,6 +51,7 @@ def audit_stage(directory):
     allowed_fields = {'model','stream','input','instructions','tools','tool_choice','parallel_tool_calls',
                       'reasoning','include','store','text','prompt_cache_key','service_tier'}
     for row in requests:
+        requests_checked+=1
         sent = row['sent_payload']
         number = row['request_number']
         checks = {'model':sent.get('model')==requested_model,
@@ -112,8 +114,8 @@ def audit_stage(directory):
                 tiers.add(response['service_tier'])
     if models-{requested_model}:errors.append({'check':'actual_model','observed':sorted(models)})
     if tiers-{'default','standard','auto'}:errors.append({'check':'actual_service_tier','observed':sorted(tiers)})
-    result = {'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED' if requests and not errors else 'VALIDATION_FAILED',
-              'requests_checked':len(requests),'errors':errors,'removed_foreign_items':removals,
+    result = {'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED' if requests_checked and not errors else 'VALIDATION_FAILED',
+              'requests_checked':requests_checked,'errors':errors,'removed_foreign_items':removals,
               'actual_model_ids':sorted(models),'terminal_service_tiers':sorted(tiers),
               'standard_tier_verified':bool(tiers) and tiers<= {'default','standard'},
               'output_verbosity_requested':verbosity,

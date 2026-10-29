@@ -16,11 +16,13 @@ there is no requirement to preload the entire skill or all note bodies.
    hypotheses), explaining direct or equivalent translation. Save partial interface drafts, revise
    those drafts, and use small Lean probes for uncertain types. Do not restart
    from an empty interface after an ordinary error.
-3. Type-check and mechanically freeze the source correspondence, dependency
-   boundaries and complete interface. The default route defers semantic
-   interface review to final Audit B. Record `PENDING_AUDIT_B`, never a synthetic
-   review PASS. An explicitly requested separate interface review remains
-   available for legacy/recovery runs.
+3. Type-check source correspondence, dependency boundaries and the complete
+   interface, then obtain a separate independent semantic interface review.
+   Normal full/translation entry dispatches no proof worker before its actual
+   hash-bound receipt passes. Repair located failures with the interface author
+   and review changed output freshly. Final Audit B is still required. The
+   lower-level legacy mechanical freeze can record `PENDING_AUDIT_B`; it does
+   not satisfy this normal-workflow pre-proof gate.
 4. Run local proof workers on frozen conditional obligations. Each gets its
    input statements, matched source paragraphs and own compact note index.
    Read a full note only if useful. No sibling proof bodies, other cases,
@@ -58,9 +60,13 @@ making concrete edits, queries or proof checks. Submit a completed artifact or
 report a supported mathematical/source/input blocker. If a model turn ends
 without either, the controller sends one short continuation instruction; it
 does not demand a progress essay. State/usage recording is programmatic.
+Proof workers follow [structured diagnosis and repair](proof-repair.md): report
+actual packet obstructions, and escalate three completed turns without new
+checks/lookups instead of repeating the same instruction indefinitely.
 
-Execution is unlimited by default: no whole-case, stage, native-check, total
-token, or call quota is imposed. Keep measuring usage and allow explicit
+Whole-case/stage execution, total tokens and calls are unlimited by default.
+Each native check has the configured 300-second wall limit and finite Lean
+heartbeat policy. Keep measuring usage and allow explicit
 cancellation. Only a user-requested finite case deadline covers the entire
 translation, including preparation, queue waiting, parallel proofs, assembly
 and Audit B; later stages cannot reset that optional deadline. Preserve partial

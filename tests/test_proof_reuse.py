@@ -47,6 +47,14 @@ class ProofReuseTests(unittest.TestCase):
         plan=copy.deepcopy(self.plan);plan['steps'][0]['statement']='p'
         self.assertIsNone(proof_reuse.candidate(self.previous,self.new,plan,'T001'))
 
+    def test_same_lean_program_from_different_source_is_not_a_same_case_reuse(self):
+        original=ir.load(self.new)
+        original['source']['path']='other-source.json'
+        (self.new.parent/'other-source.json').write_text('{"unrelated":"source"}')
+        original['source']['sha256']=ir.digest(self.new.parent/'other-source.json');ir.write(self.new,original)
+        plan=copy.deepcopy(self.plan);plan['contract_sha256']=ir.digest(self.new)
+        self.assertIsNone(proof_reuse.candidate(self.previous,self.new,plan,'T001'))
+
     def test_unfinished_or_stale_proof_record_is_rejected(self):
         ir.write(self.previous/'report.json',{'status':'GRAPH_UNFINISHED','contract_sha256':ir.digest(self.old)})
         with self.assertRaises(ValueError):proof_reuse.candidate(self.previous,self.new,self.plan,'T001')

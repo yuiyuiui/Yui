@@ -25,6 +25,7 @@ import strategy_bank
 import scheduler
 import concurrency
 import execution_state as execution
+import proof_repair
 from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
@@ -62,7 +63,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, repair_control=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.logs = Path(logs)
@@ -83,6 +84,9 @@ class Stage(carrier.Trial):
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
         self.instruction_arm = instruction_arm
+        self.repair_control=repair_control
+        self.proof_progress=proof_repair.Progress() if mode=='proof' and instruction_arm=='yui' else None
+        self.repair_request=None
         self.lean_writing_rules = None
         self.native_timeout_snapshot = None
         self.native_timeout_lean_version = None
@@ -133,6 +137,19 @@ class Stage(carrier.Trial):
                 {'statement':{'type':'string'},'proof':{'type':'string'}},['statement','proof']),
                 carrier.tool('read_lean_draft','Read only your own same-stage proof/helper attempts. kind=index lists attempts; proof/auxiliary returns the selected body lines and actual check. No other stage or file is accessible.',
                 {'kind':{'type':'string','enum':['index','proof','auxiliary']},'candidate':{'type':'integer'},'start':{'type':'integer'},'end':{'type':'integer'}},['kind','candidate','start','end'])]
+            if instruction_arm=='yui':
+                self.tools.append(carrier.tool('report_proof_obstruction',
+                    'Escalate an observed obstruction for serial diagnosis. Reference resolving JSON pointers in your current packet and at most six actual own proof/helper attempts. Alleging an interface/source error grants no premise or acceptance. Do not keep repeating inability messages: use this tool. Ordinary proof errors should first be repaired locally.',
+                    {'layer':{'type':'string','enum':['local_proof','interface','source','unknown']},
+                     'explanation':{'type':'string'},'locations':{'type':'array','items':{'type':'string'}},
+                     'candidates':{'type':'array','items':{'type':'object','properties':{
+                         'kind':{'type':'string','enum':['proof','auxiliary']},'candidate':{'type':'integer'}},
+                         'required':['kind','candidate'],'additionalProperties':False}}},
+                    ['layer','explanation','locations','candidates']))
+                self.system+=(' If the fixed interface or source appears inconsistent, report_proof_obstruction '
+                    'with located actual evidence instead of silently changing it or repeating a blocker. '
+                    'After three completed turns with no distinct check or relevant lookup, the controller '
+                    'retires this proof round for serial diagnosis; this is not a mathematical rejection or time budget.')
         self.background_note_policy = None
         if (mode == 'proof' and instruction_arm == 'yui'
                 and ir.local_packet(self.cpath, plan, step).get('accepted_background_notes')):
@@ -173,13 +190,20 @@ class Stage(carrier.Trial):
 
     def dispatch(self, name, args):
         if name in ('search_mathlib','read_mathlib'):
-            return super().dispatch(name,args)
+            result=super().dispatch(name,args)
+            self.observe_proof_progress(name,args,result)
+            return result
         begin = time.monotonic()
         record=None;record_path=None
         try:
-            if self.accepted:
-                raise ir.Invalid('stage already accepted; no overwrite')
-            if name == 'find_strategies':
+            if self.accepted or self.repair_request:
+                raise ir.Invalid('stage already closed; no overwrite')
+            if self.mode=='proof' and self.instruction_arm=='yui' and name=='report_proof_obstruction':
+                report=proof_repair.obstruction(self,args)
+                self.request_proof_repair(report)
+                result={'accepted':False,'stage_complete':False,'repair_requested':True,
+                        'next_action':'End this turn. The controller owns serial diagnosis; no proof was accepted.'}
+            elif name == 'find_strategies':
                 c=ir.contract(self.cpath)
                 if self.mode=='proof':
                     packet=ir.local_packet(self.cpath,self.plan,self.step)
@@ -261,6 +285,7 @@ class Stage(carrier.Trial):
             self.last_diagnostic=str(e)[:14000]
         if record is not None:
             record['check']=dict(result);ir.write(record_path,record)
+        self.observe_proof_progress(name,args,result)
         carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
                                                'wall_seconds':time.monotonic()-begin})
         # Keep owner oracle signatures out of compiler feedback for interface work.
@@ -270,6 +295,50 @@ class Stage(carrier.Trial):
         if 'stdout' in result:
             return {**result,'stdout':result['stdout'][:14000],'stderr':result.get('stderr','')[:2000]}
         return result
+
+    def observe_proof_progress(self,name,args,result):
+        progress=getattr(self,'proof_progress',None)
+        if progress is None:return
+        progress.observe(name,args,result,carrier.now())
+        ir.write(self.logs/'proof-progress.json',progress.metadata())
+        ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(progress.seen)})
+        recorder=getattr(self,'execution',None)
+        if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
+
+    def request_proof_repair(self,report):
+        self.repair_request=report
+        ir.write(self.logs/'proof-repair-request.json',report)
+        ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(self.proof_progress.seen)})
+        self.submission_closed=True;self.stage_close_reason='PROOF_REPAIR_ESCALATION'
+        if self.repair_control:self.repair_control.request(self.step,report)
+        recorder=getattr(self,'execution',None)
+        if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',
+            repair_request=str(self.logs/'proof-repair-request.json'),proof_progress=self.proof_progress.metadata())
+
+    def after_unaccepted_turn(self):
+        progress=getattr(self,'proof_progress',None)
+        if progress is None:return False
+        recorder=getattr(self,'execution',None)
+        if recorder:recorder.check(self.execution_task)
+        stalled=progress.completed_turn()
+        ir.write(self.logs/'proof-progress.json',progress.metadata())
+        if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
+        if not stalled:return False
+        candidates=[{'kind':kind,'candidate':number} for kind,rows in self.own_lean_drafts.items()
+                    for number in sorted(rows)[-3:] if isinstance(rows[number].get('check'),dict)]
+        report=proof_repair.obstruction(self,{'layer':'unknown',
+            'explanation':'Three normally completed turns produced no distinct check or relevant lookup. Diagnose the located obligation and retained actual attempts before further continuation.',
+            'locations':['/target','/inputs','/source_steps'],'candidates':candidates},automatic=True)
+        self.request_proof_repair(report)
+        return True
+
+    def check_argument_guard(self):
+        super().check_argument_guard()
+        if not getattr(self,'_stopping',False) and not getattr(self,'submission_closed',False):
+            recorder=getattr(self,'execution',None)
+            if recorder:recorder.check(self.execution_task)
+            control=getattr(self,'repair_control',None)
+            if control:control.check()
 
     def timeout_policy_metadata(self):
         snapshot=getattr(self,'native_timeout_snapshot',None)
@@ -325,11 +394,18 @@ class Stage(carrier.Trial):
                 if recorder:recorder.check(self.execution_task)
                 if limiter is None:
                     if recorder:self.timeout=recorder.remaining(self.timeout)
+                    self.check_argument_guard()
                     return self._execute()
                 with limiter:
                     self.queue_seconds = time.monotonic()-queued
                     if recorder:self.timeout=recorder.remaining(self.timeout)
+                    self.check_argument_guard()
                     return self._execute()
+        except proof_repair.RoundInterrupted as error:
+            result={'status':'REPAIR_WAIT','task_outcome':'PROOF_ROUND_RETIRED',
+                    'error':str(error),'api_calls':0,'acceptance':False}
+            shutil.rmtree(self.work);ir.write(self.logs/'result.json',result)
+            return result,None
         except execution.CaseDeadlineExceeded as error:
             result={'status':'UNFINISHED','task_outcome':'MODEL_BUDGET_EXHAUSTED','stop_reason':'CASE_DEADLINE',
                 'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT',
@@ -372,6 +448,7 @@ class Stage(carrier.Trial):
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
                 'remote_retry_policy':REMOTE_RETRY_POLICY,
+                'proof_progress_policy':proof_repair.POLICY if self.proof_progress is not None else None,
                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
         (self.logs/'prompt.txt').write_text(user+'\n')
         (self.logs/'system.txt').write_text(self.system+'\n')
@@ -401,12 +478,19 @@ class Stage(carrier.Trial):
                 self.execution.task(self.execution_task,state='RUNNING',activity='MODEL_RUNNING',
                     model_started_at_utc=execution.now(),model_thread_id=self.thread_id)
             self.solve_turns(user)
-            result['status'] = 'ACCEPTED' if self.accepted else 'NO_ACCEPTED_ARTIFACT'
+            result['status'] = 'REPAIR_REQUESTED' if self.repair_request else 'ACCEPTED' if self.accepted else 'NO_ACCEPTED_ARTIFACT'
+            if self.repair_request:
+                result.update(task_outcome='PROOF_DIAGNOSIS_REQUIRED',repair_request=self.repair_request,
+                              stop_reason='PROOF_REPAIR_ESCALATION')
             if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
             if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE':
                 result.update(status='BLOCKED',task_outcome='MATHEMATICAL_REVIEW_FAILED',review_coverage='INCOMPLETE')
+        except proof_repair.RoundInterrupted as e:
+            result.update(status='REPAIR_WAIT',task_outcome='PROOF_ROUND_RETIRED',error=str(e),stop_reason='CASE_LOCAL_REPAIR')
+            try:self.interrupt_active_turn(reason='PROOF_ROUND_RETIRED')
+            except Exception as error:result['execution_fault']='Proof-round retirement unconfirmed: '+str(error)
         except execution.Cancelled as e:
             result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
             try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
@@ -464,6 +548,7 @@ class Stage(carrier.Trial):
                            'continuations':self.continuation_count,'finished_at_utc':carrier.now(),
                            'remote_retry_policy':REMOTE_RETRY_POLICY,
                            'remote_retries':getattr(self,'remote_retry_count',0)})
+            if self.proof_progress is not None:result['proof_progress']=self.proof_progress.metadata()
             if self.proc:
                 if getattr(self,'execution',None):
                     if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'

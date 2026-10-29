@@ -53,10 +53,13 @@ class JobEntryTests(unittest.TestCase):
             job=self.job();jobs.validate(job)
             self.assertEqual(job['library_catalog']['files'],[])
             with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(self.root/'catalog-two')}):
-                with self.assertRaisesRegex(ValueError,'library selection'):jobs.validate(job)
+                jobs.validate(job) # A later installation/environment change is not an active-job change.
             catalog=self.root/'catalog-one';catalog.mkdir()
             (catalog/'foundations.json').write_text('{"version":1,"entries":[]}')
-            with self.assertRaisesRegex(ValueError,'library selection'):jobs.validate(job)
+            jobs.validate(job)
+            frozen=Path(job['runtime_snapshot']['library_root'])
+            (frozen/'foundations.json').write_text('{"version":1,"entries":[]}')
+            with self.assertRaisesRegex(ValueError,'library selection|undeclared'):jobs.validate(job)
 
     def test_job_binds_original_inputs_and_cannot_write_into_installation(self):
         job=self.job();self.problem.write_text('Changed after freeze')
@@ -273,11 +276,12 @@ class JobEntryTests(unittest.TestCase):
                 self.assertFalse((install/'tests').exists())
                 self.assertFalse((install/'rigorous-proof').exists())
                 job=json.loads((run/'job.json').read_text())
-                self.assertTrue(all(Path(row['path']).is_relative_to(install) for row in job['runtime']))
+                frozen=run/'runtime'
+                self.assertTrue(all(Path(row['path']).is_relative_to(frozen) for row in job['runtime']))
                 catalog=job['library_catalog']
-                self.assertEqual(Path(catalog['path']),install/'library/foundations.json')
+                self.assertEqual(Path(catalog['path']),frozen/'library/foundations.json')
                 self.assertEqual(bool(catalog['files']),include_catalog)
-                self.assertTrue(all(Path(row['path']).is_relative_to(install) for row in catalog['files']))
+                self.assertTrue(all(Path(row['path']).is_relative_to(frozen) for row in catalog['files']))
 
 
 if __name__=='__main__':unittest.main()

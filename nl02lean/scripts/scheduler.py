@@ -10,9 +10,10 @@ import execution_state
 
 import ir
 import shared_lemmas
+import proof_repair
 
 
-def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, execution=None):
+def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, execution=None, repair_control=None):
     """worker(sid, packet) -> {proof: tactic body, ...disclosed metadata}.
 
     All proof ports must already be frozen. Dependency edges are discharged
@@ -75,6 +76,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
         entry = None
         try:
             if execution:execution.check(sid)
+            if repair_control:repair_control.check()
             if sid in requests:
                 entry, job['lookup'] = store.lookup(requests[sid])
             if entry:
@@ -86,6 +88,15 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
                 job['model_worker_called']=result.get('model_worker_called',True)
                 job['worker'] = {k: v for k, v in result.items() if k != 'proof'}
                 if execution:execution.check(sid)
+                request=result.get('stage',{}).get('repair_request')
+                if request:
+                    ir.need(request.get('step')==sid and request.get('acceptance') is False,
+                            'Malformed proof repair request')
+                    job['status']='REPAIR_REQUESTED';job['repair_request']=request
+                    if repair_control:repair_control.request(sid,request)
+                    return {},job
+                if result.get('stage',{}).get('status')=='REPAIR_WAIT':
+                    raise proof_repair.RoundInterrupted('Worker retired for case-local serial repair')
                 proof = result.get('proof')
                 ir.need(proof is not None, 'worker returned no accepted proof')
                 job['source'] = 'WORKER'
@@ -109,14 +120,15 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
             job['status'] = 'LOCAL_PROOFS_CHECKED'
             return produced, job
         except Exception as error:
-            job['status'] = 'CANCELLED' if isinstance(error,execution_state.Cancelled) else 'LOCAL_UNFINISHED'
+            job['status'] = ('CANCELLED' if isinstance(error,execution_state.Cancelled) else
+                             'REPAIR_WAIT' if isinstance(error,proof_repair.RoundInterrupted) else 'LOCAL_UNFINISHED')
             job['error'] = type(error).__name__ + ': ' + str(error)
             return {}, job
         finally:
             job['wall_seconds'] = time.monotonic()-job_start
             job['finished_offset_seconds'] = time.monotonic()-start
             if execution:
-                execution.task(sid,state='LOCAL_CHECKED' if job['status']=='LOCAL_PROOFS_CHECKED' else 'CANCELLED' if job['status']=='CANCELLED' else 'UNFINISHED',
+                execution.task(sid,state='LOCAL_CHECKED' if job['status']=='LOCAL_PROOFS_CHECKED' else 'CANCELLED' if job['status']=='CANCELLED' else 'REPAIR_WAIT' if job['status'] in {'REPAIR_WAIT','REPAIR_REQUESTED'} else 'UNFINISHED',
                     activity='FINISHED',finished_at_utc=execution_state.now(),outcome=job.get('error'),wall_seconds=job['wall_seconds'])
             if out:
                 ir.write(out/'jobs'/f'{sid}.json', job)
@@ -126,14 +138,15 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
         from contextvars import copy_context
         pending = {pool.submit(copy_context().run, run, group):group for group in groups.values()}
         while pending:
-            if execution and execution.cancelled():
+            if (execution and execution.cancelled()) or (repair_control and repair_control.event.is_set()):
                 for future in pending:future.cancel()
             done,_ = concurrent.futures.wait(pending,timeout=.1,return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 group=pending.pop(future)
                 if future.cancelled():
-                    result={};job={'step':group[0],'consumers':group,'status':'CANCELLED','model_worker_called':False}
-                    execution.task(group[0],state='CANCELLED',activity='NOT_STARTED',finished_at_utc=execution_state.now())
+                    state='CANCELLED' if execution and execution.cancelled() else 'REPAIR_WAIT'
+                    result={};job={'step':group[0],'consumers':group,'status':state,'model_worker_called':False}
+                    if execution:execution.task(group[0],state=state,activity='NOT_STARTED',finished_at_utc=execution_state.now())
                     if out:ir.write(out/'jobs'/f'{group[0]}.json',job)
                 else:result,job=future.result()
                 proofs.update(result);jobs.append(job)
@@ -142,11 +155,14 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
             'interface changed while workers were running')
     complete = set(proofs) == set(nodes)
     if execution and execution.cancelled():complete=False
-    if execution:execution.update(phase='assembly')
+    requests={j['step']:j['repair_request'] for j in jobs if j.get('repair_request')}
+    if requests:complete=False
+    if execution:execution.update(phase='assembly' if complete else 'proof-diagnosis' if requests else 'proof-unfinished')
     assembly = ir.check(cpath, plan, proofs, out=out/'assembly' if out else None) if complete else None
     fresh = ir.check(cpath, plan, proofs, out=out/'fresh-verifier' if out else None) if complete else None
     accepted = complete and assembly['exit_code'] == fresh['exit_code'] == 0
-    report = {'status': 'FRAGMENT_ASSEMBLED' if accepted else 'GRAPH_UNFINISHED',
+    report = {'status': 'FRAGMENT_ASSEMBLED' if accepted else 'GRAPH_REPAIR_REQUIRED' if requests else 'GRAPH_UNFINISHED',
+              'repair_requests':requests,
               'contract_sha256': initial_contract, 'plan_digest': initial_plan,
               'max_workers': max_workers, 'mathematical_nodes': len(nodes),
               'unique_jobs': len(groups), 'deduplicated_jobs': len(nodes)-len(groups),

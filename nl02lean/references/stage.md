@@ -31,8 +31,9 @@ The IR is a typed proof plan with unproved obligations. Python validates its
 explicit structure and renders Lean; Lean proves transitions and assembly.
 Neither component establishes natural-language fidelity automatically. Record
 an external/complete-target fidelity review in final Audit B and distinguish its actual
-scope. The default interface freeze is mechanical, with semantic status
-`PENDING_AUDIT_B`; a separate pre-proof model review is optional.
+scope. Normal full/translation entry additionally requires an actual independent
+semantic interface review before proof dispatch. Lower-level legacy mechanical
+freezes may still record `PENDING_AUDIT_B`; that is not the normal pre-proof gate.
 
 Use the scripts described in those references. Keep
 each input, plan, proof and feedback hash, retain failed attempts, and invalidate
@@ -54,8 +55,11 @@ and hands real checked evidence to a separate independent Audit B reviewer.
 Keep mathematical object identity global and Lean implementation views local.
 Freeze cross-node ports and planned typed conversion obligations. Their proof
 bodies are worker tasks; assembly/Audit B must supply every actual conversion.
-The interface preflight checks types and source boundaries. Final Audit B checks
+The normal interface preflight checks types, source boundaries and actual
+independent source/type judgments. Final Audit B checks
 semantic fidelity of those choices against the completed proof.
+Use [proof diagnosis and reviewed repair](proof-repair.md) for structured worker
+obstructions, no-progress detection and the serial interface repair boundary.
 Do not require one Lean type for every use of an object. A view record documents
 a choice; it neither proves equivalence nor chooses the best representation.
 

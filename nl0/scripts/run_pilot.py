@@ -513,13 +513,16 @@ class Trial:
                     self.send_header('Content-Length',str(len(message)));self.send_header('Connection','close')
                     self.end_headers();self.wfile.write(message);self.close_connection=True
                     return
-                if getattr(trial,'submission_closed',False) or (execution and execution.cancelled(trial.execution_task)):
+                repair_control=getattr(trial,'repair_control',None)
+                retiring=bool(repair_control and repair_control.event.is_set())
+                if getattr(trial,'submission_closed',False) or retiring or (execution and execution.cancelled(trial.execution_task)):
                     length=int(self.headers.get('Content-Length','0'))
                     self.rfile.read(length)
                     append(trial.logs/'local-cancellations.jsonl',{
                         'layer':'post_submission_request_suppressed','upstream_transmitted':False,
-                        'reason':'ACCEPTED_ARTIFACT' if getattr(trial,'submission_closed',False) else 'EXTERNAL_CANCEL'})
-                    body=b'{"error":{"message":"Stage closed after accepted submission"}}'
+                        'reason':getattr(trial,'stage_close_reason','ACCEPTED_ARTIFACT') if getattr(trial,'submission_closed',False)
+                                 else 'PROOF_ROUND_RETIRED' if retiring else 'EXTERNAL_CANCEL'})
+                    body=b'{"error":{"message":"Stage closed after a recorded controller transition"}}'
                     self.send_response(409);self.send_header('Content-Type','application/json')
                     self.send_header('Content-Length',str(len(body)));self.send_header('Connection','close')
                     self.end_headers();self.wfile.write(body);self.close_connection=True
@@ -856,7 +859,7 @@ tool_suggest = false
             if getattr(self,'submission_closed',False):
                 try:
                     self.drain_relay_streams()
-                    self.interrupt_active_turn(reason='ACCEPTED_ARTIFACT')
+                    self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
                 except Exception as error:self.post_acceptance_closing_error=type(error).__name__+': '+str(error)
                 event=self.last_turn_event or done
                 self.turn_results.append(event)
@@ -881,6 +884,11 @@ tool_suggest = false
                     continue
                 raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
             if smoke or self.accepted or not self.strict:
+                return done
+            hook=getattr(self,'after_unaccepted_turn',None)
+            if hook and hook():
+                append(self.logs/'controller.jsonl',{'event':'unaccepted_turn_routed_to_diagnosis',
+                    'previous_turn_id':turn.get('id'),'elapsed_seconds':time.monotonic()-self.started})
                 return done
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError('本轮达到预先设置的时间限制。')

@@ -269,7 +269,7 @@ class Recorder:
                 values['last_transport_event_at_utc']=now()
                 if substantive_event(event):values['last_substantive_model_event_at_utc']=now()
                 if (substantive_event(event) and not row.get('current_lean_check')
-                        and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED'}):
+                        and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED','REPAIR_WAIT'}):
                     values.update(activity='MODEL_RUNNING', last_activity_at_utc=now())
                 if event.get('type') in TERMINAL_EVENTS:values['last_provider_terminal_at_utc']=now()
                 self.task(task, **values)
@@ -334,7 +334,7 @@ class Recorder:
                 self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
                     confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
                     in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
-                states=['PENDING','RUNNING','LOCAL_CHECKED','UNFINISHED','BLOCKED','CANCEL_REQUESTED','CANCELLED','FINISHED']
+                states=['PENDING','RUNNING','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
                 self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
                 self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started

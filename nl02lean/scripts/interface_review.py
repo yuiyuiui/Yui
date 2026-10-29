@@ -37,7 +37,12 @@ directions of claimed representations/equivalences and their explicit planned
 conversion obligations; reject stronger assumptions, hidden conclusions, standard-basis
 surrogates for arbitrary lattices, omitted dimensions/characteristics/endpoints,
 and types that merely give a name to an unproved result. Type elaboration is not
-faithful translation. Check each source paragraph, source output and exact
+faithful translation. Check the actual meaning of library parameters,
+order/index types, coercions and overloaded
+notation in this pinned version. Do not infer a property from a symbol's
+appearance or from a remembered API. Check that no domain was made vacuous and
+no source property was silently strengthened or weakened by a definition.
+Check each source paragraph, source output and exact
 direct input boundary through implementation-only helpers. The plan must follow
 the accepted source argument, not silently research a new proof or introduce a stronger
 project hypothesis. Each typed obligation may be conditional, but assembly must
@@ -247,6 +252,39 @@ def collect(out):
     report['review_status']=review_outcome(x['verdict'] for x in raw['checks'].values())
     if bindings.get('adjudication') and not report['all_checks_passed']:report['review_status']='DISPUTED_REVIEW'
     write(out/'report.json',report);return report
+
+
+def verify_receipt(path,contract,plan,graph_sha256):
+    """Read back an actual independent reviewer, not a hand-written PASS wrapper."""
+    path=Path(path).resolve();out=path.parent;review=ir.load(path)
+    bindings=ir.load(out/'bindings.json');raw=ir.load(out/'stage/accepted.json')
+    require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='interface')
+    validate(raw,out)
+    import source_preparation
+    source_preparation.reviewer(review['reviewer'])
+    ir.need(not bindings.get('adjudication') and review['reviewer'].get('independent') is True
+            and review['reviewer'].get('mode')=='fresh_model_review',
+            'A full workflow requires a fresh independent interface review')
+    ir.need(review['source_graph_sha256']==bindings['source_graph']['sha256']==graph_sha256
+        and review['contract_sha256']==bindings['contract']['sha256']==ir.digest(contract)
+        and review['plan_sha256']==bindings['plan']['sha256']==ir.digest(plan),
+        'stale interface review')
+    for key in ['contract','plan','source_graph','spec']:
+        source_preparation.unchanged(bindings[key])
+    ir.need(review['checks']==raw['checks'] and set(raw['checks'])==workflow.INTERFACE_CHECKS
+        and all(row['verdict']=='PASS' for row in raw['checks'].values())
+        and not any(blocking_finding(row) for row in raw['findings']),
+        'No complete actual passing interface review')
+    expected={name:ir.digest(out/'stage'/name) for name in
+              ['accepted.json','result.json','exposure-audit.json','execution-manifest.json']}
+    actual={}
+    for item in review['evidence']:
+        file=(out/item['path']).resolve()
+        ir.need(file.parent==out/'stage' and file.name in expected
+            and ir.digest(file)==item['sha256'],'Invalid interface-review evidence binding')
+        actual[file.name]=item['sha256']
+    ir.need(actual==expected,'Missing actual interface-review evidence')
+    return review
 
 
 if __name__=='__main__':
