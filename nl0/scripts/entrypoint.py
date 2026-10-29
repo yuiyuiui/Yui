@@ -35,6 +35,7 @@ def parsers(commands):
     p=commands.add_parser('resume',help='Continue a supported, explicitly verified operational checkpoint')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
+    p.add_argument('--output',type=Path,help='Fresh owned output for one explicit restored-access continuation')
     repairs=p.add_mutually_exclusive_group()
     repairs.add_argument('--repair-evidence',action='store_true',
         help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
@@ -42,11 +43,17 @@ def parsers(commands):
         help='Continue a verified inherited probe-directory collision from its saved pre-draft author-repair boundary')
     repairs.add_argument('--repair-native-cleanup',action='store_true',
         help='Continue an exited frozen proof queue stopped only by native-process cleanup faults')
+    repairs.add_argument('--after-access-restored',action='store_true',
+        help='Explicitly recover a verified provider HTTP403 after a fresh authenticated non-inference access check')
     for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
         if name=='cancel':p.add_argument('--task',help='One known proof task; requires a single run')
         if name=='cleanup':p.add_argument('--apply',action='store_true');p.add_argument('--grace-seconds',type=float,default=10)
+    for name in ('errors','resume-error'):
+        p=commands.add_parser(name,help='Inspect or explicitly resume one retained live error checkpoint; no model call')
+        p.add_argument('run',type=Path)
+        if name=='resume-error':p.add_argument('--incident',required=True)
 
 
 def profiles(args):
@@ -95,6 +102,8 @@ def launch(prepared, *, detached=False, case_concurrency=None):
     for job in prepared:jobs.validate(job);preflight_profiles(job)
     from runtime_config import verify
     verify()
+    import access_recovery
+    for job in prepared:access_recovery.before_launch(job)
     if detached:
         from owner_observation import handoff
         observation=handoff([job['root'] for job in prepared])
@@ -119,6 +128,10 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command in {'errors','resume-error'}:
+        import fault_control
+        if args.command=='errors':return {'status':'ERROR_CHECKPOINTS','errors':fault_control.pending(args.run)}
+        return fault_control.resume(args.run,args.incident)
     if args.command=='observe':
         from owner_observation import snapshot
         return snapshot(args.runs)
@@ -128,7 +141,13 @@ def dispatch(args):
     if args.command=='resume':
         import interrupted
         import native_cleanup_recovery
-        prepared=[native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
+        if getattr(args,'after_access_restored',False):
+            if len(args.runs)!=1:raise ValueError('Select one exact run for manual restored-access recovery')
+            prepared=[interrupted.prepare(args.runs[0],after_access_restored=True,output=args.output)]
+        elif getattr(args,'output',None) is not None:
+            raise ValueError('--output requires the explicit --after-access-restored route')
+        else:
+            prepared=[native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
                   interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
                   interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
                   interrupted.prepare(path) for path in args.runs]
@@ -180,8 +199,13 @@ def dispatch(args):
                        'controller':who,'controller_identity_matches':live,
                        'track':job['track'],'profiles':job['profiles']}
             result[str(p)]=value
+            import fault_control
+            value['paused_errors']=fault_control.pending(p)
         return result
     if args.command=='cancel':
+        if len(args.runs)==1 and not (args.runs[0]/jobs.MARKER).is_file() and not args.task:
+            import fault_control
+            return fault_control.cancel_paused(args.runs[0])
         if args.task:
             if len(args.runs)!=1:raise ValueError('Task cancellation requires exactly one run')
             from execution_state import request_cancel

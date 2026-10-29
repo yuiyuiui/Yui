@@ -126,6 +126,8 @@ def inspect(directory):
 
 class Recorder:
     def __init__(self, root, case_id, configuration, *, phase='proof', time_budget_seconds=None):
+        self.retained_stages = []
+        self.resource_cleanup_errors = []
         self.root = Path(root).resolve(); self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root/'execution-status.json'
         if self.path.exists(): raise ValueError('Preserve the existing run; use a new output directory')
@@ -334,7 +336,7 @@ class Recorder:
                 self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
                     confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
                     in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
-                states=['PENDING','RUNNING','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
+                states=['PENDING','RUNNING','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
                 self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
                 self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started
@@ -356,6 +358,13 @@ class Recorder:
             for s,handler in previous.items():signal.signal(s,handler)
 
     def close(self, status, **result):
+        self.retained_stages=[(s,g) for s,g in self.retained_stages if not getattr(s,'_resources_released',False)]
+        authorization=('USER_CANCELLED' if status=='CANCELLED' else 'WORKFLOW_FINALIZED'
+            if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
+            else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'} else None)
+        if authorization is None and (self.retained_stages or any(p.poll() is None for p in self._handles.values())):
+            raise ValueError('Unfinished/error status cannot authorize retained workflow cleanup')
+        if authorization:self.release_retained('all',authorization)
         self.done.set();self.thread.join(timeout=2)
         residual=[]
         for key,process in list(self._handles.items()):
@@ -377,6 +386,23 @@ class Recorder:
             self.state['controller']['state']='FINALIZED'
             self.state['result']={'status':status,**result}
             self.state['cancellation'].update(residual_owned_processes=residual,
-                cleanup='UNKNOWN' if residual else 'CONFIRMED_NO_OWNED_PROCESSES')
+                resource_cleanup_errors=list(self.resource_cleanup_errors),
+                cleanup='UNKNOWN' if residual or self.resource_cleanup_errors else 'CONFIRMED_NO_OWNED_PROCESSES')
         self.flush(force=True)
         self.owner_lock.unlink(missing_ok=True)
+
+    def retain_stage(self, stage, group):
+        with self.lock:
+            if not any(s is stage for s,_ in self.retained_stages):self.retained_stages.append((stage,group))
+
+    def release_retained(self, group, authorization):
+        # Release only at an actual validated A/final workflow gate or explicit cancel.
+        for stage,scope in list(self.retained_stages):
+            if group!='all' and scope!=group:continue
+            try:stage.release_resources(authorization)
+            except Exception as error:
+                if authorization!='USER_CANCELLED':raise
+                self.resource_cleanup_errors.append({'logs':str(stage.logs),
+                    'error':type(error).__name__+': '+str(error),'workspace_preserved':True})
+                continue
+            self.retained_stages.remove((stage,scope))

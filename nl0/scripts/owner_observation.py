@@ -132,6 +132,8 @@ def snapshot(runs):
             return json.loads(path.read_text()) if path.is_file() else {}
         state = read('execution-status.json')
         result = read('case-result.json').get('result', {})
+        from fault_control import pending
+        errors=pending(root)
         records = list(state.get('processes', {}).values())
         controller = state.get('controller', {})
         records.extend(row for row in [controller, read('launch.json').get('controller'),
@@ -148,7 +150,9 @@ def snapshot(runs):
         phase = state.get('phase') or ('QUEUED' if live else
             'CONTROLLER_EXITED_BEFORE_CASE_START' if records else 'PREPARED_NOT_STARTED')
         cases.append({'run': str(root), 'phase': phase,
-            'recorded_result': result.get('status'), 'terminal_record_present': bool(result),
+            'recorded_result': result.get('status'), 'terminal_record_present': bool(result) and not errors,
+            'paused_errors':[{'incident':e['incident'],'category':e['fault']['category'],
+                'path':e['path'],'notification':e.get('notification'),'resumable':e.get('resumable')} for e in errors],
             'completion': result.get('completion'),
             'recorded_audit_b': (result.get('audit_b') or {}).get('status'),
             'counts': {k: v for k, v in counts.items() if type(v) is int},

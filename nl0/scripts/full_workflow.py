@@ -45,7 +45,9 @@ def nl0_artifact_for_audit(directory):
     if row.get('status')!='ACCEPTED' or not checked['identity_and_input_boundary_verified']:
         reject('No complete identity/input-bound definitive NL0 submission')
     if (row.get('isolation_violation') or row.get('execution_fault')
-            or row.get('temporary_workspace_removed') is not True):
+            or not (row.get('temporary_workspace_removed') is True
+                    or (row.get('temporary_workspace_removed') is False
+                        and __import__('run_resources').safe_stage_workspace(row)))):
         reject('Isolation, controller or cleanup evidence is not eligible for automatic mathematical review')
     if not checked['submitted_record_qualified']:
         reject('Only a disclosed recovered transport interruption may qualify a complete NL0 for first A')
@@ -86,7 +88,9 @@ def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=
                     'authority':a.bind(source/'audit-a.json'),'reused_unchanged_acceptance':True,
                     'full_acceptance':prior['current_standard_receipt_valid'],
                     'conditional_acceptance':prior.get('current_conditional_receipt_valid',False)}
-            progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else 'SOURCE_AUDIT_A_CONDITIONAL',**result);return result
+            progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else 'SOURCE_AUDIT_A_CONDITIONAL',**result)
+            if getattr(budget,'execution',None):budget.execution.release_retained('nl0','AUDIT_A_FINALIZED')
+            return result
     a.prepare(source,problem or source/'inputs',directory,reuse_from=reuse_from)
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
     a.run(directory,stage_seconds(budget),budget=budget,audit_budget=audit_budget)
@@ -101,6 +105,8 @@ def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=
     progress(case,'SOURCE_AUDIT_A_PASSED' if result['full_acceptance'] else
              'SOURCE_AUDIT_A_CONDITIONAL' if result.get('conditional_acceptance') else 'AUDIT_A_FINDINGS',
              inspection=str(directory/'inspection.json'),warnings=result.get('source_warnings',[]))
+    if (result['full_acceptance'] or result.get('conditional_acceptance')) and getattr(budget,'execution',None):
+        budget.execution.release_retained('nl0','AUDIT_A_FINALIZED')
     return result
 
 
@@ -153,7 +159,7 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
             return proof,current
         faults=[job['step'] for job in proof.get('jobs',[]) if
             job.get('worker',{}).get('stage',{}).get('execution_fault') or
-            job.get('worker',{}).get('stage',{}).get('temporary_workspace_removed') is False]
+            not __import__('run_resources').safe_stage_workspace(job.get('worker',{}).get('stage',{}))]
         if faults:
             raise StageFailure('EXECUTION_FAULT','A retired proof worker has an unconfirmed runtime/cleanup fault; do not start interface repair',
                 phase='proof',evidence=current/'report.json',details={'affected_steps':faults,

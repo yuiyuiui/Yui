@@ -67,7 +67,14 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     finally:
         if owns_recorder:
             status=recorder.state.get('proof_result','EXECUTION_FAULT')
-            recorder.close('CANCELLED' if recorder.cancelled() else status)
+            try:recorder.close('CANCELLED' if recorder.cancelled() else status)
+            except Exception as error:
+                from fault_control import Gate
+                try:
+                    with recorder.signals():
+                        Gate(out/'logs/controller-errors',recorder=recorder,stage='standalone-proof-queue').pause(
+                            error,resumable=False,checkpoint={'preserve_checked_bodies':True,'no_automatic_restart':True})
+                except execution_state.Cancelled:recorder.close('CANCELLED')
 
 
 def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None):

@@ -66,10 +66,22 @@ automatically receive frozen ST020 repair advice after a verified native
 wall/heartbeat limit, through the same failed tool result. Keep the target and
 inputs unchanged, repair in the same worker, and recheck. General strategy-bank
 queries remain optional; this failure-triggered advice needs no extra model call.
-Positively identified temporary remote-service failures retry within the same
-isolated thread, preserving its drafts and tool receipts. Keep the selected
-profile and record every fault/wait; use [operational recovery](nl0/references/operation.md#remote-service-recovery)
-for backoff, cancellation and explicit continuation of an already exited run.
+Follow [fault treatment and authorized exit](nl0/references/error-lifecycle.md).
+Local Python retries recognized temporary service/network faults every 60seconds,
+at most 10 times in the same carrier/thread. Other faults and exhausted retries
+enter a retained `PAUSED_ERROR`, notify the owner through local `codex queue`,
+and wait for an exact-incident operator action. An error never authorizes task
+termination or workspace deletion. Release NL0 resources only after actual
+Audit A/finalization, and translation resources after actual Audit B/finalization;
+explicit user cancellation is the other authorized cleanup boundary. Keep
+scientific evidence and the selected profile. A pause is nonterminal: never
+restart it or delete its monitor. Existing exited-run recovery is historical,
+not a substitute for live `resume-error` controls.
+An explicitly authorized `--after-access-restored` continuation separately
+supports a verified provider HTTP403 stop at the NL0/Audit A boundary. It checks
+authenticated model metadata without inference before preparation and launch;
+403 stays excluded from automatic retries. Preserve old faults/costs and disclose
+the new runtime and unreleased-author scope in that operation reference.
 For a previously stopped inherited probe-directory collision, the same operation
 reference documents a separate guarded `--repair-local-tool` continuation after
 verified software repair and explicit owner authorization; it restores the saved

@@ -42,13 +42,29 @@ def known_transport_recovery(result):
     """A real submitted record survived a disclosed transport-only interruption."""
     if (result.get('status') not in {'ACCEPTED','BLOCKED'} or result.get('execution_health')!='FAULT'
             or result.get('isolation_violation') or result.get('execution_fault')
-            or result.get('temporary_workspace_removed') is not True):return False
+            or type(result.get('temporary_workspace_removed')) is not bool
+            or not __import__('run_resources').safe_stage_workspace(result)):return False
     transport=result.get('transport_health',{});faults=transport.get('faults',[])
     if transport.get('status')!='FAULT' or not faults:return False
     if any(f.get('kind') not in {'RELAY_ERROR','HTTP_ERROR','PROVIDER_ERROR'} for f in faults):return False
     numbers={f.get('request_number') for f in faults if type(f.get('request_number')) is int}
-    return all(u.get('kind')=='HTTP_EVIDENCE_INCOMPLETE'
-               and set(u.get('missing_requests',[]))<=numbers
+    def explicitly_resumed():
+        import hashlib
+        for row in result.get('error_pauses',[]):
+            try:
+                path=Path(row['path']);raw=path.read_bytes();value=json.loads(raw)
+                if (hashlib.sha256(raw).hexdigest()==row['sha256'] and value.get('state')=='RESUMED'
+                        and value.get('control',{}).get('incident')==value.get('incident')
+                        and value.get('control',{}).get('action')=='resume'
+                        and value.get('fault',{}).get('category') in {'model_auth','model_balance','model_quota','model_request_rejected'}):
+                    return True
+            except (OSError,ValueError,KeyError):continue
+        return False
+    return all((u.get('kind')=='HTTP_EVIDENCE_INCOMPLETE'
+                and set(u.get('missing_requests',[]))<=numbers)
+               or (u.get('kind')=='PROVIDER_ERROR' and explicitly_resumed()
+                   and remote_retry.diagnose(u.get('details'))['category'] in
+                   {'model_auth','model_balance','model_quota','model_request_rejected'})
                for u in transport.get('uncertainty',[]))
 
 
@@ -57,7 +73,7 @@ def record_qualification(result,*,allow_blocked=False):
     checked=qualification(result);recovered=known_transport_recovery(result)
     context=bool(checked['identity_and_input_boundary_verified']
         and not result.get('isolation_violation') and not result.get('execution_fault')
-        and result.get('temporary_workspace_removed') is not False
+        and __import__('run_resources').safe_stage_workspace(result)
         and (checked['execution_health']=='NO_RECORDED_FAULT' or recovered))
     submitted=result.get('status') in ({'ACCEPTED','BLOCKED'} if allow_blocked else {'ACCEPTED'})
     return {**checked,'record_context_qualified':context,

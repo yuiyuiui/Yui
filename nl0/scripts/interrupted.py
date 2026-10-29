@@ -33,6 +33,7 @@ def validate_descriptor(job):
     value=job['resume']
     expected={'version','prior_run','mode','author_directory','campaigns'}
     if value.get('mode')=='author-repair':expected.add('repair_directory')
+    if 'access_recovery_receipt' in value:expected.add('access_recovery_receipt')
     if (set(value)!=expected
             or value['version']!=VERSION or value['mode'] not in {'author','audit-a','author-repair'}
             or job['track'] not in {'nl0','full'}):raise ValueError('Unsupported service-resume contract')
@@ -66,6 +67,11 @@ def validate_descriptor(job):
         required.update(str(p) for p in boundary['files'])
     if not required<={row['path'] for row in job['authority_bindings']}:
         raise ValueError('Missing prior-run authority binding')
+    if 'access_recovery_receipt' in value:
+        if value['mode'] not in {'author','audit-a'}:
+            raise ValueError('Access recovery does not override another repair boundary')
+        import access_recovery
+        access_recovery.validate_receipt(job)
 
 
 def audit_boundary(prior,old,campaign):
@@ -198,7 +204,8 @@ def bookkeeping_boundary(prior,old,result):
     return author,source,campaigns,faults
 
 
-def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
+def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False,
+            after_access_restored=False, output=None):
     """No model calls; reuse only explicit, unchanged, completed review scopes."""
     import full_workflow
     import source_preparation
@@ -212,8 +219,11 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
     result=json.loads(result_path.read_text());result=result.get('result',result)
     if old['track'] not in {'nl0','full'} or result.get('completion',{}).get('acceptance_target_satisfied'):
         raise ValueError('Use this recovery only for interrupted NL0/Audit A work')
-    if repair_evidence and repair_local_tool:raise ValueError('Select one explicit repair mode')
-    campaigns=[];mode='author';index_faults=[];local=None
+    if sum(map(bool,[repair_evidence,repair_local_tool,after_access_restored]))>1:
+        raise ValueError('Select one explicit repair mode')
+    if output is not None and not after_access_restored:
+        raise ValueError('Explicit resume output is supported only for manual access recovery')
+    campaigns=[];mode='author';index_faults=[];local=None;access=None
     if repair_local_tool:
         local=local_tool_boundary(prior,old,result)
         author,source,campaigns=local['author'],local['source'],local['campaigns']
@@ -226,14 +236,20 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
         if not evidence.is_relative_to(prior) or evidence.name!='result.json':
             raise ValueError('No exact interrupted model-stage evidence; do not restart an unknown failure')
         failure=json.loads(evidence.read_text())
-        rows=(failure.get('transport_health') or {})
-        remote=[row for key in ['faults','uncertainty'] for row in rows.get(key,[])
-                if row.get('kind')=='PROVIDER_ERROR' and remote_retry.classify(row.get('details'))]
-        if (failure.get('isolation_violation') or failure.get('status')=='CANCELLED'
-                or (evidence.parent/'tool-provenance-rejections.jsonl').exists()
-                or (evidence.parent/'isolation-violations.jsonl').exists()
-                or not remote or not remote_stop(evidence.parent)):
-            raise ValueError('Prior failure is not a positively identified remote provider fault')
+        if after_access_restored:
+            import access_recovery
+            denial=access_recovery.boundary(evidence.parent,failure)
+            exited=access_recovery.confirm_exit(prior)
+            access={'denial':denial,'exited':exited}
+        else:
+            rows=(failure.get('transport_health') or {})
+            remote=[row for key in ['faults','uncertainty'] for row in rows.get(key,[])
+                    if row.get('kind')=='PROVIDER_ERROR' and remote_retry.classify(row.get('details'))]
+            if (failure.get('isolation_violation') or failure.get('status')=='CANCELLED'
+                    or (evidence.parent/'tool-provenance-rejections.jsonl').exists()
+                    or (evidence.parent/'isolation-violations.jsonl').exists()
+                    or not remote or not remote_stop(evidence.parent)):
+                raise ValueError('Prior failure is not a positively identified remote provider fault')
         relative=evidence.relative_to(prior).parts
         if relative[0]=='audit-a' and len(relative)>=5:
             author,source,campaigns=audit_boundary(prior,old,prior/relative[0]/relative[1])
@@ -255,6 +271,9 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
     if local:paths.update(local['files'])
     elif repair_evidence:paths.add(prior/'execution-status.json')
     else:paths.add(evidence.parent/'events.jsonl')
+    if access:
+        paths.add(evidence.parent/'http.jsonl')
+        if (evidence.parent/'relay-errors.jsonl').exists():paths.add(evidence.parent/'relay-errors.jsonl')
     if mode in {'audit-a','author-repair'}:
         source=author/'stage/case'
         _,files=source_preparation.read_source(source/'nl0.json',source/'spec.json')
@@ -275,16 +294,30 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
     descriptor={'version':VERSION,'prior_run':str(prior),'mode':mode,
                 'author_directory':str(author),'campaigns':campaigns}
     if local:descriptor['repair_directory']=str(local['repair'])
+    if access:
+        restored=access_recovery.check(old['profiles'])
+        receipt=access_recovery.record(prior,evidence.parent,old['profiles'],access['denial'],access['exited'],restored)
+        descriptor['access_recovery_receipt']=str(receipt);paths.add(receipt)
+        if output is None:
+            from datetime import datetime,timezone
+            import uuid
+            output=prior.parent/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:10])
     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],
         materials=[row['original']['path'] for row in old['documents'][1:] if row.get('extraction')!='target-selection'],
         time_budget_seconds=remaining,resume=descriptor,
-        resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'))
+        resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'),
+        **({'output':output} if access else {}))
     write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,
         'new_runtime_bound':True,'partial_reviews_are_not_inherited':True,
         'prior_judgments_visible_to_fresh_reviewers':False,'old_usage_included_in_new_usage':False,
         'evidence_index_recovery':index_faults,'recovery_requires_new_model_reviews':not repair_evidence,
+        **({'access_recovery':{'receipt':bind(receipt),'original_http_status':403,
+             'metadata_check_is_not_inference_success':True,'automatic_http403_retry':False,
+             'old_elapsed_case_seconds':result.get('elapsed_case_seconds'),
+             'old_partial_usage':result.get('usage'),
+             'unreleased_author_scope':'Original declared inputs; old unreleased drafts stay preserved in the old run, not relabeled as released source'}} if access else {}),
         **({'local_tool_recovery':{'kind':'INHERITED_PROBE_DIRECTORY_COLLISION','collision':local['collision'],
              'checkpoint':'RELEASED_BASELINE_AND_LOCATED_REPAIR_OBLIGATIONS',
              'original_repair_directory':str(local['repair']),'old_partial_usage':result.get('usage'),

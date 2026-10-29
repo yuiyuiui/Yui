@@ -121,7 +121,7 @@ Only applicable stages are created. Multiple attempts are retained, not
 silently overwritten. An explicit `--output` chooses another new directory;
 it cannot overwrite an input or write inside the skill. Never create a global
 repository results directory, scan parent folders for proof caches or read other
-cases. OS temporary sandboxes are registered and cleaned on stage exit; they
+cases. OS temporary sandboxes are registered and retained until validated phase finalization or explicit user cancellation; they
 are not persistent scientific output. Running several cases adds no files to
 their common parent or the example root. Batch summaries are per-run metadata,
 never worker-visible mathematical inputs.
@@ -231,15 +231,19 @@ it is not a remote error. Authentication, billing/quota, unsupported settings,
 context/output limits, cancellation and local/provenance faults are not remote
 retries. An unclassified failure remains visible rather than guessed transient.
 
-Retry waits start near 15 seconds and increase exponentially to 300 seconds,
-with small jitter; a recorded valid `Retry-After` is a lower bound. There is no
-fixed retry-count cutoff. Waiting makes no model call, remains cancellable, and
-respects an explicit user deadline. Status reports `REMOTE_RETRY_WAIT` on the
-affected task. `remote-retries.jsonl` preserves each reason, delay and original
-failed turn; stage results record the policy and retry count. Original transport
-faults and missing usage remain visible after recovery. A complete qualified
-submission can proceed through actual mathematical gates; recovered execution
-is never relabeled fault-free timing or a cold first-pass success.
+Retry waits are exactly 60seconds, with at most 10 retries after the original
+failure. Carrier-level provider retries are disabled. Waiting requires no model
+call and remains cancellable. Nonretryable faults, unknown/local bugs and retry
+exhaustion enter `PAUSED_ERROR`, retaining the same processes, context, drafts
+and temporary workspace. They notify the owner with the local `codex queue`
+command and wait for explicit handling; they never imply task completion or
+permission to clean up. Inspect with `yui.py errors RUN`; resume a supported live
+checkpoint with `yui.py resume-error RUN --incident ID`; cancel with `yui.py cancel RUN`.
+The [error lifecycle](error-lifecycle.md) specifies categories, owner routing,
+full diagnostic logs, control guards and the only authorized exit boundaries.
+Original faults, qualifications and missing usage remain visible after recovery.
+A qualified submission still needs the unchanged mathematical acceptance gates;
+resumed work is never relabeled a fault-free or cold first-pass success.
 
 For a run that already exited before this in-session recovery was available,
 the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
@@ -262,6 +266,45 @@ live old owners, changed inputs, completed workflows or unsupported later phases
 A former explicit deadline cannot be reset: a finite-budget old run without a
 retained absolute deadline is rejected. New stages then use the common carrier's
 in-session remote retry throughout the remaining workflow.
+
+### Explicit recovery after provider access is restored
+
+HTTP 403 remains excluded from automatic retry and ordinary `resume`. After an
+explicit human request to continue a stopped run, the owner may use the separate
+manual route for an actual structured provider HTTP-connection 403:
+
+```sh
+python3 -B /path/to/installed/skill/nl0/scripts/yui.py resume OLD_RUN \
+  --after-access-restored --output NEW_RUN --prepare-only
+python3 -B /path/to/installed/skill/nl0/scripts/yui.py execute NEW_RUN --detach
+```
+
+The first command requires the exact old processes/groups to have exited,
+identity/input-qualified final denial evidence, matching recorded upstream HTTP
+status, and no local/provenance, quota, configuration or unknown terminal cause.
+It performs one authenticated model-catalog GET through the carrier's verified
+TLS/system-proxy route and requires the selected model/effort to be advertised.
+It makes no inference call, follows no redirects and logs no credential values
+or catalog body. If access still fails, no continuation run is created. Actual
+launch rechecks access before starting a model process. A successful metadata
+check does not guarantee that a later inference request cannot fail again.
+
+The owner must explicitly select this route; it never turns a 403 into a
+transient error or grants an automatic retry loop. It supports only the same
+NL0/Audit A recovery boundaries as ordinary service resume. A bound access
+receipt, final fault/HTTP evidence, original inputs/target/profiles/workers and
+any finite deadline remain validated. Static receipt validation stays offline;
+future network outages cannot invalidate an old receipt's recorded observation.
+`--output` must name a fresh directory outside the installation. When omitted,
+the manual route creates a fresh sibling of OLD_RUN, preserving a custom output
+parent. This flag is mutually exclusive with other repair modes.
+
+Retain the original fault, all old partial usage and the exact previous runtime.
+Report the new runtime and warm lineage separately. A definitive released source
+can be restored under existing source/A inheritance rules. An unreleased author
+re-enters from its original declared inputs: old drafts stay archived and are
+not promoted into a released proof or silently fed to a fresh reviewer. This is
+not resurrection of the destroyed native carrier context or a cold first pass.
 
 ## Observe, stop and clean
 

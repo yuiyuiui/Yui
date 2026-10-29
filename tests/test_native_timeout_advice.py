@@ -120,7 +120,8 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         with patch.object(ir,'check',return_value=wall_timeout()):
             failed=stage.dispatch('check_transition',{'proof':'trivial'})
         self.assertEqual(failed['repair_advice']['status'],'ADVICE_DELIVERED')
-        with patch.object(stage,'start_process',side_effect=RuntimeError('OFFLINE_PROCESS_BOUNDARY')):
+        with patch.object(stage,'start_process',side_effect=RuntimeError('OFFLINE_PROCESS_BOUNDARY')), \
+                patch.object(stage,'pause_error',side_effect=__import__('execution_state').Cancelled('Synthetic user cancellation')):
             stage._execute()
         manifest=json.loads((stage.logs/'execution-manifest.json').read_text())
         card=next(row for row in manifest['runtime_files'] if row['path']=='nl02lean/bank/cards/ST020.json')

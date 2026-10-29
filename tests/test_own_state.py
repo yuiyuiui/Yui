@@ -61,14 +61,14 @@ class OwnStateTests(unittest.TestCase):
         def failing_start():
             self.worker.dispatch('probe_library',{'id':'M021','declaration':'Synthetic.source'})
         with patch('artifact_validation.signature_probe',side_effect=OSError(5,'Synthetic storage failure')), \
-             patch.object(self.worker,'start_process',side_effect=failing_start):
+             patch.object(self.worker,'start_process',side_effect=failing_start), \
+             patch.object(self.worker,'pause_error',side_effect=__import__('execution_state').Cancelled('Synthetic user cancellation')):
             result,_=self.worker._execute()
-        self.assertEqual(result['stop_reason'],'LOCAL_TOOL_EXECUTION_FAULT')
+        self.assertEqual(result['paused_outcome']['stop_reason'],'LOCAL_TOOL_EXECUTION_FAULT')
         self.assertEqual(result['tool_execution_fault']['tool'],'probe_library')
         self.assertEqual(result['api_calls'],0);self.assertEqual(result['lean_calls'],0)
-        with self.assertRaises(StageFailure) as stopped:full_workflow.nl0_artifact_for_audit(self.worker.logs.parent)
-        self.assertEqual(stopped.exception.result['status'],'EXECUTION_FAULT')
-        self.assertTrue(stopped.exception.result['checkpoint']['preserve_completed_work'])
+        with self.assertRaises(__import__('execution_state').Cancelled):
+            full_workflow.nl0_artifact_for_audit(self.worker.logs.parent)
 
     def sent(self):
         user=self.worker.prompt();self.worker.allowed_user_messages.add(user)

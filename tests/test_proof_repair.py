@@ -158,10 +158,15 @@ class ProofRepairTests(unittest.TestCase):
 
     def test_local_diagnosis_repair_handoff_preserves_prior_round(self):
         import run_graph,workflow
+        import run_resources
         budget=SimpleNamespace(execution=None);proof_budget=SimpleNamespace(execution=None)
         frozen={'contract':str(self.cpath),'plan':str(self.root/'plan.json')}
         request={'step':'T001','evidence_key':'one'}
         failure={'status':'GRAPH_REPAIR_REQUIRED','repair_requests':{'T001':request}}
+        retained=self.stage()
+        failure['jobs']=[{'step':'T001','worker':{'stage':{'status':'REPAIR_REQUESTED',
+            'temporary_workspace_removed':False,
+            'workspace_retention':run_resources.retention(retained.work,retained.logs)}}}]
         calls=[]
         def run(c,p,out,**kwargs):
             calls.append((out,copy.deepcopy(kwargs)));ir.write(out/'report.json',failure if len(calls)==1 else {'status':'FRAGMENT_ASSEMBLED'})
@@ -252,14 +257,14 @@ class ProofRepairTests(unittest.TestCase):
         self.assertEqual(status['gates']['lean_assembly'],'FRAGMENT_ASSEMBLED')
         self.assertFalse(status['full_acceptance']);self.assertEqual(status['gates']['audit_b'],'NOT_PASSED')
 
-    def test_actual_repair_request_result_is_unaccepted_and_cleans_up(self):
+    def test_actual_repair_request_result_is_unaccepted_and_retains_context(self):
         stage=self.stage();stage.start_process=Mock();stage.interrupt_active_turn=Mock()
         stage.rpc=Mock(return_value={'thread':{'id':'offline-thread'}})
         stage.solve_turns=lambda user:stage.dispatch('report_proof_obstruction',self.report())
         result,value=stage._execute()
         self.assertEqual(result['status'],'REPAIR_REQUESTED');self.assertIsNone(value)
         self.assertEqual(result['task_outcome'],'PROOF_DIAGNOSIS_REQUIRED')
-        self.assertTrue(result['temporary_workspace_removed']);self.assertFalse((stage.logs/'accepted.json').exists())
+        self.assertFalse(result['temporary_workspace_removed']);self.assertTrue(stage.work.exists());self.assertFalse((stage.logs/'accepted.json').exists())
 
     def test_warm_repair_restores_only_own_drafts_without_inheriting_acceptance(self):
         import proof_reuse,run_graph

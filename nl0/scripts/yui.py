@@ -38,7 +38,7 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
-    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets'}:
+    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))

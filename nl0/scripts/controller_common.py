@@ -15,6 +15,23 @@ def write(path, value):
     atomic(Path(path), value)
 
 
+def final_write(path, value, *, recorder=None):
+    """A report-write failure retains the controller; only an operator retries it."""
+    from fault_control import Gate
+    from execution_state import Cancelled
+    path=Path(path)
+    while True:
+        try:
+            write(path,value)
+            return True
+        except Exception as error:
+            try:
+                Gate(path.parent/'logs/final-write-errors',recorder=recorder,stage='final-report').pause(
+                    error,resumable=True,checkpoint={'destination':str(path),
+                        'retry_scope':'atomic final metadata write only','new_model_or_lean_call':False})
+            except Cancelled:return False
+
+
 def bind(path):
     path = Path(path).resolve()
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
