@@ -64,6 +64,20 @@ class ExternalCampaignTests(unittest.TestCase):
         self.assertEqual(document['converter'],'pypdf')
         self.assertEqual((self.out/document['readback']).read_text(),'Actual converter readback.')
 
+    def test_identical_primary_documents_share_one_bound_readback(self):
+        import source_staging
+        pdf=self.case/'shared.pdf';pdf.write_bytes(b'%PDF-1.7\nsynthetic source for controlled extraction')
+        evidence={'path':pdf.name,'sha256':a.bind(pdf)['sha256']}
+        source={'evidence':[evidence],'primary_evidence':[evidence]}
+        with patch('target_selection.text',return_value='One actual extraction.') as converter:
+            first=source_staging.stage_external(self.case,{'id':'E011','source':source},self.out)
+            second=source_staging.stage_external(self.case,{'id':'E012','source':source},self.out)
+        self.assertEqual(converter.call_count,1)
+        self.assertEqual(first['documents'][0]['readback'],second['documents'][0]['readback'])
+        path=self.out/first['documents'][0]['readback'];path.write_text('tampered')
+        with self.assertRaisesRegex(ValueError,'readback changed'):
+            source_staging.stage_external(self.case,{'id':'E013','source':source},self.out)
+
     def test_every_external_application_condition_has_its_own_review(self):
         packet=a.nl0.load(self.out/'R001/packet.json')
         app={'input':'E001',**self.row(),'bindings_review':self.row(), 'hypothesis_reviews':[self.row()],

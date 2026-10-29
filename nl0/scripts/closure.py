@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 import background
+from variant import AUDIT_FORMAT
 
 
 _FOUNDATIONS_SPEC=importlib.util.spec_from_file_location('nl0_foundations',Path(__file__).with_name('foundations.py'))
@@ -238,7 +239,7 @@ def packet(data, inference):
                "definitions": [defs[x] for x in sorted(closure(refs))],
                "inputs": [port(x) for x in step["inputs"]], "output": port(step["output"]),
                "inference": step,
-               "warning": "Direct inputs and fixed logic are supplied. Audit A may record positively checked routine background under the declared policy, with logged pinned-library evidence. No ancestor proof or extra H is available. A packet is not an audit certificate."}
+               "warning": "Direct inputs and fixed logic are supplied. V2 Audit A may record mathematically checked routine background with actual conditions and justification; exact Lean bindings belong to nl02lean. No ancestor proof or extra H is available. A packet is not an audit certificate."}
     payload["packet_sha256"] = digest(payload)
     return payload
 
@@ -288,7 +289,7 @@ def audit_template(data, checks, external_checks, graph_name, spec_name):
                     bindings_review=pending(), hypothesis_reviews=[pending() for _ in app["hypothesis_checks"]],
                     conclusion_review=pending(), bridges=[])
         inferences[rid] = entry
-    return {"format_version": 3, "background_policy": background.POLICY, "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
+    return {"format_version": AUDIT_FORMAT, "background_policy": background.POLICY, "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
             "reviewer": {"identity": "UNASSIGNED", "mode": "unperformed", "independent": False,
                          "disclosure": "Template only. No mathematical review or packet replay has occurred."},
             "target_review": pending(), "definition_reviews": {key: pending() for key in defs},

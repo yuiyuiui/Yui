@@ -1,7 +1,7 @@
-# Yui
+# Yui V2
 
-Yui is a harness for making an existing mathematical proof explicit, auditable,
-and ready for Lean. Its single entry is the `rigorous-proof` skill:
+Yui V2 is an experimental independent variant for making an existing mathematical proof explicit, auditable,
+and ready for Lean. Its single entry is the `rigorous-proof-v2` skill:
 
 1. Write structured natural-language proof `NL0` and perform independent Audit A.
 2. Optionally translate the accepted proof through local Lean obligations,
@@ -13,17 +13,33 @@ is available freely. Literature theorems not proved in Lean remain explicit
 external premises. An LLM review is not a kernel proof of natural-language
 mathematics, and a successful compilation alone is not source-fidelity approval.
 
+
+V2 is derived from Yui V1 commit `903b9ee585057c544210ebdb759f0407b2a227b8`.
+It uses the separate skill name `rigorous-proof-v2`, output namespace
+`rigorous-proof-v2/<run-id>/`, job identity and Audit A format 4. The installed
+original `rigorous-proof` is unchanged. This local experimental checkout has no
+publication remote by default; do not install it under the original skill name.
+
+NL0 and Audit A focus on mathematical correctness and necessary detail, with
+five grouped local judgments. Routine background does not require an exact
+Mathlib signature/native probe before translation. Each actual mathematical
+fact and its conditions must still be justified. nl02lean owns implementation
+bindings and proof search; pre-proof independent interface review, native
+five-minute limits, obstruction/no-progress repair, standalone assembly and
+independent Audit B remain required. V1 Audit A receipts are not automatically
+accepted as V2 authority. There is no measured speed or completion guarantee.
+
 ## Use
 
-The repository root is the complete `rigorous-proof` skill: `SKILL.md` sits
+The repository root is the complete `rigorous-proof-v2` skill: `SKILL.md` sits
 beside `config.json`, `nl0/`, `nl02lean/` and `toolchain/`. Install/copy this root
-directory together with those resources. There is no inner `rigorous-proof/`
+directory together with those resources. There is no inner `rigorous-proof-v2/`
 directory to extract, and the checkout or installation directory may be renamed.
 Then ask, for example:
 
-- “Use rigorous-proof on this paper's existing proof, through NL0 and Audit A.”
-- “Use rigorous-proof on this proof, including Lean and Audit B.”
-- “Use rigorous-proof on these supplied proofs concurrently.”
+- “Use rigorous-proof-v2 on this paper's existing proof, through NL0 and Audit A.”
+- “Use rigorous-proof-v2 on this proof, including Lean and Audit B.”
+- “Use rigorous-proof-v2 on these supplied proofs concurrently.”
 - “Continue from this accepted NL0 into Lean.”
 
 The invoking agent asks once for all missing settings, retaining already
@@ -42,9 +58,9 @@ The harness then stages inputs, schedules independent
 roles, handles located local repairs and records actual results. It does not
 require the user to create task packets or dispatch reviewers manually.
 
-Results go beside each problem, under `rigorous-proof/<run-id>/`. The skill
+Results go beside each problem, under `rigorous-proof-v2/<run-id>/`. The skill
 installation contains code and rules, never a global scientific output tree.
-Here `rigorous-proof/` is the generated output-folder name, not a required
+Here `rigorous-proof-v2/` is the generated output-folder name, not a required
 installation directory. Supply your own proof or paper outside the installed
 skill. Mathematical example runs and paper benchmarks are kept separately from
 this software checkout. Read each run's `case-result.json` and gate reports for
@@ -232,7 +248,7 @@ completed heartbeat. See [the owner protocol](nl0/references/owner-observation.m
 
 ## Optional personal Mathlib library
 
-After completing a rigorous-proof workflow, users may choose to add useful
+After completing a rigorous-proof-v2 workflow, users may choose to add useful
 Mathlib theorems from its retained native-query receipts to the separate
 [`library/`](library/README.md). Over time, this can form a convenient theorem
 search catalog for their own fields, with reusable verified signature metadata.
@@ -248,7 +264,7 @@ adding search tags, validating evidence and preserving version bindings.
 
 ## Optional reusable Lean strategies
 
-After a rigorous-proof workflow, users may also choose to extract generalizable
+After a rigorous-proof-v2 workflow, users may also choose to extract generalizable
 Lean implementation strategies from its work records and maintain
 [`nl02lean/bank/`](nl02lean/bank/rule.md).
 Follow its [`rule.md`](nl02lean/bank/rule.md): record prerequisites,

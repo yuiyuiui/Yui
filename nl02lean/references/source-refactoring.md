@@ -178,7 +178,7 @@ not a universal minute count. Longer time alone is not a mathematical gap.
 
 ## Executable acceptance and review responsibilities
 
-The unchanged parent checker still binds ordinary audit v3 to the complete
+The unchanged parent checker still binds ordinary V2 audit v4 to the complete
 graph. `scripts/source_preparation.py` adds a separate incremental record;
 it never copies old PASS fields into a forged fresh whole-graph audit.
 Audit B and `workflow.py` both revalidate that record and all underlying evidence.

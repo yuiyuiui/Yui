@@ -6,7 +6,7 @@ import shutil
 from controller_common import CORE,bind,write,verify_bindings
 import library_catalog
 
-VERSION='yui-runtime-snapshot-1'
+VERSION='yui-v2-runtime-snapshot-1'
 
 
 def capture(run,rows,*,core=CORE):

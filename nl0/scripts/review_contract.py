@@ -118,8 +118,8 @@ item pointers are listed below. For a full draft add coverage:{pointer:"assessed
 |"read"|"unread",...}. A not-yet-examined item is unread/read, not an assessed
 UNVERIFIED judgment. An actually evaluated uncertainty can be assessed UNVERIFIED
 with its specific reason. An ordinary incomplete draft continues in this same
-stage and remaining budget. Save work with record_review_item; after a context
-reset inspect read_review_progress. To assemble saved actual rows submit
+stage and remaining budget. Prefer a complete artifact with all actual judgments and coverage in one submission.
+Use record_review_item for useful checkpoints; after a context reset inspect read_review_progress. To assemble saved actual rows submit
 {from_saved_review:true,summary:{...}}; summary supplies remaining required fields
 (including your actual overall verdict/notes where requested and findings),
 never saved judgment containers. No PASS is filled by the controller. A located

@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 import re
 import subprocess
+from variant import BACKGROUND_POLICY, BACKGROUND_MODE
 
-POLICY = 'verified-background-1'
-MODE = 'fresh_packet_with_verified_background'
+POLICY = BACKGROUND_POLICY
+MODE = BACKGROUND_MODE
 
 
 def digest(value):
@@ -71,7 +72,7 @@ def validate(notes, packet, base):
         need(isinstance(note, dict) and required <= set(note) <= required|{'source', 'hint'}, 'invalid note fields')
         need(isinstance(note['id'], str) and re.fullmatch(r'BG\d{3,}', note['id']) and note['id'] not in ids, 'invalid/duplicate local note ID')
         ids.add(note['id'])
-        need(note['kind'] in {'elementary', 'mathlib'}, 'only elementary and pinned-library facts qualify')
+        need(note['kind'] in {'elementary', 'mathematical', 'mathlib'}, 'use elementary, mathematically reviewed routine facts, or explicit pinned-library facts')
         for key in ['at', 'fact', 'justification']:
             need(isinstance(note[key], str) and note[key].strip(), 'empty '+key)
         match = re.fullmatch(r'/inference/argument/(\d+)(?:/text)?', note['at'])
@@ -88,7 +89,7 @@ def validate(notes, packet, base):
             need(isinstance(ground['reason'], str) and ground['reason'].strip(), 'missing actual condition explanation')
         if 'hint' in note: need(isinstance(note['hint'], str), 'invalid Lean hint')
         if note['kind'] == 'mathlib': source_check(note.get('source'), base, packet['pins'])
-        else: need('source' not in note, 'elementary notes cannot carry unreviewed sources')
+        else: need('source' not in note, 'non-native notes cannot carry unreviewed source bindings')
     return deepcopy(notes)
 
 
@@ -130,4 +131,4 @@ def source_from_probe(root, identifier):
             keys = ['declaration', 'module', 'signature', 'declaration_kind', 'source_path', 'source_sha256', 'mathlib_commit']
             return {**{k: value[k] for k in keys}, 'evidence': [
                 {'path': str(path.relative_to(root)), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}]}
-    raise ValueError('BACKGROUND: call probe_background for this exact source ID first')
+    raise ValueError('BACKGROUND: no matching successful pinned native evidence for this source ID')

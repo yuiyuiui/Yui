@@ -225,13 +225,15 @@ class BackgroundTests(unittest.TestCase):
         stage=ArtifactStage(self.base/'stage','Neutral note-persistence software control.',
                             phase='audit-a-packet-replay',library=False,inputs=inputs/'inputs.json',validator=review)
         try:
-            self.assertTrue({'probe_background','record_background_note','search_mathlib','read_mathlib'} <= stage.tool_names)
+            self.assertIn('record_background_note',stage.tool_names)
+            self.assertFalse({'probe_background','search_mathlib','read_mathlib'} & stage.tool_names)
             self.assertNotIn('exec_command',stage.tool_names)
-            shutil.copytree(self.base/'library',stage.logs/'library')
-            args={k:copy.deepcopy(v) for k,v in self.note.items() if k!='source'};args['source_id']='M901'
+            args={k:copy.deepcopy(v) for k,v in self.note.items() if k!='source'}
+            args['kind']='mathematical'
             result=stage.dispatch('record_background_note',args)
             self.assertEqual(result['recorded'],'BG001')
-            self.assertEqual(review.base['background_notes'][0]['source']['declaration'],'Continuous.add')
+            self.assertEqual(review.base['background_notes'][0]['kind'],'mathematical')
+            self.assertNotIn('source',review.base['background_notes'][0])
             progress=stage.dispatch('read_review_progress',{})
             self.assertEqual(progress['background_notes'][0]['id'],'BG001')
             attempt=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,

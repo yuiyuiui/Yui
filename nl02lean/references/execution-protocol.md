@@ -84,7 +84,7 @@ are operational controls, not allowances for mathematical work.
 
 ## One execution record
 
-Read `<problem-directory>/rigorous-proof/<run-id>/execution-status.json` for
+Read `<problem-directory>/rigorous-proof-v2/<run-id>/execution-status.json` for
 normal installed runs. Each translation attempt has a `workflow/` child under
 `nl0-to-lean/<attempt>/` for its frozen artifacts.
 Standalone `workflow.py run` records at its workflow root; `run_graph.py` records

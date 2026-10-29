@@ -1,7 +1,7 @@
 # Self-containment details
 
-This is the detailed meaning of Audit A's `statement_closure`,
-`object_closure` and `dependency_closure` requirements. The
+This details the statement/object and dependency/scope requirements grouped
+under Audit A's statement_closure and dependency_closure criteria. The
 [shared Audit A section](audit-a.md#shared-mathematical-acceptance-requirements)
 is the acceptance authority for author and auditor; this annex supplies
 interpretation and examples, not an independent permission policy.
@@ -9,7 +9,7 @@ interpretation and examples, not an independent permission policy.
 ## Two boundaries
 
 Accepted NL0 is a complete proof relative to its declared H/E/M roots, frozen
-logical foundation and version-bound verified background notes. It is not an outline requiring the original manuscript to
+logical foundation and version-bound mathematically reviewed background notes. It is not an outline requiring the original manuscript to
 recover missing definitions, formulas, assumptions, or arguments. E/M statements
 are fully restated; their primary sources are inspected for provenance, not
 used to supply unstated premises. The fixed library's own proof dependencies
@@ -21,11 +21,12 @@ output, its local declarations, and its own argument. Another R's proof body,
 an ancestor not listed as an input, an ambient original H, an original-source
 crosswalk, or remembered material is not an additional mathematical resource.
 Whole-target/source-fidelity checks are separate from this local proof check.
-Under verified-background-1, local review may additionally verify routine
-pinned-mathlib facts using logged read-only queries and record them in the
-receipt. They join this R's effective dependencies, without new H or a graph
-rewrite. See [background notes](background-notes.md). Mathematical uncertainty
-still blocks; ordinary correct elementary compression alone does not.
+Under mathematical-background-v2-1, a reviewer may positively assess routine
+local mathematical facts and record precise statements, available conditions
+and justification. Exact Mathlib bindings are deferred to nl02lean; no native
+query is required for ordinary background. These notes add neither H nor a
+core proof route. Mathematical uncertainty still blocks. See
+[background notes](background-notes.md).
 
 Original theorem conditions are H nodes, including conditions that could be
 encoded in a refined type. Parameters introduce ambient data/structures, not
@@ -76,8 +77,8 @@ variables may be reused in disjoint local scopes.
 
 Inventory actual factual uses from the prose back to their grounds, not just
 from an input list forward to a generic `uses` list. Each substantive imported theorem, prior project lemma or original
-assumption must be a direct input. Eligible omitted basic library uses are
-recorded as verified audit notes in the effective dependency ledger. A definition supplies meaning, not a theorem. An R output is not its
+assumption must be a direct input. Eligible routine mathematical facts are recorded as mathematical audit notes
+with actual local grounds, without requiring a native implementation lookup. A definition supplies meaning, not a theorem. An R output is not its
 own premise. Adding the desired formula as an unproved input is not a repair.
 
 Explicit local calculations and fully proved intermediate facts may remain
@@ -91,7 +92,9 @@ The controller owns `spec.logic.calculations` and the small core syntax table
 (`nl0/scripts/foundations.py`). The clean author tool binds omitted metadata and
 rejects extra author permissions or task-specific primitives. This fixed
 language grants no MVT, FTC, Fubini, convergence, compactness or regularity
-theorem. Such facts need a declared input or an actual local derivation.
+theorem. Such facts need legitimate explicit inputs, an actual local derivation or
+eligible positively reviewed mathematical background; the syntax table alone
+grants none of them.
 An author-written permission claim, in any field or prose, has no authority.
 Ordinary typed arithmetic notation is part of this fixed language: natural
 numbers, integers, rationals, reals and complex numbers mean their standard
@@ -118,8 +121,8 @@ proof, or writing a PASS label cannot establish closure.
    included. Packet hashes bind the mathematical input actually reviewed.
 3. Review all closure/inference checks, admitting positively checked routine
    background notes under the shared policy. Record concrete packet locations and reasons for every verdict.
-4. Perform a fresh local replay with disclosed controlled background lookup. The reviewer gets the skill instructions
-   and that packet plus logged pinned-mathlib queries, without original proof,
+4. Perform a fresh local mathematical replay. The reviewer gets the skill instructions
+   and that packet, without original proof,
    other R bodies, author review
    notes, old verdicts, or an answer key. Record the actual carrier, packet hash,
    prior exposure and mathematical material read. Skill instructions supply no

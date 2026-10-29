@@ -149,11 +149,13 @@ Nested tool durations are already inside stage wall time; request latency also
 contains transport/service queues, not observable pure model reasoning. Warm
 reuse keeps original acquisition cost and does not create a cold benchmark.
 
-## Verified background during local review
+## Mathematical background during local review
 
-Under verified-background-1 the fresh local lane may query pinned Mathlib and
-record actual routine background judgments. It retains all ten checks, logs
-source readback and binds the notes in the receipt. This is not the old
-packet-only boundary. No extra model is required per note and no owner hints
-are allowed. Reuse preserves notes, sources, actual context and original costs;
-translation consumes the enriched authority.
+Under mathematical-background-v2-1 the fresh R lane reviews routine facts and
+actual available conditions mathematically, without native Mathlib lookup.
+Five grouped judgments cover the complete node; concise located reasons are
+sufficient for straightforward PASS. Prefer a complete artifact with coverage
+rather than a separate model/tool roundtrip for every report row. Checkpoints
+remain available. The exact supplement is hash-bound, kept with its original
+review context/cost and consumed as node-local reference in nl02lean, never a
+new assumption. Substantive gaps and source uncertainty cannot be waived.

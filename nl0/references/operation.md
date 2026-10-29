@@ -98,7 +98,7 @@ Backend/account limits may lower observed concurrency; retain actual outcomes.
 
 ## Local output ownership
 
-Default permanent output is `<problem-directory>/rigorous-proof/<run-id>/`:
+Default permanent output is `<problem-directory>/rigorous-proof-v2/<run-id>/`:
 
 ```text
 inputs/                  exact declared documents and extraction provenance
@@ -202,7 +202,7 @@ installing and verifying the software repair, an explicitly authorized owner can
 prepare a guarded continuation:
 
 ```sh
-python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --repair-local-tool --prepare-only
+python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof-v2/OLD_RUN --repair-local-tool --prepare-only
 ```
 
 This narrowly supports a normal-policy NL0 author-repair stage that stopped on
@@ -245,7 +245,7 @@ For a run that already exited before this in-session recovery was available,
 the invoking agent can continue explicitly selected interrupted NL0/Audit A work:
 
 ```sh
-python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof/OLD_RUN --detach
+python3 -B /path/to/Yui/nl0/scripts/yui.py resume /paper/rigorous-proof-v2/OLD_RUN --detach
 ```
 
 This prepares a new owned run, checks that the old processes exited, and binds
@@ -268,18 +268,18 @@ in-session remote retry throughout the remaining workflow.
 Scheduled owners use the compact, read-only observation command once per wake:
 
 ```sh
-python3 -B /path/to/Yui/nl0/scripts/yui.py observe /paper/rigorous-proof/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py observe /paper/rigorous-proof-v2/RUN
 ```
 
 This reports small metadata and exact process identities, without proof bodies
 or new model/Lean calls. Full `status` remains available for located diagnosis.
 
 ```sh
-python3 -B /path/to/Yui/nl0/scripts/yui.py status /paper/rigorous-proof/RUN
-python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN
-python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof/RUN --task T003
-python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN
-python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof/RUN --apply
+python3 -B /path/to/Yui/nl0/scripts/yui.py status /paper/rigorous-proof-v2/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof-v2/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cancel /paper/rigorous-proof-v2/RUN --task T003
+python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof-v2/RUN
+python3 -B /path/to/Yui/nl0/scripts/yui.py cleanup /paper/rigorous-proof-v2/RUN --apply
 ```
 
 Status writes coalesce to at most once per second, with a five-second liveness

@@ -35,7 +35,7 @@ class JobEntryTests(unittest.TestCase):
 
     def test_default_output_is_beside_arbitrary_problem_not_installed_skill(self):
         job=self.job();root=Path(job['root']);jobs.validate(job)
-        self.assertEqual(root.parent,self.problem.parent/'rigorous-proof')
+        self.assertEqual(root.parent,self.problem.parent/'rigorous-proof-v2')
         self.assertEqual(self.problem.read_text(),'An explicitly supplied proof.\n')
         self.assertEqual((root/'inputs/problem.md').read_bytes(),self.problem.read_bytes())
         self.assertEqual(job['policy'],'normal');self.assertIsNone(job['time_budget_seconds'])

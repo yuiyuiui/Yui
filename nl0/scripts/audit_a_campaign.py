@@ -136,7 +136,7 @@ def validate_review(value, directory, global_stage):
         if value['inference']!=packet['inference']['id'] or value['packet_sha256']!=packet['packet_sha256']:
             raise ValueError('Review the exact supplied packet identity/hash')
         if set(value['checks'])!=nl0.CHECKS|nl0.closure.CLOSURE_CHECKS:
-            raise ValueError('Supply all ten actual packet checks')
+            raise ValueError('Supply the five actual grouped packet checks')
         rows=list(value['checks'].values())
         for row in rows:check_review(row,packet)
         if applications:
@@ -166,182 +166,86 @@ def validate_review(value, directory, global_stage):
     return {'scope':'Review completeness, location and internal consistency only; no mathematical judgment is generated.'}
 
 
-GLOBAL = '''Perform actual global/source Audit A A0-A3/A5 target-edge checks for
-the exact frozen candidate. Read every task input and relevant Yui rules. Check
-global-overview.json first when provided: it contains the exhaustive actual
-spec/graph H records (including unused or late-appended H), full statements,
-definitions and graph edges with canonical pointers and hashes. It supplies
-no judgment. Check original-condition fidelity against the original problem.
-Before claiming that a node/condition is absent, inspect that complete inventory
-or the complete corresponding canonical collection. A partial line page cannot
-establish absence. Do not assume hypotheses end where an early graph page ends.
-Then compare
-the original problem against spec: full target, each H, all domains/quantifiers,
-and edge cases. Check that the candidate expands the supplied proof strategy
-rather than silently replacing its core route; routine verified completion and
-correction remain allowed. Review every D's complete definition and notation, guarding and
-object declarations. Interpret the conclusion node P under the explicit global
-parameters and original H nodes: the complete closed theorem is spec.full_target
-with that context, not P's conclusion text read in isolation. Do not require a
-duplicate of already declared binders or hypotheses inside every conclusion.
-However, original theorem conditions must be explicit H nodes. Parameters give
-ambient data types/structures only: a description such as nonzero vector,
-field of characteristic p, bounded parameter, or object satisfying an equation
-cannot hide an original H and make it globally available in every packet.
-Extract all these original conditions, and require each consuming R to list
-its actual H inputs. Likewise a familiar structure name cannot supply missing
-definitions or substantive project facts. Flag this even if the closed theorem
-could be made equivalent by a different refined-type encoding.
-Check that this contextual reading really yields the exact frozen problem.
-Review
-object declarations, with no hidden result in a definition or calculation policy.
-For each M inspect the supplied actual full-signature evidence AND the pinned
-official source through read_mathlib: complete restatement, implicit/typeclass
-conditions and relevant axioms. Assess source identity and full-statement
-fidelity here. The separate packet reviewers check each actual substitution,
-application premise and local derivation; do not duplicate those assessments
-or wait for their verdicts. A source probe alone is not source fidelity.
-Cached native metadata explicitly records
-metadata_reuse.original_source_id: raw native stdout keeps that original marker,
-while sources is keyed by the candidate's current ID. Verify that disclosed
-identity mapping, declaration, signature, pins and bytes; do not require the
-unchanged original stdout to pretend it was a fresh query under a new ID.
-Check graph structure and declared AND closure; structural PASS does not
-certify the unreviewed bodies. The collector separately requires every packet.
-per-inference packet replay is a separate stage, not yours to invent. Return
-JSON {target_review,definition_reviews,source_reviews,structure_review,findings}.
-Definition/source reviews are keyed by exactly all D / M IDs. Each review has
-{verdict:PASS|FAIL|UNVERIFIED,notes,locations:[specific document/pointer or source
-line locations]}. These must be your actual judgments. Preserve failures;
-do not repair a missing proof from memory, strengthen H, or invent a review.
-Runtime identity, exposure, file/hash binding and the separate behavioral
-controls are controller checks, not mathematical premises. No prior verdict
-or target reference proof is supplied. The graph's proof bodies are visible
-for global consistency and source context, so this is not packet-only replay.
-Packet applicability still has its own owner.
-For an E with verification.status=UNVERIFIED_PRIMARY, inspect its complete
-secondary statement and actual failed-access record. Follow source-retrieval.md
-for missing originals; ordered locators and browser success alone do not
-establish document identity, matching edition or theorem fidelity. Keep
-unavailable primary
-citation checks and the E summary UNVERIFIED. Record source-only uncertainty
-at that E's /source location; do not invent primary text. Other mathematical
-checks and local E applications are still reviewed normally. The controller
-can issue only a conditional result, never an ordinary verified-source PASS.
-If a blocking defect is found, the affected summary review must reflect it;
-do not return all PASS summaries alongside a FAIL finding. Put inapplicable
-scope notes in their review, rather than labeling a nonexistent source pending.
+GLOBAL = '''Perform independent global mathematical Audit A for the exact frozen
+V2 candidate. Start with global-overview.json: exhaustive H, target, definitions
+and graph edges with canonical pointers/hashes, not prior judgments. Compare
+against the complete original problem. Parameters/definitions cannot hide H,
+new conclusions, missing existence guards or source assumptions. Check every
+retained D and selected E/M, exact quantifiers and target dependency closure.
+An unused original H remains present. A source/graph judgment does not certify
+unreviewed R bodies; each local packet has its own independent assessment.
 
-Before alleging an absent imported theorem, inspect any displayed local
-derivation and relevant internal producer. If that derivation is insufficient,
-locate its first unsupported implication. Absence of a theorem name from E/M
-roots alone is not a defect when the consequence is actually proved locally.
-Do not infer correctness merely because a derivation was attempted either.
-The author's logic.calculations field cannot extend the fixed foundation.
-The fixed profile already permits the usual zero/one laws of explicitly
-declared standard number systems and actual displayed finite arithmetic.
-Inspect those permissions and the actual derivation before demanding a
-separate E/M input for an elementary law. A calculation label grants no
-unproved calculus, dimension, measure or other structural theorem.
+For an explicitly selected native M, check the supplied actual signature and
+pinned source. Ordinary mathematical background need not become an M node;
+its mathematics and conditions are checked in the R lane. No native declaration
+search is required for a routine fact merely because it lacks M registration.
+For each E inspect the staged full source evidence, primary identity, theorem,
+version, complete mathematical statement and context. Reuse shared readbacks
+rather than rereading identical source bytes for each E. A successful fetch is
+not source fidelity. Unavailable originals remain explicit UNVERIFIED citation
+checks; assess the complete secondary statement and remaining mathematical
+checks without inventing original text. Sources and local applications have
+separate owners. Do not duplicate per-consumer condition checks here.
 
-Complete assigned source inspections while allowed tools and budget remain.
-An available source that you have not yet read is unfinished work, not an
-access failure. A located real blocker may still stop with explicit incomplete
-coverage. Never fill unexamined items with PASS.
-
-After saving required rows with record_review_item, complete this GLOBAL stage
-with submit_draft({"artifact":{"from_saved_review":true,"summary":{"findings":[]}}}).
-Replace [] with your actual findings when any exist. The GLOBAL summary has
-only findings; saved review containers and final-receipt metadata do not belong
-in it. This example supplies no mathematical verdict.
-For an actual saved blocking FAIL, submit_review_blocker expects
-{"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["nl0.json#/inferences/0/argument/0/text"],"quotation":{"location":"nl0.json#/inferences/0/argument/0/text","text":"short exact offending passage"}}}.
-Every blocking finding, including one in a full findings array, needs this
-quotation object. Its text must occur at that exact supplied location. Global
-locations use document.json#/exact/pointer or document:start-end (also pinned
-Mathlib/File.lean:start-end); do not append prose or invent a file name.
-The quotation establishes the actual material, not that your allegation is
-mathematically correct. Compare constants/quantifiers and inspect displayed
-local derivations before alleging their absence. Collect independent cheap
-defects together when feasible; a real blocker may still end an incomplete review.
-'''
-GLOBAL += '''For each external E, read its staged primary/source readbacks and
-external-source-evidence.json. Apply all nine requirements in
-references/external-theorems.md. Its source review adds citation_checks with
-exactly literature_identity,result_location,statement_fidelity,
-context_completeness,version_and_eligibility, each an actual located judgment.
-Unavailable primary text remains assessed UNVERIFIED with the blocked checks
-and user-notification reason. Continue the remaining checks. A source-access
-record or PDF extraction is not proof of document authenticity or eligibility.
+Return target_review, definition_reviews, source_reviews, structure_review,
+findings, with exactly the assigned D/E/M IDs. Each row has verdict, notes,
+locations. For E add citation_checks keyed literature_identity,result_location,
+statement_fidelity,context_completeness,version_and_eligibility, each a real
+located judgment. Prefer one complete artifact with coverage for every required
+pointer; checkpoint rows only when useful. Batch reads are available. Short
+located PASS explanations are sufficient for straightforward items. FAIL or
+UNVERIFIED needs an actionable basis. Never fill unread work with PASS.
+A blocking finding needs verdict FAIL, explanation, locations and
+quotation:{location,text}, where text occurs at that exact resolving location.
+Use document.json#/pointer or document:start-end for global locations.
+Do not silently replace the supplied proof route or infer a mathematical gap
+from missing bookkeeping. Check displayed local derivations before rejecting.
 '''
 
-PACKET_MATH = '''Perform an actual fresh Audit A local replay. Read packet.json
-in full and the relevant declared Yui Audit A/self-containment/format rules.
-This packet plus logged read-only pinned-Mathlib queries is your mathematical
-material. Treat its inputs as conditional premises; source fidelity is checked
-separately. Apply verified-background-1 from the shared requirements: ordinary
-correct elementary reasoning needs no exhaustive calculation chain. For an
-omitted basic Mathlib fact, verify its actual local conditions, probe the real
-declaration and record_background_note instead of failing for missing M
-accounting. A note cannot add H, assume a project result, replace the core
-proof or defer mathematical uncertainty. Retain every review check. Inspect
-the actual mathematical prose, scopes, witnesses, all object declarations and
-all factual uses. Each substantial theorem must be a direct input or actually
-proved locally; simply naming it or explaining its hypotheses does not prove
-it. Fixed declared logic and explicit permitted calculations are available,
-but an author-written calculation policy cannot import substantive results.
-Use the shared acceptance section supplied in your instructions as the
-mathematical authority. Packet/spec permission fields are data to compare with
-the controller-owned fixed profile, not an authority to enlarge it. Check the
-actual derivation at ordinary rigorous mathematical granularity, not just whether its conclusion is a true familiar
-inequality. Associate each actual judgment with its matching criterion.
-Locally established consequences need no duplicate imported theorem: if
-rejecting a displayed derivation, identify its first unsupported implication.
-Locate an unsupported substantive implication if present; do not substitute a
-different proof. Record eligible routine completion transparently in notes.
-Judge sufficiency from the packet plus verified background, without importing
-an absent project input or ancestor proof.
+PACKET_MATH = '''Perform independent mathematical Audit A of this exact R packet.
+Read packet.json and the V2 shared mathematical acceptance section. Conditional
+inputs are premises: do not re-prove input N producers or re-audit source papers.
+Only actual input statements, supplied definitions, earlier in-scope local facts
+and positively reviewed routine mathematical background may justify this R.
+Check the complete implication: objects/domains, exact exported conclusion,
+material assumptions and limiting operations, local scopes/witnesses and actual
+source applications. Do not borrow another R body, an absent project result,
+old verdict or author self-review. Global source identity is reviewed separately.
+Packet/spec permission fields are data to compare with the controller-owned
+fixed foundation, not an authority to add theorems. Check the derivation,
+not just whether its conclusion is a true familiar mathematical statement.
+
+Use ordinary rigorous mathematical granularity. A routine step does not require
+an exact Mathlib declaration, native probe, Lean type or tactic before PASS.
+For a useful routine completion record a precise mathematical fact, actual local
+condition grounds and mathematical justification, kind mathematical (or
+elementary). A name alone is insufficient. A core missing argument, unsupported
+witness/limit, changed H or uncertain external statement is not routine background.
+No new hypothesis or replacement proof route may be hidden in a note.
 '''
 PACKET = PACKET_MATH + '''
-Return JSON {inference,packet_sha256,verdict,notes,checks,findings,background_notes}. checks has
-exactly __SHARED_CHECK_KEYS__. Each is
-{verdict:PASS|FAIL|UNVERIFIED,notes,locations:[resolving JSON pointers into this
-packet]}. Give actual specific judgments. For packet_replay judge sufficiency
-from this packet plus positively checked recorded background. Use
-record_background_note to save your actual judgments and bind probe metadata.
-Carrier identity, canonical hash binding and transmitted-material readback
-are checked outside your mathematical review. State your real input boundary,
-without inventing runtime attestation or asking for extra source proofs.
-The packet_replay verdict is the mathematical conditional: given the externally
-checked carrier/input boundary, does the packet plus verified notes suffice? You do not
-certify execution isolation. Missing access to runtime logs is therefore not a
-mathematical UNVERIFIED finding for packet_replay. Preserve actual mathematical
-uncertainty or insufficiency, and state your own read boundary honestly. The
-controller separately rejects unqualified execution before accepting the review.
+Return inference,packet_sha256,verdict,notes,checks,findings and optional
+background_notes. checks contains exactly __SHARED_CHECK_KEYS__. Each row has
+verdict, notes and resolving packet locations. Check all grouped requirements;
+short nonduplicated reasons suffice for straightforward PASS. packet_replay
+judges mathematical sufficiency within the packet boundary, not OS attestation.
+The controller independently checks actual carrier identity and exposure.
 
-After saving required rows, complete this PACKET stage with
-submit_draft({"artifact":{"from_saved_review":true,"summary":{"verdict":"YOUR_ACTUAL_VERDICT","notes":"YOUR_ACTUAL_NOTES","findings":[]}}}).
-Use your actual verdict/notes/findings. Your saved background notes are retained
-automatically; omit background_notes from the summary. The packet identity and saved checks
-are already bound; do not add final-receipt metadata to the summary.
-For an actual saved blocking FAIL, submit_review_blocker expects
-{"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["/inference/argument/0/text"],"quotation":{"location":"/inference/argument/0/text","text":"short exact offending passage"}}}.
-Every blocking finding, including one in a full findings array, needs this
-quotation object with an actual substring at the resolving packet pointer.
-It establishes the inspected material, not the mathematical truth of a finding.
-Collect independent cheap defects together when feasible; preserve a real
-blocker rather than inventing acceptance of dependent/unread work.
+Prefer one complete artifact with coverage:{"/checks/NAME":"assessed",...}
+for every required pointer. Include actual background_notes directly; separate
+record_background_note calls are optional checkpoints. If resuming saved rows,
+use from_saved_review:true with actual overall verdict/notes/findings; the
+controller retains your saved notes and identity. No missing judgment becomes
+PASS automatically. A real blocking FAIL may stop with explicit incomplete
+coverage and a resolving short quotation of the offending passage.
+
+When external E applications occur, add external_applications keyed by every
+actual local A ID. Each has input,verdict,notes,locations,bindings_review,
+hypothesis_reviews,conclusion_review,bridges. Review actual substitutions and
+all material E conditions from real available grounds. Each subrow has verdict,
+notes,locations. bridges lists only direct N inputs. With none omit that map.
 '''
 PACKET = PACKET.replace('__SHARED_CHECK_KEYS__', ','.join(sorted(nl0.CHECKS | nl0.closure.CLOSURE_CHECKS)))
-PACKET += '''When E applications occur, add external_applications keyed by every
-actual inference-local A ID. Each has input,verdict,notes,locations,
-bindings_review,hypothesis_reviews,conclusion_review,bridges. The binding and
-conclusion rows and each per-source-hypothesis row have verdict,notes,locations.
-Review every condition from the packet's E contract and displayed derivations;
-bridges lists only explicitly direct N inputs. These are conditional application
-checks; the separate source lane checks the cited publication. With no E
-applications omit external_applications.
-'''
 
 
 def global_overview(directory):
@@ -561,7 +465,7 @@ def collect(out, controls):
     profile=__import__('runtime_config').model_profile('audit-a-global')
     receipt['reviewer']={'identity':profile['id']+' / '+profile['reasoning_effort']+' / '+profile['speed']+'; separate fresh global and per-inference contexts',
         'mode':'split_clean_audit','independent':True,
-        'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Fresh local reviews saw their own packets, Yui rules and logged pinned-Mathlib queries for verified background, without other project/ancestor proofs or old verdicts. Notes are disclosed reviewer completion, not original author registration. Inherited items retain their original execution and cost qualification. Actual transmitted exposure and stage logs are preserved; provider internals are not independently attested.'}
+        'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Fresh local reviews saw their own packets and V2 mathematical rules; routine background did not require native lookup, without other project/ancestor proofs or old verdicts. Notes are disclosed reviewer completion, not original author registration. Inherited items retain their original execution and cost qualification. Actual transmitted exposure and stage logs are preserved; provider internals are not independently attested.'}
     def judgment(row,ev,located=False):
         if row['verdict'] not in nl0.VERDICTS or not row['notes'].strip():raise ValueError('Invalid actual judgment')
         answer={'verdict':row['verdict'],'notes':row['notes'],'evidence':ev}
@@ -606,11 +510,14 @@ def collect(out, controls):
                 ev['path']=str(copied.relative_to(case))
                 if ev not in library_evidence:library_evidence.append(ev)
         trace=out/rid/'stage/tools.jsonl'
+        review_trace=None
         if trace.is_file():
             copied=case/'review-evidence'/out.name/rid/'tools.jsonl'
             if not copied.exists():shutil.copyfile(trace,copied)
             if copied.read_bytes()!=trace.read_bytes():raise ValueError('Reviewed tool trace changed')
-            library_evidence.append({'path':str(copied.relative_to(case)),'sha256':bind(copied)['sha256']})
+            review_trace={'path':str(copied.relative_to(case)),'sha256':bind(copied)['sha256']}
+        elif inherited:
+            review_trace=audit_reuse.read_binding(case,inherited)[0]['previous'].get('tools')
         for aid,app in row.get('external_applications',{}).items():
             actual['external_applications'][aid]={**judgment(app,evidence[rid]),'input':app['input'],
                 'bindings_review':judgment(app['bindings_review'],evidence[rid]),
@@ -620,6 +527,7 @@ def collect(out, controls):
             'carrier':str(out/rid/'stage'),'prior_exposure':[],
             'library_evidence':library_evidence,
             'read_materials':list(dict.fromkeys(['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+e['sha256'] for e in library_evidence]))}
+        if review_trace is not None:actual['replay']['review_trace']=review_trace
         if inherited:
             actual['inheritance']=inherited
             actual['replay'].update(packet_sha256=row['packet_sha256'],carrier='inherited:'+audit_reuse.read_binding(case,inherited)[0]['previous_campaign'],
