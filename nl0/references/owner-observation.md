@@ -53,6 +53,12 @@ for a report at every check. Use the user's requested language. An interval is
 not a native-check deadline or a case/token budget. Five-second program liveness
 heartbeats remain separate from these ten-minute owner checks.
 
+`PAUSED_ERROR` is nonterminal. The local Python error controller separately
+queues immediate fixed-text owner alerts and preserves its context/workspace.
+Read `paused_errors` and its outbox status; do not restart a paused run, declare
+it finished, or delete its heartbeat. Operator controls and the only allowed
+cleanup boundaries are in [error lifecycle](error-lifecycle.md).
+
 At each case termination, read its actual result and linked gate reports. A
 recorded PASS is not new verification; validate existing bound artifacts using
 the Yui validators without starting another model or Lean run. Keep partial or

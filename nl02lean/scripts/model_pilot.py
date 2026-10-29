@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import uuid
+import traceback
 
 import ir
 import strategy_bank
@@ -404,23 +405,59 @@ class Stage(carrier.Trial):
         except proof_repair.RoundInterrupted as error:
             result={'status':'REPAIR_WAIT','task_outcome':'PROOF_ROUND_RETIRED',
                     'error':str(error),'api_calls':0,'acceptance':False}
-            shutil.rmtree(self.work);ir.write(self.logs/'result.json',result)
-            return result,None
-        except execution.CaseDeadlineExceeded as error:
-            result={'status':'UNFINISHED','task_outcome':'MODEL_BUDGET_EXHAUSTED','stop_reason':'CASE_DEADLINE',
-                'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT',
-                'scope':'No new model session started after the shared case budget expired.'}
-            shutil.rmtree(self.work)
+            if recorder:recorder.retain_stage(self,'lean')
             ir.write(self.logs/'result.json',result)
-            if recorder:recorder.task(self.execution_task,state='FINISHED',stage_result=result,finished_at_utc=execution.now())
             return result,None
         except execution.Cancelled as error:
-            result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL',
-                'error':str(error),'api_calls':0,'measurement_valid':False,'execution_health':'NO_RECORDED_FAULT'}
-            shutil.rmtree(self.work)
-            ir.write(self.logs/'result.json',result)
-            if recorder:recorder.task(self.execution_task,state='CANCELLED',finished_at_utc=execution.now())
-            return result,None
+            return self.cancel_before_start(error)
+        except Exception as error:
+            try:self.pause_error(error,resumable=False)
+            except execution.Cancelled as cancelled:return self.cancel_before_start(cancelled)
+
+    def cancel_before_start(self,error):
+        result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','stop_reason':'EXTERNAL_CANCEL',
+            'error':str(error),'api_calls':getattr(self,'api_calls',0),'lean_calls':getattr(self,'lean_calls',0),
+            'remote_retries':getattr(self,'remote_retry_count',0),'measurement_valid':False,
+            'execution_health':'FAULT' if getattr(self,'_fault_gate',None) else 'NO_RECORDED_FAULT'}
+        if not getattr(self,'_resources_released',False):self.release_resources('USER_CANCELLED')
+        ir.write(self.logs/'result.json',result)
+        if self.execution:self.execution.task(self.execution_task,state='CANCELLED',finished_at_utc=execution.now())
+        return result,None
+
+    def release_resources(self, authorization):
+        if authorization not in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED'}:
+            raise ValueError('Faults do not authorize process/workspace cleanup')
+        if authorization=='AUDIT_A_FINALIZED' and not self.mode.startswith(('nl0-','audit-a')):
+            raise ValueError('Audit A cannot authorize release of translation/proof resources before Audit B')
+        if getattr(self,'_resources_released',False):return
+        result={}
+        if self.proc:
+            if getattr(self,'execution',None):
+                if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'
+            else:
+                self.proc.terminate()
+                try: self.proc.wait(timeout=5)
+                except Exception: self.proc.kill();self.proc.wait()
+            reader=getattr(self,'reader_thread',None)
+            if reader:reader.join(timeout=1)
+            for stream in (self.proc.stdin,self.proc.stdout):
+                if stream:stream.close()
+        if self.relay:
+            self.relay.shutdown()
+            try:self.drain_relay_streams()
+            except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
+            self.relay.server_close()
+        for name in ('auth.json','models_cache.json'):
+            (self.work/'state'/name).unlink(missing_ok=True)
+        if result.get('execution_fault'):raise RuntimeError(result['execution_fault'])
+        retained=getattr(self,'workspace_retention',None)
+        if self.work.exists():shutil.rmtree(self.work)
+        if retained and (self.logs/'result.json').is_file():
+            ir.write(self.logs/'resources/release.json',{
+                'authorization':authorization,'workspace_retention':retained,
+                'result_sha256':sha256(self.logs/'result.json'),'cleanup_confirmed':True,
+                'at_utc':carrier.now()})
+        self._resources_released=True
 
     def _execute(self):
         user = self.prompt()
@@ -522,18 +559,26 @@ class Stage(carrier.Trial):
             except Exception as stop_error:
                 result['interrupt_error'] = str(stop_error)
         except KeyboardInterrupt:
-            result.update({'status':'UNFINISHED','stop_reason':'EXTERNAL_EARLY_STOP',
-                           'task_outcome':'UNFINISHED_EXTERNAL_STOP'})
+            result.update({'status':'CANCELLED','stop_reason':'EXTERNAL_CANCEL',
+                           'task_outcome':'EXTERNAL_CANCELLED'})
             try:
                 self.interrupt_active_turn()
             except Exception as stop_error:
                 result['interrupt_error'] = str(stop_error)
         except Exception as e:
             result.update({'status':'UNFINISHED','execution_fault':type(e).__name__+': '+str(e)})
+            result['traceback']=traceback.format_exc()
             if getattr(self,'tool_execution_fault',None):
                 result.update(stop_reason='LOCAL_TOOL_EXECUTION_FAULT',
                               tool_execution_fault=self.tool_execution_fault)
         finally:
+            if result.get('status') not in {'ACCEPTED','BLOCKED','REPAIR_REQUESTED','REPAIR_WAIT','CANCELLED'}:
+                from fault_control import outcome_error
+                error=outcome_error(result)
+                try:self.pause_error(error,resumable=False)
+                except execution.Cancelled:
+                    result['paused_outcome']=dict(result)
+                    result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL')
             if getattr(self,'local_protocol_fault',None):
                 result['local_protocol_fault']=self.local_protocol_fault
             if getattr(self,'submission_completion',None):
@@ -543,30 +588,16 @@ class Stage(carrier.Trial):
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
+            if self.relay:
+                try:self.drain_relay_streams()
+                except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
+            result['error_pauses']=getattr(getattr(self,'_fault_gate',None),'resumed',[])
             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
                            'continuations':self.continuation_count,'finished_at_utc':carrier.now(),
                            'remote_retry_policy':REMOTE_RETRY_POLICY,
                            'remote_retries':getattr(self,'remote_retry_count',0)})
             if self.proof_progress is not None:result['proof_progress']=self.proof_progress.metadata()
-            if self.proc:
-                if getattr(self,'execution',None):
-                    if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'
-                else:
-                    self.proc.terminate()
-                    try: self.proc.wait(timeout=5)
-                    except Exception: self.proc.kill();self.proc.wait()
-                reader=getattr(self,'reader_thread',None)
-                if reader:reader.join(timeout=1)
-                for stream in (self.proc.stdin,self.proc.stdout):
-                    if stream:stream.close()
-            if self.relay:
-                self.relay.shutdown()
-                try:self.drain_relay_streams()
-                except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
-                self.relay.server_close()
-            for name in ('auth.json','models_cache.json'):
-                (self.work/'state'/name).unlink(missing_ok=True)
             violations = self.logs/'isolation-violations.jsonl'
             faults = self.logs/'relay-errors.jsonl'
             result['isolation_violation'] = violations.exists() and bool(violations.read_text().strip())
@@ -603,12 +634,13 @@ class Stage(carrier.Trial):
             result.update(qualification(result))
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and not result['identity_and_input_boundary_verified']:
                 result['task_outcome']='UNFINISHED_ATTRIBUTION_UNVERIFIED'
-            try:
-                shutil.rmtree(self.work)
-                result['temporary_workspace_removed']=True
-            except OSError as cleanup_error:
-                result['temporary_workspace_removed']=False
-                result['cleanup_error']=str(cleanup_error)
+            from run_resources import retention
+            self.workspace_retention=retention(self.work,self.logs)
+            result.update(temporary_workspace_removed=False,workspace_retention=self.workspace_retention)
+            recorder=getattr(self,'execution',None)
+            if recorder:
+                group='nl0' if self.mode.startswith(('nl0-','audit-a')) else 'lean'
+                recorder.retain_stage(self,group)
             ir.write(self.logs/'result.json',result)
             if self.accepted: ir.write(self.logs/'accepted.json',self.accepted)
             if getattr(self,'execution',None):
@@ -616,5 +648,6 @@ class Stage(carrier.Trial):
                     ['status','task_outcome','execution_health','acceptance_scope']},'usage_ledger':str(self.logs/'usage.json')}
                 if self.step is None:values.update(state='CANCELLED' if result['status']=='CANCELLED' else 'FINISHED',finished_at_utc=execution.now())
                 self.execution.task(self.execution_task,**values);self.execution.flush(force=True)
+            if result.get('status')=='CANCELLED':self.release_resources('USER_CANCELLED')
         return result,self.accepted
 

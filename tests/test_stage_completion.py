@@ -9,7 +9,7 @@ import tempfile
 import time
 import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from clean_stage import ArtifactStage
 from output_guard import ProviderWaitGuard
@@ -101,7 +101,7 @@ class CompletionTests(unittest.TestCase):
         self.worker.dispatch.assert_not_called()
         self.assertEqual(json.loads(self.worker.proc.stdin.getvalue())['error']['code'],-32800)
 
-    def test_protocol_wait_stop_preserves_uncertain_outcome_and_cleans_workspace(self):
+    def test_protocol_wait_stop_preserves_uncertain_outcome_until_explicit_cancel(self):
         current=[0.];guard=ProviderWaitGuard(idle_seconds=120,clock=lambda:current[0])
         guard.normalized(7);guard.observe({'type':'response.output_item.done','item':{
             'type':'function_call','call_id':'synthetic-call','id':'item7','name':'check_draft'}},7)
@@ -110,12 +110,13 @@ class CompletionTests(unittest.TestCase):
         self.worker.start_process=Mock();self.worker.interrupt_active_turn=Mock()
         self.worker.rpc=Mock(return_value={'thread':{'id':'synthetic-thread'}})
         self.worker.solve_turns=lambda user:self.worker.check_argument_guard()
-        result,_=self.worker._execute()
-        self.assertEqual(result['task_outcome'],'PROVIDER_TERMINAL_WAIT_EXCEEDED')
+        with patch.object(self.worker,'pause_error',side_effect=__import__('execution_state').Cancelled('Synthetic user cancellation')):
+            result,_=self.worker._execute()
+        self.assertEqual(result['paused_outcome']['task_outcome'],'PROVIDER_TERMINAL_WAIT_EXCEEDED')
         self.assertEqual(result['execution_health'],'UNVERIFIED')
         self.assertEqual(result['attribution'],'UNVERIFIED')
         self.assertTrue(result['protocol_wait_stop_confirmed'])
-        self.assertTrue(result['temporary_workspace_removed'])
+        self.assertFalse(self.worker.work.exists())
         self.assertFalse(result['measurement_valid'])
         self.worker.interrupt_active_turn.assert_called_once_with(reason='PROVIDER_TERMINAL_WAIT_EXCEEDED')
 

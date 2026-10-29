@@ -229,6 +229,31 @@ baseline, exact recorded repair obligations, prior evidence and costs; it reject
 live processes, changed evidence and unsupported partial checkpoints. See
 [guarded local-tool recovery](nl0/references/operation.md#inherited-probe-directory-collisions).
 
+### Errors pause; they do not end the task
+
+Local Python classifies service/transport errors separately from task completion.
+Recognized transient capacity, connection, timeout and interrupted-stream errors
+retry every 60seconds, at most 10 times, keeping the same thread, drafts and
+profile. Authorization, balance, quota, rejected-request and local/unknown faults
+pause immediately. Retry exhaustion also enters `PAUSED_ERROR`.
+
+The controller retains the carrier and workspace, saves full redacted diagnostics,
+and uses the local `codex queue` CLI to notify the invoking owner task without
+needing an LLM. Owner routing is captured from `CODEX_THREAD_ID`; outside a task,
+set `YUI_OWNER_THREAD_ID` explicitly. Missing/failed delivery stays in a local
+pending outbox and never terminates the task. Inspect or explicitly resume:
+
+```sh
+python3 -B nl0/scripts/yui.py errors /absolute/path/to/RUN
+python3 -B nl0/scripts/yui.py resume-error /absolute/path/to/RUN --incident ID
+```
+
+Only actual phase/workflow acceptance plus finalization, or explicit user
+cancellation, authorizes process/workspace cleanup. A submitted draft, fault or
+abnormal child exit cannot authorize it. Completed scientific evidence remains.
+Unknown/local faults require verified repair and a supported checkpoint; no
+blind phase replay is allowed. See [fault categories, controls and exit rules](nl0/references/error-lifecycle.md).
+
 ### Foreground turn and ten-minute checks
 
 The invoking owner normally uses detached execution. After dispatch and process

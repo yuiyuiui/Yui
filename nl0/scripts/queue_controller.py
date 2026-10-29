@@ -10,7 +10,7 @@ import sys
 import threading
 import time
 
-from controller_common import write, bind
+from controller_common import write, bind, final_write
 import jobs as job_contract
 from execution_state import identity, terminate_owned, request_cancel
 
@@ -86,15 +86,35 @@ def serve(jobs,*,case_concurrency=None):
                     if time.monotonic()-row['cancel_at']>35 and row['identity']:terminate_owned(process,row['identity'])
                 if process.poll() is None:continue
                 result=root/'case-result.json'
-                if not result.is_file():
-                    write(result,{'job':bind(root/'job.json'),'result':{'status':'EXECUTION_FAULT','exit_code':process.returncode,'cleanup':'UNKNOWN'}})
+                value=json.loads(result.read_text()).get('result',{}) if result.is_file() else {}
+                if value.get('status') not in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED'}:
+                    from fault_control import Gate
+                    from execution_state import Cancelled
+                    try:
+                        Gate(root/'logs/batch-errors',stage='case-process-exited').pause(
+                            {'code':'harness_bug','message':'Case process exited without task completion or user cancellation',
+                             'exit_code':process.returncode,'retained_case_outcome':value},resumable=False)
+                    except Cancelled:
+                        write(result,{'job':bind(root/'job.json'),'result':{'status':'CANCELLED',
+                            'task_outcome':'EXTERNAL_CANCELLED','retained_case_outcome':value}})
                 outcomes[key]=json.loads(result.read_text())['result'];del active[key]
             if pending or active:time.sleep(.1)
+    except Exception as error:
+        from fault_control import Gate
+        from execution_state import Cancelled
+        for job in jobs:
+            if job['id'] in outcomes:continue
+            root=Path(job['root'])
+            try:
+                Gate(root/'logs/batch-errors',stage='batch-controller').pause(error,resumable=False)
+            except Cancelled:
+                outcomes[job['id']]={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED'}
     finally:
         for row in active.values():
             root=Path(row['job']['root'])
-            if (root/'execution-status.json').exists():request_cancel(root)
+            if (stopping or (root/'cancel-request.json').is_file()) and (root/'execution-status.json').exists():request_cancel(root)
         for row in active.values():
+            if not stopping and not (Path(row['job']['root'])/'cancel-request.json').is_file():continue
             try:row['process'].wait(timeout=35)
             except subprocess.TimeoutExpired:
                 if row['identity']:terminate_owned(row['process'],row['identity'])
@@ -102,7 +122,7 @@ def serve(jobs,*,case_concurrency=None):
         for sig,handler in previous.items():signal.signal(sig,handler)
         for job in jobs:
             if not Path(job['root']).is_dir():continue
-            write(Path(job['root'])/'batch-result.json',{'children_exited':not unresolved,'unconfirmed_pids':unresolved,
+            final_write(Path(job['root'])/'batch-result.json',{'children_exited':not unresolved,'unconfirmed_pids':unresolved,
                 'status':'CANCELLED' if stopping else 'BATCH_FINISHED',
                 'outcomes':outcomes,'all_cases_accepted':len(outcomes)==len(jobs) and all(
                     r.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'} for r in outcomes.values()),

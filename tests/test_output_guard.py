@@ -61,6 +61,7 @@ class OutputGuardTests(unittest.TestCase):
             t=Trial.__new__(Trial);t.allowed_user_messages=set();t.timeout=5;t.strict=True
             t.thread_id='neutral-thread'
             t.accepted=None;t.turn_results=[];t.continuation_count=0
+            t.pause_error=Mock(side_effect=RuntimeError('Retained software-control pause'))
             t.rpc=Mock(return_value={'turn':{'id':'turn1'}})
             t.receive_until=Mock(return_value={'method':'turn/completed','params':{'turn':{
                 'id':'turn1','status':'failed','error':{'message':'Incomplete response returned, reason: max_output_tokens'}}}})

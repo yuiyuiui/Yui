@@ -246,7 +246,8 @@ class JobEntryTests(unittest.TestCase):
             return {'status':'SYNTHETIC_CONTROL_ONLY'}
         with patch.object(case_runner.source_preparation,'read_source'), \
              patch.object(case_runner,'translation_work',side_effect=translate), \
-             patch.object(case_runner,'nl0_work') as author:
+             patch.object(case_runner,'nl0_work') as author, \
+             patch('fault_control.Gate.pause',side_effect=execution_state.Cancelled('Synthetic user cancellation')):
             result=case_runner.execute(job)
         author.assert_not_called();self.assertFalse(result['completion']['acceptance_target_satisfied'])
         self.assertFalse(execution_state.inspect(Path(job['root']))['inspection']['residual_owned_processes'])

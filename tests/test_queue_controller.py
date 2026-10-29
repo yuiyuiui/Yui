@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 CORE=Path(__file__).resolve().parents[1]
 import jobs
+from execution_state import Cancelled
 import queue_controller as q
 from harness_support import PROFILES
 
@@ -28,16 +29,17 @@ class QueueControllerTests(unittest.TestCase):
         job=self.job(0)
         with self.assertRaisesRegex(ValueError,'Duplicate'):q.serve([job,job])
 
-    def test_three_actual_independent_processes_finish_with_nonpass_without_retry(self):
+    def test_three_actual_nonpass_processes_pause_until_explicit_cancel_without_retry(self):
         selected=[self.job(i) for i in range(3)]
         def launch(job_file,out):
             script=("import json,time,os;from pathlib import Path; p=Path("+repr(str(out))+");"
                 "(p/'started').write_text(str(time.monotonic()));time.sleep(.3);"
                 "(p/'case-result.json').write_text(json.dumps({'result':{'status':'SYNTHETIC_NONPASS','pid':os.getpid()}}))")
             return subprocess.Popen([sys.executable,'-B','-c',script],start_new_session=True)
-        with patch.object(q,'launch_case',side_effect=launch) as called:
+        with patch.object(q,'launch_case',side_effect=launch) as called, \
+             patch('fault_control.Gate.pause',side_effect=Cancelled('Synthetic explicit user cancellation')):
             result=q.serve(selected,case_concurrency=3)
-        self.assertEqual(called.call_count,3);self.assertEqual(len({r['pid'] for r in result.values()}),3)
+        self.assertEqual(called.call_count,3);self.assertEqual(len({r['retained_case_outcome']['pid'] for r in result.values()}),3)
         starts=[float((Path(j['root'])/'started').read_text()) for j in selected]
         self.assertLess(max(starts)-min(starts),.3)
         for job in selected:
@@ -49,10 +51,11 @@ class QueueControllerTests(unittest.TestCase):
         def launch(job_file,out):
             script="import json;from pathlib import Path;p=Path("+repr(str(out))+");(p/'case-result.json').write_text(json.dumps({'result':{'status':'SYNTHETIC_NONPASS'}}))"
             return subprocess.Popen([sys.executable,'-B','-c',script],start_new_session=True)
-        with patch.object(q,'launch_case',side_effect=launch) as called:
+        with patch.object(q,'launch_case',side_effect=launch) as called, \
+             patch('fault_control.Gate.pause',side_effect=Cancelled('Synthetic explicit user cancellation')):
             result=q.serve(selected,case_concurrency=1)
         self.assertEqual(called.call_count,1)
         self.assertEqual(result[selected[0]['id']]['status'],'CANCELLED')
-        self.assertEqual(result[selected[1]['id']]['status'],'SYNTHETIC_NONPASS')
+        self.assertEqual(result[selected[1]['id']]['retained_case_outcome']['status'],'SYNTHETIC_NONPASS')
 
 if __name__=='__main__':unittest.main()

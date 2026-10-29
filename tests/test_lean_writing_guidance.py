@@ -1,5 +1,6 @@
 """Instruction delivery and snapshot controls; no model or Lean execution."""
 import harness_support
+from execution_state import Cancelled
 import hashlib
 import json
 from pathlib import Path
@@ -75,7 +76,7 @@ class LeanWritingGuidanceTests(unittest.TestCase):
         # Neither the provider carrier nor a native compiler may start.
         with patch.object(proof, 'start_process',
                           side_effect=RuntimeError('OFFLINE_PROCESS_BOUNDARY')) as start, \
-                patch.object(ir, 'check', side_effect=AssertionError('No Lean call')):
+                patch.object(ir, 'check', side_effect=AssertionError('No Lean call')), patch.object(proof,'pause_error',side_effect=Cancelled('Synthetic user cancellation')):
             proof._execute()
         start.assert_called_once_with()
         saved = proof.logs/'harness-snapshot/nl02lean/references/lean-writing.md'

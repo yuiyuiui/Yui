@@ -36,6 +36,7 @@ class RemoteRetryTests(unittest.TestCase):
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None
         t.tool_history={};t.model_calls={};t.inbox=queue.Queue();t.pending_turn_start_id=None
         t.last_turn_event=None;t.check_argument_guard=Mock();t.execution=None
+        t.pause_error=Mock(side_effect=RuntimeError('Explicit retained pause software fixture'))
         t.execution_task='neutral-task'
         return t
 
@@ -62,10 +63,12 @@ class RemoteRetryTests(unittest.TestCase):
         self.assertEqual(t.rpc.call_args_list[1].args[1]['input'][0]['text'],run_pilot.CONTINUE_PROMPT)
         self.assertEqual(t.continuation_count,0);t.wait_remote_retry.assert_called_once()
 
-    def test_transient_retries_have_no_fixed_attempt_cutoff(self):
+    def test_transient_retries_stop_at_ten_and_enter_pause(self):
         t=self.turns([{'code':'server_is_overloaded'}]*16)
-        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(17))
-        self.assertEqual(t.remote_retry_count,16)
+        with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task',smoke=True)
+        self.assertEqual(t.remote_retry_count,10)
+        self.assertEqual(t.rpc.call_count,11)
+        t.pause_error.assert_called_once()
 
     def test_permanent_unknown_and_local_failures_do_not_retry(self):
         errors=[{'code':code} for code in ['invalid_request','insufficient_quota','usage_limit_exceeded',
@@ -92,11 +95,10 @@ class RemoteRetryTests(unittest.TestCase):
                       {'codexErrorInfo':{'httpConnectionFailed':{'httpStatusCode':502}}}]:
             self.assertIsNotNone(retry.classify(error))
 
-    def test_delay_is_bounded_jittered_and_honors_retry_after(self):
-        with patch.object(retry.random,'uniform',return_value=1):
-            self.assertEqual(retry.delay(1),15);self.assertEqual(retry.delay(2),30)
-            self.assertEqual(retry.delay(999),300)
-            self.assertEqual(retry.delay(1,retry_after_seconds=600),600)
+    def test_delay_is_fixed_at_one_minute(self):
+        self.assertEqual(retry.delay(1),60);self.assertEqual(retry.delay(2),60)
+        self.assertEqual(retry.delay(999),60)
+        self.assertEqual(retry.delay(1,retry_after_seconds=600),60)
         self.assertEqual(retry.retry_after('30'),30)
         self.assertEqual(retry.retry_after('Wed, 21 Oct 2026 07:01:00 GMT',
             at=datetime(2026,10,21,7,tzinfo=timezone.utc)),60)

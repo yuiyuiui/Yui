@@ -536,6 +536,7 @@ class Trial:
                     body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
                     if self.headers.get('Content-Encoding') == 'gzip': body = gzip.decompress(body)
                     request_number=trial.reserve_request_number()
+                    trial.last_relay_failure=None
                     payload = trial.normalize_request(json.loads(body),request_number=request_number)
                     if execution: execution.request_started(str(trial.logs),request_number)
                     stream_done=threading.Event()
@@ -547,6 +548,9 @@ class Trial:
                     header_allowlist = {'authorization', 'chatgpt-account-id', 'openai-beta',
                                         'user-agent', 'originator', 'content-type', 'accept'}
                     headers = {k: v for k, v in self.headers.items() if k.lower() in header_allowlist}
+                    if getattr(trial,'resumed_auth_headers',None):
+                        headers={k:v for k,v in headers.items() if k.lower() not in {'authorization','chatgpt-account-id'}}
+                        headers.update(trial.resumed_auth_headers)
                     headers['Content-Length'] = str(len(data))
                     headers['Accept-Encoding'] = 'identity'
                     append(trial.logs / 'request-headers.jsonl', {'request_number':request_number,
@@ -600,9 +604,11 @@ class Trial:
                                 return
                     self.close_connection = True
                 except Exception as e:
+                    failure=remote_retry.transport_error(e)
+                    trial.last_relay_failure={'request_number':request_number,'error':failure}
                     append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
                         'error_type':type(e).__name__,'upstream_opened':upstream is not None})
-                    if not isinstance(e,(OSError,http.client.HTTPException)):
+                    if failure['code']=='harness_bug':
                         trial.non_remote_relay_fault=True
                     if trial.strict and isinstance(e, (PermissionError, ValueError)):
                         append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
@@ -613,7 +619,7 @@ class Trial:
                             'error':str(e),'upstream_transmitted':False,'at_utc':now()}
                         append(trial.logs/'local-protocol-faults.jsonl',trial.local_protocol_fault)
                     try:
-                        message = json.dumps({'error': {'message': str(e)}}).encode()
+                        message = json.dumps({'error': failure}).encode()
                         self.send_response(400 if local else 502); self.send_header('Content-Type', 'application/json')
                         self.send_header('Content-Length', str(len(message)));self.send_header('Connection','close')
                         self.end_headers(); self.wfile.write(message);self.close_connection=True
@@ -688,6 +694,9 @@ class Trial:
                         'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
                 else:
                     result = self.dispatch(params['tool'], params['arguments'])
+                if result.get('infrastructure_error') is True:
+                    self.pause_error({'code':'harness_bug','message':'Local tool failed; no automatic tool replay',
+                        'tool':params['tool'],'feedback':result},resumable=False)
                 delivered = self.snapshot_tool_result(params['callId'],result)
                 if (getattr(self,'stop_on_submission',False) and self.accepted is not None
                         and not getattr(self,'submission_closed',False)):
@@ -778,6 +787,8 @@ base_url = "http://127.0.0.1:{port}"
 wire_api = "responses"
 requires_openai_auth = true
 supports_websockets = false
+request_max_retries = 0
+stream_max_retries = 0
 [features]
 apps = false
 plugins = false
@@ -848,6 +859,7 @@ tool_suggest = false
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
         self.remote_retry_count=0
+        incident_retries=0
         while True:
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
@@ -871,18 +883,34 @@ tool_suggest = false
                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
                     from output_guard import ModelOutputLimit
                     raise ModelOutputLimit(limit)
-                reason=remote_retry.classify(turn.get('error'))
+                fault=turn.get('error')
+                relay_failure=getattr(self,'last_relay_failure',None)
+                if relay_failure and relay_failure.get('request_number')==self.api_calls:
+                    fault={**relay_failure['error'],'carrier_error':fault}
+                reason=remote_retry.classify(fault)
                 if (reason and not getattr(self,'local_protocol_fault',None)
                         and not getattr(self,'non_remote_relay_fault',False)
                         and not (self.logs/'isolation-violations.jsonl').exists()):
-                    self.remote_retry_count+=1
-                    wait=remote_retry.delay(self.remote_retry_count,
-                        retry_after_seconds=getattr(self,'last_retry_after',None))
-                    self.wait_remote_retry(wait,reason,turn,deadline)
+                    if incident_retries < REMOTE_RETRY_POLICY['maximum_attempts']:
+                        incident_retries+=1;self.remote_retry_count+=1
+                        self.remote_incident_retries=incident_retries
+                        wait=remote_retry.delay(incident_retries,
+                            retry_after_seconds=getattr(self,'last_retry_after',None))
+                        self.wait_remote_retry(wait,reason,turn,deadline)
+                    else:
+                        self.pause_error(fault,retries=incident_retries)
+                        incident_retries=0
                     self.allowed_user_messages.add(continuation_prompt)
                     message=continuation_prompt
                     continue
-                raise RuntimeError('模型回合未正常完成：' + json.dumps(turn.get('error'), ensure_ascii=False))
+                fault=fault or {'code':'unknown','message':'Model turn ended without completion'}
+                local=any(getattr(self,key,False) for key in ('local_protocol_fault','non_remote_relay_fault'))
+                if local:fault={'code':'harness_bug','cause':fault,'message':'A local protocol/provenance fault requires verified repair'}
+                self.pause_error(fault,retries=incident_retries,resumable=not local)
+                incident_retries=0
+                self.allowed_user_messages.add(continuation_prompt);message=continuation_prompt
+                continue
+            incident_retries=0
             if smoke or self.accepted or not self.strict:
                 return done
             hook=getattr(self,'after_unaccepted_turn',None)
@@ -900,9 +928,38 @@ tool_suggest = false
             self.allowed_user_messages.add(continuation_prompt)
             message = continuation_prompt
 
+    def pause_error(self,error,*,retries=0,resumable=True):
+        from fault_control import gate_for
+        gate=gate_for(self)
+        gate.pause(error,retries=retries,resumable=resumable,
+            checkpoint={'thread_id':getattr(self,'thread_id',None),'turn_id':getattr(self,'active_turn_id',None),
+                'workspace':str(getattr(self,'work','')),'profile':getattr(self,'model_selection',{}),
+                'preserve_tool_history':True,'restart_whole_workflow':False})
+        if resumable:self.refresh_after_error_pause()
+
+    def refresh_after_error_pause(self):
+        """Refresh routing/auth only after explicit resume, retaining the exact thread."""
+        if not getattr(self,'work',None):return
+        path=__import__('runtime_config').auth_home()/'auth.json'
+        state=self.work/'state/auth.json'
+        if path.is_file() and state.is_file():
+            current=json.loads(path.read_text());previous=json.loads(state.read_text())
+            fresh=current.get('tokens',{});old=previous.get('tokens',{})
+            if fresh.get('account_id')!=old.get('account_id'):
+                self.pause_error({'code':'authentication_error','message':'Account identity changed; explicit same-account repair required'},resumable=False)
+            token=fresh.get('access_token')
+            if token and token!=old.get('access_token'):
+                if not isinstance(token,str) or any(c in token for c in '\r\n') or any(c in (fresh.get('account_id') or '') for c in '\r\n'):
+                    self.pause_error({'code':'authentication_error','message':'Malformed credential; value withheld'},resumable=False)
+                shutil.copyfile(path,state);os.chmod(state,0o600)
+                self.resumed_auth_headers={'Authorization':'Bearer '+token}
+                if fresh.get('account_id'):self.resumed_auth_headers['ChatGPT-Account-Id']=fresh['account_id']
+        self.network_proxy=system_https_proxy()
+
     def wait_remote_retry(self, seconds, reason, turn, deadline):
         """Wait without model calls, retaining this exact thread and candidates."""
         record={'event':'remote_service_retry_wait','retry_number':self.remote_retry_count,
+            'incident_retry_number':getattr(self,'remote_incident_retries',self.remote_retry_count),
             'thread_id':self.thread_id,'previous_turn_id':turn.get('id'),
             'request_number':self.api_calls,'delay_seconds':seconds,'reason':reason,
             'original_error':turn.get('error'),'policy':REMOTE_RETRY_POLICY['version']}
@@ -1037,6 +1094,11 @@ tool_suggest = false
             result['error'] = str(e)
             result['failure_phase'] = self.phase
         finally:
+            if result.get('status') not in {'SMOKE_COMPLETED','PROOF_ACCEPTED','CANCELLED'}:
+                try:self.pause_error({'code':'harness_bug','message':'Legacy carrier did not complete',
+                    'outcome':dict(result)},resumable=False)
+                except __import__('execution_state').Cancelled:
+                    result.update(status='CANCELLED',stop_reason='EXTERNAL_CANCEL')
             result['continuation_count'] = self.continuation_count
             result['remote_retries'] = getattr(self,'remote_retry_count',0)
             result['remote_retry_policy'] = REMOTE_RETRY_POLICY

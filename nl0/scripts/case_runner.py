@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import traceback
 
-from controller_common import write, bind
+from controller_common import write, bind, final_write
 import audit_a_campaign as a
 import full_workflow as f
 import jobs
@@ -252,14 +252,49 @@ def execute(job, root=None):
                 'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
+            allowed={'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL',
+                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED'}
+            if result.get('status') not in allowed:
+                from fault_control import Gate,outcome_error
+                saved=dict(result)
+                try:
+                    with execution.activate(recorder),recorder.signals():
+                        Gate(root/'logs/controller-errors',recorder=recorder,task='case-controller',
+                             stage=recorder.state.get('phase')).pause(
+                            outcome_error(saved),resumable=False,
+                            checkpoint={'preserve_completed_work':True,'restart_whole_workflow':False})
+                except execution.Cancelled:
+                    result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
             conditional=result.get('status') in {'DRAFT-AUDIT-CONDITIONAL','WORKFLOW-CONDITIONAL','AUDIT-B-CONDITIONAL'}
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
                 completion={'acceptance_target_satisfied':passed,'workflow_completed':passed or conditional,
                             'follow_up_required':not passed},time_budget_seconds=job['time_budget_seconds'])
             if (root/'warn.json').is_file():result['warnings']=json.loads((root/'warn.json').read_text())
-            recorder.close(result.get('status','EXECUTION_FAULT'),outcome=result);result['usage']=recorder.state['usage']
-            write(root/'case-result.json',{'job':bind(root/'job.json'),'result':result,'concurrency':budgets.report()})
+            while True:
+                try:
+                    recorder.close(result.get('status','EXECUTION_FAULT'),outcome=result)
+                    break
+                except Exception as error:
+                    from fault_control import Gate
+                    try:
+                        with execution.activate(recorder),recorder.signals():
+                            Gate(root/'logs/finalization-errors',recorder=recorder,task='case-controller',
+                                 stage='finalization').pause(error,resumable=True,
+                                    checkpoint={'retry_scope':'idempotent authorized cleanup only','no_model_call':True})
+                    except execution.Cancelled:
+                        result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',
+                            completion={'acceptance_target_satisfied':False,'workflow_completed':False,'follow_up_required':True})
+            result['usage']=recorder.state['usage']
+            with recorder.signals():
+                published=final_write(root/'case-result.json',{'job':bind(root/'job.json'),'result':result,
+                    'concurrency':budgets.report()},recorder=recorder)
+            if not published:
+                result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',
+                    completion={'acceptance_target_satisfied':False,'workflow_completed':False,'follow_up_required':True})
+                recorder.update(result={'status':'CANCELLED','outcome':result})
+                try:recorder.flush(force=True)
+                except OSError:pass  # The user explicitly stopped an unwritable final report.
         return result
 
 

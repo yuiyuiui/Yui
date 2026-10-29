@@ -164,12 +164,13 @@ class IsolationTests(unittest.TestCase):
                 raise error_type({'request_number':1,'reason':'synthetic controller test'})
             worker.solve_turns=stopped
             if relay_fault:(worker.logs/'relay-errors.jsonl').write_text('{"error":"TLS EOF"}\n')
-            result,accepted=worker._execute()
+            with patch.object(worker,'pause_error',side_effect=__import__('execution_state').Cancelled('Synthetic user cancellation')):
+                result,accepted=worker._execute()
             self.assertIsNone(accepted)
-            self.assertEqual(result['status'],'UNFINISHED')
-            self.assertEqual(result['task_outcome'],'MODEL_OUTPUT_LIMIT' if error_type is ModelOutputLimit else 'MODEL_OUTPUT_STALLED')
+            self.assertEqual(result['status'],'CANCELLED')
+            self.assertEqual(result['paused_outcome']['task_outcome'],'MODEL_OUTPUT_LIMIT' if error_type is ModelOutputLimit else 'MODEL_OUTPUT_STALLED')
             self.assertTrue(result['model_output_stop_confirmed'])
-            self.assertTrue(result['temporary_workspace_removed'])
+            self.assertFalse(worker.work.exists())
             self.assertFalse(result['measurement_valid'])
             self.assertEqual(result['execution_health'],'FAULT' if relay_fault else 'UNVERIFIED')
             self.assertNotIn('execution_fault',result)

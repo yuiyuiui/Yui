@@ -84,6 +84,8 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         raise ValueError('A run may not contain/overwrite its original input documents')
     root.mkdir(parents=True,exist_ok=False)
     root=root.resolve();inputs=root/'inputs';inputs.mkdir()
+    from fault_control import capture_owner
+    capture_owner(root)
     documents=[]
     try:
         authority=source_authority(source) if source else None
