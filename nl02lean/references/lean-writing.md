@@ -35,7 +35,16 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    the small check succeeds, integrate the result and recheck the complete
    obligation; success of a helper alone does not accept the target.
 
-These rules do not interrupt an active compiler call or impose a time limit.
-They guide the next implementation/checking action when feedback is available.
+5. **Repair after a bounded check.** Native checks have a separate per-call wall
+   limit, normally 300 seconds, and use Lean's finite default heartbeat budget.
+   A timeout or heartbeat diagnostic leaves the goal unaccepted and returns
+   control to the same worker. Inspect the retained candidate and diagnostic,
+   then check a smaller typed application, conversion or proof fragment before
+   integrating it. Do not repeat the unchanged expensive candidate or disable
+   limits to avoid diagnosis. Preserve the target, allowed inputs and proof
+   requirements; a timeout alone establishes no mathematical gap.
+
+The runtime enforces the per-call wall limit independently of these writing
+rules. Whole-case and model-stage execution remain unlimited by default.
 Retain failed attempts and actual diagnostics. Standalone assembly, native
 trust/signature checks and independent endpoint-fidelity Audit B remain required.

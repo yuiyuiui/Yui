@@ -138,14 +138,26 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
 
 def translation_work(job, authority, budgets, progress):
     root=Path(job['root'])
-    authority=source_refactor.run(authority,root/'nl0-to-lean/preparation',budgets.serial)
+    checkpoint=None
+    if (job.get('resume') or {}).get('mode')=='native-proof-cleanup':
+        import native_cleanup_recovery
+        native_cleanup_recovery.validate_descriptor(job)
+        checkpoint=job['resume'];authority=checkpoint['source_authority']
+    else:
+        authority=source_refactor.run(authority,root/'nl0-to-lean/preparation',budgets.serial)
     source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0
     while True:
         attempt+=1;directory=root/'nl0-to-lean'/f'{attempt:04d}'
+        current_interface=Path(checkpoint['interface']) if checkpoint else directory/'interface'
         try:
-            result=f.translate(job['case'],source,directory/'interface',directory/'workflow',budgets.serial,progress,
-                proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
-                prior_interface=prior_interface,diagnostics=diagnostics)
+            if checkpoint:
+                result=f.from_interface(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
+                    proof_budget=budgets.proof,authority=authority,prior_run=Path(checkpoint['prior_proof_run']))
+                checkpoint=None
+            else:
+                result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
+                    proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
+                    prior_interface=prior_interface,diagnostics=diagnostics)
             write(root/'audit-b'/f'{attempt:04d}.json',{'status':'AUDIT-B-PASSED' if result['status']=='WORKFLOW-PASSED' else 'AUDIT-B-CONDITIONAL',
                 'review':bind(directory/'audit-b-review/review.json'),'workflow':str(directory/'workflow')})
             return result
@@ -156,7 +168,8 @@ def translation_work(job, authority, budgets, progress):
             if report_value.get('review_status')!='MATHEMATICAL_REVIEW_FAILED':raise
             diagnostics={'report':report_value,'actual_review':json.loads((directory/'audit-b-review/stage/accepted.json').read_text()),
                          'review_packet':json.loads((directory/'workflow/audit-b/review-packet.json').read_text())}
-            prior_interface=directory/'interface/stage/accepted.json'
+            checkpoint=None
+            prior_interface=current_interface/'stage/accepted.json'
             if not prior_interface.is_file():raise
             write(root/'repairs'/f'audit-b-{attempt:04d}.json',{'diagnosis':bind(report),
                 'route':'interface_and_affected_proofs','source_unchanged':True})

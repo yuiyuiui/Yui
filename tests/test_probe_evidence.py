@@ -4,6 +4,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
@@ -18,6 +19,14 @@ spec.loader.exec_module(probe)
 
 
 class ProbeEvidencePreservation(unittest.TestCase):
+    def test_standalone_query_timeout_returns_actual_partial_output(self):
+        with tempfile.TemporaryDirectory() as raw, patch.object(probe,'native_timeout',return_value=.2):
+            result=probe.run_probe([sys.executable,'-u','-c',
+                'import time;print("query-started",flush=True);time.sleep(30)'],raw)
+        self.assertEqual(result.returncode,124)
+        self.assertIn('query-started',result.stdout)
+        self.assertIn('Lean timeout',result.stderr)
+
     def test_existing_frozen_receipt_is_not_overwritten_by_default(self):
         with tempfile.TemporaryDirectory() as d:
             out=Path(d)

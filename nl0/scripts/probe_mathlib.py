@@ -8,6 +8,30 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from execution_state import identity, terminate_owned
+from runtime_config import native_timeout
+
+
+def run_probe(command, cwd):
+    """Bound the standalone library-query entry just like normal native tools."""
+    limit=native_timeout()
+    process=subprocess.Popen(command,cwd=cwd,stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE,text=True,start_new_session=True)
+    owner=identity(process.pid)
+    try:
+        stdout,stderr=process.communicate(timeout=limit)
+        return subprocess.CompletedProcess(command,process.returncode,stdout,stderr)
+    except subprocess.TimeoutExpired:
+        if not owner or not terminate_owned(process,owner):
+            raise RuntimeError('Library-query process cleanup could not be confirmed')
+        stdout,stderr=process.communicate()
+        return subprocess.CompletedProcess(command,124,stdout,
+            stderr+f'\nLean timeout: library query exceeded {limit:g} seconds. '
+            'Retain this query and retry a smaller set of declarations.')
+    finally:
+        if process.poll() is None and owner:
+            terminate_owned(process,owner)
+
 
 def prepare_output(out, replace=False):
     """Never overwrite frozen source evidence without an explicit archive."""
@@ -54,12 +78,13 @@ def main():
                   f'#eval IO.println "BEGIN_AXIOMS:{item["id"]}"', f"#print axioms {name}",
                   f'#eval IO.println "END_SOURCE:{item["id"]}"']
     probe.write_text("\n".join(lines) + "\n")
-    command = ["lake", "env", "lean", "-DmaxHeartbeats=0", str(probe)]
+    command = ["lake", "env", "lean", str(probe)]
     started = datetime.now(timezone.utc).isoformat()
-    result = subprocess.run(command, cwd=args.mathlib, capture_output=True, text=True)
+    result = run_probe(command,args.mathlib)
     (out / "library-probe.log").write_text(result.stdout + result.stderr)
     if result.returncode:
-        print(json.dumps({"status": "FAILED", "exit_code": result.returncode,
+        print(json.dumps({"status": "TIMEOUT" if result.returncode==124 else "FAILED",
+                          "exit_code": result.returncode,
                           "log": str(out / "library-probe.log")}, indent=2))
         return 1
     sources = {}

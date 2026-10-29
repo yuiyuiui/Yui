@@ -103,6 +103,20 @@ especially subscripts and fractions, before freezing it as proof input.
 
 ### Lean and Mathlib locations
 
+Each native Lean check has a **5-minute wall limit** by default, configured as
+`timeouts.native_seconds: 300` in `config.json`. Lean's finite default heartbeat
+budget also remains enabled. A timed-out candidate is retained and returned to
+its worker for a smaller check and repair; it is never accepted or interpreted
+as a mathematical failure merely because time elapsed. In Yui proof workers,
+verified native wall/heartbeat exhaustion automatically includes the frozen
+ST020 diagnostic-and-repair strategy in that same tool result, without another
+model call. Ordinary errors, cancellation, provider faults and the direct arm
+do not trigger it. Whole-case/model-stage
+time and token budgets remain unlimited by default. The native limit applies
+even to checking paths without a model worker, including assembly and native
+inspection; these gates must still actually pass. A deliberate policy change
+must be recorded, especially when continuing an existing benchmark.
+
 The controller resolves these paths before model work starts. It does not ask
 the LLM to locate Mathlib, scan the computer for repositories, or download a
 missing installation. Path discovery is independent of the optional metadata
@@ -225,8 +239,13 @@ failure conditions and verification, remove case-specific names and proof
 material, and retain only general procedures or broad-field strategies.
 The live bank supplies advice, not theorem permissions or accepted proofs.
 Its current entries are generalized guidance with no claimed performance
-validation. This maintenance is optional and never automatic; normal full
-workflows keep strategy lookup disabled.
+validation. Maintenance remains optional and never automatic. Free-form strategy
+queries are disabled by default. Separately, normal Yui proof workflows freeze
+ST020 at queue entry and automatically deliver it after an actual native resource
+limit. The original diagnostic and card revision/hash are retained. Advice that
+is missing, modified or outside its declared Lean-version scope is reported as
+unavailable; the failed candidate remains unaccepted and normal local repair
+continues. No extra model call is needed for this conditional retrieval.
 
 ## Repository and evidence
 

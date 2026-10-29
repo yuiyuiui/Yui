@@ -174,7 +174,10 @@ def validate(job, *, verify_runtime=True):
         if json.loads((root/'inputs/target-selection.json').read_text())!=job['target_selection']:
             raise ValueError('Frozen target selection changed')
     if 'resume' in job:
-        from interrupted import validate_descriptor
+        if job['resume'].get('mode')=='native-proof-cleanup':
+            from native_cleanup_recovery import validate_descriptor
+        else:
+            from interrupted import validate_descriptor
         validate_descriptor(job)
     if verify_runtime:
         verify_bindings(job['runtime'])

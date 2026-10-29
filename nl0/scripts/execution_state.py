@@ -63,7 +63,13 @@ def same_process(record):
 def terminate_owned(process, record, grace=1):
     """Terminate/reap only the still-matching process registered by this owner."""
     if process.poll() is not None: return True
-    if not same_process(record) or record['pid'] == os.getpid(): return False
+    if record['pid'] == os.getpid(): return False
+    if not same_process(record):
+        # A child can enter its OS exit state between poll() and ps readback.
+        # Waiting on this Popen handle cannot signal a reused or foreign PID.
+        try: process.wait(timeout=grace)
+        except subprocess.TimeoutExpired: return False
+        return process.poll() is not None
     try:
         if record['pgid'] == record['pid']:
             os.killpg(record['pgid'], signal.SIGTERM)
@@ -293,17 +299,24 @@ class Recorder:
 
     def lean_started(self, task, file):
         check_id=uuid.uuid4().hex
+        source=Path(file).read_bytes()
+        source_path=self.root/'native-checks'/(check_id+'.lean')
+        source_path.parent.mkdir(parents=True,exist_ok=True)
+        source_path.write_bytes(source)
         row={'check_id':check_id,'state':'CHECKING','started_at_utc':now(),
-            'source_sha256':hashlib.sha256(Path(file).read_bytes()).hexdigest(),
+            'source_sha256':hashlib.sha256(source).hexdigest(),'source_path':str(source_path),
             'log_path':str(self.root/'native-checks'/(check_id+'.json'))}
         if task:self.task(task,current_lean_check=row,activity='LEAN_CHECKING')
         else:self.update(current_lean_check=row)
         return row
 
     def lean_finished(self, task, check, result):
+        if check.get('source_path'):
+            result.update(source_path=check['source_path'],source_sha256=check['source_sha256'])
         atomic(check['log_path'],result)
         summary={**check,'state':'FINISHED','finished_at_utc':now(),
-            **{k:result.get(k) for k in ['exit_code','wall_seconds','cancelled']}}
+            **{k:result.get(k) for k in ['exit_code','wall_seconds','cancelled',
+                                        'timed_out','error_kind','timeout_seconds','timeout_scope']}}
         if task:self.task(task,current_lean_check=None,latest_lean_check=summary,activity='CONTROLLER_CHECK')
         else:self.update(current_lean_check=None,latest_lean_check=summary)
 

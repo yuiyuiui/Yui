@@ -57,6 +57,11 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
 queues and ledgers. Use normal local repair unless a first-pass measurement is
 explicitly requested. Runtime and software controls are fully inside this skill;
 no repository example/support directory or old test result is required.
+Each native Lean call defaults to a five-minute wall limit. Yui proof workers
+automatically receive frozen ST020 repair advice after a verified native
+wall/heartbeat limit, through the same failed tool result. Keep the target and
+inputs unchanged, repair in the same worker, and recheck. General strategy-bank
+queries remain optional; this failure-triggered advice needs no extra model call.
 Positively identified temporary remote-service failures retry within the same
 isolated thread, preserving its drafts and tool receipts. Keep the selected
 profile and record every fault/wait; use [operational recovery](nl0/references/operation.md#remote-service-recovery)
@@ -65,6 +70,11 @@ For a previously stopped inherited probe-directory collision, the same operation
 reference documents a separate guarded `--repair-local-tool` continuation after
 verified software repair and explicit owner authorization; it restores the saved
 located author repair rather than restarting the original proof.
+The separate guarded `--repair-native-cleanup` route supports an actually exited
+frozen proof queue stopped only by verified native-process cleanup faults. It
+preserves the exact source/A/interface, rechecks completed local bodies and
+restores only the failed worker's own bound drafts; never use it to resample a
+mathematical nonpass or replace live work.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.

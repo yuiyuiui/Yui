@@ -121,6 +121,21 @@ class StrategyBankTests(unittest.TestCase):
         self.assertEqual(q['family'],'execution')
         self.assertEqual(bank.search(q,self.root)['strategies'][0]['id'],'ST902')
 
+    def test_native_timeout_advice_is_conditional_and_excludes_controller_faults(self):
+        query=dict(family='execution',tags=['native_timeout'],lean_version='4.32.2',facts=[])
+        candidate=bank.search(query)['strategies'][0]
+        self.assertEqual(candidate['id'],'ST020')
+        self.assertEqual(candidate['applicability'],'CONDITIONAL')
+        self.assertIn('native_resource_failure_recorded',candidate['missing_preconditions'])
+        qualified=dict(query,facts=candidate['card']['preconditions'])
+        self.assertEqual(bank.search(qualified)['strategies'][0]['applicability'],
+                         'PRECONDITIONS_REPORTED')
+        excluded=dict(qualified,contraindications=['provider_or_controller_fault'])
+        self.assertEqual(bank.search(excluded)['status'],'NO_APPLICABLE_CANDIDATE')
+        # A stored card does not silently activate diagnostic routing.
+        observation=bank.diagnose(dict(diagnostic='LEAN_TIMEOUT',lean_version='4.32.2'))
+        self.assertEqual(bank.search(observation)['status'],'ABSTAIN')
+
     def test_repository_bank_is_current_general_guidance_with_no_orphan_cards(self):
         cards=json.loads((bank.BANK/'strategies.json').read_text())
         index=json.loads((bank.BANK/'index.json').read_text())

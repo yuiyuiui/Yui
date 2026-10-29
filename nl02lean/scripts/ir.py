@@ -344,8 +344,8 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
         shutil.rmtree(work)
 
 
-def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None):
-    """Check one closed helper in exactly this port's context; add no premise."""
+def render_auxiliary(cpath,plan,step,statement,proof):
+    """Render the exact local helper wrapper without running Lean."""
     c,nodes,_=validate(cpath,plan)
     need(step in nodes,'unknown auxiliary context port')
     need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
@@ -364,6 +364,12 @@ elab "yui_aux_type% " text:str : term => do
     source=c['header'].rstrip()+'\n'+parser+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
     source+=f'theorem checked {binder_text(c)} {inputs} : yui_aux_type% '+json.dumps(statement,ensure_ascii=False)+' := by\n'+body+'\n'
     source+='#check @checked\n#print axioms checked\nend YuiAuxiliary\n'
+    return source
+
+
+def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None):
+    """Check one closed helper in exactly this port's context; add no premise."""
+    source=render_auxiliary(cpath,plan,step,statement,proof)
     work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
     try:
         path=work/'output/Auxiliary.lean';path.write_text(source)

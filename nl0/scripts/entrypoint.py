@@ -32,7 +32,7 @@ def parsers(commands):
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
     p=commands.add_parser('targets',help='Inspect theorem candidates without starting mathematical work')
     p.add_argument('problem',type=Path)
-    p=commands.add_parser('resume',help='Continue interrupted author/Audit A work in new owned runs')
+    p=commands.add_parser('resume',help='Continue a supported, explicitly verified operational checkpoint')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
     repairs=p.add_mutually_exclusive_group()
@@ -40,6 +40,8 @@ def parsers(commands):
         help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
     repairs.add_argument('--repair-local-tool',action='store_true',
         help='Continue a verified inherited probe-directory collision from its saved pre-draft author-repair boundary')
+    repairs.add_argument('--repair-native-cleanup',action='store_true',
+        help='Continue an exited frozen proof queue stopped only by native-process cleanup faults')
     for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
@@ -123,7 +125,9 @@ def dispatch(args):
         return target_selection.inspect(args.problem)
     if args.command=='resume':
         import interrupted
-        prepared=[interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
+        import native_cleanup_recovery
+        prepared=[native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
+                  interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
                   interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
                   interrupted.prepare(path) for path in args.runs]
         if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}

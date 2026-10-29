@@ -77,11 +77,11 @@ def transport_sandbox_profile(work: Path, relay_port: int) -> str:
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
              output: Path | None = None, timeout: float | None = None) -> dict:
-    timeout = __import__('runtime_config').time_limit(timeout)
+    timeout = __import__('runtime_config').native_timeout(timeout)
     lock = load_lock()
     for name in ['home', 'tmp', 'output']:
         (work / name).mkdir(parents=True, exist_ok=True)
-    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1', '-DmaxHeartbeats=0']
+    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1']
     if output: cmd += ['-o', str(output)]
     cmd += [str(file)]
     if sandbox:
@@ -115,9 +115,17 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
                     stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
                     if not stopped: raise RuntimeError('Native process cleanup could not be confirmed')
                     stdout,stderr=process.communicate()
+                    diagnostic = ('\nExternal cancellation' if cancelled else
+                        f'\nLean timeout: this native check exceeded {timeout:g} seconds. '
+                        'The candidate was not accepted. Isolate a smaller typed application or proof '
+                        'fragment, repair it and recheck the unchanged target. '
+                        'A timeout does not establish a mathematical failure.')
                     result={'exit_code':130 if cancelled else 124,'stdout':stdout,
-                        'stderr':stderr+('\nExternal cancellation' if cancelled else '\nLean timeout'),
+                        'stderr':stderr+diagnostic,
                         'wall_seconds':time.monotonic()-started,'cancelled':cancelled}
+                    if not cancelled:
+                        result.update(timed_out=True,error_kind='LEAN_TIMEOUT',
+                                      timeout_seconds=timeout,timeout_scope='native_call')
                     break
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')

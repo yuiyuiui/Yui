@@ -10,6 +10,7 @@ from pathlib import Path
 import shlex
 import subprocess
 import sys
+from datetime import datetime
 
 from controller_common import CORE, bind
 
@@ -98,6 +99,23 @@ def matches(record, table):
                 and row['started'] == ' '.join(str(record.get('started', '')).split()))
 
 
+def group_present(group, records, table):
+    if not any(row['pgid']==group for row in table.values()):return False
+    known=[row for row in records if row.get('pid')==row.get('pgid')==group]
+    leader=table.get(group)
+    try:
+        datetime.strptime(leader['started'],'%a %b %d %H:%M:%S %Y')
+        identified=True
+    except (KeyError,TypeError,ValueError):identified=False
+    # A new leader with a different OS start proves numeric PGID reuse. It is
+    # unrelated to the old run; neither signal it nor report it as an old child.
+    if known and identified and leader['pgid']==group and not any(matches(row,table) for row in known):
+        return False
+    # Without such positive reuse evidence, surviving orphan members still block
+    # an exit claim even when the original leader itself has disappeared.
+    return True
+
+
 def snapshot(runs):
     selected = owned_runs(runs)
     settings = policy()
@@ -121,7 +139,7 @@ def snapshot(runs):
             if row and {'pid', 'pgid', 'started'} <= row.keys())
         live = {row['pid'] for row in records if matches(row, table)}
         groups = sorted({row['pgid'] for row in records
-                         if any(p['pgid'] == row['pgid'] for p in table.values())})
+                         if group_present(row['pgid'],records,table)})
         never_started = not state and not records and not result
         cancelled_before_start = result.get('status') == 'CANCELLED' and result.get('model_worker_called') is False
         exited = not process_error and not live and not groups and bool(records or never_started or cancelled_before_start)

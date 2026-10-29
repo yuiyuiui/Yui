@@ -1,0 +1,53 @@
+{
+  "id": "ST020",
+  "revision": 1,
+  "title": "Localize native timeouts before expanding proof search",
+  "family": "execution",
+  "domains": [
+    "general"
+  ],
+  "tags": [
+    "native_timeout",
+    "heartbeat",
+    "definitional_equality",
+    "type_inference",
+    "automation",
+    "composition"
+  ],
+  "obstacle": "A recorded native Lean resource limit prevents a candidate from returning useful proof feedback.",
+  "preconditions": [
+    "native_resource_failure_recorded",
+    "exact_target_and_inputs_retained",
+    "pinned_environment_available"
+  ],
+  "contraindications": [
+    "provider_or_controller_fault",
+    "changed_target_or_hypotheses",
+    "unconfirmed_process_cleanup"
+  ],
+  "procedure": [
+    "Read the actual native result and confirm owned-process cleanup. Distinguish wall timeout, heartbeat exhaustion, definitional-equality work and an earlier ordinary error from provider or controller faults.",
+    "Preserve the candidate, exact target, declared premises, imports, versions and resource settings before changing its implementation. Do not treat a timeout as a mathematical rejection.",
+    "Locate the costly application or tactic using a bounded local fragment or retained diagnostics. Address the earliest ordinary type error before interpreting later resource errors; a very small diagnostic allowance may also reject valid code.",
+    "For expensive implicit inference, inspect the full declaration type and supply the function, object, exponent, index and coercion types explicitly where needed. Name typed intermediate facts rather than asking unification to reconstruct a nested expression.",
+    "For an equality or representation bridge, state the intermediate function and the required equality direction explicitly. Use a small checked change, convert, congrArg or extensionality step and a restricted simp only list instead of broad unfolding.",
+    "For broad closure or recursive automation, construct intermediate closure facts from the leaves and compose the specific lemmas explicitly. Do not replace every use of automation without locating its cost.",
+    "Recheck the smallest changed application with a finite allowance, then the complete original target with all its original inputs. Retain unsuccessful candidates and diagnostics; a faster fragment alone does not establish complete acceptance.",
+    "If the selected branch does not help, revisit the diagnosis rather than blindly repeating it or raising limits. Changes to mathematical boundaries require the normal reviewed source/interface procedure."
+  ],
+  "verification": "The repaired complete candidate must pass a fresh native check under the pinned environment with the unchanged target and premises; compare performance only with disclosed comparable settings, and keep mathematical audits separate.",
+  "positive_example": "A native equality-check timeout is addressed by a typed intermediate function and a short checked equality bridge, followed by a complete candidate recheck.",
+  "negative_example": "Delete an equality reversal, replace every tactic or increase every timeout solely because an unrelated candidate once compiled afterward.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "status": "GENERAL_GUIDANCE",
+  "evidence": [
+    {
+      "kind": "generalized_observation",
+      "path": "evidence/native-timeout-triage.md",
+      "sha256": "d08063c4d9aca75532a10cd817123709e554d953d5189dc7743c4ae778bbfeae",
+      "note": "Bounded retrospective comparisons of completed implementations motivate this diagnostic procedure; individual edits were not all causally isolated and broader effectiveness is unestablished."
+    }
+  ]
+}

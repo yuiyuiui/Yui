@@ -83,10 +83,12 @@ existing compatible proof store in a new run remains disclosed warm reuse.
 
 ## Unlimited execution policy
 
-Current default configuration uses JSON null for whole-case, stage and native
-time budgets and the total token budget. Null means no automatic cutoff, not
-zero. Keep usage, elapsed time, process ownership and cancellation recording.
-A user-requested finite limit is a separate disclosed experiment setting.
+Current default configuration uses JSON null for whole-case and stage time
+budgets and the total token budget. Null means no automatic cutoff, not zero.
+Each native Lean call separately defaults to 300 wall seconds. A call timeout
+returns implementation feedback for repair; it does not end the whole workflow
+or count as model-budget exhaustion. Keep usage, elapsed time, process ownership
+and cancellation recording. Disclose changes to a running experiment's policy.
 
 There is no total token, reasoning-token, model-call or continuation-count quota
 in Yui. The carrier's automatic context compaction uses its model-aware default;
@@ -94,5 +96,8 @@ Yui still discards opaque summaries and restores only its own permitted inputs.
 A tool-result display/page bound is not a cumulative token allowance. Provider
 context windows, per-response output limits and account quotas are outside Yui's
 control: record an actual provider failure without claiming it was removed.
-Native checks have no default wall timeout, fixed heartbeat cap or heap quota.
+Native checks use Lean's finite default heartbeat budget and no fixed heap quota.
+Record the effective timeout, actual elapsed time and retained candidate on a
+native timeout; never count it as a checked proof. A shorter explicit deadline
+takes precedence over the native-call limit.
 Cancellation and bounded socket/handshake/cleanup operations remain active.

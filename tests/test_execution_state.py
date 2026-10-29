@@ -164,6 +164,55 @@ class ExecutionTests(unittest.TestCase):
         self.assertFalse(t.is_alive());self.assertEqual(result,['CANCELLED'])
         self.assertFalse([p for p in self.r.state['processes'].values() if p['state']=='ACTIVE'])
 
+    def test_exiting_child_between_poll_and_identity_is_reaped_without_foreign_signal(self):
+        process=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'],start_new_session=True)
+        record=e.identity(process.pid)
+        def already_exiting(_):
+            process.terminate()
+            return False
+        try:
+            with patch.object(e,'same_process',side_effect=already_exiting), \
+                    patch.object(e.os,'killpg',side_effect=AssertionError('Must not signal an unconfirmed identity')):
+                self.assertTrue(e.terminate_owned(process,record))
+            self.assertIsNotNone(process.poll())
+        finally:
+            if process.poll() is None:process.kill();process.wait()
+
+    def test_native_timeout_preserves_feedback_and_worker_can_check_again(self):
+        work=self.root/'native-timeout';(work/'input').mkdir(parents=True)
+        file=work/'input/Slow.lean'
+        file.write_text('import Lean\n#eval IO.sleep 30000\n')
+        self.r.task('T001',state='RUNNING',role='proof')
+        with patch('runtime_config.configured_timeout',return_value=.5), e.activate(self.r,'T001'):
+            result=pilot_common.run_lean(file,work)
+        self.assertEqual(result['exit_code'],124)
+        self.assertTrue(result['timed_out'])
+        self.assertEqual(result['error_kind'],'LEAN_TIMEOUT')
+        self.assertEqual(result['timeout_seconds'],.5)
+        self.assertIn('Isolate a smaller typed application',result['stderr'])
+        self.assertFalse(self.r.cancelled('T001'))
+        self.assertEqual(self.r.state['tasks']['T001']['state'],'RUNNING')
+        self.assertFalse([p for p in self.r.state['processes'].values() if p['state']=='ACTIVE'])
+        self.assertEqual(Path(result['source_path']).read_bytes(),file.read_bytes())
+        latest=self.r.state['tasks']['T001']['latest_lean_check']
+        self.assertTrue(latest['timed_out'])
+        self.assertEqual(json.loads(Path(latest['log_path']).read_text())['error_kind'],'LEAN_TIMEOUT')
+        file.write_text('example : True := True.intro\n')
+        with e.activate(self.r,'T001'):
+            checked=pilot_common.run_lean(file,work,timeout=15)
+        self.assertEqual(checked['exit_code'],0,checked['stderr'])
+        self.assertFalse(self.r.cancelled('T001'))
+
+    def test_explicit_native_deadline_is_shorter_and_unrecorded_path_is_bounded(self):
+        work=self.root/'native-unrecorded';(work/'input').mkdir(parents=True)
+        file=work/'input/Slow.lean';file.write_text('import Lean\n#eval IO.sleep 30000\n')
+        with patch('runtime_config.configured_timeout',return_value=.5):
+            result=pilot_common.run_lean(file,work,timeout=.2)
+        self.assertEqual(result['exit_code'],124)
+        self.assertEqual(result['timeout_seconds'],.2)
+        self.assertTrue(result['timed_out'])
+        self.assertLess(result['wall_seconds'],8)
+
 
 class ControllerSignalTests(unittest.TestCase):
     def test_sigterm_reaps_owned_children_and_sigkill_is_reported_unknown(self):

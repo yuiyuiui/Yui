@@ -21,9 +21,108 @@ CARD_FIELDS={'id','revision','title','family','domains','tags','obstacle','preco
              'negative_example','evidence','lean_versions','status'}
 EVIDENCE_KINDS={'design_rule','generalized_observation','synthetic_control'}
 CASE_ID=re.compile(r'\b(?:[HRNTD]\d{3,}|bench_case_\d+|20\d{6}T\d{6}Z)\b')
+NATIVE_TIMEOUT_POLICY='native-timeout-st020-1'
+NATIVE_TIMEOUT_CARD='ST020'
+HEARTBEAT_ERROR=re.compile(
+    r'^.*\.lean:\d+:\d+:\s+error(?:\([^\n)]*\))?:[^\n]*'
+    r'(?:\(deterministic\) timeout|\(kernel\) deterministic timeout)[^\n]*'
+    r'maximum number of heartbeats \([0-9]+\) has been reached',re.MULTILINE)
 
 
 def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def native_timeout_kind(result):
+    """Classify actual native results, never model prose or generic exit codes."""
+    if (not isinstance(result,dict) or result.get('cancelled')
+            or result.get('error_kind') not in {None,'LEAN_TIMEOUT'}
+            or result.get('feedback_kind')=='candidate_rejected'):
+        return None
+    if (result.get('exit_code')==124 and result.get('timed_out') is True
+            and result.get('error_kind')=='LEAN_TIMEOUT'
+            and result.get('timeout_scope')=='native_call'):
+        return 'NATIVE_WALL_TIMEOUT'
+    if result.get('exit_code')!=1:
+        return None
+    diagnostics='\n'.join(result.get(k,'') for k in ('stdout','stderr')
+                          if isinstance(result.get(k,''),str))
+    if HEARTBEAT_ERROR.search(diagnostics):
+        return 'NATIVE_HEARTBEAT_EXHAUSTED'
+    return None
+
+
+def freeze_native_timeout_policy(destination,bank=None):
+    """Snapshot one advice card at stage entry; no search or model call."""
+    bank=Path(bank or BANK).resolve();destination=Path(destination).resolve()
+    state={'policy':NATIVE_TIMEOUT_POLICY,'card_id':NATIVE_TIMEOUT_CARD,
+           'status':'UNAVAILABLE','files':[],'bank_root':str(destination)}
+    try:
+        index=json.loads((bank/'index.json').read_text())
+        if index.get('version')!=2 or index['source_sha256']!=sha(bank/'strategies.json'):
+            raise ValueError('stale strategy index')
+        meta=index['metadata'][NATIVE_TIMEOUT_CARD]
+        relative=Path(meta['path']);card_path=(bank/relative).resolve()
+        if relative.is_absolute() or '..' in relative.parts or not card_path.is_relative_to(bank):
+            raise ValueError('card escapes the bank')
+        if sha(card_path)!=meta['sha256']:raise ValueError('stale/modified strategy card')
+        card=json.loads(card_path.read_text());validate_card(card,bank)
+        source=json.loads((bank/'strategies.json').read_text())
+        if card['id']!=NATIVE_TIMEOUT_CARD or [c for c in source if c['id']==NATIVE_TIMEOUT_CARD]!=[card]:
+            raise ValueError('timeout card differs from its source')
+        paths=[Path('strategies.json'),Path('index.json'),relative,
+               *(Path(e['path']) for e in card['evidence'])]
+        for path in dict.fromkeys(paths):
+            if path.is_absolute() or '..' in path.parts:
+                raise ValueError('timeout evidence path escapes its snapshot')
+            data=(bank/path).read_bytes();target=destination/path
+            target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+            state['files'].append({'path':str(path),'sha256':hashlib.sha256(data).hexdigest()})
+        # Recheck the retained copies, including evidence, before declaring ready.
+        validate_card(json.loads((destination/relative).read_text()),destination)
+        if sha(destination/'strategies.json')!=index['source_sha256']:
+            raise ValueError('strategy source changed during snapshot')
+        if (sha(destination/relative)!=meta['sha256']
+                or json.loads((destination/'index.json').read_text())!=index):
+            raise ValueError('timeout card/index changed during snapshot')
+        state.update(status='READY',card_revision=card['revision'],card_sha256=meta['sha256'])
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        state['reason']=f'{type(error).__name__}: {error}'
+    return state
+
+
+def native_timeout_feedback(result,lean_version,snapshot):
+    """Deliver frozen ST020 only after native resource failure; no LLM call."""
+    kind=native_timeout_kind(result)
+    if kind is None:return None
+    feedback={'policy':NATIVE_TIMEOUT_POLICY,'trigger':kind,'status':'UNAVAILABLE',
+              'card_id':NATIVE_TIMEOUT_CARD,
+              'next_action':('Localize and repair this candidate in the same stage, then recheck '
+                             'the unchanged target and inputs. Advice grants no premise or acceptance.')}
+    if not snapshot or snapshot.get('status')!='READY':
+        feedback['reason']=(snapshot or {}).get('reason','No frozen timeout advice is available')
+        return feedback
+    feedback.update({k:snapshot[k] for k in ('card_revision','card_sha256')})
+    try:
+        bank=Path(snapshot['bank_root'])
+        for row in snapshot['files']:
+            if sha(bank/row['path'])!=row['sha256']:raise ValueError('frozen timeout advice changed')
+        query={'family':'execution','tags':['native_timeout'],'lean_version':lean_version,
+               'facts':['native_resource_failure_recorded','exact_target_and_inputs_retained',
+                        'pinned_environment_available']}
+        found=search(query,bank,limit=1)
+        cards=found['strategies']
+        if not cards or cards[0]['id']!=NATIVE_TIMEOUT_CARD:
+            feedback['reason']='No timeout card in the declared toolchain scope'
+            return feedback
+        feedback.update(status='ADVICE_DELIVERED',strategy=cards[0],
+            next_action=('First use the applicable ST020 diagnostic branch to locate and repair '
+                         'this native failure. Check a small typed fragment, then recheck the '
+                         'complete unchanged target with the same permitted inputs. If that branch '
+                         'does not help, revisit the diagnosis and continue normal local repair; '
+                         'do not blindly repeat it, raise limits, or add assumptions.'))
+    except (OSError,ValueError,KeyError,TypeError) as error:
+        feedback['reason']=f'{type(error).__name__}: {error}'
+    return feedback
 
 
 def validate_card(card,bank):

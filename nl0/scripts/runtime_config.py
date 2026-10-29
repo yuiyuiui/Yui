@@ -53,6 +53,13 @@ def configured_timeout(scope):
     return time_limit(json.loads((CORE / 'config.json').read_text())['timeouts'][scope + '_seconds'])
 
 
+def native_timeout(requested=None):
+    """Bound one native call without introducing a case or model deadline."""
+    limits = [value for value in (time_limit(requested), configured_timeout('native'))
+              if value is not None]
+    return min(limits) if limits else None
+
+
 def model_profile(phase=None):
     """Resolve a declared phase without changing another live stage's model."""
     raw = (CORE / 'config.json').read_bytes()

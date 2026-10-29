@@ -82,14 +82,28 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertNotIn('UNFINISHED_ARGUMENT', json.dumps(result))
         self.assertEqual(before, {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()})
 
-    def test_reused_pid_or_surviving_group_is_not_a_verified_owned_exit(self):
+    def test_positively_reused_group_leader_is_unrelated_to_old_run(self):
         self.state(final=True)
         reused = {**self.identity, 'started': 'Wed Oct 28 08:00:00 2026'}
         with patch.object(owner, 'process_table', return_value={73100: reused}):
             result = owner.snapshot([self.run])['cases'][0]
         self.assertFalse(result['controller_identity_matches'])
+        self.assertTrue(result['process_exit_verified'])
+        self.assertEqual(result['registered_groups_still_present'], [])
+
+    def test_surviving_orphan_group_still_blocks_an_exit_claim(self):
+        self.state(final=True)
+        orphan={'pid':73101,'pgid':73100,'started':'Wed Oct 28 02:39:14 2026'}
+        with patch.object(owner,'process_table',return_value={73101:orphan}):
+            result=owner.snapshot([self.run])['cases'][0]
         self.assertFalse(result['process_exit_verified'])
-        self.assertEqual(result['registered_groups_still_present'], [73100])
+        self.assertEqual(result['registered_groups_still_present'],[73100])
+
+    def test_unknown_group_start_is_not_positive_reuse_evidence(self):
+        self.state(final=True)
+        with patch.object(owner,'process_table',return_value={73100:{**self.identity,'started':'-'}}):
+            result=owner.snapshot([self.run])['cases'][0]
+        self.assertFalse(result['process_exit_verified'])
 
     def test_unavailable_process_inspection_cannot_claim_exit(self):
         self.state(final=True)

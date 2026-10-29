@@ -2,8 +2,11 @@
 
 This bank stores reusable implementation advice. It grants no mathematical
 premises, proves no theorem, and does not alter NL0 or Audit A/B. Normal full
-workflows leave strategy lookup disabled. Maintaining the bank after a run is
-an explicit user choice; a run never updates it automatically.
+workflows leave free-form strategy queries disabled. Yui proof workers separately
+receive frozen ST020 after verified native wall/heartbeat exhaustion, with no
+extra model call. Successful and ordinary-error checks do not query advice.
+Maintaining the bank after a run is an explicit user choice; a run never updates
+it automatically.
 
 ## Scope and admission
 
@@ -80,8 +83,8 @@ whether evidence claims are justified; no keyword filter can certify that.
 Run from the Yui repository root:
 
 ```sh
-python3 -B rigorous-proof/nl02lean/scripts/strategy_bank.py build
-python3 -B -m unittest discover -s rigorous-proof/tests -p 'test_strategy_bank.py'
+python3 -B nl02lean/scripts/strategy_bank.py build
+python3 -B -m unittest discover -s tests -p 'test_strategy_bank.py'
 ```
 
 `strategies.json` is the editable source. `cards/` and `index.json` are generated;

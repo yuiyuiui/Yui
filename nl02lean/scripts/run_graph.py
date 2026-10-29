@@ -80,10 +80,13 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
+    timeout_policy=pilot.strategy_bank.freeze_native_timeout_policy(
+        snapshot/'nl02lean/bank') if arm=='yui' else None
     ir.write(out/'decomposition.json',ir.decomposition(cpath,plan,configuration['effective']))
     ir.write(out/'configuration.json',{'harness':pilot.HARNESS,'model':pilot.carrier.model_profile('proof')['id'],'model_selection':pilot.carrier.model_profile('proof'),
              'reasoning':pilot.carrier.model_profile('proof')['reasoning_effort'],'speed':pilot.carrier.model_profile('proof')['speed'],'arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,
              'background_note_policy':pilot.BACKGROUND_NOTE_POLICY if arm == 'yui' else None,
+             'native_timeout_policy':{k:v for k,v in timeout_policy.items() if k!='bank_root'} if timeout_policy else None,
              'bank_enabled':bank,'initial_shared_input':store.snapshot() if store else None,
              'script_sha256':{p.name:ir.digest(p) for p in files},
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
@@ -98,7 +101,11 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
                 if checked['exit_code']==0:
                     return {'proof':cached['body'],'model_worker_called':False,
                             'stage':{'status':'SAME_CASE_NATIVE_RECHECKED','previous_run':str(prior_run)}}
-        stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm)
+        stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm,
+                            timeout_policy=timeout_policy)
+        if prior_run is not None:
+            import proof_reuse
+            proof_reuse.restore_cleanup_drafts(stage,prior_run)
         stage.harness_version = pilot.HARNESS
         result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}

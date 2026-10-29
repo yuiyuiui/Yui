@@ -47,12 +47,24 @@ and exit, including on mathematical failures. Reject duplicate active case IDs
 within a batch and existing output ownership. Do not wait indefinitely for all
 mathematics to pass. No adaptive priority or expensive scheduling model is used.
 
-Omitted or null `time_budget_seconds` means unlimited execution. Configuration
-also leaves stage/native time limits and the total token budget null. The
+Omitted or null `time_budget_seconds` means unlimited whole-case execution.
+Configuration also leaves stage time limits and the total token budget null. The
 runtime does not cap model-call count or stop a healthy task because tool-result
-idle time exceeded a threshold. Native Lean runs with unlimited heartbeats and
-without an artificial per-process heap quota. Explicit cancellation, completed
-or rejected submissions, and actual execution failures still terminate work.
+idle time exceeded a threshold. Each native Lean call has a separate 300-second
+wall limit from `config.json` (`timeouts.native_seconds`), uses Lean's finite
+default heartbeat budget and has no artificial per-process heap quota. A shorter
+explicit caller or remaining case/stage deadline takes precedence. A native
+timeout terminates and reaps the owned process, retains the candidate and actual
+diagnostic, and returns exit code 124 with `error_kind: LEAN_TIMEOUT` to the same
+worker. It does not cancel that worker or the case, accept the candidate, or
+establish a mathematical failure. In Yui proof workers, that result and actual
+heartbeat-exhaustion results automatically include frozen ST020 `repair_advice`.
+The original worker first follows the applicable diagnostic branch, isolates
+and repairs the expensive application, then checks the unchanged target again.
+This requires no extra model call and is independent of optional free-form bank
+queries. Card hashes/revision and unavailable-advice reasons are retained with
+the original failed result. Explicit cancellation and actual execution failures
+retain their stop rules; ordinary candidate rejection permits local repair.
 
 Only an explicit user request may enable a positive case deadline for a separate
 bounded experiment. It starts with the case process and covers preparation,

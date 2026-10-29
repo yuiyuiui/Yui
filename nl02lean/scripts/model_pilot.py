@@ -62,7 +62,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui'):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.logs = Path(logs)
@@ -84,9 +84,21 @@ class Stage(carrier.Trial):
             raise ValueError('Unknown instruction arm')
         self.instruction_arm = instruction_arm
         self.lean_writing_rules = None
+        self.native_timeout_snapshot = None
+        self.native_timeout_lean_version = None
         if mode == 'proof' and instruction_arm == 'yui':
             self.lean_writing_rules = LEAN_WRITING_PATH.read_text(encoding='utf-8')
             self.system += '\n\n'+self.lean_writing_rules
+            self.native_timeout_lean_version = ir.contract(self.cpath)['pins']['lean_version']
+            if timeout_policy is not None and timeout_policy.get('status')!='READY':
+                self.native_timeout_snapshot={**timeout_policy,'files':[]}
+            else:
+                self.native_timeout_snapshot = strategy_bank.freeze_native_timeout_policy(
+                    self.logs/'harness-snapshot/nl02lean/bank',
+                    bank=timeout_policy['bank_root'] if timeout_policy is not None else None)
+            self.system += (' A native resource failure may include repair_advice from frozen ST020. '
+                'Use its applicable diagnostic branch first, repair in this same stage and recheck '
+                'the unchanged target. Advice does not add assumptions or establish acceptance.')
         if instruction_arm == 'direct':
             if bank_enabled:
                 raise ValueError('The direct arm cannot use the Yui strategy bank')
@@ -239,6 +251,11 @@ class Stage(carrier.Trial):
                 result['accepted'] = result['exit_code']==0
                 result['stage_complete'] = bool(self.accepted)
                 self.last_diagnostic = (result.get('stdout','')+'\n'+result.get('stderr',''))[:14000] if result['exit_code'] else ''
+                if (self.mode=='proof' and self.instruction_arm=='yui'
+                        and name in {'check_transition','submit_transition','check_auxiliary'}):
+                    advice=strategy_bank.native_timeout_feedback(result,
+                        self.native_timeout_lean_version,self.native_timeout_snapshot)
+                    if advice is not None:result['repair_advice']=advice
         except (ir.Invalid, KeyError, ValueError, TypeError, IndexError) as e:
             result = {'accepted':False,'error':str(e),'feedback_kind':'candidate_rejected'}
             self.last_diagnostic=str(e)[:14000]
@@ -253,6 +270,10 @@ class Stage(carrier.Trial):
         if 'stdout' in result:
             return {**result,'stdout':result['stdout'][:14000],'stderr':result.get('stderr','')[:2000]}
         return result
+
+    def timeout_policy_metadata(self):
+        snapshot=getattr(self,'native_timeout_snapshot',None)
+        return {k:v for k,v in snapshot.items() if k not in {'bank_root','files'}} if snapshot else None
 
     def proof_packet(self):
         packet = ir.local_packet(self.cpath, self.plan, self.step)
@@ -341,8 +362,12 @@ class Stage(carrier.Trial):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 target.write_text(self.lean_writing_rules,encoding='utf-8')
                 files.append({'path':relative,'sha256':sha256(target)})
+            if self.native_timeout_snapshot is not None:
+                files.extend({'path':'nl02lean/bank/'+row['path'],'sha256':row['sha256']}
+                             for row in self.native_timeout_snapshot['files'])
             ir.write(self.logs/'execution-manifest.json',{'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
+                'native_timeout_policy':self.timeout_policy_metadata(),
                 'background_note_policy':self.background_note_policy,
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
@@ -352,6 +377,7 @@ class Stage(carrier.Trial):
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
         result = {'mode':self.mode,'step':self.step,'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],
+                  'native_timeout_policy':self.timeout_policy_metadata(),
                   'background_note_policy':self.background_note_policy,
                   'output_verbosity':getattr(self,'output_verbosity','low'),
                   'harness':self.harness_version,'time_budget_seconds':self.timeout,

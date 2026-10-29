@@ -293,3 +293,22 @@ explicitly; no unrestricted execution fallback is silently used. Selftests use
 neutral fixtures and controlled executors, not a new mathematical benchmark.
 
 At invocation and on actual source deferrals, display the [source qualification notice](conditional-sources.md). A conditional completion is not an ordinary PASS.
+
+## Frozen proof recovery after a native-cleanup fault
+
+After verified software repair and explicit user authorization, use
+`yui.py resume OLD_RUN --repair-native-cleanup --prepare-only`, inspect the new
+job, then execute it with `--detach` or omit `--prepare-only` for direct dispatch.
+This route requires the old controller and all owned processes to have exited,
+an actual `PROOF_UNFINISHED` result, an unchanged accepted source and frozen
+interface, and only positively identified native-process cleanup faults among
+the unfinished proof jobs. It refuses live work, changed profiles/worker counts,
+mathematical nonpasses and unrelated execution failures.
+
+The continuation skips NL0, Audit A and interface authoring. Previously checked
+local bodies are candidates for fresh native rechecking, not a fabricated full
+proof receipt. The stopped worker's own hash-bound drafts, including an
+unaccepted helper interrupted during cleanup, may be restored only in the exact
+same local packet. Record the fresh worker session and all old costs. Assembly,
+native trust inspection and independent semantic Audit B remain required; their
+normal located-repair boundaries are unchanged.

@@ -134,6 +134,7 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
         max_concurrency=proof_budget.configuration['requested'],interface_binding=interface/'accepted-interface-paths.json')
     frozen=workflow.bound(destination)
     progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(destination))
+    # Free-form strategy queries remain optional; native timeout advice is automatic.
     proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),destination/'proof-run',
         timeout_seconds=stage_seconds(proof_budget),bank=False,budget=proof_budget,prior_run=prior_run,
         shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)

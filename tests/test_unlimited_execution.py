@@ -13,10 +13,11 @@ from run_pilot import Trial
 
 
 class UnlimitedExecutionTests(unittest.TestCase):
-    def test_default_limits_are_explicitly_unlimited(self):
+    def test_workflow_unlimited_with_separate_native_feedback_limit(self):
         config = json.loads((runtime_config.CORE / 'config.json').read_text())
-        for scope in ('case', 'stage', 'native'):
+        for scope in ('case', 'stage'):
             self.assertIsNone(runtime_config.configured_timeout(scope))
+        self.assertEqual(runtime_config.configured_timeout('native'), 300)
         self.assertIsNone(config['token_budget'])
 
     def test_limit_representation_rejects_ambiguous_values(self):
@@ -25,6 +26,15 @@ class UnlimitedExecutionTests(unittest.TestCase):
         for value in (0, -1, True, 'unlimited', float('inf'), float('nan')):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 runtime_config.time_limit(value)
+
+    def test_native_limit_clamps_explicit_requests_without_changing_workflow_limits(self):
+        self.assertEqual(runtime_config.native_timeout(),300)
+        self.assertEqual(runtime_config.native_timeout(900),300)
+        self.assertEqual(runtime_config.native_timeout(20),20)
+        with patch.object(runtime_config,'configured_timeout',return_value=None):
+            self.assertIsNone(runtime_config.native_timeout())
+            self.assertEqual(runtime_config.native_timeout(20),20)
+        with self.assertRaises(ValueError):runtime_config.native_timeout(0)
 
     def test_unlimited_stage_continues_after_long_elapsed_time(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -61,15 +71,20 @@ class UnlimitedExecutionTests(unittest.TestCase):
         result = t.receive_until(lambda m: m['method'] == 'turn/completed', None)
         self.assertEqual(result['params']['turn']['id'], 'done')
 
-    def test_native_limit_inherits_only_explicit_case_or_stage_limit(self):
+    def test_existing_worker_reads_updated_native_limit_without_restart(self):
         t = Trial.__new__(Trial)
         t.strict = True
         t.started = 10
         t.timeout = None
-        with patch('run_pilot.time.monotonic', return_value=20):
-            self.assertIsNone(t.lean_timeout())
-            t.timeout = 30
-            self.assertEqual(t.lean_timeout(), 20)
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);config=root/'config.json'
+            config.write_text(json.dumps({'timeouts':{'native_seconds':None}}))
+            with patch.object(runtime_config,'CORE',root), patch('run_pilot.time.monotonic',return_value=20):
+                self.assertIsNone(t.lean_timeout())
+                config.write_text(json.dumps({'timeouts':{'native_seconds':300}}))
+                self.assertEqual(t.lean_timeout(),300)
+                t.timeout=30
+                self.assertEqual(t.lean_timeout(),20)
 
     def test_long_post_tool_wait_is_not_an_automatic_stop(self):
         clock = [0]
