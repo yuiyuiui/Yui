@@ -23,6 +23,7 @@ import textwrap
 import threading
 import time
 import uuid
+import zlib
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -187,6 +188,9 @@ class Trial:
         self.lean_calls = 0
         self.api_calls = 0
         self.request_lock = threading.Lock()
+        self.native_turn_generation = 0
+        self.request_turns = {}
+        self.last_response_success = None
         self.rpc_id = 0
         self.inbox: queue.Queue = queue.Queue()
         self.started: float | None = None
@@ -326,8 +330,21 @@ class Trial:
         with self.request_lock:
             self.api_calls += 1
             number=self.api_calls
+            self.request_turns[number]=self.native_turn_generation
             append(self.logs/'request-lifecycle.jsonl',{'request_number':number,'event':'ALLOCATED','at_utc':now()})
             return number
+
+    def response_succeeded(self, number, response_id):
+        """Only a clean, current own stream can end a consecutive-failure streak."""
+        with self.request_lock:
+            generation=self.request_turns.get(number)
+            if number!=self.api_calls or generation!=self.native_turn_generation:
+                return
+            marker={'request_number':number,'turn_generation':generation,
+                'response_id':response_id}
+            append(self.logs/'request-lifecycle.jsonl',{'event':'RESPONSE_SUCCEEDED',
+                **marker,'at_utc':now()})
+            self.last_response_success=marker
 
     def normalize_request(self, payload: dict, *, request_number=None) -> dict:
         if payload.get('model') != self.model:
@@ -510,14 +527,37 @@ class Trial:
                     return False
 
             def do_GET(self):
-                if not self.path.startswith('/models'):
-                    self.send_error(403); return
-                cached = json.loads((trial.work / 'state/models_cache.json').read_text())
-                models = [m for m in cached['models'] if m.get('slug') == trial.model]
-                data = json.dumps({'models': models}).encode()
-                append(trial.logs / 'http.jsonl', {'path': self.path, 'status': 200, 'source': 'local pinned model catalog; no upstream request'})
-                self.send_response(200); self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(data))); self.end_headers(); self.wfile.write(data)
+                headers_started=False
+                origin='local_model_catalog'
+                try:
+                    if not self.path.startswith('/models'):
+                        origin='downstream_catalog_headers';headers_started=True
+                        self.send_error(403); return
+                    cached = json.loads((trial.work / 'state/models_cache.json').read_text())
+                    models = [m for m in cached['models'] if m.get('slug') == trial.model]
+                    data = json.dumps({'models': models}).encode()
+                    append(trial.logs / 'http.jsonl', {'path': self.path, 'status': 200, 'source': 'local pinned model catalog; no upstream request'})
+                    origin='downstream_catalog_headers';headers_started=True
+                    self.send_response(200); self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', str(len(data))); self.end_headers()
+                    origin='downstream_catalog_body';self.wfile.write(data);self.wfile.flush()
+                except Exception as error:
+                    failure={'code':'harness_bug','message':str(error),
+                        'exception_type':type(error).__name__,'relay_origin':origin}
+                    trial.non_remote_relay_fault=True
+                    trial.last_relay_failure={'request_number':None,'error':failure}
+                    try:append(trial.logs/'relay-errors.jsonl',{'request_number':None,
+                        'error':str(error),'error_type':type(error).__name__,'origin':origin,
+                        'path':self.path,'headers_started':headers_started,'category':'harness_bug'})
+                    except OSError as logging_error:trial.last_relay_failure['evidence_error']=str(logging_error)
+                    self.close_connection=True
+                    if not headers_started:
+                        try:
+                            data=json.dumps({'error':failure}).encode()
+                            self.send_response(500);self.send_header('Content-Type','application/json')
+                            self.send_header('Content-Length',str(len(data)));self.send_header('Connection','close')
+                            self.end_headers();self.wfile.write(data)
+                        except OSError:pass
 
             def do_POST(self):
                 execution=getattr(trial,'execution',None)
@@ -543,13 +583,21 @@ class Trial:
                     self.end_headers();self.wfile.write(body);self.close_connection=True
                     return
                 upstream = None
+                response = None
                 stream_done=None
                 request_number=None
+                headers_started=False
+                origin='request_validation'
+                terminal=None
+                success_id=None
                 try:
                     if self.path.rstrip('/') != '/responses':
                         raise PermissionError('只允许指定模型的 responses 路径。')
                     body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
-                    if self.headers.get('Content-Encoding') == 'gzip': body = gzip.decompress(body)
+                    if self.headers.get('Content-Encoding') == 'gzip':
+                        try:body = gzip.decompress(body)
+                        except (OSError, EOFError, zlib.error) as error:
+                            raise ValueError('Invalid gzip request body') from error
                     request_number=trial.reserve_request_number()
                     trial.last_relay_failure=None
                     payload = trial.normalize_request(json.loads(body),request_number=request_number)
@@ -568,6 +616,7 @@ class Trial:
                         headers.update(trial.resumed_auth_headers)
                     headers['Content-Length'] = str(len(data))
                     headers['Accept-Encoding'] = 'identity'
+                    origin='local_metadata'
                     append(trial.logs / 'request-headers.jsonl', {'request_number':request_number,
                         'forwarded_names':sorted(k.lower() for k in headers),
                         'removed_names':sorted(k.lower() for k in self.headers if k.lower() not in header_allowlist),
@@ -578,9 +627,13 @@ class Trial:
                         upstream.set_tunnel('chatgpt.com', 443)
                     else:
                         upstream = http.client.HTTPSConnection('chatgpt.com', timeout=90)
+                    origin='upstream_request'
                     upstream.request('POST', '/backend-api/codex/responses', body=data, headers=headers)
+                    origin='local_metadata'
                     append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'FORWARDED','at_utc':now()})
+                    origin='upstream_headers'
                     response = upstream.getresponse()
+                    origin='local_metadata'
                     append(trial.logs / 'http.jsonl', {'status': response.status,
                         'request_id': response.getheader('x-request-id'), 'path': self.path,
                         'request_number': request_number,
@@ -588,15 +641,22 @@ class Trial:
                     trial.last_retry_after = remote_retry.retry_after(response.getheader('Retry-After'))
                     append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
                         'status':response.status,'at_utc':now()})
+                    # A partial header write also commits this request to one
+                    # response. Later errors may close it, never start another.
+                    origin='downstream_headers'
+                    headers_started=True
                     self.send_response(response.status)
                     self.send_header('Content-Type', response.getheader('Content-Type', 'text/event-stream'))
                     self.send_header('Connection', 'close')
                     self.end_headers()
+                    origin='local_evidence'
                     with (trial.logs / f'response-{request_number:04d}.sse').open('wb') as log:
                         pending = b''
                         while True:
+                            origin='upstream_body'
                             chunk = response.read1(65536)
                             if not chunk: break
+                            origin='local_event'
                             pending += chunk
                             while (separator := re.search(rb'\r?\n\r?\n', pending)) is not None:
                                 block, pending = pending[:separator.end()], pending[separator.end():]
@@ -605,46 +665,90 @@ class Trial:
                                         try: event = json.loads(line[6:])
                                         except json.JSONDecodeError: continue
                                         trial.observe_model_event(event,request_number)
+                                        if event.get('type') in {'response.completed','response.failed','response.incomplete'}:
+                                            terminal=event
+                                origin='local_evidence'
                                 log.write(block); log.flush()
+                                origin='downstream_body'
                                 if not self.forward_sse(block, request_number):
                                     return
+                                origin='local_event'
                         if pending:
+                            origin='local_event'
                             for line in pending.splitlines():
                                 if line.startswith(b'data: '):
                                     try: event = json.loads(line[6:])
                                     except json.JSONDecodeError: continue
                                     trial.observe_model_event(event,request_number)
-                            log.write(pending)
+                                    if event.get('type') in {'response.completed','response.failed','response.incomplete'}:
+                                        terminal=event
+                            origin='local_evidence'
+                            log.write(pending);log.flush()
+                            origin='downstream_body'
                             if not self.forward_sse(pending, request_number):
                                 return
+                        origin='local_evidence'
+                    if (200<=response.status<300 and terminal and terminal.get('type')=='response.completed'
+                            and terminal.get('response',{}).get('status')=='completed'
+                            and terminal['response'].get('id')):
+                        success_id=terminal['response']['id']
                     self.close_connection = True
                 except Exception as e:
-                    failure=remote_retry.transport_error(e)
+                    # Exception type alone cannot identify which side failed.
+                    failure=(remote_retry.transport_error(e) if origin.startswith('upstream_') else
+                        {'code':'harness_bug','message':str(e),'exception_type':type(e).__name__})
+                    failure['relay_origin']=origin
                     trial.last_relay_failure={'request_number':request_number,'error':failure}
-                    append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
-                        'error_type':type(e).__name__,'upstream_opened':upstream is not None})
                     if failure['code']=='harness_bug':
                         trial.non_remote_relay_fault=True
-                    if trial.strict and isinstance(e, (PermissionError, ValueError)):
-                        append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
-                    local = upstream is None and isinstance(e,(PermissionError,ValueError))
+                    local = origin=='request_validation' and isinstance(e,(PermissionError,ValueError))
                     if local:
                         trial.local_protocol_fault={'kind':'LOCAL_PROTOCOL_REJECTED','request_number':request_number,
                             'reason':getattr(e,'reason',type(e).__name__),'details':getattr(e,'details',{}),
                             'error':str(e),'upstream_transmitted':False,'at_utc':now()}
-                        append(trial.logs/'local-protocol-faults.jsonl',trial.local_protocol_fault)
                     try:
-                        message = json.dumps({'error': failure}).encode()
-                        self.send_response(400 if local else 502); self.send_header('Content-Type', 'application/json')
-                        self.send_header('Content-Length', str(len(message)));self.send_header('Connection','close')
-                        self.end_headers(); self.wfile.write(message);self.close_connection=True
+                        append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
+                            'error_type':type(e).__name__,'upstream_opened':upstream is not None,
+                            'origin':origin,'headers_started':headers_started,'category':remote_retry.diagnose(failure)['category']})
+                        if trial.strict and isinstance(e, (PermissionError, ValueError)):
+                            append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
+                        if local:append(trial.logs/'local-protocol-faults.jsonl',trial.local_protocol_fault)
+                    except OSError as logging_error:
+                        trial.non_remote_relay_fault=True
+                        trial.last_relay_failure['evidence_error']=str(logging_error)
+                    self.close_connection=True
+                    try:
+                        if not headers_started:
+                            message = json.dumps({'error': failure}).encode()
+                            self.send_response(400 if local else 500 if failure['code']=='harness_bug' else 502)
+                            self.send_header('Content-Type', 'application/json')
+                            self.send_header('Content-Length', str(len(message)));self.send_header('Connection','close')
+                            self.end_headers(); self.wfile.write(message)
                     except OSError:
                         pass
                 finally:
-                    if upstream: upstream.close()
-                    if request_number is not None:
-                        append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'STREAM_CLOSED','at_utc':now()})
-                    if stream_done is not None:stream_done.set()
+                    try:
+                        try:
+                            if response:response.close()
+                        finally:
+                            if upstream:upstream.close()
+                        if request_number is not None:
+                            append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'STREAM_CLOSED','at_utc':now()})
+                        if success_id:trial.response_succeeded(request_number,success_id)
+                    except Exception as error:
+                        trial.non_remote_relay_fault=True
+                        previous=trial.last_relay_failure
+                        trial.last_relay_failure={'request_number':request_number,'error':{
+                            'code':'harness_bug','relay_origin':'local_finalization',
+                            'message':str(error),'exception_type':type(error).__name__}}
+                        if previous and previous.get('request_number')==request_number:
+                            trial.last_relay_failure['error']['prior_relay_error']=previous['error']
+                        try:append(trial.logs/'relay-errors.jsonl',{'request_number':request_number,
+                            'error':str(error),'error_type':type(error).__name__,
+                            'origin':'local_finalization','headers_started':headers_started,'category':'harness_bug'})
+                        except OSError:pass
+                    finally:
+                        if stream_done is not None:stream_done.set()
 
         self.relay = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         self.relay.daemon_threads = True
@@ -653,9 +757,9 @@ class Trial:
 
     def drain_relay_streams(self,timeout=10):
         """Finish logging already transmitted responses before usage readback."""
-        deadline=time.monotonic()+timeout
         lock=getattr(self,'relay_stream_lock',None)
         if lock is None:return
+        deadline=time.monotonic()+timeout
         with lock:pending=list(self.relay_streams.items())
         unfinished=[]
         for number,event in pending:
@@ -761,11 +865,14 @@ class Trial:
         return delivered
 
     def check_argument_guard(self):
+        reader_fault=getattr(self,'carrier_reader_fault',None)
+        if reader_fault:raise RuntimeError('Local carrier message reader failed: '+json.dumps(reader_fault,ensure_ascii=False))
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
         local=getattr(self,'local_protocol_fault',None)
         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
         if getattr(self,'non_remote_relay_fault',False):
-            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled')
+            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled: '+
+                json.dumps(getattr(self,'last_relay_failure',None),ensure_ascii=False))
         notice = getattr(self, 'output_guard_notice', None)
         if notice:
             from output_guard import ModelOutputStalled
@@ -864,13 +971,22 @@ tool_suggest = false
             self.execution.register_process(self.proc,'model-carrier',self.execution_task)
 
         def reader():
-            for line in self.proc.stdout:
-                try:
-                    msg = json.loads(line)
+            try:
+                for line in self.proc.stdout:
+                    try:msg = json.loads(line)
+                    except json.JSONDecodeError:
+                        append(self.logs / 'invalid-events.jsonl', {'text': line})
+                        raise ValueError('Invalid JSON from native carrier stdout')
+                    if not isinstance(msg,dict):raise ValueError('Native JSON RPC event must be an object')
                     append(self.logs / 'events.jsonl', msg)
                     self.inbox.put(msg)
-                except json.JSONDecodeError:
-                    append(self.logs / 'invalid-events.jsonl', {'text': line})
+            except Exception as error:
+                self.carrier_reader_fault={'code':'harness_bug','layer':'carrier_stdout',
+                    'message':str(error),'exception_type':type(error).__name__}
+                try:append(self.logs/'carrier-reader-errors.jsonl',self.carrier_reader_fault)
+                except OSError as logging_error:self.carrier_reader_fault['evidence_error']=str(logging_error)
+                # Wake receive_until even if no further native event can arrive.
+                self.inbox.put({'controller_reader_fault':True})
         self.reader_thread=threading.Thread(target=reader, daemon=True)
         self.reader_thread.start()
         self.rpc('initialize', {'clientInfo': {'name': 'yui', 'version': self.harness_version},
@@ -888,6 +1004,9 @@ tool_suggest = false
         self.remote_retry_count=0
         incident_retries=0
         while True:
+            with self.request_lock:
+                self.native_turn_generation+=1
+                generation=self.native_turn_generation
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
                 'input': [{'type': 'text', 'text': message}], 'environments': []},
                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
@@ -901,8 +1020,19 @@ tool_suggest = false
                 event=self.last_turn_event or done
                 self.turn_results.append(event)
                 return event
+            # The native terminal event can race the relay's final evidence
+            # writes. Classify/reset only after those own responses are drained.
+            self.drain_relay_streams()
             self.turn_results.append(done)
             turn = done.get('params', {}).get('turn', {})
+            with self.request_lock:
+                success=self.last_response_success
+            if success and success['turn_generation']==generation and success['request_number']>0:
+                if incident_retries:
+                    append(self.logs/'remote-retries.jsonl',{'event':'remote_service_retry_streak_reset',
+                        **success,'previous_incident_retries':incident_retries,'retry_number':self.remote_retry_count})
+                incident_retries=0
+                self.remote_incident_retries=0
             if turn.get('status') != 'completed':
                 limit = getattr(self, 'provider_output_limit', None)
                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):

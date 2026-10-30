@@ -175,6 +175,9 @@ class Stage(carrier.Trial):
         self.submission_closed=False
         self.api_calls = self.lean_calls = self.rpc_id = 0
         self.request_lock = threading.Lock()
+        self.native_turn_generation = 0
+        self.request_turns = {}
+        self.last_response_success = None
         self.inbox = queue.Queue()
         self.started = None
         self.allowed_user_messages = set()

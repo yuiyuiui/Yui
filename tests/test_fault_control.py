@@ -276,6 +276,7 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None;t.execution=None;t.execution_task='worker'
+        t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
         t.tool_history={'old-call':{'result':'retained'}};t.check_argument_guard=Mock()
         t._fault_gate=self.gate();t.refresh_after_error_pause=Mock()
         values=[terminal(i,error) for i,error in enumerate(errors)]+[terminal(len(errors))]
@@ -283,13 +284,13 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         t.receive_until=Mock(side_effect=lambda *a:values.pop(0));t.wait_remote_retry=Mock()
         return t
 
-    def test_eleven_failed_attempts_mean_ten_retries_then_pause_without_twelfth(self):
-        t=self.trial([{'httpStatusCode':503}]*11)
+    def test_thirty_one_failed_attempts_mean_thirty_retries_then_pause_without_next_call(self):
+        t=self.trial([{'httpStatusCode':503}]*31)
         t._fault_gate.wait=lambda _:self.cancel(t._fault_gate)
         with self.assertRaises(execution.Cancelled):t.solve_turns('Frozen original task',smoke=True)
-        self.assertEqual(t.rpc.call_count,11);self.assertEqual(t.wait_remote_retry.call_count,10)
-        self.assertEqual(t._fault_gate.state['retries'],10)
-        self.assertEqual([c.args[0] for c in t.wait_remote_retry.call_args_list],[60]*10)
+        self.assertEqual(t.rpc.call_count,31);self.assertEqual(t.wait_remote_retry.call_count,30)
+        self.assertEqual(t._fault_gate.state['retries'],30)
+        self.assertEqual([c.args[0] for c in t.wait_remote_retry.call_args_list],[60]*30)
         self.assertIsNone(t.proc.poll());self.assertEqual(t.tool_history,{'old-call':{'result':'retained'}})
 
     def test_auth_fault_waits_for_manual_resume_in_the_same_thread(self):
@@ -312,10 +313,10 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         self.assertEqual(t.thread_id,'retained-thread');self.assertEqual(t.tool_history,{'old-call':{'result':'retained'}})
 
     def test_retry_exhaustion_resumes_only_after_operator_action(self):
-        t=self.trial([{'code':'network_error'}]*11)
+        t=self.trial([{'code':'network_error'}]*31)
         t._fault_gate.wait=lambda _:faults.resume(self.root,t._fault_gate.state['incident'])
-        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(11))
-        self.assertEqual(t.rpc.call_count,12);self.assertEqual(t.remote_retry_count,10)
+        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(31))
+        self.assertEqual(t.rpc.call_count,32);self.assertEqual(t.remote_retry_count,30)
 
     def test_actual_retry_wait_has_sixty_seconds_of_cancellable_local_sleep(self):
         t=self.trial([]);t.wait_remote_retry=run_pilot.Trial.wait_remote_retry.__get__(t)

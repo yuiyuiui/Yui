@@ -9,9 +9,9 @@ import socket
 import ssl
 
 
-POLICY = {'version':'remote-service-retry-2','initial_delay_seconds':60,
+POLICY = {'version':'remote-service-retry-3','initial_delay_seconds':60,
           'maximum_backoff_seconds':60,'jitter_fraction':0,
-          'maximum_attempts':10,'preserve_thread_and_tools':True,
+          'maximum_attempts':30,'preserve_thread_and_tools':True,
           'model_fallback':False,'cancellable_wait':True}
 
 TRANSIENT = {'serveroverloaded','serverisoverloaded','servererror','internalerror',

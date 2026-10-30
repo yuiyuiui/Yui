@@ -53,10 +53,12 @@ class Sessions:
                 if not {t['name'] for t in template.tools} <= entry['native_tools']:
                     raise ValueError('Role handoff requires tools absent from its original native registration')
                 stage.drain_relay_streams()
+                stage.check_argument_guard()
                 transport = {k: getattr(stage, k) for k in (
                     'proc', 'relay', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
                     'model_history', 'model_calls', 'tool_history', 'allowed_user_messages',
-                    'prompt_cache_key', 'network_proxy','handoff_results') if hasattr(stage, k)}
+                    'prompt_cache_key', 'network_proxy','handoff_results',
+                    'relay_stream_lock') if hasattr(stage, k)}
                 owner_logs = getattr(stage, 'workspace_owner_logs', stage.logs)
                 if stage.mode=='proof' and template.mode=='proof':
                     template.own_lean_drafts=stage.own_lean_drafts
@@ -82,6 +84,8 @@ class Sessions:
                 stage.__dict__.clear()
                 stage.__dict__.update(template.__dict__)
                 stage.__dict__.update(transport)
+                if 'relay_stream_lock' in transport:
+                    stage.relay_streams={}
                 stage.workspace_owner_logs = owner_logs
                 stage.provider_wait_guard = __import__('output_guard').ProviderWaitGuard()
             stage._role_dispatching = True

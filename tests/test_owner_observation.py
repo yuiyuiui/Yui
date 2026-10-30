@@ -12,6 +12,7 @@ from unittest.mock import patch
 import entrypoint
 import jobs
 import owner_observation as owner
+import execution_state
 from controller_common import write
 
 
@@ -46,6 +47,20 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertEqual(result['foreground'], 'end_turn_after_handoff')
         self.assertEqual(result['observe_command'][-2:], ['observe', str(self.run)])
         self.assertEqual(before, {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()})
+
+    def test_nonproof_task_counts_are_not_hidden_by_zero_proof_counts(self):
+        recorder=execution_state.Recorder(self.run,'synthetic-case',{})
+        try:
+            for state in ('RUNNING','WAITING_REVIEW','PAUSED_ERROR'):
+                recorder.task('review-'+state,role='audit',state=state)
+            recorder.flush(force=True)
+            with patch.object(owner,'process_table',return_value={}):
+                row=owner.snapshot([self.run])['cases'][0]
+            self.assertEqual(row['counts']['RUNNING'],1)
+            self.assertEqual(row['counts']['WAITING_REVIEW'],1)
+            self.assertEqual(row['counts']['PAUSED_ERROR'],1)
+            self.assertTrue(all(value==0 for value in row['proof_counts'].values()))
+        finally:recorder.close('CANCELLED')
 
     def test_detached_dispatch_persists_the_pending_owner_handoff(self):
         with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \

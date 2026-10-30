@@ -145,7 +145,8 @@ def snapshot(runs):
         never_started = not state and not records and not result
         cancelled_before_start = result.get('status') == 'CANCELLED' and result.get('model_worker_called') is False
         exited = not process_error and not live and not groups and bool(records or never_started or cancelled_before_start)
-        counts = state.get('proof_counts') or state.get('counts', {})
+        counts = state.get('counts', {})
+        proof_counts = state.get('proof_counts', {})
         usage = result.get('usage') or state.get('usage', {})
         phase = state.get('phase') or ('QUEUED' if live else
             'CONTROLLER_EXITED_BEFORE_CASE_START' if records else 'PREPARED_NOT_STARTED')
@@ -156,6 +157,7 @@ def snapshot(runs):
             'completion': result.get('completion'),
             'recorded_audit_b': (result.get('audit_b') or {}).get('status'),
             'counts': {k: v for k, v in counts.items() if type(v) is int},
+            'proof_counts': {k: v for k, v in proof_counts.items() if type(v) is int},
             'controller_identity_matches': matches(controller, table) if controller else False,
             'live_owned_process_count': len(live), 'registered_groups_still_present': groups,
             'process_exit_verified': exited,

@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 
 from clean_stage import ArtifactStage
+import fault_control
+import os
 
 
 class OfflineGuardTests(unittest.TestCase):
@@ -21,6 +23,17 @@ class OfflineGuardTests(unittest.TestCase):
                 self.assertFalse((stage.work/'state/auth.json').exists())
                 self.assertFalse((stage.logs/'error-state.json').exists())
             finally:stage.release_resources('USER_CANCELLED');shutil.rmtree(stage.work,ignore_errors=True)
+
+    def test_default_fault_notifier_cannot_send_a_real_owner_message(self):
+        # No executable can be discovered even before the missing guard is fixed.
+        # The production entry still must reject the unmocked test side effect.
+        with tempfile.TemporaryDirectory() as raw, \
+                patch.dict(os.environ,{'YUI_CODEX_BINARY':'','CODEX_CLI_PATH':''}), \
+                patch.object(fault_control.shutil,'which',return_value=None), \
+                patch('runtime_config.load_lock',side_effect=ValueError('synthetic missing CLI')):
+            gate=fault_control.Gate(raw)
+            with self.assertRaises(harness_support.LiveModelAttemptBlocked):
+                gate.notify('synthetic-owner','Synthetic fixed alert.')
 
 
 if __name__=='__main__':unittest.main()

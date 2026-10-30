@@ -3,6 +3,7 @@ import harness_support
 import json
 from pathlib import Path
 import queue
+import threading
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -39,6 +40,7 @@ class UnlimitedExecutionTests(unittest.TestCase):
     def test_unlimited_stage_continues_after_long_elapsed_time(self):
         with tempfile.TemporaryDirectory() as temporary:
             t = Trial.__new__(Trial)
+            t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
             t.logs = Path(temporary)
             t.timeout = None
             t.strict = True

@@ -10,7 +10,7 @@ the network and model service are unavailable.
 | HTTP 401/403 or model/account authorization | `model_auth` | Pause immediately |
 | HTTP 402 or depleted credit balance | `model_balance` | Pause immediately |
 | Explicit exhausted usage/quota, including quota-related 429 | `model_quota` | Pause immediately |
-| Transient 429/503 or recognized server overload | `model_capacity` | Retry at60-second intervals, at most 10 times |
+| Transient 429/503 or recognized server overload | `model_capacity` | Retry at60-second intervals, at most 30 times |
 | Recognized remote connection failure | `model_transport` | Same bounded retries |
 | Remote request timeout | `model_timeout` | Same bounded retries |
 | Interrupted response stream | `model_stream_interrupted` | Same bounded retries |
@@ -24,12 +24,31 @@ The native Lean 300-second limit remains a separate candidate-check policy.
 
 ## Retry and pause
 
-The original failed attempt is followed by at most 10 additional attempts, each
+The original failed attempt is followed by at most 30 additional attempts, each
 after 60seconds, in the exact same isolated carrier/thread with the same profile,
 drafts and tool receipts. Native provider retries are disabled so they cannot
-multiply the controller's limit. A successfully completed turn ends the current
-incident; manual resume explicitly authorizes a new bounded incident. Counters,
+multiply the controller's limit. A fully completed own provider response ends the
+current consecutive-failure incident, even inside a long native turn; a successfully completed native turn
+also ends it. Bare HTTP 200, partial/failed/incomplete streams, local model-catalog
+queries and late responses from an older turn do not reset it. Lifetime retry
+totals remain cumulative; manual resume explicitly authorizes a new bounded
+incident. Counters,
 original faults, elapsed time and usage remain in the evidence.
+
+The relay sends one HTTP response per request. After response headers have
+started, an upstream or local failure closes that connection without appending
+another HTTP status or inventing a provider completion event. Error records
+identify upstream request/headers/body, downstream headers/body, or local
+validation/evidence/finalization. Only recognized upstream failures qualify for
+remote retries. An unexpected downstream disconnect or local I/O/protocol fault
+uses the existing retained local-error pause. An explicitly registered controller
+cancellation remains a local cancellation. Native stdout decode/logging faults
+wake the controller and preserve their original diagnostics instead of leaving
+its message loop waiting for a dead reader.
+Local model-catalog requests follow the same error boundary. Before headers,
+invalid local protocol input returns 400, other local faults return 500, and an
+upstream transport failure returns 502. A provider's actual HTTP status/body is
+forwarded unchanged. Local status codes never turn local faults into remote retries.
 
 Nonretryable faults and exhausted retries enter `PAUSED_ERROR`. The controller
 waits locally without model calls or automatic phase replay. It retains its

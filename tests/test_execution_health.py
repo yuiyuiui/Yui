@@ -116,6 +116,19 @@ class ExecutionHealthTests(unittest.TestCase):
         (self.root/'tools.jsonl').write_text('{"tool":"search_mathlib","result":{"infrastructure_error":true,"error":"missing executable"}}\n')
         self.assertEqual(execution_health.inspect(self.root)['faults'][0]['kind'],'TOOL_SERVICE_ERROR')
 
+    def test_local_relay_and_reader_faults_cannot_be_qualified_as_remote_recovery(self):
+        self.http(200)
+        for name,value,kind in (
+            ('relay-errors.jsonl',{'error':'synthetic local failure','category':'harness_bug','origin':'local_evidence'},'LOCAL_RELAY_ERROR'),
+            ('carrier-reader-errors.jsonl',{'message':'synthetic native JSON failure'},'CARRIER_READER_ERROR')):
+            with self.subTest(kind=kind):
+                path=self.root/name;path.write_text(json.dumps(value)+'\n')
+                health=execution_health.inspect(self.root)
+                self.assertEqual(health['status'],'FAULT');self.assertEqual(health['faults'][0]['kind'],kind)
+                result=self.recovered();result['transport_health']=health
+                self.assertFalse(execution_health.record_qualification(result)['recovered_transport'])
+                path.unlink()
+
     def test_post_tool_wait_stays_uncertain_and_a_real_fault_takes_precedence(self):
         self.http(200)
         (self.root/'model-output-events.jsonl').write_text(json.dumps({
