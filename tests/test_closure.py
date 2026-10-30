@@ -52,6 +52,7 @@ class ClosureChecks(unittest.TestCase):
         audit = self.template()
         audit["reviewer"]["identity"] = "Synthetic metadata test, not a real auditor"
         audit["reviewer"]["mode"] = "synthetic_unit_fixture"
+        audit["reviewer"]["independent"] = True  # Fabricated field for positive validation controls only.
 
         def fill(value):
             if isinstance(value, dict):
@@ -71,6 +72,16 @@ class ClosureChecks(unittest.TestCase):
             replay.update(mode="fresh_packet_only", carrier="synthetic-test-fixture",
                           read_materials=["packet:" + replay["packet_sha256"]])
         return audit
+
+    def test_complete_nonindependent_receipt_cannot_authorize_translation(self):
+        audit=self.shape_only_receipt();audit['reviewer'].update(mode='same_context_self_audit',independent=False)
+        result=self.data(audit)[0]
+        self.assertTrue(result['audit_record_complete'])
+        self.assertFalse(result['audit_receipt_valid']);self.assertFalse(result['current_standard_receipt_valid'])
+        self.assertEqual(result['audit_status'],'AUDIT-REVIEW-UNQUALIFIED')
+        import translation_author
+        with self.assertRaisesRegex(ValueError,'Accepted current Audit A'):
+            translation_author.prepare(self.base,self.base,self.base/'blocked-interface')
 
     def test_complete_example_and_packet_are_structural_only(self):
         data = self.data()

@@ -80,7 +80,7 @@ a short account. For equivalent encodings, state the identification and why it
 works in both directions under the actual assumptions. Do not invent a second
 Lean representation just to prove an unnecessary conversion. If the proof
 actually crosses two Lean representations, plan a checked conversion. These
-notes are author guidance for independent Audit B, not approval. header starts with
+notes are author guidance for the independent pre-freeze semantic review, not approval. header starts with
 "import Mathlib\n" and contains only object definitions/notation/structures,
 no axioms, proof declarations, placeholders or executable metaprogramming.
 parameters: [{name,type,binder_kind?}], where binder_kind is explicit (default),
@@ -209,7 +209,7 @@ class InterfaceContract:
             'endpoint_correspondence':value['endpoint_correspondence'],
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
             'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
-            'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Candidate generated in a clean selected-model context; only syntax/types and source boundaries are checked by this adapter.'}}
+            'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Unreviewed candidate: only syntax/types and source boundaries are checked here. Normal entry requires actual independent pre-freeze semantic acceptance; the legacy pending field grants none.'}}
         supplement_file=self.out/'inputs/background-supplement.json'
         if supplement_file.is_file():
             supplement=json.loads(supplement_file.read_text())
@@ -241,7 +241,7 @@ class InterfaceContract:
             'status':'IR_TYPES_CHECKED_SEMANTIC_REVIEW_PENDING_AUDIT_B'})
         return {'status':'IR-TYPES-CHECKED','candidate':self.attempt,'mathematical_acceptance':False,
                 'decomposition':decomposition,
-                'scope':'Source-boundary and types checked; semantic correspondence and all proofs remain subject to final Audit B.'}
+                'scope':'Source-boundary and types checked; normal entry still requires independent pre-freeze semantics, actual proofs and final machine acceptance.'}
 
 
 class InterfaceStage(ArtifactStage):
@@ -249,7 +249,8 @@ class InterfaceStage(ArtifactStage):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.type_probes=0
-        self.input_prompt+=('\nYou may revise an explicit frozen prior-interface.json through '
+        initial_prompt=self.input_prompt
+        self.input_prompt+=('\nYou may revise an explicit pre-freeze prior-interface.json through '
             '{"base_input":"prior-interface.json","patches":[{"op":"replace","path":"/header","value":"complete replacement header"}]}. '
             'The result is fully expanded and checked; this never supplies missing mathematics. After a full '
             'candidate exists, preserve it with base_candidate:N and explicit patches, or submit '
@@ -268,8 +269,15 @@ class InterfaceStage(ArtifactStage):
             {'header':{'type':'string'},'parameters':{'type':'array','items':{'type':'object'}},
              'types':{'type':'array','items':{'type':'string'}}},['header','parameters','types']))
         self.tool_names={t['name'] for t in self.tools}
+        self.native_tools=list(self.tools)
+        if self.mode=='translation-source-preparation':
+            self.input_prompt=initial_prompt
+            self.tools=[t for t in self.tools if t['name'] not in {'save_interface_draft','read_interface_draft','check_lean_types'}]
+            self.tool_names={t['name'] for t in self.tools}
 
     def dispatch(self,name,args):
+        if name in {'save_interface_draft','read_interface_draft'} and not hasattr(self.validator,'drafts'):
+            return {'accepted':False,'stage_complete':False,'error':'Interface authoring has not started; finish the current source-preparation assignment through submit_draft.'}
         if name=='save_interface_draft':
             try:
                 if self.accepted is not None:raise ValueError('Stage is already complete')

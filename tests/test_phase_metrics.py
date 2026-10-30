@@ -4,11 +4,20 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import shutil
 
 from phase_metrics import summarize
 
 
 class MetricsTests(unittest.TestCase):
+    def test_retained_review_copies_do_not_duplicate_stage_wall_time(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);stage=root/'stage';stage.mkdir()
+            (stage/'result.json').write_text(json.dumps({'status':'ACCEPTED','wall_seconds':10,'stage_log_path':str(stage)}))
+            (stage/'execution-manifest.json').write_text('{"phase":"audit-a-global"}')
+            shutil.copytree(stage,root/'review-evidence/copy')
+            rows=summarize(root)['stages']
+            self.assertEqual(len(rows),1);self.assertEqual(rows[0]['wall_seconds'],10)
     def test_tools_are_nested_and_missing_usage_stays_unknown(self):
         with tempfile.TemporaryDirectory() as raw:
             stage=Path(raw)/'stage';stage.mkdir()

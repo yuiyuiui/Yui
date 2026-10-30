@@ -50,9 +50,9 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Explicit reuse | Match a reviewed common port against a supplied project source store | shared_lemmas.py, initial index, full conditional types |
 | Local proof work | Fresh worker proves only its own conditional obligation; direct proof by default | Stage in model_pilot.py; fixed search/read/check/submit tools |
 | Bounded execution | Launch independent conditional bodies; deduplicate compatible shared jobs within one graph | scheduler.py; pending/running/results and actual intervals |
-| Located repair | Escalate own obstructions or three completed idle turns, retire the own round and diagnose serially | proof_repair.py, proof_diagnosis.py; local repair or interface author + fresh review, explicit unresolved checkpoint |
+| Located repair | Return compiler errors to the same node author; diagnose explicit global obstructions after active handoffs without canceling siblings | proof_repair.py, proof_diagnosis.py; internal connection repair only, frozen-contract/source defects wait for user |
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
-| Audit B | Independently review external E and complete P meaning using concise correspondence notes; check final export and kernel trust | audit_b.py, audit_probe.lean, located semantic receipt |
+| Audit B | Machine preservation of reviewed E/P meanings and complete native closure; exceptional B-final only for proof-valid drift | final_acceptance.py, audit_b.py, audit_probe.lean; inherited semantic receipt or warning-qualified exception |
 
 Local R reviews and later Lean proof jobs use the same confirmed N in separate
 phases, each with its own bounded lane. NL0 authoring, global Audit A,
@@ -73,9 +73,10 @@ justify crossings. The current implementation keeps fixed cross-node parameters
 within one contract and permits local views/definitions. It does not choose an
 optimal view or generate an arbitrary bridge automatically.
 
-Each case uses one total wall-clock deadline for preparation, proof work,
-assembly and final review. Stages and parallel workers receive only the
-remaining budget; the controller occupies no model slot. See
+Default execution has no total time/token/call deadline. Only an explicit user
+deadline covers all preparation, proof work and acceptance; stages receive its
+remaining budget. Each native Lean call separately uses the configured limit.
+The controller occupies no model slot. See
 [minimal translation](minimal-translation.md) for the current default.
 
 ## What a local worker sees
@@ -116,7 +117,8 @@ it is not distributed cross-process proof-job coordination.
 
 Audit B's two gates are detailed in audit-b.md. Source coverage and actual
 elaborated types/dependencies are machine-inspected, but meaning still requires
-a real source/formal review. Compiler success is only one gate. Audit B examines
+a bound pre-proof source/formal review (or the explicit B-final exception).
+Normal final acceptance is machine-only. Compiler success is only one gate. Audit B examines
 the actual E/P statements, relevant proof-valued fields and local/project
 closure. Imported Mathlib results selected by automation need no source-M match. Pending templates stay pending.
 

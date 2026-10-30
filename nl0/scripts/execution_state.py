@@ -211,6 +211,10 @@ class Recorder:
         with self.lock:
             row = self.state['tasks'].setdefault(key, {'id':key,'state':'PENDING','queued_at_utc':now(),
                 'attempt_id':self.state['run_id']+':'+key})
+            previous=row.get('usage_ledger')
+            if previous and values.get('usage_ledger',previous)!=previous:
+                ledgers=self.state.setdefault('archived_usage_ledgers',[])
+                if previous not in ledgers:ledgers.append(previous)
             row.update(values); self.dirty = True
 
     def activity(self, key, activity):
@@ -336,7 +340,7 @@ class Recorder:
                 self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
                     confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
                     in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
-                states=['PENDING','RUNNING','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
+                states=['PENDING','RUNNING','WAITING_REVIEW','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
                 self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
                 self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started
@@ -358,8 +362,11 @@ class Recorder:
             for s,handler in previous.items():signal.signal(s,handler)
 
     def close(self, status, **result):
+        if status=='DIFFERENT_RESULT_DELIVERED':
+            from translation_reset import authorization
+            authorization(result['outcome']['user_decision'],'deliver-actual')
         self.retained_stages=[(s,g) for s,g in self.retained_stages if not getattr(s,'_resources_released',False)]
-        authorization=('USER_CANCELLED' if status=='CANCELLED' else 'WORKFLOW_FINALIZED'
+        authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED'} else 'WORKFLOW_FINALIZED'
             if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
             else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'} else None)
         if authorization is None and (self.retained_stages or any(p.poll() is None for p in self._handles.values())):
@@ -371,7 +378,7 @@ class Recorder:
             if process.poll() is None and not self.stop_process(process):residual.append(int(key))
             self.process_finished(process)
         with self.lock:
-            ledgers={row['usage_ledger'] for row in self.state['tasks'].values() if row.get('usage_ledger')}
+            ledgers={row['usage_ledger'] for row in self.state['tasks'].values() if row.get('usage_ledger')}|set(self.state.get('archived_usage_ledgers',[]))
             actual={};missing=[]
             for path in sorted(ledgers):
                 ledger=Path(path).with_name('usage-ledger.jsonl')

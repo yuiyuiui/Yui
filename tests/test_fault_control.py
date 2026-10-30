@@ -40,6 +40,22 @@ class FaultFixture:
 
 
 class FaultControlTests(FaultFixture,unittest.TestCase):
+    def test_b_final_decisions_require_an_explicit_matching_live_incident(self):
+        for action in ('deliver-actual','recheck','reset-translation'):
+            with self.subTest(action=action):
+                gate=self.gate()
+                def choose(_):
+                    with self.assertRaises(ValueError):faults.resume(gate.root,gate.state['incident'])
+                    with self.assertRaises(ValueError):faults.final_decision(gate.root,'stale',action)
+                    with self.assertRaises(ValueError):faults.final_decision(gate.root,gate.state['incident'],'unfreeze')
+                    faults.final_decision(gate.root,gate.state['incident'],action)
+                    with self.assertRaises(ValueError):faults.final_decision(gate.root,gate.state['incident'],action)
+                gate.wait=choose
+                state=gate.pause({'code':'workflow_blocked'},resumable=False,
+                    decisions=('deliver-actual','recheck','reset-translation'))
+                self.assertEqual(state['state'],'USER_DECIDED');self.assertEqual(state['control']['action'],action)
+                self.assertFalse(state['cleanup_authorized'])
+
     def test_final_report_write_waits_for_operator_instead_of_exiting(self):
         import controller_common as common
         path=self.root/'case-result.json';payload={'result':{'status':'SOFTWARE_CONTROL_ONLY'}}
@@ -355,6 +371,7 @@ class CarrierRetentionTests(unittest.TestCase):
             try:
                 recorder.register_process(child,'synthetic-carrier','author')
                 stage.execution=recorder;stage.execution_task='author';stage.proc=child
+                stage.thread_id='synthetic-thread'
                 stage.accepted={'synthetic_artifact':True}
                 with patch.object(stage,'start_process'),patch.object(stage,'rpc',return_value={'thread':{'id':'synthetic-thread'}}),patch.object(stage,'solve_turns'):
                     result,_=stage._execute()

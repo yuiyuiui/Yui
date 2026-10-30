@@ -88,6 +88,6 @@ def safe_stage_workspace(result):
     try:
         released=json.loads((logs/'resources/release.json').read_text())
         return (released['workspace_retention']==row and released['cleanup_confirmed'] is True
-                and released['authorization'] in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED'}
+                and released['authorization'] in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}
                 and hashlib.sha256((logs/'result.json').read_bytes()).hexdigest()==released['result_sha256'])
     except (OSError,ValueError,KeyError):return False

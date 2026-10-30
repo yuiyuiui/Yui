@@ -29,10 +29,10 @@ connects this translation module to the NL0/Audit A stage.
 
 The IR is a typed proof plan with unproved obligations. Python validates its
 explicit structure and renders Lean; Lean proves transitions and assembly.
-Neither component establishes natural-language fidelity automatically. Record
-an external/complete-target fidelity review in final Audit B and distinguish its actual
-scope. Normal full/translation entry additionally requires an actual independent
-semantic interface review before proof dispatch. Lower-level legacy mechanical
+Neither component establishes natural-language fidelity automatically. The normal entry obtains full external/target fidelity review independently
+before freeze. Final machine Audit B checks that actual E/P, their defining
+environment and complete native proof still match that reviewed authority.
+Only proof-valid interface drift opens exceptional B-final semantic review. Lower-level legacy mechanical
 freezes may still record `PENDING_AUDIT_B`; that is not the normal pre-proof gate.
 
 Use the scripts described in those references. Keep
@@ -48,18 +48,19 @@ boundary. An API/type conversion difficulty alone is FORMALIZATION-ENGINEERING.
 Only stable interfaces permit proof-body parallelism. Prove each local theorem
 against explicit direct inputs, then discharge every internal input during
 assembly. Do not report conditional local checks as final proof closure.
-After the queue completes, the serial postprocessing author follows
-[assembly and export](assembly.md), compiles the complete source-facing proof,
-and hands real checked evidence to a separate independent Audit B reviewer.
+After the queue completes, attempt mechanical [assembly and export](assembly.md).
+Use the serial connection author only for actual repair under the immutable
+contract. Compile and inspect the complete source-facing proof before final
+machine acceptance or a proof-valid B-final exception.
 
 Keep mathematical object identity global and Lean implementation views local.
 Freeze cross-node ports and planned typed conversion obligations. Their proof
 bodies are worker tasks; assembly/Audit B must supply every actual conversion.
 The normal interface preflight checks types, source boundaries and actual
-independent source/type judgments. Final Audit B checks
-semantic fidelity of those choices against the completed proof.
+independent source/type judgments. Final machine Audit B checks preservation of those independently reviewed
+choices in the completed proof.
 Use [proof diagnosis and reviewed repair](proof-repair.md) for structured worker
-obstructions, no-progress detection and the serial interface repair boundary.
+obstructions, passive progress records and the serial proof-connection boundary.
 Do not require one Lean type for every use of an object. A view record documents
 a choice; it neither proves equivalence nor chooses the best representation.
 
@@ -96,15 +97,16 @@ proof-only utilization separately from review activity, queue time and intervals
 Legacy integer options are compatibility aliases.
 Here a run is one case, not a multi-case batch. Python coordination does not
 occupy a model slot. Apply [the execution protocol](execution-protocol.md) for
-the node queue, structured status file, scoped cancellation and finite exit.
+the node queue, structured status file, scoped cancellation, retained errors and successful role finalization.
 
 This stage produces translation artifacts and checked local Lean evidence.
 `FRAGMENT-ASSEMBLED` is not an Audit B verdict. After translation, read and apply
 [Audit B](audit-b.md) and its [review template](../templates/audit-b.md).
 Map each original external E and complete P to its actual encoded Lean type
 with a short direct/equivalent correspondence explanation. P includes its
-parameters, hypotheses and conclusion. The independent reviewer checks these
-notes against source, actual types and relevant definitions. No separate
+parameters, hypotheses and conclusion. The independent pre-freeze reviewer
+checks these notes against source/types/definitions; B-final repeats semantic
+responsibility only for the explicit valid-proof/interface-drift exception. No separate
 M/H/N/D semantic ledger is required. Run the fresh standalone build and kernel
 closure checks; pending receipts cannot pass. Preserve inherited qualifications
 and distinguish development checks from whole-proof acceptance.

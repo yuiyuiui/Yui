@@ -5,10 +5,15 @@ and ready for Lean. Its single entry is the `rigorous-proof` skill:
 
 1. Write structured natural-language proof `NL0` and perform independent Audit A.
 2. Optionally translate the accepted proof through local Lean obligations,
-   assemble the checked proofs, and perform independent Audit B.
+   assemble the checked proofs, and perform machine Audit B against the independently reviewed frozen interface.
 
-Audit B checks every external theorem and the complete target, including all
-hypotheses, against the actual Lean statements. The pinned Mathlib environment
+Before freezing, an independent reviewer checks every external theorem and the
+complete target, including all hypotheses and relevant definitions, against their
+Lean expressions. Final machine Audit B inherits that semantic review only after
+checking the actual exported types, frozen definitions and complete proof closure.
+A valid proof with interface drift requires an exceptional independent B-final
+review and a visible warning; an invalid proof cannot take that exception.
+The pinned Mathlib environment
 is available freely. Literature theorems not proved in Lean remain explicit
 external premises. An LLM review is not a kernel proof of natural-language
 mathematics, and a successful compilation alone is not source-fidelity approval.
@@ -36,8 +41,9 @@ specified choices. A phase profile includes the model, reasoning effort and spee
 | Complete workflow | Both phase profiles and one worker count N, used for R reviews and later Lean proofs in separate phases |
 
 N must be an explicitly supplied or confirmed positive integer, including 1
-for serial local work. Authors, global review, preparation, assembly and Audit B
-remain serial within each case.
+for serial local work. Initial/global authors, global review, preparation, assembly
+and final acceptance remain serial within each case. Local repair authors and
+reviewers share the N active local slots; waiting conversations use no slot.
 The harness then stages inputs, schedules independent
 roles, handles located local repairs and records actual results. It does not
 require the user to create task packets or dispatch reviewers manually.
@@ -50,14 +56,20 @@ skill. Mathematical example runs and paper benchmarks are kept separately from
 this software checkout. Read each run's `case-result.json` and gate reports for
 its actual acceptance scope.
 
-Before parallel Lean work, a separate independent reviewer checks the complete
-source-to-Lean interface, including definitions and library parameter meanings.
-This catches semantic mismatches that still type-check; final Audit B remains
-required. During proof work, workers can escalate located obstructions. Three
-completed turns with no distinct check or relevant lookup trigger serial
-diagnosis instead of blind continuation. Ordinary compiler errors stay local;
-verified interface defects return to their author and fresh independent review.
-Unresolved source issues remain explicit checkpoints. See the generic
+The [NL0 role protocol](nl0/references/review-execution.md) retains the same author
+and global reviewer through complete global assessments. Only an accepted global
+review opens parallel local review/repair pairs. Local authors edit only their
+own R bodies. A located global issue restores the global role from its saved
+handoff after active local assignments finish; new local dispatch waits.
+N limits combined active local author/reviewer work, not idle conversations.
+
+Translation retains one preprocessing author and a separate reviewer through
+optional shared extraction and interface construction. No extraction needs no
+incremental review. They close after accepted interface freeze. Ordinary Lean
+errors/timeouts return to the owning worker. A serial connection author can repair
+internal proofs, but cannot change frozen E/P or definitions determining their
+meaning. No fixed idle-turn count cancels siblings or unlocks the interface.
+Located frozen-contract/source defects pause for the user. See the generic
 [repair protocol](nl02lean/references/proof-repair.md).
 
 ## Runtime
@@ -197,8 +209,9 @@ NL0, full and translation requests require an explicitly supplied or confirmed
 positive worker count N (`--max-concurrency N`). Missing counts and
 `auto` cannot silently select a default at the public entry. N controls local
 R-node reviews and local Lean proof work in separate phases. Independent-case
-concurrency is separate. Authors, global review, preparation, assembly and
-Audit B are serial within one case. There is no
+concurrency is separate. Initial/global authors, global review, preparation, assembly
+and final acceptance are serial within one case. Local repair authors share the N
+active slots with their reviewers. There is no
 default time/token/call budget. Explicit cancellation is supported; the parent
 chat Stop button is not a verified cancellation of detached CLI processes.
 
@@ -232,11 +245,19 @@ python3 -B nl0/scripts/yui.py errors /absolute/path/to/RUN
 python3 -B nl0/scripts/yui.py resume-error /absolute/path/to/RUN --incident ID
 ```
 
-Only actual phase/workflow acceptance plus finalization, or explicit user
-cancellation, authorizes process/workspace cleanup. A submitted draft, fault or
-abnormal child exit cannot authorize it. Completed scientific evidence remains.
+Successful global, all-local, frozen-interface and final delivery handoffs close
+their specified completed roles after saving the bound outputs. Faults and abnormal
+child exits do not authorize cleanup. Explicit user cancellation or a selected
+final decision is a separate authorization. Completed scientific evidence remains.
 Unknown/local faults require verified repair and a supported checkpoint; no
 blind phase replay is allowed. See [fault categories, controls and exit rules](nl0/references/error-lifecycle.md).
+
+If B-final does not accept fidelity, local Python pauses and lists three explicit
+`final-decision` commands: deliver the actual result without claiming the original
+goal, request another detailed review, or reset only translation and run it again
+while retaining NL0/Audit A. A reset deletes translation artifacts and owned
+temporary resources; it preserves a user-decision record, prior cost totals and
+usage ledgers. None of these choices is selected automatically.
 
 ### Foreground turn and ten-minute checks
 

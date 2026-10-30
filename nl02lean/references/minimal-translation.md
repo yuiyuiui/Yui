@@ -20,7 +20,8 @@ there is no requirement to preload the entire skill or all note bodies.
    interface, then obtain a separate independent semantic interface review.
    Normal full/translation entry dispatches no proof worker before its actual
    hash-bound receipt passes. Repair located failures with the interface author
-   and review changed output freshly. Final Audit B is still required. The
+   and have the same separate reviewer assess changed output. Final machine Audit B
+   inherits that review only if the actual complete artifact preserves the freeze. The
    lower-level legacy mechanical freeze can record `PENDING_AUDIT_B`; it does
    not satisfy this normal-workflow pre-proof gate.
 4. Run local proof workers on frozen conditional obligations. Each gets its
@@ -30,12 +31,14 @@ there is no requirement to preload the entire skill or all note bodies.
    Use [Lean implementation safeguards](lean-writing.md) for library
    applications and conversions, including small type checks in preparation.
    Yui proof workers receive these requirements in their stage instructions.
-5. Start the serial [postprocessing author](assembly.md) to connect actual
-   proofs, discharge any retained M ports and compile standalone `Proof.lean`.
-   Inspect signatures/dependencies separately, then start the fresh independent
-   semantic Audit B reviewer. A type check or conditional lemma is not full
-   acceptance. A failed final fidelity review remains a failed attempt; do not
-   relabel it as a success because its interface was frozen.
+5. Attempt mechanical [assembly](assembly.md) and complete native inspection.
+   Use the serial connection author only for real connection/library-discharge
+   repair under unchanged E/P/definitions. Normal final Audit B is machine-only:
+   inherit the actual pre-proof semantics after checking full endpoint types,
+   defining header and complete closure. Only proof-valid interface drift opens
+   B-final. Faithful drift is warning-qualified; a nonpass waits for the user's
+   explicit delivery/recheck/translation-reset choice. Invalid proof is never
+   semantically overridden.
 
 ## Background notes are references, not extra ports
 
@@ -46,7 +49,7 @@ signature, or require an extra theorem merely to restate it. The frozen
 stage-one text's historical `background.effective` expansion is still supported
 as `promoted_inputs` for old contracts; it is not the new translation default.
 
-At Audit B, notes are guidance, not library permissions. All proved results in
+At the pre-freeze semantic review and final Audit B, notes are guidance, not library permissions. All proved results in
 the pinned Mathlib environment are available without registration. Review every
 external E and complete P against its actual Lean type using the concise author
 correspondence explanation; independently check direct or equivalent meaning.
@@ -61,8 +64,8 @@ report a supported mathematical/source/input blocker. If a model turn ends
 without either, the controller sends one short continuation instruction; it
 does not demand a progress essay. State/usage recording is programmatic.
 Proof workers follow [structured diagnosis and repair](proof-repair.md): report
-actual packet obstructions, and escalate three completed turns without new
-checks/lookups instead of repeating the same instruction indefinitely.
+actual packet obstructions. Progress counters are passive; no idle-turn count
+cancels sibling work or authorizes interface changes.
 
 Whole-case/stage execution, total tokens and calls are unlimited by default.
 Each native check has the configured 300-second wall limit and finite Lean

@@ -60,7 +60,7 @@ class PostprocessingTests(unittest.TestCase):
         value=mapping.ir.load(directory/'audit-b/mapping.json')
         value['library_terms']['M001']='exact Nat.add_comm a b'
         out=self.root/'author';mapping.ir.write(out/'authority.json',{'workflow':str(directory)})
-        frozen={'authority':{'fragment':str(ip)}}
+        frozen={'authority':{'fragment':str(ip)},'contract':str(cp)}
         return mapping.MappingContract(out),value,frozen
 
     def test_check_then_identical_submit_reuses_only_unchanged_native_evidence(self):
@@ -79,6 +79,13 @@ class PostprocessingTests(unittest.TestCase):
             self.assertEqual(third['status'],'AUDIT-B-MECHANICAL-PASSED')
             self.assertEqual(build.call_count,2)
             self.assertNotIn('reused_exact_native_check',third)
+            selected=validator.out.parent/'workflow/proof-run/proofs.json'
+            bundle=mapping.ir.load(selected);bundle['proofs']['T001']='simpa using h_M001'
+            mapping.ir.write(selected,bundle)
+            fourth=validator(value)
+            self.assertEqual(fourth['status'],'AUDIT-B-MECHANICAL-PASSED')
+            self.assertEqual(build.call_count,3,'Changed effective proof input must be checked, even with identical mapping')
+            self.assertNotIn('reused_exact_native_check',fourth)
 
     def test_rejected_mapping_is_saved_with_located_feedback(self):
         validator,value,frozen=self.prepared()

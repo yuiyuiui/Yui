@@ -5,8 +5,8 @@ import hashlib
 import json
 import threading
 
-POLICY = {'version':'proof-progress-and-repair-1', 'completed_idle_turns':3,
-          'scope':'Recovery transition, not a case, token, model-call or native-call budget.'}
+POLICY = {'version':'proof-progress-and-repair-2', 'completed_idle_turns':None,
+          'scope':'Passive progress accounting; only explicit located reports request repair.'}
 
 
 def digest(value):
@@ -18,14 +18,15 @@ class RoundInterrupted(Exception):
 
 
 class RoundControl:
+    """Legacy report container; a node report does not cancel sibling work."""
     def __init__(self):
         self.event=threading.Event();self.lock=threading.Lock();self.reports={}
 
     def request(self, step, report):
-        with self.lock:self.reports[step]=report;self.event.set()
+        with self.lock:self.reports[step]=report
 
     def check(self):
-        if self.event.is_set():raise RoundInterrupted('Proof round retired for located serial diagnosis')
+        return None
 
 
 class Progress:
@@ -49,7 +50,7 @@ class Progress:
     def completed_turn(self):
         self.idle_turns=self.idle_turns+1 if self.revision==self.last_turn_revision else 0
         self.last_turn_revision=self.revision
-        return self.idle_turns>=POLICY['completed_idle_turns']
+        return False
 
     def metadata(self):
         return {'policy':POLICY['version'],'distinct_actions':len(self.seen),
@@ -86,7 +87,7 @@ def obstruction(stage, value, *, automatic=False):
             'packet_sha256':digest(packet),'candidate_evidence':evidence,
             'progress':stage.proof_progress.metadata(),
             'acceptance':False,'scope':'Allegation and actual local evidence only; serial diagnosis and fresh review decide the repair boundary.'}
-    # This identity excludes prose, counters and timestamps. A reworded allegation
-    # or another idle turn is not new evidence that warrants fresh resampling.
+    # This identity excludes prose, counters and timestamps. It records repeated
+    # evidence without authorizing a stop or a fresh-context verdict resample.
     report['evidence_key']=digest([report['packet_sha256'],sorted(stage.proof_progress.seen)])
     return report

@@ -16,9 +16,9 @@ acceptance, an IR is a derived artifact:
 1. An **interface contract** fixes source/packet hashes, toolchain, shared
    Lean definitions, parameters, exact direct premises, the conclusion and the
    correspondence of these expressions with NL0. Creating this contract is
-   formalization work, not free preprocessing. Semantic acceptance is deferred
-   to the final independent Audit B by default; a separate pre-proof review is
-   optional. Exact string comparison cannot establish source fidelity.
+   formalization work, not free preprocessing. Normal entry requires actual independent semantic review before freeze.
+   Final machine Audit B checks preservation of that reviewed encoding plus
+   complete proof integrity. Exact strings alone cannot establish source fidelity.
 2. A **transition plan** maps NL0 paragraphs to typed local obligations with
    explicit inputs. It binds the interface-contract hash. Each obligation is
    a proposition under the shared parameter types and only its listed inputs.
@@ -26,9 +26,10 @@ acceptance, an IR is a derived artifact:
 
 The core transition engine consumes a frozen interface contract. A fresh model
 or human may author this interface from the accepted NL0, explicit representation
-choices and library tools. The actual final Audit B compares the result with
-the source; elaboration alone cannot do this. A separate pre-proof interface
-review is optional, with `PENDING_AUDIT_B` recorded when deferred. Internal regression fixtures
+choices and library tools. The normal pre-proof reviewer compares source and complete E/P types/definitions.
+Final machine Audit B inherits that authority only if actual native evidence
+preserves it. The lower-level compatibility path may record `PENDING_AUDIT_B`;
+that path still requires actual semantic review and does not satisfy normal admission. Internal regression fixtures
 also contain prepared interfaces for deterministic controls. Those fixtures and
 their reference ports are never model-visible inputs to a mathematical test.
 Reports include interface authoring/review costs; unmeasured owner work is labeled.

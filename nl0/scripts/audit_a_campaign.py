@@ -246,24 +246,24 @@ unproved calculus, dimension, measure or other structural theorem.
 
 Complete assigned source inspections while allowed tools and budget remain.
 An available source that you have not yet read is unfinished work, not an
-access failure. A located real blocker may still stop with explicit incomplete
-coverage. Never fill unexamined items with PASS.
+access failure. Finish all assigned global checks and return their findings
+together, including after a FAIL. Never fill unexamined items with PASS.
 
 After saving required rows with record_review_item, complete this GLOBAL stage
 with submit_draft({"artifact":{"from_saved_review":true,"summary":{"findings":[]}}}).
 Replace [] with your actual findings when any exist. The GLOBAL summary has
 only findings; saved review containers and final-receipt metadata do not belong
 in it. This example supplies no mathematical verdict.
-For an actual saved blocking FAIL, submit_review_blocker expects
-{"finding":{"verdict":"FAIL","explanation":"actual located defect","locations":["nl0.json#/inferences/0/argument/0/text"],"quotation":{"location":"nl0.json#/inferences/0/argument/0/text","text":"short exact offending passage"}}}.
-Every blocking finding, including one in a full findings array, needs this
+A blocking entry in the final findings array has the form
+{"verdict":"FAIL","explanation":"actual located defect","locations":["nl0.json#/inferences/0/argument/0/text"],"quotation":{"location":"nl0.json#/inferences/0/argument/0/text","text":"short exact offending passage"}}.
+Every blocking finding needs this
 quotation object. Its text must occur at that exact supplied location. Global
 locations use document.json#/exact/pointer or document:start-end (also pinned
 Mathlib/File.lean:start-end); do not append prose or invent a file name.
 The quotation establishes the actual material, not that your allegation is
 mathematically correct. Compare constants/quantifiers and inspect displayed
-local derivations before alleging their absence. Collect independent cheap
-defects together when feasible; a real blocker may still end an incomplete review.
+local derivations before alleging their absence. Complete every assigned global
+check and return all actual findings together, including after a blocking FAIL.
 '''
 GLOBAL += '''For each external E, read its staged primary/source readbacks and
 external-source-evidence.json. Apply all nine requirements in
@@ -417,7 +417,40 @@ def prepare(case, problem, out, *, reuse_from=()):
     return plan
 
 
-def run(out, timeout=None, budget=None, *, audit_budget=None):
+def global_acceptance(out):
+    """Require actual complete global judgments, including inherited scopes."""
+    import source_qualification
+    out=Path(out);plan=json.loads((out/'campaign.json').read_text())
+    data=nl0.validate(plan['graph']['path'],plan['spec']['path'])
+    path=out/'global/stage/accepted.json'
+    raw=json.loads(path.read_text()) if path.is_file() else {'definition_reviews':{},'source_reviews':{},'findings':[]}
+    if path.is_file():
+        require_review_execution(json.loads((path.parent/'result.json').read_text()),path.parent/'result.json',phase='audit-a-global')
+        validate_review(raw,out/'global',True)
+    for scope,binding in plan.get('inherited',{}).items():
+        if scope.startswith('packet:'):continue
+        item=audit_reuse.validate(Path(plan['case']),binding,data,scope)['raw']
+        pointer={'target':'/target_review','structure':'/structure_review'}.get(scope,
+            '/definition_reviews/'+scope.split(':')[-1] if scope.startswith('definition:') else '/source_reviews/'+scope.split(':')[-1])
+        put(raw,pointer,item)
+    ordinary=[raw.get('target_review',{}),raw.get('structure_review',{}),*raw['definition_reviews'].values()]
+    expected_sources={k for k,p in data[3].items() if p['kind'] in {'external','mathlib'}}
+    complete=(set(raw['definition_reviews'])==set(data[5]) and set(raw['source_reviews'])==expected_sources)
+    unresolved=[]
+    for key,row in raw['source_reviews'].items():
+        if row.get('verdict')!='PASS':unresolved.append({'review':key,'verdict':row.get('verdict')})
+        for name,child in row.get('citation_checks',{}).items():
+            if child.get('verdict')!='PASS':unresolved.append({'review':key+'.citation_checks.'+name,'verdict':child.get('verdict')})
+    qualified=False
+    if unresolved:qualified,_=source_qualification.classify(unresolved,data[3],Path(plan['case']))
+    findings_ok=not any(blocking_finding(f) and not source_qualification.source_only_finding(f,data,Path(plan['case'])) for f in raw.get('findings',[]))
+    accepted=complete and all(r.get('verdict')=='PASS' for r in ordinary) and findings_ok and (not unresolved or qualified)
+    result={'accepted':bool(accepted),'conditional':bool(accepted and unresolved),'review':raw,'complete':complete}
+    write(out/'global-acceptance.json',result)
+    return result
+
+
+def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, sessions=None, review_role=None):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
     verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
@@ -458,13 +491,17 @@ def run(out, timeout=None, budget=None, *, audit_budget=None):
         contract=ReviewContract(directory/'review-work',base,required,
             lambda value:validate_review(value,directory,job['library']),
             row_validator=row_check,
-            finding_validator=lambda finding:validate_finding(finding,directory,None if job['library'] else packet))
+            finding_validator=lambda finding:validate_finding(finding,directory,None if job['library'] else packet),
+            complete_assessment=job['library'])
         stage=ArtifactStage(directory/'stage',(directory/'prompt.txt').read_text(),
             phase='audit-a-global' if job['library'] else 'audit-a-packet-replay',
-            inputs=directory/'inputs.json',library=job['library'],timeout=timeout,
+            inputs=directory/'inputs.json',library=job['library'] or review_role=='lean-global-reviewer',timeout=timeout,
             budget=budget if job['library'] else audit_budget,
             validator=contract)
-        result,artifact=stage.execute()
+        if sessions:
+            with sessions.use(review_role or ('audit-a-global' if job['library'] else 'audit-a:'+job['id'])):
+                result,artifact=stage.execute()
+        else:result,artifact=stage.execute()
         return {'id':job['id'],'result':result,'artifact_present':artifact is not None}
     from concurrent.futures import ThreadPoolExecutor
     from contextvars import copy_context
@@ -475,11 +512,13 @@ def run(out, timeout=None, budget=None, *, audit_budget=None):
     try:
         # Global/source checks complete before any local packet is dispatched.
         for job in plan['jobs']:
-            if job['library']:
+            if job['library'] and only not in {'local'} and not (isinstance(only,str) and only.startswith('R')):
                 try:results.append(execute(job))
                 except Exception as error:
                     results.append(failed(job,error));raise
-        local=[job for job in plan['jobs'] if not job['library']]
+        local=[job for job in plan['jobs'] if not job['library'] and (only in {None,'local'} or only==job['id'])]
+        if local and any(j['library'] for j in plan['jobs']) and not global_acceptance(out)['accepted']:
+            local=[]
         with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
             pending=[(job,pool.submit(copy_context().run,execute,job)) for job in local]
             for job,future in pending:
@@ -559,9 +598,9 @@ def collect(out, controls):
         raise ValueError('Incomplete global definition/source review coverage')
     receipt=nl0.closure.audit_template(data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
     profile=__import__('runtime_config').model_profile('audit-a-global')
-    receipt['reviewer']={'identity':profile['id']+' / '+profile['reasoning_effort']+' / '+profile['speed']+'; separate fresh global and per-inference contexts',
+    receipt['reviewer']={'identity':profile['id']+' / '+profile['reasoning_effort']+' / '+profile['speed']+'; separate global and per-inference reviewer roles',
         'mode':'split_clean_audit','independent':True,
-        'disclosure':'New global checks saw original problem/spec/graph and actual source evidence. Fresh local reviews saw their own packets, Yui rules and logged pinned-Mathlib queries for verified background, without other project/ancestor proofs or old verdicts. Notes are disclosed reviewer completion, not original author registration. Inherited items retain their original execution and cost qualification. Actual transmitted exposure and stage logs are preserved; provider internals are not independently attested.'}
+        'disclosure':'Global checks saw original problem/spec/graph and source evidence. Local reviewers saw their own packets and allowed library feedback. Author and reviewer roles are distinct; repeated role conversations may retain their own earlier findings, as disclosed in stage role_session metadata. No fresh-history claim is made for such revisions. Notes and inherited judgments retain their actual evidence and cost qualification.'}
     def judgment(row,ev,located=False):
         if row['verdict'] not in nl0.VERDICTS or not row['notes'].strip():raise ValueError('Invalid actual judgment')
         answer={'verdict':row['verdict'],'notes':row['notes'],'evidence':ev}

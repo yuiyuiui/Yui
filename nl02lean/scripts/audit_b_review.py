@@ -73,11 +73,14 @@ do not repair the proof or treat an author's assurance as a passed review.
 '''
 
 
-def prepare(audit,out):
+def prepare(audit,out, *, interface_deviation=False):
     audit,out=[Path(p).resolve() for p in (audit,out)]
     audit_b.bound_inputs(audit)
     mechanical=ir.load(audit/'mechanical.json')
-    if not mechanical['passed'] or mechanical['errors']:raise ValueError('A real complete mechanical Audit B pass is required')
+    if interface_deviation:
+        from final_acceptance import proof_integrity
+        proof_integrity(audit)
+    elif not mechanical['passed'] or mechanical['errors']:raise ValueError('A real complete mechanical Audit B pass is required')
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     review_materials.verify_projection(audit,foundations=audit_b.AXIOMS)
     for name in review_materials.DOCUMENTS:
@@ -85,8 +88,11 @@ def prepare(audit,out):
     # Full machine records remain controller evidence, outside model-visible inputs.
     write(out/'mechanical.json',mechanical)
     manifest(inputs);(out/'prompt.txt').write_text(PROMPT)
+    if interface_deviation:
+        (out/'prompt.txt').write_text(PROMPT+'\nThis is B-final after a detected freeze discrepancy. Proof integrity has passed. Decide actual final E/P fidelity to the original source; do not waive any invalid proof, change the source target, or treat the old frozen review as a new final verdict. A passing decision is warning-qualified freeze-deviation delivery.\n')
     write(out/'bindings.json',{'audit':str(audit),'mechanical':bind(audit/'mechanical.json'),
-        'mapping':bind(audit/'mapping.json'),'packet':bind(audit/'review-packet.json')})
+        'mapping':bind(audit/'mapping.json'),'packet':bind(audit/'review-packet.json'),
+        'interface_deviation':interface_deviation})
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
 
@@ -148,6 +154,32 @@ def collect(out):
     report={'all_checks_passed':passed,'review':bind(path),'findings':raw['findings'],'qualification':qualification}
     report['review_status']=review_outcome(x['verdict'] for x in [*raw['nodes'].values(),*raw['checks'].values()])
     write(out/'report.json',report);return report
+
+
+def verify_actual_review(out):
+    """Validate the actual final review and its delivered artifact, without calls."""
+    out=Path(out);binding=ir.load(out/'bindings.json');raw=ir.load(out/'stage/accepted.json')
+    require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='audit-b-final')
+    validate(raw,out)
+    for key in ('mechanical','mapping','packet'):
+        ir.need(ir.digest(binding[key]['path'])==binding[key]['sha256'],'B-final artifact changed')
+    review=ir.load(out/'review.json')
+    import source_preparation
+    source_preparation.reviewer(review['reviewer'])
+    ir.need(review['reviewer']['independent'] and review['reviewer']['mode']=='fresh_model_review','B-final must be separate from the author')
+    for group in ('nodes','checks'):
+        ir.need(set(review[group])==set(raw[group]),'B-final review coverage changed')
+        for key,row in raw[group].items():
+            ir.need({k:review[group][key][k] for k in row}==row and row['verdict']=='PASS','B-final has no actual complete passing judgment')
+            files=set()
+            for evidence in review[group][key]['evidence']:
+                path=(out/evidence['path']).resolve()
+                ir.need(path.parent==out.resolve()/'stage' and path.name in {'accepted.json','result.json','exposure-audit.json','execution-manifest.json'} and ir.digest(path)==evidence['sha256'],'B-final evidence changed')
+                files.add(path.name)
+            ir.need(files=={'accepted.json','result.json','exposure-audit.json','execution-manifest.json'},'Incomplete B-final evidence')
+    ir.need(not any(blocking_finding(f) for f in raw['findings']),'B-final contains a blocking finding')
+    ir.need(review['mechanical_sha256']==binding['mechanical']['sha256'] and review['mapping_sha256']==binding['mapping']['sha256'],'B-final receipt changed')
+    return review
 
 
 if __name__=='__main__':

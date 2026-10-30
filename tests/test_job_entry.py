@@ -209,20 +209,17 @@ class JobEntryTests(unittest.TestCase):
         docs=json.loads((out/'inputs/inputs.json').read_text())['inputs']
         self.assertEqual([r['id'] for r in docs],['problem.md'])
 
-    def test_normal_policy_routes_located_a_findings_to_changed_author_revision(self):
-        job=self.job();root=Path(job['root'])
-        source1=self.root/'source1';source2=self.root/'source2'
-        for p in (source1,source2):p.mkdir()
-        diagnosis={'issues':[{'id':'one','location':'/graph/inferences/0','note':'Located defect','criterion':'A4'}]}
-        with patch.object(case_runner,'source_key',side_effect=['first','second']), \
-             patch.object(case_runner,'author_stage',side_effect=[source1,source2]) as author, \
-             patch.object(full_workflow,'audit_source',side_effect=[{'full_acceptance':False},{'full_acceptance':True}]) as audit, \
-             patch.object(case_runner,'repair_obligations',return_value=diagnosis):
-            result=case_runner.nl0_work(job,None,None,lambda *a,**k:None)
-        self.assertEqual(Path(result['graph']).parent,source2)
-        self.assertEqual(author.call_args.kwargs['baseline'],source1)
-        self.assertEqual(audit.call_args.kwargs['reuse_from'],[root/'audit-a/0001'])
-        self.assertTrue((root/'repairs/audit-a-0001.json').is_file())
+    def test_normal_public_entry_dispatches_the_retained_role_controller(self):
+        import nl0_review_loop
+        import concurrency
+        job=self.job();root=Path(job['root']);serial=concurrency.serial_budget()
+        local=concurrency.Budget(concurrency.resolve(2),role='audit_r')
+        expected={'graph':str(root/'nl0/current/nl0.json'),'spec':str(root/'nl0/current/spec.json'),'audit_a':str(root/'nl0/current/audit-a.json')}
+        with patch.object(nl0_review_loop,'run',return_value=expected) as runner,patch.object(full_workflow,'audit_source') as legacy:
+            result=case_runner.nl0_work(job,None,serial,lambda *a,**k:None,audit_budget=local)
+        self.assertEqual(result,expected);self.assertEqual(runner.call_count,1);legacy.assert_not_called()
+        self.assertIs(runner.call_args.args[1],serial);self.assertIs(runner.call_args.args[2],local)
+        self.assertEqual(runner.call_args.kwargs,{'restored':None,'prior':[],'initial_issues':None})
 
     def test_first_pass_policy_stops_after_actual_first_nonpass(self):
         job=self.job(policy='first-pass')

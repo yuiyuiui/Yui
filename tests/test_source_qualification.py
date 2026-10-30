@@ -45,6 +45,8 @@ class SourceQualificationTests(unittest.TestCase):
         """Fresh synthetic reviews for this control's current graph/packets."""
         data=nl0.validate(self.root/'nl0.json',self.root/'spec.json')
         self.audit=nl0.closure.audit_template(data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
+        self.audit['reviewer'].update(identity='TEST_ONLY_INDEPENDENCE_FIELDS',mode='external_review',independent=True,
+            disclosure='Fabricated positive qualification fields for software control only; no actual review.')
         def mark(v):
             if isinstance(v,dict):
                 if 'verdict' in v:v.update(verdict='PASS',notes='Synthetic control only; no real mathematical review.')
@@ -82,6 +84,32 @@ class SourceQualificationTests(unittest.TestCase):
         self.assertEqual(payload['warnings'][0]['statement'],'a=b.')
         self.assertFalse(payload['unqualified_pass'])
         self.assertTrue((self.root/'warn.md').is_file())
+
+    def test_global_acceptance_and_scoped_reuse_preserve_source_warning_without_a_new_review(self):
+        import audit_a_campaign as campaign
+        import audit_reuse
+        from audit_a_fixtures import synthetic_stage
+        old=self.root/'campaign';campaign.prepare(self.root,self.root,old)
+        result,raw=synthetic_stage(old/'global')
+        def clean(row):
+            value={k:deepcopy(row[k]) for k in ('verdict','notes')}
+            value['locations']=['nl0.json#/propositions/0/source']
+            if 'citation_checks' in row:value['citation_checks']={k:clean(v) for k,v in row['citation_checks'].items()}
+            return value
+        raw['source_reviews']={'E001':clean(self.audit['source_reviews']['E001'])}
+        location='nl0.json#/propositions/0/source/statement'
+        raw['findings']=[{'verdict':'UNVERIFIED','severity':'BLOCKING','locations':[location],
+            'explanation':'Synthetic inaccessible primary source only.',
+            'quotation':{'location':location,'text':'a=b.'}}]
+        campaign.write(old/'global/stage/accepted.json',raw)
+        self.assertTrue(campaign.global_acceptance(old)['conditional'])
+        next_campaign=self.root/'campaign-next'
+        plan=campaign.prepare(self.root,self.root,next_campaign,reuse_from=[old])
+        self.assertIn('source:E001',plan['inherited'])
+        self.assertTrue(campaign.global_acceptance(next_campaign)['conditional'])
+        inherited=audit_reuse.validate(self.root,plan['inherited']['source:E001'],
+            nl0.validate(self.root/'nl0.json',self.root/'spec.json'),'source:E001')
+        self.assertEqual(inherited['raw']['verdict'],'UNVERIFIED')
 
     def test_any_failed_or_unverified_mathematical_check_still_blocks(self):
         for verdict in ['FAIL','UNVERIFIED']:
@@ -163,7 +191,7 @@ class SourceQualificationTests(unittest.TestCase):
         ir.write(proof_run/'report.json',{'status':'FRAGMENT_ASSEMBLED','concurrency':{'test_only':True},'runner_wall_seconds':0})
         workflow.prepare_audit(out)
         self.assertEqual(audit_b.build(out/'audit-b')['status'],'AUDIT-B-MECHANICAL-PASSED')
-        review=synthetic_receipt(out/'audit-b')
+        review=synthetic_receipt(out/'audit-b',independent=True)
         result=workflow.finish(out,review)
         self.assertEqual(result['status'],'WORKFLOW-CONDITIONAL')
         self.assertEqual(result['audit_b']['status'],'AUDIT-B-CONDITIONAL')
@@ -176,7 +204,7 @@ class SourceQualificationTests(unittest.TestCase):
         import audit_b_continuation
         def save_review(directory,**kwargs):
             directory=Path(directory)
-            receipt=synthetic_receipt(directory.parent/'native')
+            receipt=synthetic_receipt(directory.parent/'native',independent=True)
             (directory/'review.json').write_bytes(receipt.read_bytes())
             (directory/'test-only-evidence.txt').write_bytes((receipt.parent/'test-only-evidence.txt').read_bytes())
         with patch.object(audit_b_continuation.reviewer,'run',side_effect=save_review),\

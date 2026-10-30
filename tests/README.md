@@ -19,8 +19,11 @@ python3 -B -m unittest discover -s tests -p test_audit_b.py -v
 
 These are software controls, separate from user-supplied mathematical inputs and
 their generated run directories outside this installation. Automatic discovery does not call a model or
-start a paper-solving workflow. Native integration cases do run the pinned
-local Lean installation. Synthetic review records exercise validation rules;
+start a paper-solving workflow. Native integration cases do run the pinned local Lean installation. The native
+handoff test uses the installed Codex client with a deterministic loopback Responses
+server, no credentials and no remote model. It verifies actual interruption,
+same-thread continuation, tool-result provenance and absence of extra requests;
+a missing compatible client is an explicit skip. Synthetic review records exercise validation rules;
 they never certify a mathematical proof or substitute for an independent audit.
 
 The PDF readback regression uses an installed `pdftotext` or `pypdf` backend;
@@ -39,13 +42,13 @@ synthetic inputs, environment-selected tools and explicit CLI overrides.
 | Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
 | Model isolation, task/proof state, transport health and usage accounting | `test_isolation`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
 | NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |
-| Global-before-local Audit A scheduling and isolated R-review slots | `test_parallel_audit` |
-| Accepted-source preparation and stage handoff | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy` |
+| Global PASS admission, retained review/repair pairs, global restoration and combined active slots | `test_parallel_audit`, `test_nl0_review_loop`, `test_role_sessions` |
+| Accepted-source preparation, same-role revisions, actual native submit handoffs and user-selected reset | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy`, `test_workflow_handoffs`, `test_native_handoff`, `test_stage_completion`, `test_translation_reset` |
 | Conditional Lean tasks, concurrency, reuse and assembly | `test_translation`, `test_concurrency`, `test_execution_queue`, `test_shared_parallel`, `test_proof_reuse`, `test_assembly` |
-| Pre-proof semantic gate, structured obstructions, no-progress diagnosis and retained-round repair | `test_interface_gate`, `test_proof_repair` |
+| Pre-proof semantic gate, explicit obstructions, passive progress accounting and same-owner repair | `test_interface_gate`, `test_proof_repair` |
 | Owned executable snapshots and streaming request-history readback | `test_runtime_snapshot`, `test_streaming_audits` |
 | General advice retrieval, evidence scope and maintenance | `test_strategy_bank` |
-| Native signatures, endpoint correspondence and Audit B | `test_signature_comparison`, `test_endpoint_correspondence`, `test_audit_b`, `test_postprocessing` |
+| Native signatures, endpoint correspondence and Audit B | `test_signature_comparison`, `test_endpoint_correspondence`, `test_audit_b`, `test_postprocessing`, `test_final_acceptance` |
 
 File names group related behavior; they do not create separate execution suites.
 `harness_support.py` supplies common test paths and synthetic profiles.
@@ -79,6 +82,12 @@ are not executed by unittest discovery.
 6. Run tests in temporary directories. Preserve repository examples, archived
    results and shared toolchain files. Never require credentials or network model
    calls for automatic software tests.
+The default carrier launch is fail-fast blocked by `harness_support.py`; an
+incomplete mock cannot read authentication or silently call a real model. Config
+tests explicitly mock process creation, and native protocol tests explicitly
+replace launch with their deterministic loopback carrier. `test_offline_guard`
+checks that an unmocked public stage fails before relay/process/credential access,
+without entering the production retained-error wait.
 7. Remove or merge a case only after identifying equivalent retained coverage.
    A lower test count is not a quality target. A passing count alone does not
    establish that every relevant failure mode is covered.

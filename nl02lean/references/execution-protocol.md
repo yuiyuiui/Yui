@@ -29,8 +29,8 @@ later by up to N local Lean proofs. These phases cannot overlap in one case. All
    Record IDs, direct inputs, hashes, attempts and result locations.
 3. The existing executor queue supplies at most N slots. A free slot immediately
    takes another pending job. Distinguish slot ID from model session/attempt ID.
-4. Every node attempt creates a fresh model context/workspace, even when its
-   slot is reused. Supply only its target, direct inputs, definitions/views,
+4. Each new node owns a separate model conversation; revisions reuse that
+   node's conversation, while a free slot may serve a different node. Supply only its target, direct inputs, definitions/views,
    NL argument and allowed tools. Conditional consumers may run before producer
    bodies finish; assembly must later discharge the actual dependencies.
 5. Recheck returned proofs with Lean. Existing store locks serialize admission.
@@ -42,10 +42,10 @@ later by up to N local Lean proofs. These phases cannot overlap in one case. All
 7. Assemble actual bodies, discharge every internal input, run fresh Lean and
    complete existing Audit B. Execution records never grant mathematical PASS.
 
-A batch is finite: when all submitted jobs end and pending is empty, report
-and exit, including on mathematical failures. Reject duplicate active case IDs
-within a batch and existing output ownership. Do not wait indefinitely for all
-mathematics to pass. No adaptive priority or expensive scheduling model is used.
+Batch completion requires actual terminal case outcomes. A retained pause or
+retry wait is nonterminal, including when the foreground chat has ended. Errors
+do not authorize exit/cleanup. Reject duplicate active case IDs and existing
+output ownership. User cancellation remains an explicit terminal outcome. No adaptive priority or expensive scheduling model is used.
 
 Omitted or null `time_budget_seconds` means unlimited whole-case execution.
 Configuration also leaves stage time limits and the total token budget null. The
@@ -66,14 +66,12 @@ queries. Card hashes/revision and unavailable-advice reasons are retained with
 the original failed result. Explicit cancellation and actual execution failures
 retain their stop rules; ordinary candidate rejection permits local repair.
 
-Proof workers also have `report_proof_obstruction`, and three completed turns
-without a distinct candidate check or relevant lookup trigger serial diagnosis.
-This is [repair routing](proof-repair.md), separate from native timeouts and
-provider waits. `REPAIR_REQUESTED` and `REPAIR_WAIT` retire only this case's own
-proof round. Completed bodies and failed drafts remain; no shared interface
-changes until running workers retire. Confirmed interface defects go to the
-author and a fresh independent semantic review. Unchanged evidence after a
-located repair becomes an explicit checkpoint rather than blind resampling.
+Proof workers may submit `report_proof_obstruction` with located own evidence.
+Other healthy/queued nodes keep their work. After active handoffs, serial global
+connection repair may change internal bodies and connections, never frozen E/P
+or meaning-determining definitions. Located frozen-contract/source defects wait
+for the user. No fixed idle-turn threshold retires a round or cancels siblings.
+See [repair routing](proof-repair.md) for the allowed transitions.
 
 Only an explicit user request may enable a positive case deadline for a separate
 bounded experiment. It starts with the case process and covers preparation,

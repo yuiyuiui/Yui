@@ -1,11 +1,11 @@
 # Postprocessing: connect checked nodes into the source-facing Lean proof
 
-Use one fresh **postprocessing author thread** after every required local proof
-is checked. This is a serial stage per problem and consumes none of the N
-parallel proof slots. The existing mapping author serves this role; its output
-drives actual assembly. The **independent Audit B reviewer** is a subsequent
-fresh thread. Assembly authoring, standalone compilation, kernel inspection
-and semantic review have different completion states.
+After every required local body is checked, the controller first attempts
+mechanical assembly using the frozen mapping. Invoke the serial **connection
+author** only for actual connection/library-discharge repair. It retains its own
+conversation and checked candidates, separate from pre-freeze review. Normal
+final Audit B is machine-only and inherits that frozen semantic authority.
+Only a proof-valid interface deviation opens an independent B-final review.
 
 ## Entry and immutable inputs
 
@@ -54,8 +54,7 @@ background notes; retain their node-local reference locations.
    actual E/P kernel signatures and root closure. Carry short author
    correspondence notes for every E and complete P; relevant definitions and
    hidden fields remain visible to the independent reviewer. Save `Audit.lean`, `compiler.json`, `inspection.json`,
-   correspondence, source/proof hashes and the review packet. Inspection has no
-   default wall-clock or heartbeat budget. An explicitly requested cutoff or
+   correspondence, source/proof hashes and the review packet. Inspection uses the configured single-native-call limit and Lean heartbeat policy. An explicitly requested cutoff or
    actual execution failure is an incomplete inspection, not a mathematical
    rejection. Full endpoint fidelity and kernel trust checks still apply.
 
@@ -72,15 +71,24 @@ For library applications or representation conversions, follow the same
 Submitting the identical checked candidate reuses its exact hash-checked native
 result; this does not create a semantic review or a new PASS.
 
-An actual missing/changed interface or source premise returns to the affected
-boundary. A generator/tool defect is execution engineering; report the concrete
+The optional `proof_patches` object maps existing T IDs to replacement internal
+tactic bodies. It cannot create a missing node or change contract/plan/E/P or
+meaning-determining definitions. Native-check the complete patched proof bundle.
+Internal auxiliary lemmas may be proved inside those bodies; no new premise is
+allowed. Ordinary local body defects return to their owning authors; global
+proof connection is this author's responsibility.
+
+An actual frozen-interface or source-premise defect pauses for the user; no
+automatic unfreeze/rewrite is authorized. A generator/tool defect is execution engineering; report the concrete
 diagnostic and preserve the draft if it is outside the author's allowed edits.
 Do not report a source paper unavailable merely because a short log was cut,
 or call an unlocated name-format rejection a mathematical gap. No routine
 progress essay or periodic model continuation is required.
 
 Hand off only after **standalone assembly and mechanical inspection pass**.
-The independent reviewer then reads complete source/formal pairs and actual
-evidence under [Audit B](audit-b.md). It receives no author's suggested verdict.
+The machine validates frozen full E/P, relevant definitions and complete proof
+closure under [Audit B](audit-b.md). A proof-valid contract deviation instead
+requires actual B-final semantic review and warning-qualified delivery. It receives
+no author's suggested verdict; it cannot override invalid proof evidence.
 `ASSEMBLY-PASSED`, `AUDIT-B-MECHANICAL-PASSED` and a structurally accepted mapping
 are distinct from the actual final Audit B PASS.

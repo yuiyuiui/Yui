@@ -480,16 +480,20 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
             require(isinstance(audit[field], dict) and set(audit[field]) == expected, "AUDIT-COVERAGE", f"incomplete/extra {field}")
             for key, entry in audit[field].items():
                 review(entry, key, is_inference, key in sources and propositions[key]["kind"] == "external")
-        result.update({"audit_record_complete": True, "audit_receipt_valid": not unresolved,
-                       "current_standard_receipt_valid": current and not unresolved,
-                       "audit_status": "AUDIT-NOT-PASSED" if unresolved else (
+        independent=(audit['reviewer']['independent'] is True and audit['reviewer']['mode'] not in
+                     {'same_context_self_audit','unperformed','targeted_adjudication'} and
+                     audit['reviewer']['identity'].strip() not in {'','UNASSIGNED'})
+        result.update({"audit_record_complete": True, "audit_receipt_valid": independent and not unresolved,
+                       "current_standard_receipt_valid": current and independent and not unresolved,
+                       "independent_review_accepted":independent,
+                       "audit_status": "AUDIT-REVIEW-UNQUALIFIED" if not independent else "AUDIT-NOT-PASSED" if unresolved else (
                            "AUDIT-RECEIPT-VALID" if current else "LEGACY-AUDIT-RECEIPT-VALID"),
                        "unresolved_reviews": unresolved, "audit_format_version": audit["format_version"],
                        "reviewer": audit["reviewer"]})
         import source_qualification
         conditional,warnings=source_qualification.classify(unresolved,propositions,base)
-        result.update(current_conditional_receipt_valid=current and conditional,source_warnings=warnings)
-        if conditional:result['audit_status']='AUDIT-CONDITIONAL-PRIMARY-SOURCES-UNVERIFIED'
+        result.update(current_conditional_receipt_valid=current and independent and conditional,source_warnings=warnings)
+        if conditional and independent:result['audit_status']='AUDIT-CONDITIONAL-PRIMARY-SOURCES-UNVERIFIED'
         if current:
             notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
             result.update(background_policy=audit.get('background_policy'), background_notes=notes,

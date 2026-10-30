@@ -54,6 +54,9 @@ def parsers(commands):
         p=commands.add_parser(name,help='Inspect or explicitly resume one retained live error checkpoint; no model call')
         p.add_argument('run',type=Path)
         if name=='resume-error':p.add_argument('--incident',required=True)
+    p=commands.add_parser('final-decision',help='Apply an explicit user choice at a retained B-final nonpass')
+    p.add_argument('run',type=Path);p.add_argument('--incident',required=True)
+    p.add_argument('--action',choices=['deliver-actual','recheck','reset-translation'],required=True)
 
 
 def profiles(args):
@@ -128,6 +131,9 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command=='final-decision':
+        import fault_control
+        return fault_control.final_decision(args.run,args.incident,args.action)
     if args.command in {'errors','resume-error'}:
         import fault_control
         if args.command=='errors':return {'status':'ERROR_CHECKPOINTS','errors':fault_control.pending(args.run)}

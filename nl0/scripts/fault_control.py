@@ -26,7 +26,8 @@ import remote_retry
 VERSION = 'yui-fault-lifecycle-1'
 BLOCKERS = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT',
     'INPUT_CONFLICT','SOURCE_CHANGE_REQUIRES_USER','AUDIT_A_NONPASS','MATHEMATICAL_REVIEW_FAILED',
-    'REVIEW_UNVERIFIED','REVIEW_INCOMPLETE','PROOF_REPAIR_STALLED','REPAIR_UNCHANGED','REPAIR_CYCLE'}
+    'REVIEW_UNVERIFIED','REVIEW_INCOMPLETE','PROOF_REPAIR_STALLED','REPAIR_UNCHANGED','REPAIR_CYCLE',
+    'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','PROOF_REVIEW_REQUIRED'}
 SECRET = re.compile(r'(Bearer\s+)[^\s\"\']+|\bsk-[A-Za-z0-9_-]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', re.I)
 
 
@@ -142,12 +143,14 @@ class Gate:
                 'Controller logs: '+str(self.logs)+'\nResume: '+shlex.join(self.state['resume_command'])+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
+        if self.state.get('decisions'):
+            text+='\nExplicit user choices:\n'+'\n'.join(shlex.join(cmd) for cmd in self.state['decisions'].values())
         try:result = self.notify(self.owner(), text)
         except Exception as error:result = {'status':'PENDING', 'reason':redact(str(error))}
         self.state['notification'] = {**result, 'attempts':self.notification_attempts, 'at_utc':execution.now()}
         self.persist()
 
-    def pause(self, error, *, retries=0, resumable=True, checkpoint=None):
+    def pause(self, error, *, retries=0, resumable=True, checkpoint=None, decisions=()):
         """Block locally until an exact-incident resume or explicit cancellation."""
         incident = uuid.uuid4().hex
         details = ({'exception_type':type(error).__name__, 'message':str(error),
@@ -163,6 +166,12 @@ class Gate:
             'cleanup_authorized':False, 'notification':{'status':'PENDING'},
             'resume_command':[sys.executable, '-B', str(entry), 'resume-error', str(self.root), '--incident', incident],
             'cancel_command':[sys.executable, '-B', str(entry), 'cancel', str(self.root)]}
+        if decisions:
+            if resumable or set(decisions)!={'deliver-actual','recheck','reset-translation'}:
+                raise ValueError('Only the explicit B-final user decisions are supported')
+            self.state['decisions']={action:[sys.executable,'-B',str(entry),'final-decision',str(self.root),
+                '--incident',incident,'--action',action] for action in decisions}
+            self.state['resume_command']=[sys.executable,'-B',str(entry),'errors',str(self.root)]
         self.notification_attempts = 0
         self.persist();self.check_cancel();self.report()
         if self.recorder is not None:
@@ -175,6 +184,14 @@ class Gate:
             control = self.logs/'error-control'/(incident+'.json')
             try:request = json.loads(control.read_text()) if control.is_file() else {}
             except (OSError, ValueError):request = {}
+            if request.get('incident')==incident and request.get('action') in decisions:
+                validate_context(self.root,self.job_binding,self.requires_job)
+                self.state.update(state='USER_DECIDED',control=request,decided_at_utc=execution.now())
+                self.persist()
+                if self.recorder is not None and self.task:
+                    self.recorder.task(self.task,state='RUNNING',activity='USER_DECIDED')
+                    self.recorder.flush(force=True)
+                return self.state
             if request.get('incident') == incident and request.get('action') == 'resume' and resumable:
                 key=request.get('id') or json.dumps(request,sort_keys=True)
                 if key in seen_controls:
@@ -238,6 +255,23 @@ def resume(root, incident):
     path=Path(row['logs'])/'error-control'/(incident+'.json')
     execution.atomic(path, {'incident':incident, 'action':'resume', 'requested_at_utc':execution.now(), 'id':uuid.uuid4().hex})
     return {'status':'RESUME_REQUESTED', 'incident':incident, 'root':str(root)}
+
+
+def final_decision(root,incident,action):
+    """Request one human-selected B-final action; never decides mathematical truth."""
+    root=Path(root).resolve();matches=[r for r in pending(root) if r['incident']==incident]
+    if len(matches)!=1:raise ValueError('Select exactly one current B-final incident')
+    row=matches[0]
+    if action not in row.get('decisions',{}) or Path(row['root']).resolve()!=root:
+        raise ValueError('This checkpoint does not authorize that final decision')
+    logs=Path(row['logs']).resolve()
+    if not logs.is_relative_to(root) or not execution.same_process(row.get('owner_process',{})):
+        raise ValueError('Final decision owner has exited or changed')
+    validate_context(root,row.get('job_binding'),row.get('requires_job_binding',False))
+    path=logs/'error-control'/(incident+'.json')
+    if path.exists():raise ValueError('A decision was already requested for this incident')
+    execution.atomic(path,{'incident':incident,'action':action,'requested_at_utc':execution.now(),'id':uuid.uuid4().hex})
+    return {'status':'USER_DECISION_REQUESTED','incident':incident,'action':action,'root':str(root)}
 
 
 def cancel_paused(root):

@@ -71,9 +71,10 @@ Local Python retries recognized temporary service/network faults every 60seconds
 at most 10 times in the same carrier/thread. Other faults and exhausted retries
 enter a retained `PAUSED_ERROR`, notify the owner through local `codex queue`,
 and wait for an exact-incident operator action. An error never authorizes task
-termination or workspace deletion. Release NL0 resources only after actual
-Audit A/finalization, and translation resources after actual Audit B/finalization;
-explicit user cancellation is the other authorized cleanup boundary. Keep
+termination or workspace deletion. Release only the completed roles at the
+specified global-pass, all-local-pass, interface-freeze and final-delivery
+boundaries, after their bound handoffs are saved. Explicit user cancellation or
+a selected B-final user decision is a separate authority. Keep
 scientific evidence and the selected profile. A pause is nonterminal: never
 restart it or delete its monitor. Existing exited-run recovery is historical,
 not a substitute for live `resume-error` controls.
@@ -93,13 +94,15 @@ restores only the failed worker's own bound drafts; never use it to resample a
 mathematical nonpass or replace live work.
 
 Normal translation requires a separate independent semantic interface review
-before proof dispatch, in addition to final Audit B. Follow
-[proof diagnosis and reviewed repair](nl02lean/references/proof-repair.md):
-workers can report a structured located obstruction; three normally completed
-turns without a distinct check or relevant lookup retire only that proof round
-for serial diagnosis. Route actual local defects to own-draft repair, and paired
-source/interface mismatches to author correction and fresh independent review.
-No-progress repetition is not mathematical rejection or budget exhaustion.
+before freezing and proof dispatch. Normal final Audit B is machine-only: verify
+that actual E/P, their defining environment and complete proof dependencies still
+match that reviewed authority. Only a valid-proof/interface-drift exception opens
+an actual independent B-final model review, with warning-qualified delivery.
+Follow [proof diagnosis and reviewed repair](nl02lean/references/proof-repair.md).
+Local compiler defects return to their own author; explicit global proof-connection
+issues go to the serial connection author. It cannot change frozen E/P or their
+meaning-determining definitions. No fixed idle-turn threshold retires a round or
+cancels sibling jobs. Frozen-contract/source defects wait for the user.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor.
@@ -119,9 +122,11 @@ No-progress repetition is not mathematical rejection or budget exhaustion.
    [Audit B](nl02lean/references/audit-b.md). Operators use
    [execution and file-based control](nl02lean/references/execution-protocol.md)
    for parallel queues, status and stops; workers need only their frozen packet.
-   After local proofs complete, the serial postprocessing author follows
-   [assembly and source-facing export](nl02lean/references/assembly.md),
-   then hands actual checked evidence to a separate independent Audit B reviewer.
+   After local proofs complete, the controller first attempts mechanical
+   [assembly and source-facing export](nl02lean/references/assembly.md).
+   Use the serial connection author only for actual connection/library-discharge
+   repair. Normal final machine Audit B inherits the frozen semantic review;
+   B-final is reserved for proof-valid interface deviation.
    Use
    `nl02lean/scripts/source_preparation.py` for bounded shared extraction,
    then `workflow.py` for source/IR freeze, proof work and final gates.
@@ -147,10 +152,11 @@ No-progress repetition is not mathematical rejection or budget exhaustion.
 - Local conditional bodies may run concurrently. Assembly must discharge every
   internal dependency with an actual checked proof; conditional checks alone
   are not a final result.
-- Audit B checks every external E and the complete target P, including its
-  hypotheses, against actual Lean types and relevant definitions. Supply short
-  direct/equivalent correspondence explanations; an independent reviewer verifies
-  them. Check fresh Lean closure and trust, without a Mathlib-to-NL0 use ledger.
+- The independent pre-freeze review checks every E and complete P, including
+  hypotheses, quantifiers and relevant definitions. Final machine Audit B checks
+  actual exported full types and complete closure against that frozen authority.
+  Supply short direct/equivalent correspondence explanations. Check actual Lean
+  closure and trust, without a Mathlib-to-NL0 use ledger.
   Neither author notes nor a compiler pass are semantic approval.
 - Stop on a judged substantive mathematical gap. Ordinary expansion and local
   verifiable corrections remain allowed. Difficulty or elapsed time does not

@@ -6,6 +6,33 @@ import harness_support
 import audit_a_campaign as a
 import audit_reuse as reuse
 
+
+def synthetic_stage(directory, *, global_verdict='PASS', local_verdict='PASS'):
+    """Controller test data only; never an actual independent mathematical audit."""
+    directory=Path(directory);stage=directory/'stage';stage.mkdir(exist_ok=True)
+    row={'verdict':'PASS','notes':'SYNTHETIC controller judgment, not mathematical certification.',
+         'locations':['/inference/argument']}
+    if (directory/'packet.json').exists():
+        packet=a.nl0.load(directory/'packet.json')
+        raw={'inference':packet['inference']['id'],'packet_sha256':packet['packet_sha256'],
+             'verdict':local_verdict,'notes':row['notes'],
+             'checks':{key:{**row,'verdict':local_verdict} for key in a.nl0.CHECKS|a.nl0.closure.CLOSURE_CHECKS},'findings':[]}
+        docs={'packet.json':reuse.sha(directory/'packet.json')}
+    else:
+        raw={'target_review':{**row,'verdict':global_verdict,'locations':['spec.json#/full_target']},
+             'structure_review':{**row,'locations':['nl0.json#/inferences']},'definition_reviews':{},'source_reviews':{},'findings':[]}
+        selected=directory/'review-selection.json'
+        if selected.is_file():
+            scopes=a.nl0.load(selected)['required_scopes']
+            if 'target' not in scopes:raw.pop('target_review')
+            if 'structure' not in scopes:raw.pop('structure_review')
+        docs={name:reuse.sha(directory/name) for name in ['spec.json','nl0.json']}
+    exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}
+    result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':True},'exposure':exposure,'temporary_workspace_removed':True}
+    for name,value in [('accepted.json',raw),('result.json',result),('exposure-audit.json',exposure),
+                       ('execution-manifest.json',{'rule_documents':reuse.rules(),'task_documents':docs})]:a.write(stage/name,value)
+    return result,raw
+
 class AuditReuseFixture:
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)

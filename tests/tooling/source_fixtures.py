@@ -67,8 +67,8 @@ def synthetic_audit(graph,spec):
     base=Path(graph).parent;note=base/'TEST_ONLY_RECEIPT_SHAPE.txt'
     note.write_text('SYNTHETIC VALIDATOR CONTROL. No actual model replay or mathematical certification.\n')
     evidence=[{'path':note.name,'sha256':ir.digest(note)}]
-    audit['reviewer']={'identity':'TEST_ONLY_RECEIPT_SHAPE','mode':'same_context_self_audit','independent':False,
-                       'disclosure':'Synthetic validator input; does not establish that a real replay occurred.'}
+    audit['reviewer']={'identity':'TEST_ONLY_INDEPENDENCE_FIELD_CONTROL','mode':'external_review','independent':True,
+                       'disclosure':'Fabricated independence fields for a positive validator branch only; no actual review or certification occurred.'}
     for row in [audit['target_review'],*audit['definition_reviews'].values(),*audit['source_reviews'].values()]:
         row.update(verdict='PASS',notes='Synthetic receipt-shape regression only.',evidence=evidence)
     for rid,row in audit['inference_reviews'].items():
@@ -147,7 +147,7 @@ def interface(graph,spec,directory):
 def synthetic_interface_review(path):
     value=ir.load(path);note=Path(path).parent/'TEST_ONLY_INTERFACE_SHAPE.txt'
     note.write_text('SYNTHETIC INTERFACE RECEIPT FORMAT ONLY.\n')
-    value['reviewer']={'identity':'TEST_ONLY_RECEIPT_SHAPE','mode':'same_context_self_audit','independent':False,
-                       'disclosure':'Synthetic format fixture, not mathematical acceptance evidence.'}
+    value['reviewer']={'identity':'TEST_ONLY_INDEPENDENCE_FIELD_CONTROL','mode':'external_review','independent':True,
+                       'disclosure':'Fabricated independence fields for a positive validator branch only; not actual mathematical acceptance.'}
     for row in value['checks'].values():row.update(verdict='PASS',notes='Synthetic schema-control judgment only.')
     value['evidence']=[{'path':note.name,'sha256':ir.digest(note)}];ir.write(path,value)

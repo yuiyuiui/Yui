@@ -165,7 +165,7 @@ def select_proof_run(directory,selected):
     out=Path(directory).resolve();selected=Path(selected).resolve()
     ir.need(selected.is_relative_to(out) and selected!=out,'Proof selection must be owned by this workflow')
     manifest=bound(out)
-    ir.need(ir.load(selected/'report.json')['status']=='FRAGMENT_ASSEMBLED','Cannot select an unfinished proof round')
+    ir.need(ir.load(selected/'report.json')['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'},'Cannot select missing local proof bodies')
     for key in ['contract','plan']:
         ir.need(ir.digest(selected/f'inputs/{key}.json')==ir.digest(manifest[key]),'Selected proof interface differs from freeze')
     path=out/'proof-selection.json';ir.need(not path.exists(),'Preserve the existing proof selection')
@@ -205,7 +205,7 @@ def prepare_audit(directory):
     out = Path(directory).resolve(); manifest = bound(out)
     selected=proof_run(out)
     result = ir.load(selected/'report.json')
-    ir.need(result['status'] == 'FRAGMENT_ASSEMBLED', 'proof graph is unfinished')
+    ir.need(result['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}, 'proof graph is unfinished')
     cpath = selected/'inputs/contract.json'; ppath = selected/'inputs/plan.json'
     ir.need(ir.digest(cpath) == ir.digest(manifest['contract']) and ir.digest(ppath) == ir.digest(manifest['plan']),
             'proof run uses a different frozen interface or plan')
@@ -215,12 +215,16 @@ def prepare_audit(directory):
     return prepared
 
 
-def finish(directory, review):
+def finish(directory, review=None, *, machine=False, exceptional_review=None):
     out = Path(directory).resolve(); manifest = bound(out)
     selected=proof_run(out)
     ir.need(ir.digest(selected/'inputs/contract.json') == ir.digest(manifest['contract'])
             and ir.digest(selected/'inputs/plan.json') == ir.digest(manifest['plan']), 'proof/audit interface changed after freeze')
-    verdict = audit_b.check(out/'audit-b',Path(review).resolve())
+    if machine:
+        import final_acceptance
+        verdict=final_acceptance.finish(out,exceptional_review=exceptional_review)
+        review=verdict['receipt_path']
+    else:verdict = audit_b.check(out/'audit-b',Path(review).resolve())
     ir.need(verdict['status'] in {'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}, 'whole workflow requires whole-proof Audit B acceptance')
     proof = ir.load(selected/'report.json')
     review_path=Path(review).resolve()
@@ -258,6 +262,7 @@ def main():
         ap.add_argument('--'+name,type=Path)
     ap.add_argument('--max-concurrency',default='auto');ap.add_argument('--timeout-seconds',type=int,default=None)
     ap.add_argument('--task',help='Cancel only this recorded task; omission cancels the case run')
+    ap.add_argument('--machine',action='store_true',help='Final machine acceptance using actual frozen pre-proof semantic authority')
     ap.add_argument('--bank',action='store_true');args=ap.parse_args()
     try:
         if args.command=='cancel':result=execution_state.request_cancel(args.directory,args.task)
@@ -269,8 +274,10 @@ def main():
                           audit_a=args.audit_a,incremental=args.incremental,max_concurrency=args.max_concurrency,interface_binding=args.interface_binding)
         elif args.command=='run':result=run(args.directory,shared_store=args.shared_store,timeout_seconds=args.timeout_seconds,bank=args.bank)
         elif args.command=='audit-prepare':result=prepare_audit(args.directory)
-        elif args.command=='audit-build':bound(args.directory);result=audit_b.build(args.directory/'audit-b')
-        elif args.command=='audit-check':result=finish(args.directory,args.review)
+        elif args.command=='audit-build':
+            frozen=bound(args.directory)
+            result=audit_b.build(args.directory/'audit-b',frozen_contract=frozen['contract'] if frozen.get('interface_review') else None)
+        elif args.command=='audit-check':result=finish(args.directory,args.review,machine=args.machine)
         else:result={'status':bound(args.directory)['status'],'completed_report_present':(args.directory/'report.json').exists()}
         print(json.dumps(result,ensure_ascii=False,indent=2));return 0
     except (ValueError,KeyError,TypeError,OSError) as error:
