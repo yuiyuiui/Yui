@@ -40,7 +40,7 @@ synthetic inputs, environment-selected tools and explicit CLI overrides.
 | --- | --- |
 | Entry points, profiles, scheduling, owner handoffs, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_owner_observation`, `test_model_profiles`, `test_remote_retry`, `test_cleanup_tests` |
 | Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
-| Model isolation, task/proof state, transport health and usage accounting | `test_isolation`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
+| Model isolation, HTTP/SSE framing and error origin, native message readers, task/proof state and usage accounting | `test_isolation`, `test_relay_transport`, `test_carrier_reader`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
 | NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |
 | Global PASS admission, retained review/repair pairs, global restoration and combined active slots | `test_parallel_audit`, `test_nl0_review_loop`, `test_role_sessions` |
 | Accepted-source preparation, same-role revisions, actual native submit handoffs and user-selected reset | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy`, `test_workflow_handoffs`, `test_native_handoff`, `test_stage_completion`, `test_translation_reset` |
@@ -88,6 +88,34 @@ tests explicitly mock process creation, and native protocol tests explicitly
 replace launch with their deterministic loopback carrier. `test_offline_guard`
 checks that an unmocked public stage fails before relay/process/credential access,
 without entering the production retained-error wait.
+The same fail-fast guard blocks an unmocked real owner notification; dedicated
+notification tests must inject a notifier or mock the local queue command.
 7. Remove or merge a case only after identifying equivalent retained coverage.
    A lower test count is not a quality target. A passing count alone does not
    establish that every relevant failure mode is covered.
+
+## Controller transport regressions
+
+`tooling/relay_fixtures.py` connects the real Yui relay to a deterministic
+loopback HTTP server. It replaces only the upstream connection destination;
+the test still sends raw HTTP requests and reads actual wire bytes. The matrix
+covers ordinary and fragmented SSE, HTTP auth/quota/capacity/rejection statuses,
+pre-header failures, partial downstream headers, read timeouts, truncated chunks,
+local evidence failures, unexpected downstream disconnects, exact controller
+cancellation, missing/corrupt local model catalogs, finalization and explicit
+response closure. No test manufactures
+provider completion to conceal an interrupted stream.
+
+Retry regressions verify 30 consecutive retries at 60 seconds, retained pause
+after exhaustion, manual same-thread resume, cancellation during waits, genuine
+provider success inside a long failed native turn, and rejection of local catalog
+queries, failed/partial streams and old concurrent responses as reset evidence.
+Lifetime retry totals are retained independently of the consecutive incident.
+
+Native-reader tests make disk/JSON failures reach the waiting controller with
+their original cause. Role-session tests use two actual HTTP submissions through
+one retained relay. `test_native_handoff` additionally runs the installed local
+Codex client through that real relay to a synthetic Responses server: interruption,
+tool receipts and same-thread revisions are exercised together without credentials
+or any remote model. `observe` reports all-task `counts` and separate proof-only
+`proof_counts`; neither field is an audit-coverage certificate.

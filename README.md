@@ -230,7 +230,7 @@ live processes, changed evidence and unsupported partial checkpoints. See
 
 Local Python classifies service/transport errors separately from task completion.
 Recognized transient capacity, connection, timeout and interrupted-stream errors
-retry every 60seconds, at most 10 times, keeping the same thread, drafts and
+retry every 60seconds, at most 30 times, keeping the same thread, drafts and
 profile. Authorization, balance, quota, rejected-request and local/unknown faults
 pause immediately. Retry exhaustion also enters `PAUSED_ERROR`.
 

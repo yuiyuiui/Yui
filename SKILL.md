@@ -68,7 +68,7 @@ inputs unchanged, repair in the same worker, and recheck. General strategy-bank
 queries remain optional; this failure-triggered advice needs no extra model call.
 Follow [fault treatment and authorized exit](nl0/references/error-lifecycle.md).
 Local Python retries recognized temporary service/network faults every 60seconds,
-at most 10 times in the same carrier/thread. Other faults and exhausted retries
+at most 30 times in the same carrier/thread. Other faults and exhausted retries
 enter a retained `PAUSED_ERROR`, notify the owner through local `codex queue`,
 and wait for an exact-incident operator action. An error never authorizes task
 termination or workspace deletion. Release only the completed roles at the

@@ -60,3 +60,17 @@ def _offline_gate_pause(gate,*args,**kwargs):
 
 
 _faults.Gate.pause=_offline_gate_pause
+
+# Notification tests must mock the command explicitly. A missed error-path mock
+# must not enqueue a real user message, including when a test inherits an owner ID.
+_original_run=_subprocess.run
+_original_notification=_faults.queue_notification
+
+
+def _offline_notification(thread,message):
+    if thread and _subprocess.run is _original_run:
+        raise LiveModelAttemptBlocked('Software test attempted a real owner notification. Mock the local queue command or inject a notifier.')
+    return _original_notification(thread,message)
+
+
+_faults.queue_notification=_offline_notification

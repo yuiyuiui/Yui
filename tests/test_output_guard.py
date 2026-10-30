@@ -3,6 +3,7 @@ import harness_support
 import json
 from pathlib import Path
 import queue
+import threading
 import time
 import unittest
 from unittest.mock import Mock
@@ -59,6 +60,7 @@ class OutputGuardTests(unittest.TestCase):
     def test_output_limit_requires_actual_provider_terminal_evidence(self):
         for actual in [False,True]:
             t=Trial.__new__(Trial);t.allowed_user_messages=set();t.timeout=5;t.strict=True
+            t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
             t.thread_id='neutral-thread'
             t.accepted=None;t.turn_results=[];t.continuation_count=0
             t.pause_error=Mock(side_effect=RuntimeError('Retained software-control pause'))

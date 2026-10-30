@@ -1,6 +1,7 @@
 """Actual native client, deterministic loopback responses; no model or credentials."""
 import harness_support
 import http.server
+import http.client
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,8 @@ class NativeHandoffTests(unittest.TestCase):
     def test_two_submissions_reuse_actual_thread_without_post_submit_provider_calls(self):
         with tempfile.TemporaryDirectory(prefix='yui-native-control-') as raw:
             root=Path(raw);sessions=Sessions();servers=[];stages=[];calls=[];faults=[]
+            destination=[]
+            connection=http.client.HTTPConnection
 
             def start(stage):
                 class Handler(http.server.BaseHTTPRequestHandler):
@@ -30,7 +33,6 @@ class NativeHandoffTests(unittest.TestCase):
                     def do_POST(self):
                         try:
                             payload=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                            number=stage.reserve_request_number();stage.normalize_request(payload,request_number=number)
                             calls.append(stage.logs.name)
                             item={'id':'fc-'+str(len(calls)),'type':'function_call','call_id':'call-'+str(len(calls)),
                                   'name':'submit_draft','arguments':json.dumps({'artifact':{'round':len(calls)}}),'status':'completed'}
@@ -44,8 +46,6 @@ class NativeHandoffTests(unittest.TestCase):
                                 {'type':'response.output_item.done','output_index':0,'item':item},
                                 {'type':'response.completed','response':response}]
                             text=''.join('data: '+json.dumps(e)+'\n\n' for e in events)
-                            for event in events:stage.observe_model_event(event,number)
-                            (stage.logs/f'response-{number:04d}.sse').write_text(text)
                             self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
                             self.wfile.write(text.encode());self.wfile.flush();self.close_connection=True
                         except Exception as error:
@@ -55,9 +55,11 @@ class NativeHandoffTests(unittest.TestCase):
                             outputs=[item for item in payload.get('input',[]) if item.get('type')=='function_call_output']
                             faults.append(repr(error)+' outputs='+repr(outputs)[:600]+' unknown='+repr(unknown)[:400]);self.send_error(500)
                 server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
-                servers.append(server);stage.relay=server
+                servers.append(server);destination.append(server.server_port)
                 threading.Thread(target=server.serve_forever,daemon=True).start()
-                state=stage.work/'state';port=server.server_port
+                stage.network_proxy=None
+                port=stage.start_relay()
+                state=stage.work/'state'
                 (state/'config.toml').write_text(f'''model = "{stage.model}"
 model_provider = "pilot-relay"
 model_reasoning_effort = "high"
@@ -93,7 +95,8 @@ shell_snapshot = false
             def fail(stage,error,**kwargs):
                 raise RuntimeError('Local native protocol test failed; requests='+str(calls)+'; loopback errors='+repr(faults)+'; error='+str(error.get('message') if isinstance(error,dict) else error))
             try:
-                with patch.object(ArtifactStage,'start_process',start),patch.object(ArtifactStage,'pause_error',fail):
+                with patch.object(ArtifactStage,'start_process',start),patch.object(ArtifactStage,'pause_error',fail), \
+                        patch.object(http.client,'HTTPSConnection',side_effect=lambda *a,**k:connection('127.0.0.1',destination[-1],timeout=5)):
                     for n in (1,2):
                         stage=InterfaceStage(root/('round-'+str(n)),'Submit the fixture object through submit_draft. This is a software protocol test.',
                             phase='translation-source-preparation' if n==1 else 'interface-authoring',library=False)
@@ -107,6 +110,8 @@ shell_snapshot = false
                     second=json.loads((root/'round-2/result.json').read_text())
                     self.assertEqual(first['native_thread_id'],second['native_thread_id'])
                     self.assertEqual(second['exposure']['status'],'TRANSMITTED-EXPOSURE-CHECK-PASSED',second['exposure'])
+                    self.assertEqual(len(list(root.glob('round-*/response-0001.sse'))),2)
+                    self.assertFalse(list(root.rglob('relay-errors.jsonl')))
                     self.assertFalse(list(root.rglob('local-cancellations.jsonl')))
                     sessions.close_all('INTERFACE_FROZEN',[root/'round-2/accepted.json'])
             finally:

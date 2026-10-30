@@ -235,7 +235,7 @@ it is not a remote error. Authentication, billing/quota, unsupported settings,
 context/output limits, cancellation and local/provenance faults are not remote
 retries. An unclassified failure remains visible rather than guessed transient.
 
-Retry waits are exactly 60seconds, with at most 10 retries after the original
+Retry waits are exactly 60seconds, with at most 30 retries after the original
 failure. Carrier-level provider retries are disabled. Waiting requires no model
 call and remains cancellable. Nonretryable faults, unknown/local bugs and retry
 exhaustion enter `PAUSED_ERROR`, retaining the same processes, context, drafts

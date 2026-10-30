@@ -7,6 +7,7 @@ from pathlib import Path
 import queue
 import tempfile
 import time
+import threading
 import unittest
 from unittest.mock import Mock, patch
 
@@ -34,6 +35,8 @@ class RemoteRetryTests(unittest.TestCase):
         t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None
+        t.request_lock=threading.Lock()
+        t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
         t.tool_history={};t.model_calls={};t.inbox=queue.Queue();t.pending_turn_start_id=None
         t.last_turn_event=None;t.active_turn_id=None;t.check_argument_guard=Mock();t.execution=None
         t.pause_error=Mock(side_effect=RuntimeError('Explicit retained pause software fixture'))
@@ -63,12 +66,44 @@ class RemoteRetryTests(unittest.TestCase):
         self.assertEqual(t.rpc.call_args_list[1].args[1]['input'][0]['text'],run_pilot.CONTINUE_PROMPT)
         self.assertEqual(t.continuation_count,0);t.wait_remote_retry.assert_called_once()
 
-    def test_transient_retries_stop_at_ten_and_enter_pause(self):
-        t=self.turns([{'code':'server_is_overloaded'}]*16)
+    def test_transient_retries_stop_at_thirty_and_enter_pause(self):
+        t=self.turns([{'code':'server_is_overloaded'}]*36)
         with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task',smoke=True)
-        self.assertEqual(t.remote_retry_count,10)
-        self.assertEqual(t.rpc.call_count,11)
+        self.assertEqual(t.remote_retry_count,30)
+        self.assertEqual(t.rpc.call_count,31)
         t.pause_error.assert_called_once()
+
+    def test_complete_subresponses_reset_the_incident_inside_a_failed_native_turn(self):
+        from relay_fixtures import RelayFixture
+        with RelayFixture(self.root/'real-relay') as wire:
+            t=wire.stage;t.thread_id='same-isolated-thread'
+            t.pause_error=Mock(side_effect=RuntimeError('retained pause'))
+            t.wait_remote_retry=Mock()
+            t.rpc=Mock(side_effect=lambda *a,**k:{'turn':{'id':f'turn-{t.rpc.call_count}'}})
+            def with_progress(predicate,deadline):
+                # More total incidents than the limit, but every new failure is
+                # preceded by an actual completed response in this same turn.
+                wire.exchange()
+                result=terminal(t.rpc.call_count,{'code':'server_is_overloaded'} if t.rpc.call_count<=32 else None)
+                self.assertTrue(predicate(result));return result
+            t.receive_until=Mock(side_effect=with_progress)
+            t.solve_turns('Frozen task',smoke=True)
+            self.assertEqual(t.remote_retry_count,32)
+            self.assertTrue(all(call.args[0]==60 for call in t.wait_remote_retry.call_args_list))
+            t.pause_error.assert_not_called()
+
+    def test_nonmatching_success_cannot_reset_exhausted_incident(self):
+        for marker in ({'request_number':0,'turn_generation':1},
+                       {'request_number':12,'turn_generation':0}):
+            t=self.turns([{'code':'server_is_overloaded'}]*32)
+            receive=t.receive_until.side_effect
+            def stale_success(predicate,deadline):
+                t.api_calls+=1;t.last_response_success=marker
+                return receive(predicate,deadline)
+            t.receive_until.side_effect=stale_success
+            with self.subTest(marker=marker),self.assertRaisesRegex(RuntimeError,'retained pause'):
+                t.solve_turns('Frozen task',smoke=True)
+            self.assertEqual(t.remote_retry_count,30)
 
     def test_permanent_unknown_and_local_failures_do_not_retry(self):
         errors=[{'code':code} for code in ['invalid_request','insufficient_quota','usage_limit_exceeded',

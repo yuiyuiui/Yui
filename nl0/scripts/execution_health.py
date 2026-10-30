@@ -107,8 +107,12 @@ def inspect(directory):
     http=list(read_rows(root/'http.jsonl'))
     faults=[]
     for row in read_rows(root/'relay-errors.jsonl'):
-        faults.append({'kind':'RELAY_ERROR','request_number':row.get('request_number'),
-                       'details':row.get('error'),'at_utc':row.get('timestamp_utc')})
+        faults.append({'kind':'LOCAL_RELAY_ERROR' if row.get('category')=='harness_bug' else 'RELAY_ERROR',
+                       'request_number':row.get('request_number'), 'origin':row.get('origin'),
+                       'category':row.get('category'),'details':row.get('error'),'at_utc':row.get('timestamp_utc')})
+    for row in read_rows(root/'carrier-reader-errors.jsonl'):
+        faults.append({'kind':'CARRIER_READER_ERROR','details':row.get('message'),
+                       'at_utc':row.get('timestamp_utc')})
     for row in read_rows(root/'tools.jsonl'):
         if row.get('result',{}).get('infrastructure_error') is True:
             faults.append({'kind':'TOOL_SERVICE_ERROR','tool':row.get('tool'),
