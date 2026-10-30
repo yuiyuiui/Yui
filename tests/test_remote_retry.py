@@ -119,6 +119,19 @@ class RemoteRetryTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
             t.wait_remote_retry.assert_not_called()
 
+    def test_own_http_status_classifies_an_opaque_native_error_without_parsing_prose(self):
+        t=self.turns([{'codexErrorInfo':'other','message':'opaque native wrapper'}])
+        t.api_calls=2;t.last_http_response={'request_number':2,'status':400}
+        with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task',smoke=True)
+        self.assertEqual(retry.diagnose(t.pause_error.call_args.args[0])['category'],'model_request_rejected')
+        t.wait_remote_retry.assert_not_called()
+
+    def test_http_status_from_another_request_cannot_override_current_native_error(self):
+        t=self.turns([{'code':'network_error'}]);t.api_calls=2
+        t.last_http_response={'request_number':1,'status':403}
+        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(2))
+        self.assertEqual(t.remote_retry_count,1);t.pause_error.assert_not_called()
+
     def test_retry_classification_vetoes_auth_and_quota_even_with_server_status(self):
         for error in [
             {'code':'insufficient_quota','httpStatusCode':503},

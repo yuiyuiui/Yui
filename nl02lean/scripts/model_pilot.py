@@ -178,6 +178,7 @@ class Stage(carrier.Trial):
         self.native_turn_generation = 0
         self.request_turns = {}
         self.last_response_success = None
+        self.last_http_response = None
         self.inbox = queue.Queue()
         self.started = None
         self.allowed_user_messages = set()

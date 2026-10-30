@@ -13,6 +13,7 @@ or the correctness of any mathematical proof.
 | Retained-role reassignment discarded state still required by the live relay | The first real HTTP submission returned 200; the same role's second assignment returned a local 502 | Drain the prior response evidence, preserve the relay lock and initialize its next assignment's stream registry |
 | Owner summaries preferred a populated dictionary of all-zero proof counts over NL0 task counts | Active or paused review tasks appeared as zero running/paused tasks | Report all-task counts and proof-only counts as separate fields |
 | Local model-catalog errors were uncaught by the relay | Missing/corrupt cache closed the connection without structured evidence or a main-controller error | Apply the same one-response boundary and retained local-fault reporting to `/models`; local pre-header failures use 500, distinct from upstream connection failures using 502 |
+| Opaque native errors lost their actual rejected HTTP status | A real HTTP 400 was wrapped as `codexErrorInfo=other` and mislabeled `harness_bug` even though it paused correctly | Bind the relay's observed numeric status to its exact current request; use it for classification without parsing arbitrary error prose or using another request's status |
 
 An additional test-isolation defect allowed a missed notifier mock to enqueue a
 real front-end alert. Software tests now fail before that side effect unless
@@ -31,3 +32,9 @@ regressions were run before their production fixes. Loopback wire tests and the
 actual local native-client handoff complement state-machine unit tests; the
 complete unified suite still includes the existing native Lean/acceptance checks.
 No remote model or new mathematical benchmark is part of this repair validation.
+
+The later native fault-injection suite exercises a task that has already saved a
+real tool checkpoint before failure. It checks socket cuts, unavailable service,
+read timeout, capacity/auth/balance/quota/request errors, local evidence failure,
+30-retry pause, manual resume and cancellation through the actual client and
+controller. Clock and notification-test boundaries are explicit in README.md.

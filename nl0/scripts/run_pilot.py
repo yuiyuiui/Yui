@@ -191,6 +191,7 @@ class Trial:
         self.native_turn_generation = 0
         self.request_turns = {}
         self.last_response_success = None
+        self.last_http_response = None
         self.rpc_id = 0
         self.inbox: queue.Queue = queue.Queue()
         self.started: float | None = None
@@ -634,6 +635,9 @@ class Trial:
                     origin='upstream_headers'
                     response = upstream.getresponse()
                     origin='local_metadata'
+                    with trial.request_lock:
+                        if request_number==trial.api_calls:
+                            trial.last_http_response={'request_number':request_number,'status':response.status}
                     append(trial.logs / 'http.jsonl', {'status': response.status,
                         'request_id': response.getheader('x-request-id'), 'path': self.path,
                         'request_number': request_number,
@@ -1042,6 +1046,14 @@ tool_suggest = false
                 relay_failure=getattr(self,'last_relay_failure',None)
                 if relay_failure and relay_failure.get('request_number')==self.api_calls:
                     fault={**relay_failure['error'],'carrier_error':fault}
+                # Native clients may wrap a real rejected HTTP response as
+                # codexErrorInfo=other. Retain our own bound numeric evidence;
+                # never infer a status by matching arbitrary error prose.
+                response=getattr(self,'last_http_response',None)
+                if (response and response['request_number']==self.api_calls
+                        and not 200<=response['status']<300):
+                    fault={**(fault if isinstance(fault,dict) else {'message':str(fault)}),
+                        'http_status':response['status']}
                 reason=remote_retry.classify(fault)
                 if (reason and not getattr(self,'local_protocol_fault',None)
                         and not getattr(self,'non_remote_relay_fault',False)
