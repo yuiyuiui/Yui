@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock,patch
 
 from clean_stage import ArtifactStage
 import native_client
@@ -65,12 +65,69 @@ class NativeProtocolTests(unittest.TestCase):
     def test_known_native_error_envelopes_do_not_parse_arbitrary_http_prose(self):
         cases=[('stream disconnected before completion: idle timeout waiting for SSE','model_timeout'),
                ('stream disconnected before completion: Transport error: network error: error decoding response body','model_stream_interrupted'),
+               ('stream disconnected before completion: error sending request','model_transport'),
                ('Some quoted paper says HTTP 403 and timeout','model_unknown')]
         import remote_retry
         for text,category in cases:
             value={'codexErrorInfo':'other','message':text}
             self.assertEqual(remote_retry.diagnose(native_client.fault(value))['category'],category)
             self.assertNotIn('code',value)
+
+    def raw(self,item,turn='turn'):
+        return native_client.observe(self.stage,{'method':'rawResponseItem/completed',
+            'params':{'threadId':'thread','turnId':turn,'item':item}})
+
+    def host_fault(self):
+        self.raw({'type':'custom_tool_call','name':'exec','call_id':'code','input':'text(1);'})
+        self.raw({'type':'custom_tool_call_output','call_id':'code',
+            'output':'failed to spawn code-mode host /fixture/helper: Operation not permitted (os error 1)'})
+
+    def test_only_current_native_exec_failure_latches_and_completion_cannot_erase_it(self):
+        for kind,name,call,turn in [('message','exec','code','turn'),
+                ('custom_tool_call','not_exec','code','turn'),('custom_tool_call','exec','other','old')]:
+            self.raw({'type':kind,'name':name,'call_id':call,'input':'text(1);'},turn)
+            self.raw({'type':'custom_tool_call_output','call_id':call,
+                'output':'failed to spawn code-mode host /fixture/helper: denied'},turn)
+            self.assertFalse(getattr(self.stage,'native_infrastructure_fault',None))
+        self.host_fault();fault=self.stage.native_infrastructure_fault.copy()
+        native_client.observe(self.stage,{'method':'turn/completed','params':{
+            'threadId':'thread','turn':{'id':'turn','status':'completed'}}})
+        self.assertEqual(self.stage.native_infrastructure_fault,fault)
+        self.assertIsNone(self.stage.last_response_success)
+        self.assertEqual((fault['thread_id'],fault['turn_id'],fault['call_id']),('thread','turn','code'))
+
+    def test_host_fault_interrupt_is_once_and_failed_ack_is_reported_without_cleanup(self):
+        self.host_fault()
+        self.stage.interrupt_active_turn=Mock(side_effect=TimeoutError('no native acknowledgement'))
+        self.stage.pause_error=Mock(side_effect=RuntimeError('retained pause'))
+        for _ in range(2):
+            with self.assertRaisesRegex(RuntimeError,'retained pause'):self.stage.check_argument_guard()
+        self.stage.interrupt_active_turn.assert_called_once_with(reason='NATIVE_INFRASTRUCTURE_FAULT')
+        error=self.stage.pause_error.call_args.args[0]
+        self.assertIs(error['current_generation_stop_confirmed'],False)
+        self.assertIn('no native acknowledgement',error['interrupt_error'])
+        self.stage.proc.terminate.assert_not_called()
+
+    def test_host_fault_interrupt_does_not_dispatch_late_tool(self):
+        import time
+        self.host_fault();self.stage.dispatch=Mock();self.stage._stopping=True
+        self.stage.inbox.put({'id':10,'method':'item/tool/call','params':self.params()})
+        self.stage.inbox.put({'method':'turn/completed','params':{'threadId':'thread',
+            'turn':{'id':'turn','status':'interrupted'}}})
+        self.stage.receive_until(lambda m:m.get('method')=='turn/completed',time.monotonic()+2)
+        self.stage.dispatch.assert_not_called()
+        self.assertEqual(json.loads(self.stage.proc.stdin.getvalue())['error']['code'],-32800)
+
+    def test_explicit_typed_auth_code_is_not_replaced_by_transport_message(self):
+        error={'code':'invalid_api_key','codexErrorInfo':'other',
+            'message':'stream disconnected before completion: error sending request'}
+        self.assertEqual(native_client.fault(error),error)
+
+    def test_missing_native_helper_prevents_process_launch(self):
+        with patch('native_runtime.for_stage',side_effect=ValueError('Bound helper changed')), \
+                patch('subprocess.Popen') as launch:
+            with self.assertRaisesRegex(ValueError,'Bound helper changed'):self.stage.start_process()
+            launch.assert_not_called()
 
     def counter(self,total,baseline=None):
         return {'baseline':baseline or {},'token_usage':{'total':{

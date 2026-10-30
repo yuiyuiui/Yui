@@ -354,7 +354,9 @@ class Trial:
                 if not self.active_turn_id or turn_id==self.active_turn_id:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
-                if getattr(self,'submission_closed',False) and msg['params'].get('callId') not in self.tool_history or getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None) or getattr(self,'provider_wait_notice',None)):
+                if (getattr(self,'submission_closed',False) and msg['params'].get('callId') not in self.tool_history
+                        or getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None)
+                            or getattr(self,'provider_wait_notice',None) or getattr(self,'native_infrastructure_fault',None))):
                     # A completed call can race with the protective interrupt.
                     # Do not execute it after deciding to preserve an unfinished attempt.
                     self.proc.stdin.write(json.dumps({'id': msg['id'], 'error': {
@@ -372,6 +374,9 @@ class Trial:
                         'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
                 else:
                     result = self.dispatch(params['tool'], params['arguments'])
+                    self.completed_tool_calls=getattr(self,'completed_tool_calls',0)+1
+                    if execution:execution.task(self.execution_task,completed_tool_calls=self.completed_tool_calls,
+                        last_completed_tool=params['tool'],last_tool_completed_at_utc=now())
                 if result.get('infrastructure_error') is True:
                     self.pause_error({'code':'harness_bug','message':'Local tool failed; no automatic tool replay',
                         'tool':params['tool'],'feedback':result},resumable=False)
@@ -425,6 +430,17 @@ class Trial:
         reader_fault=getattr(self,'carrier_reader_fault',None)
         if reader_fault:raise RuntimeError('Local carrier message reader failed: '+json.dumps(reader_fault,ensure_ascii=False))
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
+        fault=getattr(self,'native_infrastructure_fault',None)
+        if fault:
+            if not getattr(self,'native_fault_interrupt_attempted',False):
+                self.native_fault_interrupt_attempted=True
+                try:
+                    self.interrupt_active_turn(reason='NATIVE_INFRASTRUCTURE_FAULT')
+                    fault['current_generation_stop_confirmed']=True
+                except Exception as error:
+                    fault['current_generation_stop_confirmed']=False
+                    fault['interrupt_error']=str(error)
+            self.pause_error(fault,resumable=False)
         local=getattr(self,'local_protocol_fault',None)
         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
         notice = getattr(self, 'output_guard_notice', None)
@@ -450,6 +466,8 @@ class Trial:
         # Never advertise or install a dormant raw-stream watchdog here.
         self.provider_wait_guard=None
         lock=load_lock()
+        from native_runtime import for_stage
+        for_stage(self.logs,lock['codex'])
         state=self.work/'state'
         for name in ('auth.json','models_cache.json'):
             source=__import__('runtime_config').auth_home()/name
@@ -461,6 +479,7 @@ class Trial:
         (self.logs/'native-client.json').write_text(json.dumps({
             'transport':native_client.TRANSPORT,'profile':self.model_selection,
             'config_sha256':hashlib.sha256(config.encode()).hexdigest(),
+            'native_components':lock['codex'],
             'role_system_sha256':hashlib.sha256(self.system.encode()).hexdigest(),
             'retry_scope':'Python retries failed native work requests; native request/stream retries configured to zero.',
             'network_owner':'official Codex client; no Yui relay'},indent=2)+'\n')
@@ -576,6 +595,8 @@ class Trial:
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError('本轮达到预先设置的时间限制。')
             self.continuation_count += 1
+            if getattr(self,'execution',None):
+                self.execution.task(self.execution_task,continuations=self.continuation_count)
             append(self.logs / 'controller.jsonl', {'event': 'continue_after_unaccepted_turn',
                 'continuation_number': self.continuation_count,
                 'previous_turn_id': turn.get('id'), 'prompt': continuation_prompt,

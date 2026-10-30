@@ -14,6 +14,8 @@ The full mathematical test cases/results are maintained separately.
 | --- | --- | --- |
 | Installed invocation and frozen runtime | test_job_entry.py, test_runtime_snapshot.py | Bind actual inputs/settings; no mutable installation drift or undeclared runtime files. |
 | Native configuration and isolation | test_native_protocol.py, test_model_profiles.py, test_isolation.py | Fixed requested profile, approved input/tool boundaries, no Yui model HTTP listener or endpoint rewriting. |
+| Selected native components | test_native_runtime.py | Same-installation helper discovery; missing, nonexecutable, escaping, version-mismatched or mutated components fail before dispatch. |
+| Actual Code Mode and local faults | test_native_code_mode.py, test_native_protocol.py | Real custom `exec` invokes the installed helper, reads frozen input, checks and submits; real helper spawn denial after a checkpoint pauses without continuation or cleanup. Printed lookalike errors remain ordinary output. |
 | Real native submission | test_native_client.py | Persist the artifact, stop the current work, confirm completion, preserve the role; delayed provider tails cause no synthetic relay fault or extra inference. |
 | Retained role and successful closure | test_native_client.py, test_role_sessions.py, test_stage_completion.py | Reuse the same process/thread; only the approved completed-role boundary or user cancellation releases it. |
 | Native-to-A collection | test_native_review_pipeline.py | Actual Codex processes, coverage contracts and collectors produce bound receipts; a global FAIL cannot dispatch local reviews. Judgments remain synthetic software fixtures. |
@@ -47,3 +49,18 @@ requirements are exercised through the native tests above.
 ## Native migration validation record (2026-10-31)
 
 Full discovery completed with 859 tests in V1 and 869 in V2. Subsequent affected-module regression completed with 179 tests per version, including the final native fault classification, usage and capability metadata changes. Two additional native-to-A collector integration tests per version passed afterward. Skill validation and diff checks are separate release checks. These numbers record this migration checkpoint; later additions may change discovery counts.
+
+## Code Mode execution repair validation (2026-10-31)
+
+The full suites passed: 883 tests in V1 and 893 in V2. The final affected native
+suite passed 63 tests per version after the last legacy-receipt compatibility
+assertion was added. These tests exercise actual custom `exec` calls through
+Codex's helper, real denied process execution, retained pause, remote failures
+before headers and during a response, and owned process-group cleanup. The
+existing controller/Lean regression still covers the complete workflow.
+
+Both versions also passed an isolated live-model input-read/check/submit test
+using gpt-6.1-sol/high with Standard requested and no fallback. This tests the
+production tool chain, not mathematical acceptance. Actual service tier remains
+unverified when the native client does not expose it. Compact evidence and log
+hashes are in [native-execution-validation.json](native-execution-validation.json).

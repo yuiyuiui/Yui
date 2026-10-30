@@ -37,7 +37,7 @@ class NativeFaultTests(unittest.TestCase):
                 self.assertEqual(len(f.calls),2);self.assertEqual(f.waits,[])
 
     def test_transient_capacity_and_stream_loss_continue_same_thread_without_duplicate_tool(self):
-        for failure in (503,429,'disconnect','timeout'):
+        for failure in (503,429,'before_headers','disconnect','timeout'):
             with self.subTest(failure=failure),tempfile.TemporaryDirectory() as root,NativeFaultFixture(root,failure) as f:
                 f.start();f.wait();self.assertEqual(f.outcomes[0][0]['status'],'ACCEPTED')
                 self.assertEqual(f.waits,[60]);self.assertEqual(len(f.calls),3);self.assert_checkpoint(f)

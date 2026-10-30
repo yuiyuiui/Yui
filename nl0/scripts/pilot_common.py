@@ -54,18 +54,23 @@ def sandbox_profile(work: Path) -> str:
 
 def transport_sandbox_profile(work: Path) -> str:
     """Restrict native Codex files/processes; Codex owns outbound model connections."""
-    binary = Path(load_lock()['codex']['binary_path']).resolve()
-    roots = [binary.parent, work.resolve()]
+    native=load_lock()['codex']
+    binary = Path(native['binary_path']).resolve()
+    helper=Path(native['code_mode_host']['path']).resolve()
+    roots = [binary.parent,helper.parent,work.resolve()]
     read = ' '.join('(subpath ' + json.dumps(str(p)) + ')' for p in roots)
     parents = {str(q) for p in roots for q in p.parents}
     parents.update(['/', '/usr', '/private', '/private/var', '/private/var/db'])
     read += ' ' + ' '.join('(literal ' + json.dumps(q) + ')' for q in sorted(parents))
+    if native.get('package_manifest'):
+        read += ' (literal '+json.dumps(native['package_manifest']['path'])+')'
     write = ' '.join('(subpath ' + json.dumps(str((work / name).resolve())) + ')'
                      for name in ['state', 'home', 'tmp'])
     return '\n'.join([
         '(version 1)', '(allow default)',
         '(deny network-inbound)', '(deny network-bind)',
-        '(deny process-exec (require-not (literal ' + json.dumps(str(binary)) + ')))',
+        '(deny process-exec (require-not (require-any (literal ' + json.dumps(str(binary)) + ') '
+        '(literal '+json.dumps(str(helper))+'))))',
         '(deny file-read-data (require-not (require-any (subpath "/System") '
         '(subpath "/usr/lib") (subpath "/usr/share") (subpath "/private/var/db/dyld") (subpath "/private/etc/ssl") '
         '(literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom") '

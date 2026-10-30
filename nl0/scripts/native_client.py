@@ -91,12 +91,14 @@ def fault(error):
     """
     if not isinstance(error,dict):return error
     value=dict(error)
-    if value.get('codexErrorInfo')=='other':
+    if value.get('codexErrorInfo')=='other' and not value.get('code'):
         text=value.get('message','')
         if text.startswith('stream disconnected before completion: idle timeout waiting for SSE'):
             value['code']='request_timeout'
         elif text.startswith('stream disconnected before completion: Transport error: network error:'):
             value['code']='response_stream_disconnected'
+        elif text=='stream disconnected before completion: error sending request' or text.startswith('stream disconnected before completion: error sending request:'):
+            value['code']='network_error'
         elif not value.get('code'):value['code']='native_unknown_error'
     return value
 
@@ -115,6 +117,22 @@ def observe(stage, message):
         raise PermissionError('Native model reroute differs from the selected model')
     if method=='rawResponseItem/completed':
         item=params.get('item',{})
+        if item.get('type')=='custom_tool_call' and item.get('name')=='exec':
+            if not hasattr(stage,'native_code_calls'):stage.native_code_calls={}
+            stage.native_code_calls[item.get('call_id')]={'turn_id':turn,'tool':'exec'}
+        if item.get('type')=='custom_tool_call_output':
+            origin=getattr(stage,'native_code_calls',{}).get(item.get('call_id'))
+            output=item.get('output')
+            # This is a native host-start error for a known actual exec call,
+            # not prose supplied by an author, paper or Yui validation tool.
+            if (origin and origin['turn_id']==turn and isinstance(output,str)
+                    and output.startswith('failed to spawn code-mode host ')):
+                error={'code':'harness_bug','origin':'native_code_mode_host',
+                    'message':output,'thread_id':thread,'turn_id':turn,'call_id':item.get('call_id')}
+                if not getattr(stage,'native_infrastructure_fault',None):
+                    stage.native_infrastructure_fault=error
+                    append(stage,'native-errors.jsonl',{'thread_id':thread,'turn_id':turn,
+                        'error':error,'native_will_retry':False})
         if item.get('type')=='function_call':
             call=item.get('call_id')
             previous=stage.model_calls.get(call)
@@ -146,7 +164,7 @@ def observe(stage, message):
         value=params.get('turn',{})
         if value.get('status')=='failed':
             append(stage,'native-errors.jsonl',{'thread_id':thread,'turn_id':turn,'error':fault(value.get('error'))})
-        elif value.get('status')=='completed':
+        elif value.get('status')=='completed' and not getattr(stage,'native_infrastructure_fault',None):
             stage.last_response_success={'request_number':stage.api_calls,
                 'turn_generation':stage.native_turn_generation,'source':'native_completed_turn'}
     return True
@@ -209,6 +227,9 @@ def audit(directory):
                 if not path.is_relative_to((root/'harness-snapshot').resolve()) or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:errors.append('role_rule_changed')
             except OSError:errors.append('role_rule_changed')
         if bound.get('model_selection')!=profile:errors.append('manifest_profile_changed')
+        declared_native=bound.get('resolved_environment',{}).get('codex')
+        if declared_native and 'code_mode_host' in declared_native and data.get('native_components')!=declared_native:
+            errors.append('native_components_changed')
         shared=bound.get('acceptance_contract')
         if bound.get('arm')=='yui' and (bound.get('artifact_contract')=='nl0' or bound.get('phase','').startswith('audit-a')) and not shared:errors.append('shared_acceptance_authority_missing')
         if shared:

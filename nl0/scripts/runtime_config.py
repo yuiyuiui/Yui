@@ -106,8 +106,8 @@ def load_lock():
     lock['lean']['local_path'] = str(lean)
     lock['mathlib']['local_path'] = str(ml)
     lock['lean']['binary_sha256'] = digest(lean / 'bin/lean')
-    lock['codex'] = {'binary_path': str(codex), 'sha256': digest(codex),
-                     'version': subprocess.check_output([str(codex), '--version'], text=True).strip()}
+    from native_runtime import resolve
+    lock['codex'] = resolve(codex,subprocess.check_output([str(codex), '--version'], text=True).strip())
     lock['tools'] = {'ripgrep': {'binary_path': str(rg), 'sha256': digest(rg)},
                      'python': {'binary_path': sys.executable}}
     return lock

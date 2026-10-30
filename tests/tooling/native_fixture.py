@@ -17,13 +17,13 @@ import execution_state
 
 
 class NativeFixture:
-    def __init__(self, root, *, tail_delay=0, responder=None, validator=None):
+    def __init__(self, root, *, tail_delay=0, responder=None, validator=None, inputs=None):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
         self.auth=self.root/'empty-auth';self.auth.mkdir()
         self.calls=[];self.call_times=[];self.failures=[];self.outcomes=[];self.exceptions=[];self.notifications=[]
         self.stack=ExitStack();self.tail_delay=tail_delay;self.responder=responder
         self.stage=ArtifactStage(self.root/'stage','Submit the synthetic fixture object using submit_draft.',
-            phase='control',library=False,validator=validator)
+            phase='control',library=False,validator=validator,inputs=inputs)
         (self.stage.logs/'owner-context.json').write_text('{"thread_id":"synthetic-native-owner"}')
         self.recorder=execution_state.Recorder(self.root/'case','synthetic-native',{})
         fixture=self
@@ -45,12 +45,22 @@ class NativeFixture:
     def tool(self, handler, number, name, artifact):
         item={'id':f'item-{number}','call_id':f'call-{number}','type':'function_call','name':name,
               'arguments':json.dumps({'artifact':artifact}),'status':'completed'}
+        self.respond_item(handler,number,item)
+
+    def code(self, handler, number, code):
+        item={'id':f'item-{number}','call_id':f'call-{number}','type':'custom_tool_call',
+              'name':'exec','input':code,'status':'completed'}
+        self.respond_item(handler,number,item)
+
+    def respond_item(self, handler, number, item):
+        custom=item['type']=='custom_tool_call';field='input' if custom else 'arguments'
+        delta_type='response.custom_tool_call_input' if custom else 'response.function_call_arguments'
         response={'id':f'resp-{number}','object':'response','model':self.stage.model,'status':'completed',
             'output':[item],'service_tier':'default','usage':{'input_tokens':2,'output_tokens':1,'total_tokens':3}}
         events=[{'type':'response.created','response':{**response,'status':'in_progress','output':[]}},
-            {'type':'response.output_item.added','output_index':0,'item':{**item,'arguments':'','status':'in_progress'}},
-            {'type':'response.function_call_arguments.delta','item_id':item['id'],'output_index':0,'delta':item['arguments']},
-            {'type':'response.function_call_arguments.done','item_id':item['id'],'output_index':0,'arguments':item['arguments']},
+            {'type':'response.output_item.added','output_index':0,'item':{**item,field:'','status':'in_progress'}},
+            {'type':delta_type+'.delta','item_id':item['id'],'output_index':0,'delta':item[field]},
+            {'type':delta_type+'.done','item_id':item['id'],'output_index':0,field:item[field]},
             {'type':'response.output_item.done','output_index':0,'item':item},
             {'type':'response.completed','response':response}]
         handler.send_response(200);handler.send_header('Content-Type','text/event-stream')
@@ -102,6 +112,7 @@ class NativeFixture:
 
     def __exit__(self,*args):
         try:
+            pgid=self.stage.proc.pid if self.stage.proc else None
             worker=getattr(self,'worker',None)
             if worker and worker.is_alive():
                 path=self.stage.logs/'error-state.json'
@@ -111,6 +122,15 @@ class NativeFixture:
             if self.stage.work.exists():self.stage.release_resources('USER_CANCELLED')
             if worker and worker.is_alive():raise AssertionError('Test controller survived cancellation')
             if self.stage.proc and self.stage.proc.poll() is None:raise AssertionError('Test native process survived cleanup')
+            if pgid:
+                # Code Mode creates a child process not visible in Popen. Check
+                # the entire owned group after releasing its native parent.
+                def members():
+                    rows=subprocess.check_output(['ps','-axo','pid=,pgid='],text=True).splitlines()
+                    return [int(row.split()[0]) for row in rows if len(row.split())==2 and int(row.split()[1])==pgid]
+                end=time.monotonic()+2
+                while members() and time.monotonic()<end:time.sleep(.02)
+                if members():raise AssertionError('Test native/helper process group survived cleanup')
         finally:
             self.recorder.close('CANCELLED');self.server.shutdown();self.server.server_close()
             self.server_thread.join(2);self.stack.close()

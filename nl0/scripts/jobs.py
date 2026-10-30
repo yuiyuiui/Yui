@@ -126,6 +126,8 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
              'time_budget_seconds':time_budget_seconds,'runtime':runtime,
              'runtime_snapshot':snapshot,'library_catalog':catalog_binding}
+        from runtime_config import load_lock
+        job['native_components']=load_lock()['codex']
         if target:job['target_selection']=target
         if resume:
             job['resume']=resume
@@ -149,8 +151,12 @@ def validate(job, *, verify_runtime=True):
     if 'library_catalog' in job:expected.add('library_catalog')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
+    if 'native_components' in job:expected.add('native_components')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
+    if 'native_components' in job:
+        from native_runtime import verify
+        verify(job['native_components'])
     from runtime_config import time_limit
     import concurrency
     time_limit(job['time_budget_seconds']);concurrency.resolve(job['max_concurrency'])
