@@ -35,7 +35,7 @@ def package(cpath, ppath, out):
     return inputs/'contract.json', ir.load(inputs/'plan.json')
 
 
-def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None, repair_guidance=None, reviewed_interface=None):
+def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None, repair_guidance=None, reviewed_interface=None,sessions=None):
     timeout_seconds = __import__('runtime_config').time_limit(timeout_seconds)
     ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
     ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
@@ -63,7 +63,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
         with execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():
             return _run_frozen(cpath,plan,out,shared_store,configuration,worker_budget=budget,
                 timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder,prior_run=prior_run,
-                repair_guidance=repair_guidance,reviewed_interface=reviewed_interface)
+                repair_guidance=repair_guidance,reviewed_interface=reviewed_interface,sessions=sessions)
     finally:
         if owns_recorder:
             status=recorder.state.get('proof_result','EXECUTION_FAULT')
@@ -77,7 +77,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
                 except execution_state.Cancelled:recorder.close('CANCELLED')
 
 
-def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None):
+def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None,sessions=None):
     budget=worker_budget
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(pilot.__file__),Path(scheduler.__file__),
@@ -100,7 +100,8 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              'script_sha256':{p.name:ir.digest(p) for p in files},
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
-    repair_control=proof_repair.RoundControl() if arm=='yui' else None
+    # An explicit node obstruction does not cancel its siblings or queued jobs.
+    repair_control=None
     def worker(sid, packet):
         if repair_control:repair_control.check()
         cached=None;checked=None
@@ -128,13 +129,15 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
             stage.system+='\nSerial diagnostic handoff for this own obligation (advice, never a premise):\n'+__import__('json').dumps(guidance,ensure_ascii=False)
             ir.write(stage.logs/'repair-guidance.json',guidance)
         stage.harness_version = pilot.HARNESS
-        result, proof = stage.execute()
+        if sessions:
+            with sessions.use('lean:'+sid):result,proof=stage.execute()
+        else:result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
     result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder,
                                    repair_control=repair_control)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
-    if result['status'] == 'FRAGMENT_ASSEMBLED':
+    if result['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
         ir.write(out/'proofs.json', {'contract_sha256': ir.digest(cpath), 'plan_sha256': ir.digest(out/'inputs/plan.json'), 'proofs': result['proofs']})
     ir.write(out/'report.json',result)
     from usage import aggregate

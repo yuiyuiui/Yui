@@ -149,8 +149,7 @@ class Stage(carrier.Trial):
                     ['layer','explanation','locations','candidates']))
                 self.system+=(' If the fixed interface or source appears inconsistent, report_proof_obstruction '
                     'with located actual evidence instead of silently changing it or repeating a blocker. '
-                    'After three completed turns with no distinct check or relevant lookup, the controller '
-                    'retires this proof round for serial diagnosis; this is not a mathematical rejection or time budget.')
+                    'The controller routes the reported issue; it does not change frozen endpoints or retire sibling work on an idle-turn counter.')
         self.background_note_policy = None
         if (mode == 'proof' and instruction_arm == 'yui'
                 and ir.local_packet(self.cpath, plan, step).get('accepted_background_notes')):
@@ -321,17 +320,10 @@ class Stage(carrier.Trial):
         if progress is None:return False
         recorder=getattr(self,'execution',None)
         if recorder:recorder.check(self.execution_task)
-        stalled=progress.completed_turn()
+        progress.completed_turn()
         ir.write(self.logs/'proof-progress.json',progress.metadata())
         if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
-        if not stalled:return False
-        candidates=[{'kind':kind,'candidate':number} for kind,rows in self.own_lean_drafts.items()
-                    for number in sorted(rows)[-3:] if isinstance(rows[number].get('check'),dict)]
-        report=proof_repair.obstruction(self,{'layer':'unknown',
-            'explanation':'Three normally completed turns produced no distinct check or relevant lookup. Diagnose the located obligation and retained actual attempts before further continuation.',
-            'locations':['/target','/inputs','/source_steps'],'candidates':candidates},automatic=True)
-        self.request_proof_repair(report)
-        return True
+        return False
 
     def check_argument_guard(self):
         super().check_argument_guard()
@@ -382,9 +374,16 @@ class Stage(carrier.Trial):
                            'packet':self.proof_packet()},ensure_ascii=False)
 
     def execute(self):
+        from role_sessions import current
+        session=current()
+        if session and not getattr(self,'_role_dispatching',False):
+            return session[0].execute(self,session[1])
         self.execution=getattr(self.budget,'execution',None) or execution.current()[0]
         self.execution_task=execution.current()[1] or self.step or 'stage-'+hashlib.sha256(str(self.logs).encode()).hexdigest()[:12]
         recorder=self.execution
+        if recorder and getattr(self,'role_session',None):
+            recorder.task(self.execution_task,state='PENDING',finished_at_utc=None,stage_result=None,
+                role_session=self.role_session)
         if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_MODEL_SLOT',log_path=str(self.logs),stage=self.mode,
             role=getattr(self.budget,'role',None) or ('proof' if self.mode=='proof' else 'preparation_review'),model=self.model,
             model_selection=self.model_selection)
@@ -425,8 +424,15 @@ class Stage(carrier.Trial):
         return result,None
 
     def release_resources(self, authorization):
-        if authorization not in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED'}:
+        if authorization not in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}:
             raise ValueError('Faults do not authorize process/workspace cleanup')
+        if authorization=='ROLE_COMPLETED':
+            from role_sessions import BOUNDARIES
+            record=ir.load(self.logs/'role-completion.json')
+            if record['boundary'] not in BOUNDARIES or not record['evidence']:
+                raise ValueError('Missing successful role boundary')
+            for row in [record['submission'],*record['evidence']]:
+                if ir.digest(row['path'])!=row['sha256']:raise ValueError('Role completion evidence changed')
         if authorization=='AUDIT_A_FINALIZED' and not self.mode.startswith(('nl0-','audit-a')):
             raise ValueError('Audit A cannot authorize release of translation/proof resources before Audit B')
         if getattr(self,'_resources_released',False):return
@@ -453,9 +459,10 @@ class Stage(carrier.Trial):
         retained=getattr(self,'workspace_retention',None)
         if self.work.exists():shutil.rmtree(self.work)
         if retained and (self.logs/'result.json').is_file():
-            ir.write(self.logs/'resources/release.json',{
+            owner_logs=Path(retained['logs'])
+            ir.write(owner_logs/'resources/release.json',{
                 'authorization':authorization,'workspace_retention':retained,
-                'result_sha256':sha256(self.logs/'result.json'),'cleanup_confirmed':True,
+                'result_sha256':sha256(owner_logs/'result.json'),'cleanup_confirmed':True,
                 'at_utc':carrier.now()})
         self._resources_released=True
 
@@ -491,6 +498,7 @@ class Stage(carrier.Trial):
         (self.logs/'system.txt').write_text(self.system+'\n')
         ir.write(self.logs/'tools.json',self.tools)
         result = {'mode':self.mode,'step':self.step,'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],
+                  'stage_log_path':str(self.logs.resolve()),
                   'native_timeout_policy':self.timeout_policy_metadata(),
                   'background_note_policy':self.background_note_policy,
                   'output_verbosity':getattr(self,'output_verbosity','low'),
@@ -502,15 +510,20 @@ class Stage(carrier.Trial):
         result['acceptance_scope'] = (('NL0_STRUCTURE_ONLY' if self.artifact_kind=='nl0' else 'JSON_ARTIFACT_ONLY')
             if hasattr(self,'artifact_kind') else 'LEAN_LOCAL_OBLIGATION_OR_TYPED_INTERFACE')
         try:
-            self.start_process()
-            inventory = self.rpc('skills/list',{'cwds':[str(self.work/'input')],'forceReload':True})
-            ir.write(self.logs/'skills-inventory.json',inventory)
-            thread = self.rpc('thread/start',{'model':self.model,'modelProvider':'pilot-relay',
+            if self.proc is None:
+                self.start_process()
+                inventory = self.rpc('skills/list',{'cwds':[str(self.work/'input')],'forceReload':True})
+                ir.write(self.logs/'skills-inventory.json',inventory)
+                thread = self.rpc('thread/start',{'model':self.model,'modelProvider':'pilot-relay',
                 'allowProviderModelFallback':False,'ephemeral':True,'cwd':str(self.work/'input'),
                 'approvalPolicy':'never','sandbox':'read-only','baseInstructions':self.system,
-                'developerInstructions':'','dynamicTools':self.tools,'environments':[],
+                'developerInstructions':'','dynamicTools':getattr(self,'native_tools',self.tools),'environments':[],
                 'experimentalRawEvents':True})
-            self.thread_id = thread['thread']['id']
+                self.thread_id = thread['thread']['id']
+            elif self.proc.poll() is not None:
+                raise RuntimeError('Retained role carrier exited; preserve its checkpoint, do not restart silently')
+            result['role_session']=getattr(self,'role_session',None)
+            result['native_thread_id']=self.thread_id
             if getattr(self,'execution',None):
                 self.execution.task(self.execution_task,state='RUNNING',activity='MODEL_RUNNING',
                     model_started_at_utc=execution.now(),model_thread_id=self.thread_id)
@@ -635,7 +648,7 @@ class Stage(carrier.Trial):
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and not result['identity_and_input_boundary_verified']:
                 result['task_outcome']='UNFINISHED_ATTRIBUTION_UNVERIFIED'
             from run_resources import retention
-            self.workspace_retention=retention(self.work,self.logs)
+            self.workspace_retention=retention(self.work,getattr(self,'workspace_owner_logs',self.logs))
             result.update(temporary_workspace_removed=False,workspace_retention=self.workspace_retention)
             recorder=getattr(self,'execution',None)
             if recorder:
@@ -647,6 +660,10 @@ class Stage(carrier.Trial):
                 values={'activity':'STAGE_FINISHED','stage_result':{k:result.get(k) for k in
                     ['status','task_outcome','execution_health','acceptance_scope']},'usage_ledger':str(self.logs/'usage.json')}
                 if self.step is None:values.update(state='CANCELLED' if result['status']=='CANCELLED' else 'FINISHED',finished_at_utc=execution.now())
+                if getattr(self,'role_session',None):
+                    values['role_state']='WAITING_FOR_FEEDBACK' if result['status']=='ACCEPTED' else result['status']
+                    if self.step is None and result['status']=='ACCEPTED':
+                        values.update(state='WAITING_REVIEW',activity='ASSIGNMENT_SUBMITTED',finished_at_utc=None)
                 self.execution.task(self.execution_task,**values);self.execution.flush(force=True)
             if result.get('status')=='CANCELLED':self.release_resources('USER_CANCELLED')
         return result,self.accepted

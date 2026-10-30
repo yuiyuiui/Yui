@@ -9,6 +9,7 @@ import threading
 import time
 import unittest
 import shutil
+from audit_a_fixtures import synthetic_stage
 from unittest.mock import patch
 import audit_a_campaign as campaign
 import concurrency
@@ -32,7 +33,7 @@ class ParallelAuditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'serial'):
                 ArtifactStage(root/'bad','Synthetic.',phase='audit-a-global',budget=local)
 
-    def exercise(self,n,failed=None):
+    def exercise(self,n,failed=None,global_verdict='PASS'):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=Path(temp.name)
         case=harness_support.CORE/'tests/fixtures/closed-addition';out=root/'audit'
         campaign.prepare(case,case,out)
@@ -40,7 +41,7 @@ class ParallelAuditTests(unittest.TestCase):
         local=concurrency.Budget(concurrency.resolve(n),role='audit_r')
         events=[];lock=threading.Lock();barrier=threading.Barrier(2) if n>1 else None
         class Stage:
-            def __init__(self,logs,prompt,**kwargs):self.name=logs.parent.name;self.budget=kwargs['budget']
+            def __init__(self,logs,prompt,**kwargs):self.name=logs.parent.name;self.budget=kwargs['budget'];self.directory=logs.parent
             def execute(self):
                 with self.budget:
                     with lock:events.append(('start',self.name,model_profile('audit-a-packet-replay')['id']))
@@ -48,7 +49,7 @@ class ParallelAuditTests(unittest.TestCase):
                     time.sleep(.015)
                     if self.name==failed:raise RuntimeError('Controlled stage fault')
                     with lock:events.append(('end',self.name,None))
-                return {'status':'ACCEPTED'},{'synthetic':True}
+                return synthetic_stage(self.directory,global_verdict=global_verdict)
         with use_profiles(PROFILES),patch.object(campaign,'ArtifactStage',Stage):
             if failed:
                 with self.assertRaisesRegex(RuntimeError,'Controlled'):campaign.run(out,budget=serial,audit_budget=local)
@@ -92,7 +93,7 @@ class ParallelAuditTests(unittest.TestCase):
             def execute(stage):
                 try:
                     if stage.mode=='audit-a-packet-replay':barrier.wait(timeout=3)
-                    return {'status':'ACCEPTED'},{'synthetic':True}
+                    return synthetic_stage(stage.logs.parent)
                 finally:shutil.rmtree(stage.work)
             try:
                 with execution_state.activate(recorder),use_profiles(PROFILES),patch.object(ArtifactStage,'_execute',execute):
@@ -114,6 +115,12 @@ class ParallelAuditTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError,'cannot overlap'):
                             with lane:pass
             finally:recorder.close('TEST_FINISHED')
+
+    def test_complete_global_fail_dispatches_no_local_workers(self):
+        events,report=self.exercise(3,global_verdict='FAIL')
+        self.assertEqual([r['id'] for r in report['results']],['global'])
+        self.assertEqual(report['r_concurrency']['observed_peak_model_stages'],0)
+        self.assertEqual([e[1] for e in events],['global','global'])
 
 
 if __name__=='__main__':unittest.main()

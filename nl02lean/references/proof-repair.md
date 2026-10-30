@@ -1,89 +1,99 @@
-# Proof progress, diagnosis and reviewed repair
+# Retained authors, immutable interfaces and proof repair
 
-This protocol applies to the normal Yui controller. It is generic: no domain,
-particular theorem, historical node ID or notation activates a repair. The
-direct arm receives none of these Yui instructions or escalation tools.
+This protocol is generic. No domain, historical node ID or particular notation
+activates a repair. Task names below describe responsibilities, not a new ID scheme.
 
-## Before proof dispatch
+## Preprocessing author and independent reviewer
 
-After interface authoring and actual type checks, a separate clean reviewer
-compares accepted NL0 with the complete proposed contract/plan. Check definitions,
-domains, binders, quantifiers, hypothesis/conclusion direction, library parameter
-and index meanings, coercions, nonvacuous domains, and every external E and full
-target P. Read actual definitions in the pinned library instead of guessing from
-notation. A well-typed encoding may still strengthen or weaken the mathematics.
+The controller verifies actual accepted NL0/A authority, then retains one author
+through optional shared extraction and interface construction. A no-change decision
+skips incremental review. A changed source gets actual producer/substitution review
+by the separate retained preprocessing reviewer. Located failures return to that
+same author; changed candidates return to that same reviewer. Operational faults
+pause rather than masquerading as mathematical revision requests.
 
-The normal full/translation entry requires a complete actual independent,
-hash-bound passing interface receipt before freezing proof packets. A failed
-located review returns to the same serial interface-author responsibility with
-its own prior proposal and actual findings. Changed types get new type checks
-and a fresh independent review. An unchanged rejected proposal cannot trigger
-another review. The reviewer does not see the author's repair history or old
-judgments. This gate reduces early semantic mistakes; it does not replace the
-final independent Audit B of the completed proof or guarantee judge accuracy.
+The reviewer next checks the complete typed contract and plan: every external E
+and full P including all hypotheses, quantifiers and domains; relevant definitions,
+structure fields, library parameter/index meanings, coercions and nonvacuity. Read
+the actual pinned definitions instead of guessing from notation. A well-typed
+encoding may still strengthen or weaken the source. The reviewer is independent
+of the author, while retaining its own earlier findings; disclose both facts.
 
-## During a local proof
+Only a complete actual passing semantic receipt opens freeze and proof dispatch.
+Freeze source, pins, complete endpoint types and the meaning-determining header.
+Save the handoff and close both preprocessing roles. An unchanged rejected proposal
+does not justify repeated reviews. This semantic authority is inherited at final
+machine acceptance only when the actual final artifact still matches it.
 
-1. Repair ordinary compiler feedback in the worker. The 300-second native-call
-   limit returns a retained failed candidate and applicable frozen ST020 advice;
-   isolate the expensive application, repair it and recheck the unchanged target.
-2. If the fixed packet appears inconsistent, use `report_proof_obstruction`.
-   Supply the alleged layer (`local_proof`, `interface`, `source`, `unknown`), a
-   concrete explanation, resolving JSON pointers in the current packet, and up
-   to six actual own proof/helper candidate IDs. An assertion without a check
-   can be escalated for diagnosis, but is never treated as a proved mismatch.
-   No arbitrary path, sibling body, new premise or reference answer is accepted.
-3. Separately track distinct check candidates and relevant library/note queries.
-   Three normally completed turns with no new such action create a structured
-   `NO_OBSERVABLE_PROGRESS` request instead of another identical continuation.
-   Repeated identical candidates, index reads and repeated lookups do not reset
-   this counter. Fresh failed checks count as evidence, not as proved progress.
-   Provider backoff is not a completed idle turn. There is no total turn/call,
-   token or case-time allowance in this policy.
+## Local proof work
 
-A report returns no accepted proof. `REPAIR_REQUESTED`/`REPAIR_WAIT` retire this
-case's current proof round, cancel its unstarted jobs and interrupt its remaining
-model workers safely. Already checked bodies and all own attempts remain. Other
-cases and their processes are untouched. In-flight native calls finish or reach
-their existing native limit before shared inputs can change. Explicit user
-cancellation has priority and remains `CANCELLED`, never an internal repair.
+Each node has its own retained author. Ordinary compiler/API/tactic feedback stays
+with that author. A 300-second native timeout or heartbeat failure retains the
+candidate and supplies frozen ST020 advice in the failed tool result. Isolate the
+expensive application, repair and recheck the unchanged target. There is no total
+case, token, call, repair-round or turn allowance by default.
 
-## Serial diagnosis and routing
+`report_proof_obstruction` records a concrete alleged layer, explanation, resolving
+packet locations and actual own candidate evidence. An allegation is not a proved
+interface defect. Preserve healthy siblings and let already active work reach its
+normal handoff. No fixed count of idle replies retires the round, cancels queued
+jobs or changes inputs. Progress counters remain passive measurement.
 
-The diagnostic session sees accepted source, current interface/plan, the located
-packet and only that reporting worker's actual selected attempts. Worker claims
-are allegations to verify. It is separate from the author, but its exposure to
-the allegation is disclosed; it is not the later fresh interface reviewer.
+After local assignments reach handoffs, the serial connection author may diagnose
+a reported global issue using its actual source/formal pair and selected own
+attempts. It may repair internal proof bodies, proved local helpers, parameter
+applications, library discharges and proof connections. It cannot change frozen
+E/P, their hypotheses or definitions determining their meaning. A missing producer
+cannot become an assumption. Ordinary local repair returns to the owning author.
 
-| Actual diagnostic route | Controller action |
-| --- | --- |
-| `LOCAL_PROOF_REPAIR` | Retain own failed drafts, return located advice to that own obligation in a disclosed warm repair, and check new candidates under the unchanged interface. |
-| `INTERFACE_REPAIR_REQUIRED` | Require paired quoted source/formal evidence; finish retiring the round, return to the interface author, type-check its changes and obtain fresh independent semantic review before new packets. |
-| `SOURCE_REVIEW_REQUIRED` | Preserve a located source-review checkpoint. Do not change accepted NL0/A, add a hypothesis or weaken Lean silently. |
-| `UNRESOLVED` | Preserve the diagnostic and explicit unresolved checkpoint; no guessed repair or fresh whole-paper replay. |
+A located frozen-contract defect, source gap or unresolved mathematical obstruction
+pauses with saved evidence for the user. No automatic unfreeze, source rewrite,
+whole-workflow restart or new model/profile is authorized. Repeated identical
+obligation/evidence after a located advice handoff stays an explicit checkpoint;
+it is not a reason to resample a diagnostic or declare mathematical impossibility.
 
-Repeated identical obligation/evidence after a located local-repair handoff
-becomes `PROOF_REPAIR_STALLED`, not hundreds of new contexts or repeated reviews.
-Changing only an explanation, turn count or timestamp is not new evidence.
-Actual fresh attempts can continue without a fixed total attempt count.
+## Assembly and final machine acceptance
 
-Retained successful bodies are candidates, not inherited acceptance. Exact
-program reuse requires a fresh current Lean check. After a definition repair,
-reuse additionally requires the same accepted source, pins and own port boundary
-plus the new actual independent interface receipt; recompile every reused body
-under the new definitions. Old checks never certify the new program. Own failed
-drafts are explicitly marked unaccepted and remain confined to their own node.
+Attempt mechanical assembly first. If it fails with an actual connection error,
+use the connection author under the immutable contract. Recheck the complete
+standalone file, all internal producer dependencies and actual kernel trust.
+No `sorry`, undeclared project premise or unproved substitute may remain.
 
-## Evidence and reporting
+Normal final Audit B checks actual full E/P types by native definitional equality,
+exact frozen header/pins and bound semantic authority, plus complete proof closure.
+It calls no final semantic model. Its receipt says `FROZEN_INTERFACE_SEMANTICS_INHERITED`,
+not that a new independent final review took place. Source qualifications remain.
 
-`proof-progress.json` separates last distinct action/check time and completed idle
-turns from model/transport liveness. `proof-repair-request.json`, each diagnostic
-stage, `repairs/` and all proof rounds are retained with actual usage. A successful
-later round is selected by hash-bound `proof-selection.json`; previous failures
-are not overwritten or counted as fresh successes. Assembly and Audit B read the
-selected compiled round and still perform all existing independent gates.
+Only a valid proof with genuine endpoint/meaning drift may open B-final. Missing
+compilation, changed provenance, missing dependencies or `sorry` cannot use this
+exception. Actual B-final fidelity PASS permits warning-qualified delivery and
+records the freeze-integrity defect. A nonpass pauses locally and asks the user:
 
-An unresolved checkpoint is not a theorem FAIL or `MODEL_BUDGET_EXHAUSTED`.
-Report the actual obstruction, execution health, retained work and next required
-boundary. Owner monitoring remains a bounded observation; it must not inject
-mathematical hints, manually edit the measured interface or restart live work.
+- `deliver-actual`: deliver the compiled statement and findings, explicitly **not**
+  completion of the original target.
+- `recheck`: perform the explicitly requested new detailed semantic review, keeping
+  earlier findings, costs and its actual review scope in the evidence.
+- `reset-translation`: release translation processes, remove translation-generated
+  source/native/temp files, retain original NL0/A and cost ledgers, and rerun only
+  translation. Report the freeze defect to developers.
+
+These are exact-incident `yui.py final-decision` controls displayed in the offline
+pause report. None is automatic. A stale incident, changed owner, changed artifact
+or unconfirmed owned-process cleanup blocks the action. User cancellation remains
+available. A user acceptance of files never grants fidelity or original-goal PASS.
+
+## Evidence and lifetimes
+
+A submission is a durable handoff, followed by a confirmed native turn interrupt;
+its role waits without another provider request. The native thread is reused for
+that role's next assignment. Only the specified accepted handoff closes a role;
+a fault preserves the carrier, drafts and diagnostics. Controller-authenticated
+restoration of an interrupted dynamic-tool result is logged and hash-bound; unknown
+calls or altered history remain rejected.
+
+Reuse only exact checked contexts. Successful bodies copied between retained proof
+runs are candidates until current Lean checks accept them. Save rejected drafts,
+actual retries/waits and all reported usage. Selected proof rounds use bound
+`proof-selection.json`; retained earlier failures are not free or new successes.
+Missing usage or actual service tier remains unknown; cached/reasoning tokens are
+subsets. Owner monitoring is bounded read-only observation and supplies no hints.

@@ -53,8 +53,9 @@ An `audit-b`-only continuation has no proof queue and needs only its Lean phase
 profile, not N. `execute` and supported `resume` reuse an existing job's frozen
 settings; they do not recollect values or change a historical worker count.
 These configuration questions do not change the scheduling architecture:
-The NL0 author, global Audit A, preparation, assembly and Audit B remain serial.
-Local R reviews and later Lean proofs each use N independent slots, in separate phases.
+Initial/global NL0 authors, global Audit A, preparation, assembly and final acceptance
+remain serial. Local R reviewers and their repair authors share N active slots.
+Later Lean proofs use N slots in their separate phase; waiting roles use no slot.
 
 ## Entry commands
 
@@ -110,7 +111,7 @@ execution-status.json    coalesced status/usage/owned-process record
 nl0/0001/                first author; later numbers are actual local repairs
 audit-a/0001/            corresponding independent actual assessments
 nl0-to-lean/preparation/  bounded shared-source decision and any local reviews
-nl0-to-lean/0001/         interface, workflow/proof-run, assembly, audit-b-review
+nl0-to-lean/0001/         interface, workflow/proof-run, optional assembly repair, optional audit-b-final
 audit-b/                 final-review index, or audit-only continuation evidence
 repairs/                 actual located diagnostic routing
 logs/                    controller lifecycle output
@@ -121,7 +122,7 @@ Only applicable stages are created. Multiple attempts are retained, not
 silently overwritten. An explicit `--output` chooses another new directory;
 it cannot overwrite an input or write inside the skill. Never create a global
 repository results directory, scan parent folders for proof caches or read other
-cases. OS temporary sandboxes are registered and retained until validated phase finalization or explicit user cancellation; they
+cases. OS temporary sandboxes are registered and retained until their specified successful role handoff or explicit user cancellation; they
 are not persistent scientific output. Running several cases adds no files to
 their common parent or the example root. Batch summaries are per-run metadata,
 never worker-visible mathematical inputs.
@@ -137,22 +138,25 @@ Proof round diagnostics and selected retained rounds are documented in
 
 Ordinary `normal` policy organizes authoring, actual Audit A, optional bounded
 factoring, interface freeze, the existing proof queue, actual standalone assembly,
-native inspection and fresh semantic Audit B. It never turns a type/schema check
+native inspection and machine final acceptance against independently reviewed frozen semantics. It never turns a type/schema check
 into a mathematical PASS. Unchanged valid Audit A is checked and reused rather
 than repeated. A factoring no-op is normal. The existing narrow delta route
 leaves consumers with accepted background notes unchanged; it never drops notes
 or bypasses their scoped-review requirement to extract a lemma.
 
-Return located ordinary A defects to the author with the prior draft; preserve
-unaffected material and inherit only exact qualified passing review scopes.
-Recheck graph structure. Do not send old judgments to independent new reviewers.
-A real B endpoint defect returns to interface/implementation work, preserving the
-accepted source. Revised interfaces and dependent proofs must pass their gates
-again. Native implementation feedback remains inside its current author/proof
+Follow the retained global/local roles in review-execution.md. Return complete
+global findings to the same author before local dispatch; node-local repair uses
+its own separate author. Inherit only exact qualified scopes. Restore global roles
+for genuine public-context changes, draining active local work before repair.
+A pre-freeze interface defect returns to the same preprocessing author/reviewer.
+After freeze, E/P and their defining meanings cannot be rewritten by local or
+connection authors; a genuine frozen-contract defect waits for the user. Native implementation feedback remains inside its current author/proof
 stage. A revised target/hypothesis requires the source boundary, never a hidden
 change to the accepted task. Supported mathematical obstacles, unresolved source
-access/disagreement and execution faults remain visible. Do not resample an
-unchanged rejected artifact/review until PASS. Execution has no imposed time,
+access/disagreement and execution faults remain visible. Retain the same assigned
+author/reviewer through revisions; do not create fresh reviewers just to reroll a
+verdict. Unchanged content or repeated evidence alone does not authorize a pause.
+Execution has no imposed time,
 token or call quota unless the user explicitly requests one.
 
 Explicit `first-pass` policy stops on the first actual nonpass for measurement;
@@ -362,5 +366,5 @@ local bodies are candidates for fresh native rechecking, not a fabricated full
 proof receipt. The stopped worker's own hash-bound drafts, including an
 unaccepted helper interrupted during cleanup, may be restored only in the exact
 same local packet. Record the fresh worker session and all old costs. Assembly,
-native trust inspection and independent semantic Audit B remain required; their
+native trust inspection and bound semantic authority remain required; their
 normal located-repair boundaries are unchanged.

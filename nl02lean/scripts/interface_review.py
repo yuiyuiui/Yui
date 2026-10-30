@@ -244,6 +244,8 @@ def collect(out):
         review['reviewer'].update(mode='targeted_adjudication',independent=False,
             disclosure=bindings['adjudication']['disclosure'])
         review['preparation_cost']['adjudication']=bindings['adjudication']
+    elif (result.get('role_session') or {}).get('prior_submissions'):
+        review['reviewer'].update(mode='retained_role_review',disclosure='Separate reviewer role retaining its own earlier incremental/interface reviews and findings; no author conversation or fresh-history claim.')
     path=out/'review.json'
     if path.exists():raise ValueError('Preserve the previous review')
     write(path,review)
@@ -263,8 +265,12 @@ def verify_receipt(path,contract,plan,graph_sha256):
     import source_preparation
     source_preparation.reviewer(review['reviewer'])
     ir.need(not bindings.get('adjudication') and review['reviewer'].get('independent') is True
-            and review['reviewer'].get('mode')=='fresh_model_review',
-            'A full workflow requires a fresh independent interface review')
+            and review['reviewer'].get('mode') in {'fresh_model_review','retained_role_review'},
+            'A full workflow requires an independent author-separated interface review')
+    if review['reviewer']['mode']=='retained_role_review':
+        result=ir.load(out/'stage/result.json')
+        ir.need(result.get('role_session',{}).get('role')=='lean-global-reviewer' and
+            result['role_session'].get('prior_submissions'),'Undisclosed retained reviewer history')
     ir.need(review['source_graph_sha256']==bindings['source_graph']['sha256']==graph_sha256
         and review['contract_sha256']==bindings['contract']['sha256']==ir.digest(contract)
         and review['plan_sha256']==bindings['plan']['sha256']==ir.digest(plan),

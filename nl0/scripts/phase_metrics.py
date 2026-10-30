@@ -17,6 +17,9 @@ def summarize(directory):
         stage=file.parent
         if not (stage/'execution-manifest.json').is_file():continue
         result=json.loads(file.read_text());manifest=json.loads((stage/'execution-manifest.json').read_text())
+        canonical=result.get('stage_log_path')
+        if canonical and Path(canonical).resolve()!=stage.resolve():continue
+        if not canonical and any(name in {'review-evidence','runtime','harness-snapshot'} for name in stage.relative_to(root).parts):continue
         request_count=sum(1 for _ in rows(stage/'requests.jsonl'))
         lifecycles={}
         for row in rows(stage/'request-lifecycle.jsonl'):

@@ -35,7 +35,7 @@ class RemoteRetryTests(unittest.TestCase):
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None
         t.tool_history={};t.model_calls={};t.inbox=queue.Queue();t.pending_turn_start_id=None
-        t.last_turn_event=None;t.check_argument_guard=Mock();t.execution=None
+        t.last_turn_event=None;t.active_turn_id=None;t.check_argument_guard=Mock();t.execution=None
         t.pause_error=Mock(side_effect=RuntimeError('Explicit retained pause software fixture'))
         t.execution_task='neutral-task'
         return t

@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import os
+import tempfile
 import background
 
 from execution_health import qualification, record_qualification
@@ -24,6 +26,19 @@ class EvidenceIndexError(ValueError):
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def load(path):return json.loads(Path(path).read_text())
 def hashed(value):return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+
+
+def publish_evidence(source,target,digest):
+    """Publish a complete immutable file once, including concurrent readers."""
+    descriptor,raw=tempfile.mkstemp(prefix='.evidence-',dir=target.parent)
+    os.close(descriptor);temporary=Path(raw)
+    try:
+        shutil.copyfile(source,temporary)
+        if sha(temporary)!=digest:raise ValueError('Original evidence changed during transport')
+        try:os.link(temporary,target)
+        except FileExistsError:pass
+        if target.is_symlink() or sha(target)!=digest:raise ValueError('Cached evidence was changed')
+    finally:temporary.unlink(missing_ok=True)
 
 
 def rules():
@@ -49,7 +64,7 @@ def data_from_files(graph_path,spec_path):
     return ({'graph_sha256':sha(graph_path),'spec_sha256':sha(spec_path)},graph,spec,props,steps,defs,closure,None)
 
 
-def context(data,scope,*,semantic_rules=None):
+def context(data,scope,*,semantic_rules=None,structure_policy='whole_graph'):
     import nl0
     _,graph,spec,props,steps,defs,closure,_=data
     common={'version':VERSION,'semantic_rules':rules() if semantic_rules is None else semantic_rules,
@@ -75,6 +90,9 @@ def context(data,scope,*,semantic_rules=None):
         common['definitions']=[defs[d] for d in sorted(closure(props['P']['definitions']))]
     elif kind=='structure':
         common['graph']={k:v for k,v in graph.items() if k!='spec_sha256'}
+        if structure_policy=='public_graph':
+            common['graph']['inferences']=[{k:r[k] for k in ('id','inputs','output','definitions')} for r in graph['inferences']]
+        elif structure_policy!='whole_graph':raise ValueError('Unknown global structure scope')
         common['definitions']=spec['definitions']
     else:raise ValueError('Unknown review scope '+scope)
     return deepcopy(common)
@@ -107,7 +125,9 @@ def select(data,campaigns):
             if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():continue
             raw=load(stage/'accepted.json');items=[]
             if job['library']:
-                if any(f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'} for f in raw.get('findings',[])):continue
+                from source_qualification import source_only_finding
+                if any((f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'})
+                       and not source_only_finding(f,old,Path(plan['case'])) for f in raw.get('findings',[])):continue
                 for name in ['spec.json','nl0.json']:
                     if manifest['task_documents'].get(name)!=sha(directory/name):raise ValueError('Previous review input identity changed')
                 if sha(directory/'nl0.json')!=old[0]['graph_sha256'] or sha(directory/'spec.json')!=old[0]['spec_sha256']:
@@ -126,14 +146,29 @@ def select(data,campaigns):
                 background.validate(raw.get('background_notes', []), packet, stage)
                 items=[('packet:'+job['id'],'',raw)]
             for scope,selector,row in items:
-                if scope in hits or row.get('verdict')!='PASS' or not row.get('notes') or not all_pass(row):continue
-                try:old_context=context(old,scope);new_context=context(data,scope)
+                conditional=conditional_source(data,scope,row,Path(plan['case']))
+                if scope in hits or not row.get('notes') or not (row.get('verdict')=='PASS' and all_pass(row) or conditional):continue
+                policy='public_graph' if scope=='structure' else 'whole_graph'
+                try:old_context=context(old,scope,structure_policy=policy);new_context=context(data,scope,structure_policy=policy)
                 except (KeyError,ValueError):continue
                 if old_context!=new_context:continue
                 hits[scope]={'scope':scope,'selector':selector,'row':deepcopy(row),
                     'campaign':str(campaign),'directory':str(directory),'context_sha256':hashed(old_context),
-                    'graph':plan['graph'],'spec':plan['spec'],'measurement':qualification(result)}
+                    'graph':plan['graph'],'spec':plan['spec'],'measurement':qualification(result),
+                    'structure_policy':policy,'conditional_source':conditional}
     return hits
+
+
+def conditional_source(data,scope,row,base):
+    """Preserve an actual qualified source warning without promoting it to PASS."""
+    if not scope.startswith('source:') or row.get('verdict')!='UNVERIFIED':return False
+    import source_qualification
+    key=scope.split(':',1)[1]
+    if data[3][key]['kind']!='external' or not source_qualification.deferred(key,data[3][key]['source'],base):return False
+    unresolved=[{'review':key,'verdict':'UNVERIFIED'}]
+    for name,item in row.get('citation_checks',{}).items():
+        if item.get('verdict')!='PASS':unresolved.append({'review':key+'.citation_checks.'+name,'verdict':item.get('verdict')})
+    return source_qualification.classify(unresolved,{key:data[3][key]},base)[0]
 
 
 def materialize(hit,case):
@@ -157,12 +192,13 @@ def materialize(hit,case):
         files['tools']=directory/'stage/tools.jsonl'
     for name,path in files.items():
         digest=sha(path);target=folder/(digest+'-'+path.name)
-        if target.exists() and sha(target)!=digest:raise ValueError('Cached evidence was changed')
-        if not target.exists():shutil.copyfile(path,target)
+        publish_evidence(path,target,digest)
         previous[name]={'path':str(target.relative_to(case)),'sha256':digest}
     record={'version':VERSION,'scope':hit['scope'],'selector':hit['selector'],
             'previous':previous,'context_sha256':hit['context_sha256'],'previous_campaign':hit['campaign'],
             'qualification':hit['measurement'],
+            'structure_policy':hit.get('structure_policy','whole_graph'),
+            'conditional_source':hit.get('conditional_source',False),
             'background_sources':background_sources,
             'cost_policy':'Warm inherited judgment; original result retains actual usage. No cold benchmark or parent campaign acceptance is inferred.'}
     path=folder/(hashed(record)+'.json');atomic(path,record)
@@ -203,7 +239,8 @@ def validate(case,binding,data,scope,entry=None):
               'definition':'/definition_reviews/'+key,'source':'/source_reviews/'+key}[kind]
     if record['selector']!=selector:raise ValueError('Inherited review selector differs from its scope')
     old=data_from_files(paths['graph'],paths['spec'])
-    old_context=context(old,scope);new_context=context(data,scope)
+    policy=record.get('structure_policy','whole_graph')
+    old_context=context(old,scope,structure_policy=policy);new_context=context(data,scope,structure_policy=policy)
     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
         raise ValueError('Inherited review mathematical context changed')
     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
@@ -222,7 +259,9 @@ def validate(case,binding,data,scope,entry=None):
             raise ValueError('Inherited source does not match actual review inputs')
         previous_packet=None
     raw=raw_from_binding(case,binding)
-    if not all_pass(raw) or raw.get('verdict')!='PASS':raise ValueError('Only qualified actual passing items can be inherited')
+    if not (all_pass(raw) and raw.get('verdict')=='PASS'):
+        if not record.get('conditional_source') or not conditional_source(data,scope,raw,Path(case)):
+            raise ValueError('Only passing items or exact qualified source warnings can be inherited')
     if entry is not None:match_judgment(entry,raw)
     notes=deepcopy(raw.get('background_notes', []))
     for note in notes:

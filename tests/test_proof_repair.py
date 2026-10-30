@@ -53,14 +53,11 @@ class ProofRepairTests(unittest.TestCase):
         return {'layer':'interface','explanation':'Compare the supplied target with its source statement.',
                 'locations':['/target','/source_steps/0/text'],'candidates':[]}
 
-    def test_three_normal_no_tool_turns_route_to_diagnosis_instead_of_fourth_continue(self):
-        stage=self.stage();_,turns=self.simulate(stage)
-        self.assertEqual(turns,3);self.assertEqual(stage.continuation_count,2)
-        self.assertIsNone(stage.accepted);self.assertTrue(stage.submission_closed)
-        self.assertEqual(stage.repair_request['reason'],'NO_OBSERVABLE_PROGRESS')
-        self.assertIs(stage.repair_request['acceptance'],False)
-        self.assertNotIn('MODEL_BUDGET_EXHAUSTED',json.dumps(stage.repair_request))
-        self.assertTrue((stage.logs/'proof-repair-request.json').is_file())
+    def test_idle_turn_accounting_has_no_automatic_retirement_threshold(self):
+        stage=self.stage();_,turns=self.simulate(stage,finish=8)
+        self.assertEqual(turns,8);self.assertIsNone(stage.repair_request)
+        self.assertGreaterEqual(stage.proof_progress.idle_turns,3)
+        self.assertFalse((stage.logs/'proof-repair-request.json').exists())
 
     def test_many_distinct_failed_checks_have_no_model_call_or_turn_cap(self):
         stage=self.stage()
@@ -70,18 +67,19 @@ class ProofRepairTests(unittest.TestCase):
         self.assertEqual(turns,18);self.assertIsNone(stage.repair_request)
         self.assertEqual(stage.proof_progress.metadata()['distinct_check_candidates'],18)
 
-    def test_identical_candidate_retries_do_not_reset_idle_turns(self):
+    def test_identical_candidates_are_counted_without_forcing_a_control_transition(self):
         stage=self.stage()
         with patch.object(ir,'check',return_value={'exit_code':1,'stdout':'fixture rejection'}):
-            _,turns=self.simulate(stage,lambda s,n:s.dispatch('check_transition',{'proof':'exact h_H001'}))
-        self.assertEqual(turns,4);self.assertEqual(stage.lean_calls,4)
+            _,turns=self.simulate(stage,lambda s,n:s.dispatch('check_transition',{'proof':'exact h_H001'}),finish=7)
+        self.assertEqual(turns,7);self.assertEqual(stage.lean_calls,7)
         self.assertEqual(stage.proof_progress.metadata()['distinct_check_candidates'],1)
+        self.assertIsNone(stage.repair_request)
 
     def test_obstruction_is_located_and_never_a_submission(self):
         control=proof_repair.RoundControl();stage=self.stage(control=control)
         result=stage.dispatch('report_proof_obstruction',self.report())
         self.assertFalse(result['accepted']);self.assertFalse(result['stage_complete'])
-        self.assertTrue(result['repair_requested']);self.assertTrue(control.event.is_set())
+        self.assertTrue(result['repair_requested']);self.assertFalse(control.event.is_set())
         self.assertIsNone(stage.accepted);self.assertEqual(set(control.reports),{'T001'})
         self.assertFalse((stage.logs/'accepted.json').exists())
 
@@ -115,10 +113,10 @@ class ProofRepairTests(unittest.TestCase):
         _,turns=self.simulate(stage,finish=7)
         self.assertEqual(turns,7);self.assertIsNone(stage.repair_request)
 
-    def test_case_round_interrupt_is_local_and_user_cancel_has_priority(self):
+    def test_report_does_not_interrupt_other_nodes_and_user_cancel_has_priority(self):
         control=proof_repair.RoundControl();stage=self.stage(control=control);other=self.stage()
         control.request('T002',{'fixture':'new evidence'})
-        with self.assertRaises(proof_repair.RoundInterrupted):stage.check_argument_guard()
+        stage.check_argument_guard()
         other.check_argument_guard()
         stage.execution=Mock();stage.execution_task='T001'
         stage.execution.check.side_effect=execution_state.Cancelled('Actual human stop')
@@ -142,7 +140,7 @@ class ProofRepairTests(unittest.TestCase):
         self.assertEqual(result['proofs'],{'T001':LIFT});self.assertIsNone(result['assembly'])
         self.assertEqual(check.call_count,2) # Types and the one completed node, no assembly.
 
-    def test_scheduler_retires_other_running_workers_without_external_cancellation(self):
+    def test_scheduler_preserves_other_running_workers_after_a_report(self):
         control=proof_repair.RoundControl();barrier=threading.Barrier(2)
         def worker(sid,packet):
             barrier.wait(timeout=3)
@@ -150,10 +148,10 @@ class ProofRepairTests(unittest.TestCase):
                 request={'step':sid,'acceptance':False,'evidence_key':'fixture'}
                 control.request(sid,request)
                 return {'proof':None,'stage':{'repair_request':request}}
-            self.assertTrue(control.event.wait(timeout=3));control.check()
+            return {'proof':LIFT}
         with patch.object(ir,'check',return_value={'exit_code':0}):
             result=scheduler.prove_graph(self.cpath,self.plan,worker,max_workers=2,repair_control=control)
-        self.assertEqual({j['status'] for j in result['jobs']},{'REPAIR_REQUESTED','REPAIR_WAIT'})
+        self.assertEqual({j['status'] for j in result['jobs']},{'REPAIR_REQUESTED','LOCAL_PROOFS_CHECKED'})
         self.assertNotIn('CANCELLED',json.dumps(result));self.assertFalse(proof_repair.RoundControl().event.is_set())
 
     def test_local_diagnosis_repair_handoff_preserves_prior_round(self):
@@ -183,18 +181,27 @@ class ProofRepairTests(unittest.TestCase):
         history=ir.load(self.root/'workflow/proof-repair-history.json')
         self.assertEqual(len(history['rounds']),2);self.assertEqual(len(history['diagnoses']),1)
 
-    def test_identical_evidence_after_diagnosis_creates_checkpoint_not_new_diagnosis(self):
+    def test_repeated_evidence_retains_the_approved_repair_loop_and_every_prior_round(self):
         import run_graph,workflow
+        from role_sessions import Sessions,current
         row={'status':'GRAPH_REPAIR_REQUIRED','repair_requests':{'T001':{'evidence_key':'same'}}}
-        def run(c,p,out,**kw):ir.write(out/'report.json',row);return row
+        calls=[];roles=[];sessions=Sessions()
+        def run(c,p,out,**kw):
+            calls.append((out,kw));result=row if len(calls)<3 else {'status':'FRAGMENT_ASSEMBLED'}
+            ir.write(out/'report.json',result);return result
+        def diagnose(*args,**kwargs):roles.append(current());return {'route':'LOCAL_PROOF_REPAIR'}
         with patch.object(run_graph,'run',side_effect=run),patch.object(workflow,'bound'),\
+                patch.object(workflow,'select_proof_run'),\
                 patch.object(full,'stage_seconds',return_value=None),\
-                patch.object(proof_diagnosis,'run',return_value={'route':'LOCAL_PROOF_REPAIR'}) as diagnose:
-            with self.assertRaises(full.StageFailure) as error:
-                full.prove_with_repair('neutral',{'contract':str(self.cpath),'plan':'unused'},self.root/'workflow',
-                    self.root/'interface',SimpleNamespace(execution=None),None,lambda *a,**k:None)
-        self.assertEqual(diagnose.call_count,1);self.assertEqual(error.exception.result['status'],'PROOF_REPAIR_STALLED')
-        self.assertFalse(error.exception.result['checkpoint']['restart_whole_workflow'])
+                patch.object(proof_diagnosis,'run',side_effect=diagnose) as diagnostics:
+            result,_=full.prove_with_repair('neutral',{'contract':str(self.cpath),'plan':'unused'},self.root/'workflow',
+                self.root/'interface',SimpleNamespace(execution=None),None,lambda *a,**k:None,sessions=sessions)
+        self.assertEqual(result['status'],'FRAGMENT_ASSEMBLED');self.assertEqual(diagnostics.call_count,2)
+        self.assertEqual(roles,[(sessions,'proof-connection')]*2)
+        self.assertEqual(calls[2][1]['prior_run'],calls[1][0])
+        history=ir.load(self.root/'workflow/proof-repair-history.json')
+        self.assertEqual(len(history['rounds']),3);self.assertEqual(len(history['diagnoses']),2)
+        self.assertTrue(all(path.is_file() for path in [out/'report.json' for out,kw in calls]))
 
     def test_source_or_unknown_diagnosis_cannot_weaken_an_interface_or_gain_acceptance(self):
         import run_graph,workflow
@@ -207,7 +214,7 @@ class ProofRepairTests(unittest.TestCase):
                 with self.assertRaises(full.StageFailure) as error:
                     full.prove_with_repair('neutral',{'contract':str(self.cpath),'plan':'unused'},self.root/route,
                         self.root/'interface',SimpleNamespace(execution=None),None,lambda *a,**k:None)
-            self.assertEqual(error.exception.result['phase'],'interface-repair' if route=='INTERFACE_REPAIR_REQUIRED' else 'proof-diagnosis')
+            self.assertEqual(error.exception.result['phase'],'frozen-interface' if route=='INTERFACE_REPAIR_REQUIRED' else 'proof-diagnosis')
 
     def test_unconfirmed_sibling_cleanup_blocks_interface_repair_and_new_model_dispatch(self):
         import run_graph,workflow
@@ -233,7 +240,7 @@ class ProofRepairTests(unittest.TestCase):
             dest=later/'inputs'/name;dest.parent.mkdir(exist_ok=True);shutil.copyfile(path,dest)
         frozen={'contract':str(self.cpath),'plan':str(self.root/'plan.json')}
         with patch.object(workflow,'bound',return_value=frozen):
-            with self.assertRaisesRegex(ValueError,'unfinished'):workflow.select_proof_run(root,first)
+            with self.assertRaisesRegex(ValueError,'missing local proof bodies'):workflow.select_proof_run(root,first)
             self.assertEqual(workflow.select_proof_run(root,later),later.resolve())
         self.assertEqual(ir.load(first/'report.json')['status'],'GRAPH_REPAIR_REQUIRED')
         ir.write(later/'proofs.json',{'modified':True})

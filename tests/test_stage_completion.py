@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 import threading
+import hashlib
 import unittest
 from unittest.mock import Mock, patch
 
@@ -40,9 +41,15 @@ class CompletionTests(unittest.TestCase):
         def rpc(method,params,seconds=30):
             calls.append(method)
             if method=='turn/start':return {'turn':{'id':'synthetic-turn'}}
-            self.worker.last_turn_event={'method':'turn/completed','params':{'turn':{'id':'synthetic-turn','status':'interrupted'}}}
             return {}
+        send=self.worker.send
+        def interrupt(method,params):
+            calls.append(method);rid=send(method,params)
+            self.worker.inbox.put({'id':rid,'result':{}})
+            self.worker.inbox.put({'method':'turn/completed','params':{'turn':{'id':'synthetic-turn','status':'interrupted'}}})
+            return rid
         self.worker.rpc=rpc
+        self.worker.send=interrupt
         result=self.worker.solve_turns('Synthetic explicit task')
         self.assertEqual(calls,['turn/start','turn/interrupt'])
         self.assertTrue(self.worker.submission_closed)
@@ -50,6 +57,51 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(self.worker.continuation_count,0)
         self.assertEqual(result['params']['turn']['status'],'interrupted')
         self.assertIn('submission_completed',(self.root/'stage/controller.jsonl').read_text())
+        written=[json.loads(line) for line in self.worker.proc.stdin.getvalue().splitlines()]
+        self.assertEqual(written[0]['method'],'turn/interrupt')
+        self.assertEqual(written[1]['id'],91)
+
+    def test_already_completed_interrupt_race_requires_matching_terminal_event(self):
+        self.worker.handoff_interrupt=7
+        self.worker.inbox.put({'id':7,'error':{'code':-32600,'message':'no active turn to interrupt'}})
+        self.worker.inbox.put({'method':'turn/completed','params':{'turn':{'id':'synthetic-turn','status':'completed'}}})
+        self.worker.interrupt_active_turn(reason='ACCEPTED_ARTIFACT')
+        self.assertEqual(self.worker.last_turn_event['params']['turn']['id'],'synthetic-turn')
+
+    def test_unrelated_interrupt_error_is_not_hidden_by_an_accepted_artifact(self):
+        self.worker.accepted={'control':'candidate'};self.worker.handoff_interrupt=7
+        self.worker.inbox.put({'id':7,'error':{'code':-32600,'message':'unrelated invalid thread'}})
+        with self.assertRaisesRegex(RuntimeError,'unrelated invalid thread'):
+            self.worker.interrupt_active_turn(reason='ACCEPTED_ARTIFACT')
+
+    def history_payload(self,output=None):
+        self.worker.initial_user_message='Synthetic explicit input';self.worker.allowed_user_messages.add(self.worker.initial_user_message)
+        item={'id':'own-item','type':'function_call','call_id':'own-call','name':'submit_draft','arguments':'{}'}
+        self.worker.model_calls['own-call']=item;self.worker.model_history['own-item']=item
+        values=[{'type':'message','role':'user','content':[{'type':'input_text','text':self.worker.initial_user_message}]},
+            {k:v for k,v in item.items() if k!='id'}]
+        if output is not None:values.append({'type':'function_call_output','call_id':'own-call','output':output})
+        return {'model':self.worker.model,'reasoning':{'effort':'high'},'input':values}
+
+    def test_native_idless_call_history_still_requires_exact_own_origin(self):
+        payload=self.history_payload();self.worker.normalize_request(payload)
+        payload['input'][1]['arguments']='{"forged":true}'
+        with self.assertRaises(PermissionError):self.worker.normalize_request(payload)
+
+    def test_cancelled_native_tool_history_restores_only_confirmed_submitted_result(self):
+        marker='dynamic tool call was cancelled before receiving a response'
+        payload=self.history_payload(marker);result={'stage_complete':True,'accepted':True}
+        self.worker.tool_history['own-call']=result
+        with self.assertRaises(PermissionError):self.worker.normalize_request(payload)
+        record=self.worker.logs/'handoff-results/fixture.json';record.parent.mkdir()
+        record.write_text(json.dumps({'call_id':'own-call','confirmed':True,'tool_result':result}))
+        self.worker.handoff_results={'own-call':{'confirmed':True,'record':{
+            'path':str(record),'sha256':hashlib.sha256(record.read_bytes()).hexdigest()}}}
+        sent=self.worker.normalize_request(payload)
+        self.assertEqual(json.loads(sent['input'][-1]['output']),result)
+        self.assertEqual(payload['input'][-1]['output'],marker)
+        record.write_text('{}')
+        with self.assertRaisesRegex(PermissionError,'evidence changed'):self.worker.normalize_request(payload)
 
     def test_provisional_check_does_not_close_the_stage(self):
         self.worker.started=time.monotonic();self.worker.inbox.put(self.call('check_draft'))

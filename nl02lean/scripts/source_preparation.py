@@ -262,8 +262,9 @@ def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
 def reviewer(value):
     ir.need(value['identity'].strip() not in {'', 'UNASSIGNED'} and value['disclosure'].strip(), 'unperformed/undisclosed reviewer')
     ir.need(type(value['independent']) is bool, 'invalid review independence')
-    ir.need(value['mode'] in {'human', 'fresh_model_review', 'same_context_self_audit', 'external_review', 'delta_review_with_baseline', 'targeted_adjudication'}, 'invalid review mode')
+    ir.need(value['mode'] in {'human', 'fresh_model_review', 'retained_role_review', 'same_context_self_audit', 'external_review', 'delta_review_with_baseline', 'targeted_adjudication'}, 'invalid review mode')
     ir.need(not (value['mode'] in {'same_context_self_audit','targeted_adjudication'} and value['independent']), 'self-review/adjudication cannot claim untouched independence')
+    ir.need(value['independent'] is True,'Formal acceptance requires a separate independent reviewer; self-review is development evidence only')
 
 
 def check(directory, *, active=None, write=True):

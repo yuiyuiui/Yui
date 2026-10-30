@@ -3,6 +3,11 @@ import harness_support
 from audit_a_fixtures import AuditReuseFixture
 
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
+import hashlib
+from pathlib import Path
+import threading
+from unittest.mock import patch
 import unittest
 
 import audit_a_campaign as a
@@ -11,13 +16,31 @@ import audit_reuse as reuse
 
 class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
 
+    def test_concurrent_evidence_publication_never_exposes_a_partial_file(self):
+        source=self.root/'large-evidence';source.write_bytes(b'evidence'*10000)
+        target=self.root/'shared-cache';digest=hashlib.sha256(source.read_bytes()).hexdigest()
+        writers=threading.Barrier(5);release=threading.Event()
+        def copying(src,dst):
+            Path(dst).write_bytes(b'partial')
+            writers.wait(timeout=5);release.wait(timeout=5)
+            Path(dst).write_bytes(Path(src).read_bytes())
+        with patch.object(reuse.shutil,'copyfile',copying),ThreadPoolExecutor(max_workers=4) as pool:
+            futures=[pool.submit(reuse.publish_evidence,source,target,digest) for _ in range(4)]
+            try:
+                writers.wait(timeout=5)
+                self.assertFalse(target.exists(),'Readers must not see any in-progress copy')
+            finally:release.set()
+            for future in futures:future.result(timeout=5)
+        self.assertEqual(target.read_bytes(),source.read_bytes())
+        self.assertFalse(list(self.root.glob('.evidence-*')))
+
 
     def test_unrelated_graph_change_reuses_only_identical_item_context(self):
         graph=a.nl0.load(self.new/'nl0.json');graph['inferences'][1]['argument'][0]['text']+=' This is the same local additive-identity calculation.'
         a.write(self.new/'nl0.json',graph)
         data=a.nl0.validate(self.new/'nl0.json',self.new/'spec.json')
         hits=reuse.select(data,[self.campaign])
-        self.assertIn('packet:R001',hits);self.assertNotIn('packet:R002',hits);self.assertNotIn('structure',hits)
+        self.assertIn('packet:R001',hits);self.assertNotIn('packet:R002',hits);self.assertIn('structure',hits)
         inherited=reuse.materialize(hits['packet:R001'],self.new)
         checked=reuse.validate(self.new,inherited,data,'packet:R001')
         self.assertNotEqual(checked['previous_packet_sha256'],a.nl0.packet(data,'R001')['packet_sha256'])
@@ -107,10 +130,15 @@ class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
         graph=a.nl0.load(self.new/'nl0.json');graph['inferences'][1]['argument'][0]['text']+=' Same declared local calculation.'
         a.write(self.new/'nl0.json',graph)
         out=self.root/'next';plan=a.prepare(self.new,self.problem,out,reuse_from=[self.campaign])
-        self.assertEqual(plan['jobs'][0]['required_scopes'],['structure'])
+        self.assertEqual(plan['jobs'][0]['required_scopes'],[])
         self.assertIn('packet:R001',plan['inherited'])
         ids={r['id'] for r in a.nl0.load(out/'global/inputs.json')['inputs']}
         self.assertNotIn('accepted.json',ids);self.assertIn('review-selection.json',ids)
+
+    def test_changed_public_graph_edge_invalidates_global_structure(self):
+        before=reuse.context(self.data,'structure',structure_policy='public_graph')
+        data=deepcopy(self.data);data[1]['inferences'][1]['inputs']=[]
+        self.assertNotEqual(before,reuse.context(data,'structure',structure_policy='public_graph'))
 
     def test_source_fidelity_context_does_not_depend_on_consumer_proof_text(self):
         data=deepcopy(self.data)

@@ -6,6 +6,33 @@ final target P. P includes its parameters, quantifiers, hypotheses, domains and
 conclusion. Accepted NL0/Audit A remains the source authority; B does not repeat
 unchanged natural-language proof checking.
 
+## Normal final acceptance and deviation exception
+
+The normal workflow uses `yui-frozen-interface-acceptance-1`. A complete independent
+pre-proof review establishes source-to-type fidelity for every E and full P and
+all definitions needed to interpret them. Final native inspection compares the
+actual exported full types against that frozen contract, checks the exact defining
+header/pins and semantic receipt, and validates standalone proof/dependency/trust
+closure. This normal final gate is pure machine work: no additional final LLM is
+called. It records inherited semantics, not a newly performed independent Audit B.
+
+The actual E/P types include retained hypotheses and quantifiers. Text labels or
+a source-hash check alone do not establish this gate. The original mathematical
+review may be wrong; the machine establishes preservation of that reviewed encoding,
+not correctness of the reviewer's natural-language judgment.
+
+Only complete proof-integrity success plus genuine endpoint/definition drift may
+open the exceptional independent B-final review below. A faithful result then has
+`AUDIT-B-CONDITIONAL`, a freeze-deviation warning and an explicit harness-defect
+report. Invalid native evidence, incomplete dependencies or changed provenance
+cannot be overridden semantically. Nonfaithful/unverified results wait for the
+three explicit user choices in [proof repair](proof-repair.md); accepting a different
+result does not complete the original target. Explicit/manual legacy semantic
+receipts remain supported under their original schemas and are not relabeled.
+Explicitly nonindependent/self-review records remain readable development checks;
+they cannot grant whole-workflow Audit B acceptance. The same qualification rule
+applies to supplied Audit A authority and incremental producer/cut reviews.
+
 ## Author correspondence explanations
 
 During interface authoring, provide `endpoint_correspondence`, keyed by every
@@ -30,7 +57,7 @@ notes for older frozen contracts. It must not change frozen proof statements
 or bodies merely to improve a note. An explanation is an author's claim, not
 an Audit B verdict or a formal proof.
 
-## Independent semantic review
+## Semantic responsibility before freeze or at explicit B-final
 
 Read the explanation together with the original source statement and actual
 elaborated Lean type. Follow the definitions needed to interpret the endpoint,
@@ -128,7 +155,7 @@ proofs, tool versions and environment hashes. Build compiles standalone
 encoded types, modulo definitional equality and bijective universe renaming.
 It does not prove equivalence between natural-language text and Lean.
 Distinct universes must not be collapsed; changed types or hypotheses must not
-be normalized away. Source fidelity remains the independent reviewer's job.
+be normalized away. Source fidelity is established by the bound pre-proof independent review, or an actual exceptional B-final review; this native comparison does not establish it anew.
 
 Inspection follows the actual `AuditBExport.P` closure. No `sorry`, unproved
 local axiom/opaque substitute or undeclared foundation may be introduced.
@@ -139,8 +166,8 @@ review have separate recorded outcomes.
 Version-1 receipts remain historical results under their original policy.
 They cannot be silently relabeled or accepted as version-2 reviews. Start a
 new bound audit when policy, source, code or evidence changes. Pending templates
-never pass. A whole accepted source plus mechanical gates and complete actual
-semantic review yields `AUDIT-B-PASSED`; a fragment yields at most the explicitly
+never pass. A whole accepted source plus complete native gates and its bound semantic
+authority yields `AUDIT-B-PASSED`; a fragment yields at most the explicitly
 scoped development verdict. A whole source with an actual conditional Audit A
 can yield `AUDIT-B-CONDITIONAL` after all the same native and semantic checks.
 It retains the exact source warnings and never upgrades them to full PASS.

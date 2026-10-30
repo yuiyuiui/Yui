@@ -59,7 +59,7 @@ class BackgroundTests(unittest.TestCase):
             'justification':'Routine closure under continuous addition; every condition is supplied. TEST ONLY synthetic judgment.',
             'source':background.source_from_probe(self.base,'M901'),'hint':'Apply Continuous.add.'}
         self.audit=nl0.closure.audit_template(self.data,nl0.CHECKS,nl0.EXTERNAL_CHECKS,'nl0.json','spec.json')
-        self.audit['reviewer'].update(identity='TEST_ONLY_SYNTHETIC',mode='same_context_self_audit',independent=False,
+        self.audit['reviewer'].update(identity='TEST_ONLY_SYNTHETIC',mode='external_review',independent=True,
                                       disclosure='Synthetic receipt validation only; no actual model review.')
         def pass_row(row):row.update(verdict='PASS',notes='TEST ONLY synthetic located judgment.')
         pass_row(self.audit['target_review'])
@@ -155,7 +155,7 @@ class BackgroundTests(unittest.TestCase):
         plan['contract_sha256']=ir.digest(cp);ir.write(pp,plan)
         review={'version':workflow.VERSION,'source_graph_sha256':nl0.sha(self.base/'nl0.json'),
                 'contract_sha256':ir.digest(cp),'plan_sha256':ir.digest(pp),
-                'reviewer':{'identity':'TEST_ONLY','mode':'same_context_self_audit','independent':False,
+                'reviewer':{'identity':'TEST_ONLY','mode':'external_review','independent':True,
                             'disclosure':'Synthetic format control, not real review.'},
                 'checks':{key:{'verdict':'PASS','notes':'Synthetic TEST ONLY judgment.'} for key in workflow.INTERFACE_CHECKS},
                 'paragraph_mapping':{'S001':{'inference':'R001','paragraph':'S001'}},'source_outputs':{'P':'T001'},

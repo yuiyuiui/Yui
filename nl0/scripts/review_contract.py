@@ -28,7 +28,7 @@ class ReviewContract:
     verdict/summary/finding is still supplied by the actual reviewer. Old raw
     judgments remain inspectable; only new stages require this completion form.
     """
-    def __init__(self, directory, base, required, validator, *, row_validator=None, finding_validator=None):
+    def __init__(self, directory, base, required, validator, *, row_validator=None, finding_validator=None, complete_assessment=False):
         self.directory=Path(directory)
         self.directory.mkdir(parents=True,exist_ok=True)
         self.base=deepcopy(base)
@@ -38,6 +38,7 @@ class ReviewContract:
         self.validator=validator
         self.row_validator=row_validator
         self.finding_validator=finding_validator
+        self.complete_assessment=complete_assessment
         self.items={p:{'coverage':'unread','judgment':None} for p in self.required}
         self.sequence=0
         self._write()
@@ -103,6 +104,8 @@ class ReviewContract:
                 'scope':'Complete reviewer-reported assessment, not automatic mathematical approval.'}
 
     def blocker(self, finding):
+        if self.complete_assessment:
+            raise ValueError('Complete all assigned global checks and return the findings together; an ordinary finding cannot end global review early')
         if (not isinstance(finding,dict) or finding.get('verdict')!='FAIL'
                 or not finding.get('explanation') or not finding.get('locations')
                 or not any(r['coverage']=='assessed' and r['judgment']['verdict']=='FAIL' for r in self.items.values())):

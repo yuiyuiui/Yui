@@ -116,6 +116,25 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],12)
         self.assertTrue(value['usage']['errors'])
 
+    def test_retained_task_revisions_keep_every_ledger_and_reconcile_distinct_responses_once(self):
+        paths=[]
+        for number in (1,2):
+            stage=self.root/f'stage-{number}';stage.mkdir();usage=stage/'usage.json';paths.append(str(usage))
+            self.r.request_started(str(stage),1)
+            response='synthetic-revision-'+str(number)
+            self.r.model_event('retained-author',str(stage),1,{'type':'response.completed',
+                'response':{'id':response,'usage':{'input_tokens':10,'output_tokens':3,'total_tokens':13}}})
+            (stage/'usage-ledger.jsonl').write_text(json.dumps({'response_id':response,'usage':self.r._responses[response]})+'\n')
+            self.r.task('retained-author',usage_ledger=str(usage))
+            self.r.task('retained-author',usage_ledger=str(usage))
+        self.r.close('CONTROL_FINISHED');value=json.loads(self.r.path.read_text())
+        reconciled=value['usage']['final_ledger_reconciliation']
+        self.assertEqual(reconciled['status'],'MATCHED')
+        self.assertEqual(set(reconciled['stage_usage_files']),set(paths))
+        self.assertEqual(value['archived_usage_ledgers'],paths[:1])
+        self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],26)
+        self.assertEqual(value['usage']['status'],'COMPLETE')
+
     def test_queued_model_slot_can_be_cancelled_without_starting_model(self):
         b=concurrency.Budget(concurrency.resolve(1),execution=self.r)
         self.r.task('T001');self.r.task('T002');outcomes=[];started=threading.Event()

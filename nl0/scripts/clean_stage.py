@@ -21,7 +21,7 @@ class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None):
         logs=Path(logs).resolve()
-        if not (phase=='audit-a-packet-replay' and budget is not None and budget.role=='audit_r'):
+        if not (phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r'):
             budget = pilot.concurrency.serial_budget(budget)
         super().__init__(logs, logs / 'unused-contract.json', phase, timeout, budget=budget)
         if arm not in {'yui', 'direct'}:
@@ -148,6 +148,9 @@ class ArtifactStage(pilot.Stage):
                 pilot.carrier.tool('read_review_progress','Read actual own-stage saved judgments and remaining work.',{},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
                     {'finding':{'type':'object','additionalProperties':True}},['finding'])]
+            if self.validator.complete_assessment:
+                self.tools=[t for t in self.tools if t['name']!='submit_review_blocker']
+                self.input_prompt+='\nComplete every assigned global check, even after an ordinary FAIL. Return all findings together; do not replay local R proof bodies here.'
         if self.background_review:
             self.tools += [pilot.carrier.tool('record_background_note',
                     'Optionally checkpoint YOUR positively checked routine mathematical or elementary fact, precise statement and actual available conditions. A complete review may submit these notes together. Exact Mathlib bindings belong to nl02lean. No new H, core missing argument or uncertain external source qualifies; this tool never generates PASS.',

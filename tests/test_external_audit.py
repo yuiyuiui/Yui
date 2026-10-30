@@ -82,7 +82,7 @@ class ExternalAuditRecords(unittest.TestCase):
 
     def test_complete_record_never_claims_automatic_mathematical_verification(self):
         result = self.check()[0]
-        self.assertTrue(result["audit_receipt_valid"])
+        self.assertFalse(result["audit_receipt_valid"])
         self.assertFalse(result["mathematics_automatically_verified"])
 
     def test_current_contract_preserves_all_pending_external_obligations(self):
@@ -159,7 +159,7 @@ class ExternalAuditRecords(unittest.TestCase):
         with self.assertRaisesRegex(nl0.Invalid, "AUDIT-APPLICATION-COVERAGE"):
             self.check()
         self.audit["inference_reviews"]["R001"]["external_applications"]["A002"] = self.application_review()
-        self.assertTrue(self.check()[0]["audit_receipt_valid"])
+        self.assertFalse(self.check()[0]["audit_receipt_valid"])
 
     def test_duplicate_actual_use_id_is_rejected(self):
         self.graph["inferences"][0]["applications"].append(copy.deepcopy(self.graph["inferences"][0]["applications"][0]))
@@ -191,7 +191,7 @@ class ExternalAuditRecords(unittest.TestCase):
         result = self.check(inspect=True)[0]
         self.assertTrue(result["audit_record_complete"])
         self.assertFalse(result["audit_receipt_valid"])
-        self.assertEqual(result["audit_status"], "AUDIT-NOT-PASSED")
+        self.assertEqual(result["audit_status"], "AUDIT-REVIEW-UNQUALIFIED")
         self.assertEqual(result["unresolved_reviews"][0]["verdict"], "UNVERIFIED")
 
     def test_failed_application_blocks_acceptance(self):

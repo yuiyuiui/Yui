@@ -76,6 +76,15 @@ def project(source, *, interface=None, interface_review=None, workflow=None):
                 report=load(final)
                 for item in report['bindings']:
                     if binding(item['path'])!=item:raise ValueError('Final workflow evidence changed')
+                machine=workflow/'audit-b/machine-acceptance.json'
+                if machine.is_file():
+                    import final_acceptance
+                    verified=final_acceptance.validate_receipt(machine)
+                    if report['audit_b'].get('receipt_sha256')!=binding(machine)['sha256']:
+                        raise ValueError('Final machine acceptance receipt changed')
+                    value['audit_b_basis']=verified['acceptance_basis']
+                    value['freeze_deviation']=verified['freeze_deviation']
+                    value['gates']['lean_assembly']='ASSEMBLY-PASSED'
                 full=report['status']=='WORKFLOW-PASSED'
                 value['gates']['audit_b']='PASSED' if full else 'CONDITIONAL'
                 value['full_acceptance']=full

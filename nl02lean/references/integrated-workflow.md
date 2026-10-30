@@ -133,10 +133,10 @@ The lower-level mechanical freeze uses a checked binding with
 `source_graph_sha256`, `contract_sha256`, `plan_sha256`, `paragraph_mapping` and
 `source_outputs`. It checks exact source coverage and direct boundaries and runs
 Lean type elaboration. This binding is **not a semantic review receipt**; the
-recorded semantic status is `PENDING_AUDIT_B`. Actual source/type fidelity is
-reviewed with the completed Lean proof in final Audit B. Normal full/translation
-entry additionally runs the independent interface reviewer and reads back its
-actual hash-bound PASS before freezing/dispatch. The commands below expose the
+recorded semantic status is `PENDING_AUDIT_B`. This legacy route requires explicit semantic review before claiming complete
+acceptance. Normal full/translation entry runs the independent interface reviewer
+and reads back its actual hash-bound PASS before freezing/dispatch; final machine
+Audit B inherits it only after actual full endpoint and proof-integrity checks. The commands below expose the
 lower-level compatibility path; use `--interface-review` to supply an actual
 review when constructing a workflow manually. See [repair routing](proof-repair.md).
 
@@ -177,7 +177,7 @@ translation preparation and Audit B use a separate serial lane. Earlier
 local Audit A R reviews have a separate N-slot lane. One case ledger includes
 all phases. This is not account-wide distributed rate control.
 Other cases own separate budgets. Python coordination consumes no model slot.
-Free slots take the next queued job with a fresh model context for that node.
+Free slots take the next queued node; own revisions retain that node's conversation.
 
 Proof workers see only their frozen ports, allowed statements, own NL paragraphs
 and relevant definitions/views. No sibling proof or reference answer is sent.
@@ -192,45 +192,33 @@ compatibility aliases, with conflicts rejected.
 
 ## 6. Execute Audit B and finish
 
-After all local jobs pass, use one serial postprocessing author under
-[the assembly protocol](assembly.md). The existing mapping author performs
-this work: complete actual library discharges, close the source-facing root,
-build standalone `Proof.lean`, then prepare kernel inspection and the review
-packet. Keep this thread separate from the subsequent independent reviewer.
-Standalone assembly, inspector execution and semantic review have separate
-recorded outcomes. An unchanged checked mapping is reused for its submission;
-it does not require another identical native build or another model author.
+After all local jobs pass, first attempt mechanical assembly under
+[the assembly protocol](assembly.md). The serial connection author repairs only
+actual connection/library-discharge issues and internal bodies under unchanged
+frozen E/P and meaning-determining definitions.
+
+For a workflow with a genuine passing `--interface-review` receipt:
 
 ```sh
 python3 scripts/workflow.py audit-prepare /absolute/new-workflow
-```
-
-Read source and actual types; complete the pending `audit-b/mapping.json`,
-including actual E/P encoded types and concise direct/equivalent correspondence
-explanations. P includes all hypotheses. Supply `library_terms` only for retained
-M ports; Mathlib itself needs no source-registration or signature ledger. Types
-and explanations remain unreviewed proposals until independent B.
-
-```sh
 python3 scripts/workflow.py audit-build /absolute/new-workflow
+python3 scripts/workflow.py audit-check /absolute/new-workflow --machine
 ```
 
-Read complete kernel/source evidence, then write a real located semantic
-review using [Audit B](audit-b.md). Revalidate ordinary or incremental A; do not
-repeat A mathematics inside B. Inspect actual dependencies/hidden fields and
-the final exported root, not just compiler success. No unresolved internal
-project assumption or local axiom is allowed. Pinned Mathlib results are freely
-available and are not checked against NL0 M names or uses. External publications remain
-declared source-faithful inputs, not theorems proved by Lean.
-Validate location format before ending a model review: every pointer must
-resolve and include the required paired locations from mechanical.json. Keep
-actual FAIL/UNVERIFIED judgments. A metadata defect can be corrected without
-rerunning unchanged Lean proofs or NL0 mathematics, with the old record retained.
+Normal `yui.py run --track full|translate` performs this sequence, verifies actual
+frozen full E/P and complete standalone dependencies/trust, and inherits the
+pre-proof semantic authority. It dispatches no final semantic LLM.
 
-```sh
-python3 scripts/workflow.py audit-check /absolute/new-workflow \
-  --review /absolute/new-workflow/audit-b/completed-review.json
-```
+Only proof-integrity success with genuine E/P/meaning drift opens B-final.
+Faithful drift is warning-qualified with a freeze-defect report; nonfaithful or
+unverified output pauses for an explicit `final-decision` command. Source warnings
+never become ordinary PASS. Invalid compilation, `sorry`, dependency failure or
+changed provenance cannot be overridden by a semantic review.
+
+The lower-level legacy/manual path remains available through
+`audit-check --review /absolute/completed-review.json`. It requires an actual
+located review under its historical schema. A pending template never passes,
+and it does not acquire a pre-proof semantic history by being compiled.
 
 Only a genuine whole-source Audit B pass yields `WORKFLOW-PASSED`. Retain failed
 attempts and distinguish model-budget exhaustion from execution faults. Final

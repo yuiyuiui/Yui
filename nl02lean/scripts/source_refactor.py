@@ -34,7 +34,7 @@ producers and cuts still require actual independent reviews before acceptance.
 '''
 
 
-def run(authority, out, budget):
+def run(authority, out, budget, *, sessions=None, prior_artifact=None, findings=None):
     out=Path(out);out.mkdir(parents=True,exist_ok=False)
     data,_=source.read_source(**authority)
     from source_qualification import usable
@@ -48,7 +48,11 @@ def run(authority, out, budget):
     inventory=source.inventory(**authority);inventory.pop('background_supplement',None)
     inventory['consumers_with_background_notes']=sorted(rid for rid,notes in data[0].get('background_notes',{}).items() if notes)
     write(inputs/'inventory.json',inventory)
-    write(inputs/'spec.json',data[2]);write(inputs/'nl0.json',data[1]);manifest(inputs)
+    write(inputs/'spec.json',data[2]);write(inputs/'nl0.json',data[1])
+    if prior_artifact:
+        shutil.copyfile(prior_artifact,inputs/'prior-extraction.json')
+        shutil.copyfile(findings,inputs/'incremental-findings.json')
+    manifest(inputs)
     chosen={};attempt=0
     def validate(value):
         nonlocal attempt
@@ -63,9 +67,12 @@ def run(authority, out, budget):
         result=source.stage(**authority,patch_path=patch,out=staged)
         chosen.update(unchanged=False,directory=staged)
         return result
-    stage=ArtifactStage(out/'stage',PROMPT,phase='translation-source-preparation',inputs=inputs/'inputs.json',
-                        validator=validate,budget=budget,library=False)
-    stage.execute()
+    from translation_author import InterfaceStage
+    stage=InterfaceStage(out/'stage',PROMPT,phase='translation-source-preparation',inputs=inputs/'inputs.json',
+                        validator=validate,budget=budget,library=True)
+    if sessions:
+        with sessions.use('lean-global-author'):stage.execute()
+    else:stage.execute()
     require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='source-preparation')
     if chosen.get('unchanged'):
         write(out/'selection.json',{'unchanged':True,'authority':authority,'decision':bind(out/'stage/accepted.json')})
@@ -77,8 +84,20 @@ def run(authority, out, budget):
     profile=model_profile('translation-preparation')
     selected={k:profile[k] for k in ('id','reasoning_effort','speed','automatic_fallback')}
     with use_profiles({'nl0':selected,'lean':selected}):
-        producer_reviews(case,plan,out/'producer-reviews',budget)
-        cut_reviews(case,plan,out/'cut-reviews',budget)
+        producer_reviews(case,plan,out/'producer-reviews',budget,sessions=sessions)
+        cut_reviews(case,plan,out/'cut-reviews',budget,sessions=sessions)
+    failures=[]
+    for path in [case/'producer-review.json',case/'cut-review.json']:
+        def visit(value):
+            if isinstance(value,dict):
+                if value.get('verdict') in {'FAIL','UNVERIFIED'}:failures.append(value)
+                for item in value.values():visit(item)
+            elif isinstance(value,list):
+                for item in value:visit(item)
+        visit(ir.load(path))
+    if failures:
+        write(out/'review-findings.json',{'findings':failures,'candidate':bind(out/'stage/accepted.json')})
+        raise StageFailure('SOURCE_EXTRACTION_REVIEW_FAILED','Located incremental source findings',phase='source-extraction-review',evidence=out/'review-findings.json')
     result=source.check(revised)
     if not result['result']['current_standard_receipt_valid']:
         raise StageFailure('SOURCE_REVISION_UNVERIFIED','Local source revision did not obtain actual acceptance')
@@ -88,16 +107,20 @@ def run(authority, out, budget):
     return selected_authority
 
 
-def producer_reviews(case, plan, out, budget):
+def producer_reviews(case, plan, out, budget, *, sessions=None):
     data=ir.load(case/'producer-review.json');new=plan['new_producers']
     if not new:return
     prepared=a.prepare(case,case,out)
     prepared['jobs']=[row for row in prepared['jobs'] if row['id'] in new]
     write(out/'campaign.json',prepared)
-    a.run(out,budget=budget)
+    a.run(out,budget=budget,audit_budget=budget,sessions=sessions,review_role='lean-global-reviewer')
     for rid in new:
         stage=out/rid/'stage';result=ir.load(stage/'result.json')
-        require_review_execution(result,stage/'result.json',phase='source-producer-review')
+        try:require_review_execution(result,stage/'result.json',phase='source-producer-review')
+        except StageFailure as error:
+            if error.result.get('record_context_qualified'):
+                raise StageFailure('SOURCE_EXTRACTION_REVIEW_FAILED','Located incomplete producer review',phase='source-extraction-review',evidence=stage/'accepted.json') from error
+            raise
         raw=ir.load(stage/'accepted.json');a.validate_review(raw,out/rid,False)
         target=case/'revision-evidence'/rid;target.mkdir(parents=True)
         for name in ('accepted.json','result.json','exposure-audit.json','execution-manifest.json'):
@@ -134,12 +157,12 @@ def producer_reviews(case, plan, out, budget):
                        'read_materials':['packet:'+packet['packet_sha256']]+['mathlib-evidence:'+ev['sha256'] for ev in library_evidence]}
         data['reviews'][rid]=row
     data['reviewer']={'identity':model_profile('translation-preparation')['id'],
-        'mode':'fresh_model_review','independent':True,
-        'disclosure':'Fresh actual new-producer Audit A packets only; no parent proof or prior verdict.'}
+        'mode':'retained_role_review' if sessions else 'fresh_model_review','independent':True,
+        'disclosure':'Separate B0 reviewer; own incremental review history may be retained. Actual producer packets and source only; no author conversation.'}
     write(case/'producer-review.json',data)
 
 
-def cut_reviews(case, plan, out, budget):
+def cut_reviews(case, plan, out, budget, *, sessions=None):
     reviews=ir.load(case/'cut-review.json')
     for index,key in enumerate(plan['cut_ids']):
         directory=out/f'{index+1:04d}';inputs=directory/'inputs';inputs.mkdir(parents=True)
@@ -160,14 +183,22 @@ def cut_reviews(case, plan, out, budget):
             'Read source-refactoring.md. Return verdict, specific notes, locations and checks for exactly '+', '.join(sorted(source.CUT_CHECKS))+'. '
             'Judgments are PASS/FAIL/UNVERIFIED. Required locations: '+', '.join(sorted(required))+'. Do not repair or assume the proposed producer is valid.')
         stage=ArtifactStage(directory/'stage',prompt,phase='translation-cut-review',
-            inputs=inputs/'inputs.json',validator=validate,budget=budget,library=False)
-        stage.execute();require_review_execution(ir.load(directory/'stage/result.json'),directory/'stage/result.json',phase='cut-review')
+            inputs=inputs/'inputs.json',validator=validate,budget=budget,library=True)
+        if sessions:
+            with sessions.use('lean-global-reviewer'):stage.execute()
+        else:stage.execute()
+        try:require_review_execution(ir.load(directory/'stage/result.json'),directory/'stage/result.json',phase='cut-review')
+        except StageFailure as error:
+            if error.result.get('record_context_qualified'):
+                raise StageFailure('SOURCE_EXTRACTION_REVIEW_FAILED','Located incomplete substitution review',
+                    phase='source-extraction-review',evidence=directory/'stage/accepted.json') from error
+            raise
         row=ir.load(directory/'stage/accepted.json');target=case/'revision-evidence'/f'cut-{index+1:04d}';target.mkdir(parents=True)
         for name in ('accepted.json','result.json','exposure-audit.json','execution-manifest.json'):
             shutil.copyfile(directory/'stage'/name,target/name)
         reviews['cuts'][key]={**row,'packet_sha256':hashed(ir.load(packet)),
             'evidence':[{'path':str(p.relative_to(case)),'sha256':bind(p)['sha256']} for p in target.iterdir()]}
     reviews['reviewer']={'identity':model_profile('translation-preparation')['id'],
-        'mode':'delta_review_with_baseline','independent':True,
-        'disclosure':'Fresh actual paired substitution reviews with the explicit baseline, no prior verdict.'}
+        'mode':'retained_role_review' if sessions else 'delta_review_with_baseline','independent':True,
+        'disclosure':'Separate B0 role performing actual paired substitutions against the explicit baseline; own earlier findings may be retained when role sessions are used.'}
     write(case/'cut-review.json',reviews)

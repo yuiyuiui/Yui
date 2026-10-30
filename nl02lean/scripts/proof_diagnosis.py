@@ -27,8 +27,9 @@ For a faithful interface, prefer a located local repair preserving the obligatio
 For an actual source gap, retain it explicitly and require the source review
 boundary. If evidence cannot determine a safe route, return UNRESOLVED.
 This separate diagnostic sees the worker's allegation and own failed candidates;
-it is not an untouched independent interface review. A changed interface must
-receive a new independent semantic review before proof workers resume.
+it is not an untouched independent interface review. Frozen E/P and their
+meaning-determining definitions cannot be changed here. Report an actual frozen
+contract defect for the user's decision; no automatic unfreeze is authorized.
 '''
 
 
@@ -84,9 +85,9 @@ def validate(value,out):
 
 
 def run(proof_run,step,interface,out,*,budget,timeout=None):
-    from clean_stage import ArtifactStage
+    from audit_b_mapping import AssemblyStage
     prepare(proof_run,step,interface,out);out=Path(out)
-    stage=ArtifactStage(out/'stage',PROMPT,phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
+    stage=AssemblyStage(out/'stage',PROMPT+'\nYou are WB-connect diagnosing a connection/ownership issue under the immutable E/P contract. A contract defect is report-only and requires the user; no automatic unfreeze is authorized.',phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
         library=True,timeout=timeout,budget=budget,validator=lambda value:validate(value,out))
     stage.execute()
     qualification=require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='proof-diagnosis')

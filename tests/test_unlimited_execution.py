@@ -67,6 +67,7 @@ class UnlimitedExecutionTests(unittest.TestCase):
         t = Trial.__new__(Trial)
         t.inbox = queue.Queue()
         t.pending_turn_start_id = None
+        t.active_turn_id = None
         t.inbox.put({'method': 'turn/completed', 'params': {'turn': {'id': 'done'}}})
         result = t.receive_until(lambda m: m['method'] == 'turn/completed', None)
         self.assertEqual(result['params']['turn']['id'], 'done')

@@ -11,6 +11,26 @@ import source_refactor as r
 
 
 class SourceRefactorDriverTests(unittest.TestCase):
+    def test_incomplete_mathematical_cut_review_returns_to_wb0_but_operational_fault_does_not(self):
+        from execution_health import StageFailure
+        class ControlledStage:
+            def __init__(self,logs,*args,**kwargs):self.logs=logs
+            def execute(self):
+                self.logs.mkdir(parents=True);r.write(self.logs/'result.json',{})
+                r.write(self.logs/'accepted.json',{'verdict':'FAIL','notes':'Synthetic located cut defect.'})
+        for qualified in (True,False):
+            with self.subTest(qualified=qualified),tempfile.TemporaryDirectory() as raw:
+                root=Path(raw);case=root/'case';(case/'cut-packets').mkdir(parents=True)
+                r.write(case/'cut-review.json',{'cuts':{}});r.write(case/'cut-packets/key.json',{})
+                error=StageFailure('MATHEMATICAL_REVIEW_FAILED' if qualified else 'EXECUTION_FAULT',
+                    'Synthetic test condition',details={'record_context_qualified':qualified})
+                with patch.object(r,'ArtifactStage',ControlledStage),patch.object(r,'require_review_execution',side_effect=error):
+                    with self.assertRaises(StageFailure) as raised:r.cut_reviews(case,{'cut_ids':['key']},root/'out',None)
+                if qualified:
+                    self.assertEqual(raised.exception.result['phase'],'source-extraction-review')
+                    self.assertTrue(Path(raised.exception.result['evidence']).is_file())
+                else:self.assertIs(raised.exception,error)
+
     def test_a_new_proof_queue_resets_prior_completion_in_the_same_case(self):
         import scheduler
         import ir
@@ -54,7 +74,7 @@ class SourceRefactorDriverTests(unittest.TestCase):
                     self.validator(value);(self.logs/'accepted.json').write_text(json.dumps(value));(self.logs/'result.json').write_text('{}')
             with patch.object(r.source,'read_source',return_value=(data,[])), \
                  patch.object(r.source,'inventory',return_value={'background_supplement':{'large':'body'}}), \
-                 patch.object(r,'ArtifactStage',ControlledStage),patch.object(r,'require_review_execution'), \
+                 patch('translation_author.InterfaceStage',ControlledStage),patch.object(r,'require_review_execution'), \
                  patch.object(r,'producer_reviews') as producers,patch.object(r,'cut_reviews') as cuts:
                 result=r.run(authority,out,None)
             self.assertEqual(result,authority);producers.assert_not_called();cuts.assert_not_called()

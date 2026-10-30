@@ -95,6 +95,11 @@ def audit_source(case,source,directory,budget,progress,*,reuse_from=(),controls=
     progress(case,'ACTUAL_AUDIT_A',directory=str(directory))
     a.run(directory,stage_seconds(budget),budget=budget,audit_budget=audit_budget)
     if budget.execution:budget.execution.check()
+    if not a.global_acceptance(directory)['accepted']:
+        result={'full_acceptance':False,'review_coverage':'GLOBAL_COMPLETE_LOCAL_NOT_STARTED',
+            'global_review':str(directory/'global-acceptance.json')}
+        a.write(directory/'inspection.json',result)
+        return result
     try:
         result=a.collect(directory,controls)
     except StageFailure as error:
@@ -116,42 +121,48 @@ def stage_seconds(budget):
 
 
 def translate(case,source,interface,destination,budget,progress,*,proof_budget=None,problem=None,
-              authority=None,prior_interface=None,diagnostics=None,prior_run=None):
+              authority=None,prior_interface=None,diagnostics=None,prior_run=None,sessions=None):
     source,interface=Path(source).resolve(),Path(interface).resolve()
     author.prepare(source,problem or source/'inputs',interface,authority=authority,
                    prior_interface=prior_interface,diagnostics=diagnostics)
     progress(case,'INTERFACE_AUTHORING',directory=str(interface))
-    author.run(interface,stage_seconds(budget),budget=budget);accepted(interface)
-    if prior_interface and ir.load(prior_interface)==ir.load(interface/'stage/accepted.json'):
-        raise StageFailure('REPAIR_UNCHANGED','The rejected interface was resubmitted unchanged; no repeated audit is started')
+    if sessions:
+        with sessions.use('lean-global-author'):author.run(interface,stage_seconds(budget),budget=budget)
+    else:author.run(interface,stage_seconds(budget),budget=budget)
+    accepted(interface)
     if prior_run is None and prior_interface:
         previous=Path(prior_interface).parents[2]/'workflow'
         selected=workflow.proof_run(previous)
         if (selected/'report.json').is_file():prior_run=selected
     return from_interface(case,source,interface,destination,budget,progress,
                           proof_budget=proof_budget,authority=authority,
-                          prior_run=prior_run)
+                          prior_run=prior_run,sessions=sessions)
 
 
-def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,progress,*,prior_run=None,reviewed_interface=None):
-    """Retire one shared proof round before serial diagnosis or interface repair."""
+def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,progress,*,prior_run=None,reviewed_interface=None,sessions=None):
+    """Preserve local work; diagnose explicit obstructions after their handoffs."""
     import proof_diagnosis
     import time
     from controller_common import bind
-    destination=Path(destination);guidance={};seen=set();round_number=0;rounds=[];diagnostic_reports=[];started=time.monotonic();initial_prior_run=prior_run
+    destination=Path(destination);guidance={};round_number=0;rounds=[];diagnostic_reports=[];started=time.monotonic();initial_prior_run=prior_run
     while True:
         round_number+=1
         current=destination/'proof-run' if round_number==1 else destination/'proof-repairs'/f'{round_number:04d}'
         progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(current),repair_round=round_number)
         proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),current,
             timeout_seconds=stage_seconds(proof_budget),bank=False,budget=proof_budget,prior_run=prior_run,
-            repair_guidance=guidance,reviewed_interface=reviewed_interface,
+            repair_guidance=guidance,reviewed_interface=reviewed_interface,sessions=sessions,
             shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
         rounds.append(bind(current/'report.json'))
         workflow.bound(destination)
         if budget.execution:budget.execution.check()
+        local_failures={j['step']:j['verification'] for j in proof.get('jobs',[]) if j.get('verification',{}).get('exit_code',0)!=0}
+        if local_failures:
+            guidance.update({step:{'route':'LOCAL_PROOF_REPAIR','actual_compiler_feedback':row} for step,row in local_failures.items()})
+            prior_run=current
+            continue
         if proof['status']!='GRAPH_REPAIR_REQUIRED':
-            if proof['status']=='FRAGMENT_ASSEMBLED':
+            if proof['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
                 ir.write(destination/'proof-repair-history.json',{'rounds':rounds,'diagnoses':diagnostic_reports,
                     'wall_seconds':time.monotonic()-started,'prior_run':str(initial_prior_run) if initial_prior_run else None,
                     'scope':'All rounds and serial diagnoses in this workflow; inherited earlier attempts remain separate in their original ledgers.'})
@@ -165,19 +176,17 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
                 phase='proof',evidence=current/'report.json',details={'affected_steps':faults,
                     'recoverability':'VERIFIED_SOFTWARE_REPAIR_REQUIRED',
                     'checkpoint':{'proof_run':str(current),'preserve_completed_work':True,'restart_whole_workflow':False}})
-        progress(case,'PROOF_ROUND_RETIRED_FOR_DIAGNOSIS',directory=str(current))
+        progress(case,'PROOF_CONNECTION_DIAGNOSIS_AFTER_HANDOFF',directory=str(current))
         diagnoses={}
         for step,request in sorted(proof['repair_requests'].items()):
-            key=(step,request['evidence_key'])
-            if key in seen:
-                raise StageFailure('PROOF_REPAIR_STALLED','The same obligation/evidence recurred after located repair; preserve the checkpoint instead of resampling',
-                    phase='proof-diagnosis',evidence=current/'report.json',details={'checkpoint':{'proof_run':str(current),
-                        'preserve_completed_work':True,'restart_whole_workflow':False},'step':step})
-            seen.add(key)
-            diagnoses[step]=proof_diagnosis.run(current,step,interface,destination/'diagnoses'/f'{round_number:04d}'/step,
+            if sessions:
+                with sessions.use('proof-connection'):
+                    diagnoses[step]=proof_diagnosis.run(current,step,interface,destination/'diagnoses'/f'{round_number:04d}'/step,
+                        budget=budget,timeout=stage_seconds(budget))
+            else:diagnoses[step]=proof_diagnosis.run(current,step,interface,destination/'diagnoses'/f'{round_number:04d}'/step,
                 budget=budget,timeout=stage_seconds(budget))
         summary={'proof_run':str(current),'diagnoses':diagnoses,'source_unchanged':True,
-                 'scope':'No theorem accepted; all running nodes in this own round have retired before serial repair.'}
+                 'scope':'No theorem accepted; active local assignments reached handoffs before serial connection diagnosis.'}
         summary_path=destination/'diagnoses'/f'{round_number:04d}'/'report.json';ir.write(summary_path,summary)
         diagnostic_reports.append(bind(summary_path))
         unresolved=[x for x in diagnoses.values() if x['route'] in {'SOURCE_REVIEW_REQUIRED','UNRESOLVED'}]
@@ -186,13 +195,13 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
                 phase='proof-diagnosis',evidence=summary_path,details={'checkpoint':{'proof_run':str(current),
                     'preserve_completed_work':True,'restart_whole_workflow':False}})
         if any(x['route']=='INTERFACE_REPAIR_REQUIRED' for x in diagnoses.values()):
-            raise StageFailure('INTERFACE_REPAIR_REQUIRED','New proof evidence locates a source/interface mismatch; return to its author and fresh independent semantic review',
-                phase='interface-repair',evidence=summary_path,details={'prior_proof_run':str(current)})
+            raise StageFailure('FROZEN_INTERFACE_REQUIRES_USER','Located frozen E/P defect; no automatic rewrite or unfreeze is authorized',
+                phase='frozen-interface',evidence=summary_path,details={'prior_proof_run':str(current),'user_decision_required':True})
         guidance.update(diagnoses);prior_run=current
         progress(case,'LOCATED_PROOF_BODY_REPAIR',diagnosis=str(summary_path),preserve_own_drafts=True)
 
 
-def from_interface(case,source,interface,destination,budget,progress,*,proof_budget=None,authority=None,prior_run=None):
+def from_interface(case,source,interface,destination,budget,progress,*,proof_budget=None,authority=None,prior_run=None,sessions=None):
     source,interface,destination=[Path(p).resolve() for p in (source,interface,destination)]
     budget=a.concurrency.serial_budget(budget)
     proof_budget=proof_budget or a.concurrency.Budget(a.concurrency.resolve(),execution=budget.execution,role='proof')
@@ -201,7 +210,9 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
     review_directory=destination.parent/'interface-review'
     interface_review.prepare(interface,review_directory)
     progress(case,'INTERFACE_FRESH_SEMANTIC_REVIEW',directory=str(review_directory))
-    interface_review.run(review_directory,stage_seconds(budget),budget=budget)
+    if sessions:
+        with sessions.use('lean-global-reviewer'):interface_review.run(review_directory,stage_seconds(budget),budget=budget)
+    else:interface_review.run(review_directory,stage_seconds(budget),budget=budget)
     if budget.execution:budget.execution.check()
     try:
         reviewed=interface_review.collect(review_directory)
@@ -219,29 +230,75 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
     workflow.freeze(**authority,contract=bindings['contract'],plan=bindings['plan'],interface_review=review_directory/'review.json',out=destination,
         max_concurrency=proof_budget.configuration['requested'],interface_binding=interface/'accepted-interface-paths.json')
     frozen=workflow.bound(destination)
+    if sessions:sessions.close(['lean-global-author','lean-global-reviewer'],'INTERFACE_FROZEN',[destination/'freeze-seal.json',review_directory/'review.json'])
     # Free-form strategy queries remain optional; native timeout advice is automatic.
     proof,proof_directory=prove_with_repair(case,frozen,destination,interface,budget,proof_budget,progress,
-        prior_run=prior_run,reviewed_interface=review_directory/'review.json')
-    if proof['status']!='FRAGMENT_ASSEMBLED':
+        prior_run=prior_run,reviewed_interface=review_directory/'review.json',sessions=sessions)
+    if proof['status'] not in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
         raise StageFailure('PROOF_UNFINISHED','Actual Lean proof queue unfinished; preserve each node outcome',phase='proof',evidence=proof_directory/'report.json')
-    mapping=destination.parent/'assembly'
-    audit_b_mapping.prepare(destination,mapping)
-    progress(case,'POSTPROCESSING_ASSEMBLY_AND_SOURCE_EXPORT',directory=str(mapping))
-    audit_b_mapping.run(mapping,stage_seconds(budget),budget=budget);accepted(mapping);audit_b_mapping.adopt(mapping)
-    audit_review=destination.parent/'audit-b-review';audit_b_review.prepare(destination/'audit-b',audit_review)
-    progress(case,'AUDIT_B_FRESH_SEMANTIC_REVIEW',directory=str(audit_review))
-    audit_b_review.run(audit_review,stage_seconds(budget),budget=budget)
-    if budget.execution:budget.execution.check()
+    import audit_b,final_acceptance
+    workflow.prepare_audit(destination)
     try:
-        verdict=audit_b_review.collect(audit_review)
-    except StageFailure as error:
-        if error.result.get('status')!='MATHEMATICAL_REVIEW_FAILED' or not error.result.get('record_context_qualified'):
-            raise
-        raw=ir.load(audit_review/'stage/accepted.json')
-        verdict={'all_checks_passed':False,'review_status':'MATHEMATICAL_REVIEW_FAILED',
-                 'review_coverage':'INCOMPLETE','actual_record':raw,'located_blocker':error.result}
-        a.write(audit_review/'report.json',verdict)
-    if not verdict['all_checks_passed']:
-        raise StageFailure(verdict.get('review_status','MATHEMATICAL_REVIEW_FAILED'),'Actual Audit B semantic review did not pass',phase='audit-b',evidence=audit_review/'report.json')
-    result=workflow.finish(destination,audit_review/'review.json')
+        built=audit_b.build(destination/'audit-b',frozen_contract=frozen['contract'])
+        ready=built['status']=='AUDIT-B-MECHANICAL-PASSED'
+        if not ready:
+            final_acceptance.proof_integrity(destination/'audit-b');ready=True
+    except (ValueError,KeyError,TypeError):ready=False
+    if not ready:
+        mapping=destination.parent/'assembly'
+        audit_b_mapping.prepare(destination,mapping)
+        progress(case,'PROOF_CONNECTION_REPAIR',directory=str(mapping))
+        if sessions:
+            with sessions.use('proof-connection'):audit_b_mapping.run(mapping,stage_seconds(budget),budget=budget)
+        else:audit_b_mapping.run(mapping,stage_seconds(budget),budget=budget)
+        accepted(mapping);audit_b_mapping.adopt(mapping)
+    result=finish_translation(case,destination,budget,progress)
+    if sessions:
+        if result['status']=='DIFFERENT_RESULT_DELIVERED':sessions.cancel_all()
+        else:sessions.close_all('WORKFLOW_FINALIZED',[destination/'report.json'])
     progress(case,result['status'],directory=str(destination));return result
+
+
+def finish_translation(case,destination,budget,progress):
+    """Machine normal acceptance, or the three explicitly authorized human choices."""
+    import final_acceptance
+    from fault_control import Gate,outcome_error
+    from controller_common import bind,write
+    destination=Path(destination)
+    gate=final_acceptance.check(destination)
+    if gate['interface_consistent']:
+        return workflow.finish(destination,machine=True)
+    review_number=0
+    while True:
+        review_number+=1
+        audit_review=destination.parent/('audit-b-final' if review_number==1 else 'audit-b-final-rechecks/'+str(review_number).zfill(4))
+        audit_b_review.prepare(destination/'audit-b',audit_review,interface_deviation=True)
+        progress(case,'AUDIT_B_FINAL_INTERFACE_DEVIATION_REVIEW',directory=str(audit_review))
+        audit_b_review.run(audit_review,stage_seconds(budget),budget=budget)
+        try:verdict=audit_b_review.collect(audit_review)
+        except StageFailure as error:
+            if not error.result.get('record_context_qualified'):raise
+            verdict={'all_checks_passed':False,'review_coverage':'INCOMPLETE',
+                'actual_record':ir.load(audit_review/'stage/accepted.json'),'located_blocker':error.result}
+            ir.write(audit_review/'report.json',verdict)
+        if not verdict['all_checks_passed']:
+            error=StageFailure('FINAL_FIDELITY_NOT_ACCEPTED','Final E/P fidelity was not accepted. Report the freeze defect to developers. No original-goal completion is recorded.',
+                phase='audit-b-final',evidence=audit_review/'report.json',details={'user_decision_required':True,'automatic_restart':False})
+            progress(case,'PAUSED_ERROR',findings=str(audit_review/'report.json'))
+            decision=Gate(audit_review/'decision',recorder=budget.execution,task='case-controller',stage='audit-b-final').pause(
+                outcome_error(error.result),resumable=False,checkpoint={'workflow':str(destination),'findings':bind(audit_review/'report.json')},
+                decisions=('deliver-actual','recheck','reset-translation'))
+            selected=decision['control']['action'];record=bind(audit_review/'decision/error-state.json')
+            if final_acceptance.check(destination)!=gate:
+                raise StageFailure('FINAL_ARTIFACT_CHANGED','Final evidence changed while waiting for the user; preserve the checkpoint',phase='audit-b-final')
+            if selected=='recheck':continue
+            if selected=='reset-translation':
+                raise StageFailure('USER_REQUESTED_TRANSLATION_RESET','Human explicitly selected translation-only reset',
+                    phase='user-decision',details={'user_decision':record})
+            result={'status':'DIFFERENT_RESULT_DELIVERED','original_goal_completed':False,'user_decision':record,
+                'proof':str(destination/'audit-b/Proof.lean'),
+                'audit_b':{'status':'FINAL_FIDELITY_NOT_ACCEPTED','receipt_path':str(audit_review/'review.json'),
+                    'findings':str(audit_review/'report.json'),'acceptance_basis':'USER_ACCEPTED_DIFFERENT_RESULT'},
+                'warning':'User accepted delivery of the actual compiled result; fidelity to the original target was not accepted. See the final review and actual Lean theorem.'}
+            write(destination/'report.json',result);return result
+        return workflow.finish(destination,machine=True,exceptional_review=audit_review/'review.json')

@@ -84,8 +84,8 @@ label. New extraction labels should identify the baseline revision explicitly.
 3. Check locally. If it fails, preserve the goal, local context, diagnostic,
    attempted code and hashes. Continue a clear local repair directly. Optional
    obstacle lookup is available during local repair; no preliminary diagnosis
-   is required for every ordinary error. Structured obstruction or no-progress
-   escalation follows [proof repair](proof-repair.md). A Lean error category is an observation,
+   is required for every ordinary error. Explicit located obstruction
+   routing follows [proof repair](proof-repair.md). A Lean error category is an observation,
    not a root cause. The optional bank contains general implementation advice;
    it neither supplies missing facts nor promises a performance improvement.
 4. Test the retrieved recipe's preconditions. Prove a missing condition from
@@ -93,17 +93,17 @@ label. New extraction labels should identify the baseline revision explicitly.
    that condition to the target's assumptions. A judged mathematical gap returns
    to NL0/Audit A; elapsed time, search failure or network faults cannot establish
    one. Repeated no-progress retries warrant reconsidering the implementation
-   route. Three completed turns without distinct checks/lookups trigger serial
-   diagnosis; repeated unchanged evidence after repair remains an explicit
-   checkpoint. Retain all actual costs without inventing a case-time allowance.
+   route. Progress counters and repeated evidence do not authorize automatic
+   retirement, pause or cancellation. The same assigned role handles actual
+   feedback; retain every round and cost without inventing a case-time allowance.
 5. Freeze accepted proof bytes bound to contract and plan. Assemble the actual
    local proofs, compile P and print its signature/axioms. Recheck in a fresh
    verifier work directory. Local success without root closure is partial.
-6. Apply [Audit B](audit-b.md) after actual proof assembly. Freeze source and
-   proof bytes, review source-to-actual-type concordance, inspect dependency and
-   signature evidence, and perform the fresh kernel gates. Complete the located
-   semantic review with its actual scope. These steps, rather than the earlier
-   compiler gates alone, govern the new B verdict.
+6. Apply machine [Audit B](audit-b.md) after actual proof assembly. Bind the
+   actual final E/P and meaning-determining environment to the reviewed frozen
+   interface, with complete compilation, dependency and kernel-trust evidence.
+   Normal acceptance inherits that earlier semantic review. Only a valid-proof
+   interface deviation opens B-final; it cannot override a mechanical failure.
 
 ## Use local Audit A notes when they can shorten an implementation route
 

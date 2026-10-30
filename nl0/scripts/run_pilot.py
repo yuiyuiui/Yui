@@ -342,14 +342,14 @@ class Trial:
         result['instructions'] = self.system
         result['tools'] = [{'type': 'function', 'name': t['name'], 'description': t['description'],
                             'parameters': t['inputSchema'], 'strict': False} for t in self.tools]
-        kept, removed = [], []
+        kept, removed, handoff_restorations = [], [], []
         for item in payload.get('input', []):
             role = item.get('role')
             text = '\n'.join(c.get('text', '') for c in item.get('content', []) if isinstance(c, dict))
             if role in ['developer', 'system'] or role == 'user' and text not in self.allowed_user_messages:
                 removed.append(item)
             else:
-                kept.append(item)
+                kept.append(dict(item))
         result['input'] = kept
         result['store'] = False
         if self.strict:
@@ -367,6 +367,18 @@ class Trial:
                         raise PermissionError('本题只允许冻结的纯文本用户消息。')
                 elif item.get('type') == 'function_call_output':
                     origin = self.tool_history.get(item.get('call_id'))
+                    handoff=getattr(self,'handoff_results',{}).get(item.get('call_id'))
+                    if (item.get('output')=='dynamic tool call was cancelled before receiving a response'
+                            and handoff and handoff.get('confirmed') and origin is not None):
+                        record=handoff['record'];path=Path(record['path'])
+                        if hashlib.sha256(path.read_bytes()).hexdigest()!=record['sha256']:
+                            raise PermissionError('Controlled handoff evidence changed')
+                        saved=json.loads(path.read_text())
+                        if saved['tool_result']!=origin or saved['call_id']!=item['call_id'] or not saved['confirmed']:
+                            raise PermissionError('Controlled handoff result differs from its origin')
+                        original=item['output'];item['output']=json.dumps(origin,ensure_ascii=False)
+                        handoff_restorations.append({'call_id':item['call_id'],'record':record,
+                            'native_output':original,'restored_sha256':hashlib.sha256(item['output'].encode()).hexdigest()})
                     extra = set(item) - {'type', 'id', 'call_id', 'output'}
                     reason = 'unknown_call' if origin is None else 'unexpected_fields' if extra else None
                     try:
@@ -386,6 +398,8 @@ class Trial:
                         raise error
                 else:
                     origin = self.model_history.get(item.get('id'))
+                    if origin is None and item.get('type')=='function_call' and 'id' not in item:
+                        origin=self.model_calls.get(item.get('call_id'))
                     if origin is None or any(origin.get(k) != v for k, v in item.items() if k != 'status'):
                         raise PermissionError('模型历史不属于本题已接收输出。')
             kept = [({'type': 'message', 'role': 'user', 'content':
@@ -417,6 +431,7 @@ class Trial:
             'upstream_host': 'chatgpt.com', 'upstream_path': '/backend-api/codex/responses',
             'original_payload': payload, 'removed_items': removed, 'sent_payload': result,
             'controller_checkpoint': checkpoint,
+            'controller_handoff_restorations':handoff_restorations,
             'dropped_top_level_fields': sorted(set(payload) - set(result)),
             'sent_body_sha256': hashlib.sha256(json.dumps(result, ensure_ascii=False).encode()).hexdigest()})
         # A mistaken adapter must fail before sending an empty first problem.
@@ -674,7 +689,9 @@ class Trial:
                 self.pending_turn_start_id = None
                 self.active_turn_id = msg.get('result', {}).get('turn', {}).get('id', self.active_turn_id)
             if msg.get('method') == 'turn/completed':
-                self.last_turn_event = msg
+                turn_id=msg.get('params',{}).get('turn',{}).get('id')
+                if not self.active_turn_id or turn_id==self.active_turn_id:
+                    self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
                 if getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None) or getattr(self,'provider_wait_notice',None)):
                     # A completed call can race with the protective interrupt.
@@ -698,13 +715,23 @@ class Trial:
                     self.pause_error({'code':'harness_bug','message':'Local tool failed; no automatic tool replay',
                         'tool':params['tool'],'feedback':result},resumable=False)
                 delivered = self.snapshot_tool_result(params['callId'],result)
-                if (getattr(self,'stop_on_submission',False) and self.accepted is not None
-                        and not getattr(self,'submission_closed',False)):
+                if (getattr(self,'stop_on_submission',False) and (self.accepted is not None or getattr(self,'repair_request',None))
+                        and not getattr(self,'submission_completion',None)):
                     self.submission_closed=True
                     self.submission_completion={'at_utc':now(),'elapsed_seconds':time.monotonic()-self.started,
                         'tool':params['tool'],'call_id':params['callId'],
                         'scope':'Accepted stage artifact only; later mathematical gates remain required.'}
                     append(self.logs/'controller.jsonl',{'event':'stage_submission_completed',**self.submission_completion})
+                    if not hasattr(self,'handoff_results'):self.handoff_results={}
+                    self.handoff_results[call_id]={'call_id':call_id,'turn_id':self.active_turn_id,
+                        'tool_result':json.loads(delivered),'confirmed':False}
+                    # Cancel this submitted turn while the client is still awaiting
+                    # its tool result. Sending the interrupt first prevents the
+                    # successful result from launching an unnecessary model call.
+                    # The artifact is already durable in the tool/controller logs.
+                    if self.active_turn_id:
+                        self.handoff_interrupt = self.send('turn/interrupt', {
+                            'threadId':self.thread_id,'turnId':self.active_turn_id})
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
                     'contentItems': [{'type': 'inputText', 'text': delivered}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
@@ -869,10 +896,8 @@ tool_suggest = false
                 and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
                 or getattr(self,'submission_closed',False), deadline)
             if getattr(self,'submission_closed',False):
-                try:
-                    self.drain_relay_streams()
-                    self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
-                except Exception as error:self.post_acceptance_closing_error=type(error).__name__+': '+str(error)
+                self.drain_relay_streams()
+                self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
                 event=self.last_turn_event or done
                 self.turn_results.append(event)
                 return event
@@ -999,7 +1024,8 @@ tool_suggest = false
                                time.monotonic() + 15)
         if not self.active_turn_id:
             raise RuntimeError('无法确认本题活动回合，不发送无turnId的中断请求。')
-        if (self.last_turn_event and self.last_turn_event.get('params', {}).get('turn', {}).get('id')
+        pending=getattr(self,'handoff_interrupt',None)
+        if not pending and (self.last_turn_event and self.last_turn_event.get('params', {}).get('turn', {}).get('id')
                 == self.active_turn_id):
             return
         record=self.logs/('deadline.jsonl' if reason=='DEADLINE' else 'cancellation.jsonl')
@@ -1008,7 +1034,20 @@ tool_suggest = false
             'request_number': self.api_calls})
         self.cancelled_requests[self.api_calls] = {'thread_id': self.thread_id,
             'turn_id': self.active_turn_id, 'interrupt_requested_at_utc': now(),'reason':reason}
-        self.rpc('turn/interrupt', {'threadId': self.thread_id, 'turnId': self.active_turn_id}, seconds=15)
+        if pending:
+            reply=self.receive_until(lambda m:m.get('id')==pending,time.monotonic()+15)
+            self.handoff_interrupt=None
+            error=reply.get('error')
+            if error and not (error.get('code')==-32600 and 'no active turn to interrupt' in error.get('message','').lower()):
+                raise RuntimeError(json.dumps(error,ensure_ascii=False))
+        else:
+            try:self.rpc('turn/interrupt', {'threadId': self.thread_id, 'turnId': self.active_turn_id}, seconds=15)
+            except RuntimeError as error:
+                try:detail=json.loads(str(error))
+                except ValueError:raise error
+                if detail.get('code')!=-32600 or 'no active turn to interrupt' not in detail.get('message','').lower():raise
+                # A matching terminal event must still confirm the race. The
+                # RPC error alone is never evidence of successful completion.
         if not (self.last_turn_event and self.last_turn_event.get('params', {}).get('turn', {}).get('id')
                 == self.active_turn_id):
             self.receive_until(lambda m: m.get('method') == 'turn/completed'
@@ -1017,6 +1056,13 @@ tool_suggest = false
         append(record, {'event': 'interrupt_completed','reason':reason,
             'thread_id': self.thread_id, 'turn_id': self.active_turn_id,
             'status': self.last_turn_event.get('params', {}).get('turn', {}).get('status')})
+        for call_id,row in getattr(self,'handoff_results',{}).items():
+            if row['turn_id']==self.active_turn_id and not row['confirmed']:
+                row['confirmed']=True
+                path=self.logs/'handoff-results'/(hashlib.sha256(call_id.encode()).hexdigest()+'.json')
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(json.dumps(row,ensure_ascii=False,indent=2)+'\n')
+                row['record']={'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 
     def run(self, *, smoke: bool = False) -> dict:
         result = {'case': self.case, 'suite': self.suite, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'), 'status': 'STARTING',

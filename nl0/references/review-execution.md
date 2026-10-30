@@ -5,9 +5,21 @@ not change NL0's mathematical standard or prove a reviewer's judgment correct.
 
 ## Per-case roles
 
-Use one serial NL0 author and one serial preparation/global-review lane.
-Finish the global Audit A stage first, then review frozen R packets in up to
-N independent fresh contexts. Each packet keeps its own directory, source
+Retain one serial NL0 author and a separate global reviewer through revisions.
+The author submits and waits. The reviewer completes every assigned global check,
+collects all global findings and returns them together. The same author repairs;
+the same separate reviewer checks the revision. Global completion alone is not
+acceptance: only an actual global PASS (or the existing explicitly qualified
+primary-source outcome) opens the local lane. Save the handoff and close both roles.
+
+Then run per-node reviewer/repair-author pairs. A local author changes only its
+own R body under unchanged public inputs/output/definitions. The pair alternates
+within the same own conversations. N counts their combined active model work;
+idle conversations occupy no slot. A located shared-context issue stops new local
+dispatch. Current assignments reach normal handoffs, reviewed work is merged, and
+the global roles are restored from saved source/findings. Recheck changed global
+context and affected packets before resuming locals. Do not kill sibling work.
+All local PASS versions are merged and verified before closing the local roles. Each packet keeps its own directory, source
 hash, profile, tool evidence and result. Submit the same frozen version to all
 reviewers; never share sibling judgments or proof bodies. Collect by stable
 job ID, independent of finish order. Retain completed results if a sibling
@@ -45,14 +57,17 @@ the reviewer's actual overall verdict/notes/findings where required; the
 controller never fills PASS.
 
 A submission with unread work continues the same stage and remaining budget.
-An evaluated uncertainty may finish UNVERIFIED, with a specific reason. A real
-located blocker may finish early through `submit_review_blocker` after saving
-its assessed FAIL item. The report remains explicitly incomplete. Reading an
+An evaluated uncertainty may finish UNVERIFIED, with a specific reason. A local or interface reviewer may submit a real located blocker early through
+`submit_review_blocker` after saving its assessed FAIL item. The global reviewer
+must finish all assigned global checks; its tools do not offer early blocker
+submission. An incomplete local assessment remains explicitly incomplete. Reading an
 interval establishes access, not comprehension or mathematical correctness.
 
-Fresh reviewers receive only their canonical task/candidate, required source
-evidence and rules. They receive no author repair history, previous verdict,
-unused candidate, personal memory or foreign-case material. Packet replay
+Distinct reviewer roles receive only canonical assigned candidates, required
+source evidence and rules, never an author's conversation or a sibling's proof.
+A reviewer may retain its own earlier findings in the approved repair loop; the
+receipt discloses that history instead of claiming a fresh context each time.
+Personal memory and foreign-case material remain excluded. Packet replay
 retains its packet-only boundary even when the global reviewer saw sources.
 
 For a blocking Audit A finding, give an exact supplied location and a short
@@ -71,7 +86,7 @@ Authorized warm author inputs may include `repair-obligations.json` with
 `baseline_content_sha256` binding that input's canonical `{spec,graph}` and
 `issues:[{id,criterion,location,note},...]`. Issue locations resolve in that
 baseline. These diagnostics persist until actual located author resolutions
-and fresh scoped review; they are not mathematical premises or prior PASS.
+and actual scoped review; they are not mathematical premises or prior PASS.
 Cold authors receive none of this file, the old source or prior findings.
 
 ## Interface phase and disputes
@@ -100,6 +115,8 @@ An unresolved disagreement stays disputed; never resample until PASS.
 ## Conservative Audit A reuse
 
 An unchanged accepted whole source is reused directly. For local revisions,
+formal admission requires an assigned independent reviewer; a complete self-review
+record remains readable but cannot grant current Audit A or conditional acceptance.
 `audit_a_campaign.py prepare --reuse-from PRIOR_CAMPAIGN` may inherit qualified
 passing review items. The test queue exposes the same explicit `reuse_audits`
 list; cold comparisons leave it empty. No implicit cross-case cache is read.
@@ -110,8 +127,11 @@ source contracts/pins and semantic rule hashes. Exclude only the known whole
 graph/spec/packet envelope hashes. Preserve those hashes as provenance.
 Copy bounded original evidence by content hash, compare old/current contexts,
 and retain old raw judgment, execution qualification and costs. New reviewers
-see only assigned work, without inherited verdicts. Whole-graph structure and
-current complete coverage still need to pass.
+see only assigned work, without inherited verdicts. The global public graph scope includes statements, edges and R input/output/
+definitions, excluding local body text. A body-only patch invalidates its own
+packet, while changed public context invalidates affected global/local scopes.
+Current complete coverage must still pass. Primary-source qualifications may be
+inherited only with exact bound deferral evidence; UNVERIFIED stays UNVERIFIED.
 
 New receipts bind inherited items through `inheritance` evidence. The NL0
 reader validates it, and Audit B consumes that same authority chain. Inherited
@@ -159,3 +179,8 @@ rather than a separate model/tool roundtrip for every report row. Checkpoints
 remain available. The exact supplement is hash-bound, kept with its original
 review context/cost and consumed as node-local reference in nl02lean, never a
 new assumption. Substantive gaps and source uncertainty cannot be waived.
+
+When a global revision removes an old R node, retain its actual failed or incomplete
+review. Once the replacement NL0 has complete accepted Audit A, release that obsolete
+local role at the same LOCAL_REVIEWS_PASSED boundary and record its supersession.
+This does not convert the old verdict into PASS or release a faulted/unfinished role.

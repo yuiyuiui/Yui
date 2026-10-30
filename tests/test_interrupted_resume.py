@@ -215,12 +215,12 @@ class InterruptedResumeTests(unittest.TestCase):
             graph=json.loads((patched/'nl0.json').read_text())
             graph['inferences'][0]['argument'][0]['text']+=' Synthetic repair edit.'
             self.write(patched/'nl0.json',graph)
-            with patch.object(case_runner,'author_stage',return_value=patched) as author, \
-                 patch.object(full_workflow,'audit_source',return_value={'full_acceptance':True}) as review:
+            import nl0_review_loop
+            with patch.object(nl0_review_loop,'run',return_value={'graph':str(patched/'nl0.json')}) as review:
                 case_runner.nl0_work(job,None,None,lambda *args,**kwargs:None)
-            self.assertEqual(author.call_args.kwargs['baseline'],source)
-            self.assertEqual(author.call_args.kwargs['obligations'],obligations)
-            self.assertEqual(review.call_args.kwargs['reuse_from'],prior)
+            self.assertEqual(review.call_args.kwargs['restored'],source)
+            self.assertEqual(review.call_args.kwargs['initial_issues'],obligations)
+            self.assertEqual(review.call_args.kwargs['prior'],prior)
         self.assertEqual((self.run/'case-result.json').read_bytes(),old)
         self.assertEqual(job['profiles'],self.old['profiles'])
         self.assertEqual(job['max_concurrency'],self.old['max_concurrency'])
@@ -277,11 +277,13 @@ class InterruptedResumeTests(unittest.TestCase):
         with patch.object(full_workflow,'nl0_artifact_for_audit',return_value={'synthetic_control_only':True}) as release:
             job=self.prepare()
             self.assertEqual(job['resume']['mode'],'audit-a')
+            import nl0_review_loop
+            def restored_result(*args,**kwargs):return {'graph':str(kwargs['restored']/'nl0.json')}
             with patch.object(case_runner,'author_stage') as author, \
-                 patch.object(full_workflow,'audit_source',return_value={'full_acceptance':True}) as audit:
+                 patch.object(nl0_review_loop,'run',side_effect=restored_result) as audit:
                 authority=case_runner.nl0_work(job,None,None,lambda *args,**kwargs:None)
             author.assert_not_called();self.assertEqual(release.call_count,2)
-        self.assertEqual(audit.call_args.kwargs['reuse_from'],[str(campaign)])
+        self.assertEqual(audit.call_args.kwargs['prior'],[str(campaign)])
         self.assertEqual(Path(authority['graph']).read_bytes(),before)
         self.assertEqual((source/'nl0.json').read_bytes(),before)
         origin=json.loads((Path(job['root'])/'resumed-source/source-origin.json').read_text())

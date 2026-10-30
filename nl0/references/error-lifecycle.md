@@ -33,10 +33,10 @@ original faults, elapsed time and usage remain in the evidence.
 
 Nonretryable faults and exhausted retries enter `PAUSED_ERROR`. The controller
 waits locally without model calls or automatic phase replay. It retains its
-carrier, temporary workspace, candidates and checkpoints. Successfully submitted
-NL0/A-review carriers are also retained until the actual Audit A gate and its
-finalization; Lean-stage carriers remain retained until final Audit B/workflow
-finalization. Artifact submission alone is insufficient to release these resources.
+carrier, temporary workspace, candidates and checkpoints. Successfully submitted roles wait for their specified handoff: global PASS,
+all-local PASS, accepted interface freeze or final delivery. Save the outputs and
+bound reviews before closing those roles. A draft submission alone is not a
+closing boundary; its own conversation remains reusable during revisions.
 
 Each pause saves `error-state.json` and a per-incident record under the affected
 stage's `error-incidents/`. These include category, HTTP/code evidence, original
@@ -87,11 +87,19 @@ retain their original guards; never use them instead of a live error pause.
 
 Resource termination/deletion is authorized only by:
 
-1. Actual requested acceptance and finalization: NL0 plus Audit A for its phase,
-   or final assembly/native inspection plus independent Audit B for translation
-   and the whole workflow. Previously authorized conditional-source outcomes
-   retain their warnings and are never relabeled ordinary full PASS.
+1. A specified successful role boundary: close the global author/reviewer after
+   global acceptance, local pairs after all-local acceptance, preprocessing roles
+   after accepted interface freeze, and remaining roles after finalized delivery.
+   Save bound handoffs first. Normal final Audit B is machine validation inheriting
+   the independently reviewed interface; faithful drift requires B-final and a warning.
 2. An explicit user cancellation, including a user-requested `cleanup --apply`.
+3. An explicit B-final choice through `final-decision RUN --incident ID --action
+   deliver-actual|recheck|reset-translation`. No default choice exists. Different
+   result delivery is not completion of the original target. Recheck creates only
+   the requested new review. Reset releases only translation resources, deletes
+   translation outputs/native files, retains original NL0/A and cost ledgers, then
+   reruns translation. A stale incident, changed owner or unconfirmed cleanup
+   blocks the action. Earlier failures are never relabeled PASS.
 
 Faults, retry exhaustion, a stage directory, a model's normal reply, a submitted
 draft, elapsed time or a child-process exit cannot grant this authorization.

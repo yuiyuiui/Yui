@@ -29,8 +29,9 @@ You are not the independent Audit B reviewer. Do not rerun local proof authors,
 reconstruct NL0, change a frozen interface, add assumptions or declare a PASS.
 Your submission is the complete mapping object used to build the proof, not a
 progress report. The tool first compiles standalone Proof.lean, then separately
-inspects actual kernel signatures/dependencies. Both gates must pass before a
-fresh independent Audit B session can start. Routine correctable mapping,
+inspects actual kernel signatures/dependencies. Normal final acceptance is a
+machine check inheriting frozen pre-proof semantics; only proof-valid interface
+drift may open B-final. Routine correctable mapping,
 library application or diagnostic issues are local implementation work.
 Preserve your draft and use the exact candidate number in feedback. The
 read_assembly_feedback tool pages your own generated source and complete
@@ -59,6 +60,9 @@ frozen theorem or extra project premise is permitted. check_draft returns real
 standalone compilation and endpoint type/kernel-closure feedback. Passing it
 is not the independent semantic Audit B. Preserve and repair your own mapping
 and assembly candidates after actual feedback.
+Optional proof_patches maps existing T IDs to replacement internal tactic bodies.
+Prove helpers inside those bodies as needed; do not change E/P, the frozen plan,
+definitions determining their meaning, or replace a missing producer by a premise.
 '''
 
 
@@ -66,7 +70,7 @@ def prepare(directory,out):
     directory,out=[Path(p).resolve() for p in (directory,out)]
     frozen=workflow.bound(directory)
     selected=workflow.proof_run(directory)
-    if ir.load(selected/'report.json')['status']!='FRAGMENT_ASSEMBLED':raise ValueError('Actual assembled proof required')
+    if ir.load(selected/'report.json')['status'] not in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:raise ValueError('All actual local proof bodies required')
     if not (directory/'audit-b').exists():workflow.prepare_audit(directory)
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     for name in ['mapping.json','source-inventory.json']:
@@ -95,11 +99,18 @@ class MappingContract:
         c=ir.contract(cpath);inventory=ir.load(directory/'audit-b/source-inventory.json')
         self.attempt+=1;candidate=self.out/'candidates'/str(self.attempt).zfill(4)
         write(self.out/'drafts'/f'{self.attempt:04d}.json',value)
+        patches=value.get('proof_patches',{})
+        value={k:v for k,v in value.items() if k!='proof_patches'}
         try:
+            ir.need(isinstance(patches,dict),'Internal proof patches must be an object')
+            bundle=ir.load(selected/'proofs.json')
+            ir.need(set(patches)<=set(bundle['proofs']),'Connection repair cannot create a missing node or change its interface')
+            for body in patches.values():ir.proof_text(body)
+            bundle['proofs'].update(patches)
             if value.get('source_inventory_sha256')!=ir.digest(directory/'audit-b/source-inventory.json'):
                 raise ValueError('Map the exact original inventory')
             audit_b.validate_mapping(c,inventory,value)
-            key=hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+            key=hashlib.sha256(json.dumps([value,patches,bundle],sort_keys=True,ensure_ascii=False).encode()).hexdigest()
             cached=self.checked.get(key)
             if cached:
                 old=Path(cached['candidate']);audit_b.bound_inputs(old)
@@ -110,11 +121,14 @@ class MappingContract:
                 else:
                     cached=None
             if not cached:
-                audit_b.prepare(cpath,ppath,selected/'proofs.json',candidate,**{k:Path(v) if v else None for k,v in frozen['authority'].items()})
+                bpath=self.out/'proof-bundles'/f'{self.attempt:04d}.json';write(bpath,bundle)
+                audit_b.prepare(cpath,ppath,bpath,candidate,**{k:Path(v) if v else None for k,v in frozen['authority'].items()})
                 write(candidate/'mapping.json',value)
-                result=audit_b.build(candidate)
+                result=audit_b.build(candidate,frozen_contract=frozen['contract'])
             if result['status']!='AUDIT-B-MECHANICAL-PASSED':
-                raise ValueError('Actual assembly/inspection rejection: '+json.dumps(result,ensure_ascii=False))
+                from final_acceptance import proof_integrity
+                proof_integrity(candidate)
+                result.update(interface_deviation_requires_b_final=True)
         except (ValueError,KeyError,TypeError) as error:
             report={'candidate':self.attempt,'error':str(error),'native_candidate':str(candidate) if candidate.exists() else None}
             write(self.out/'feedback'/f'{self.attempt:04d}.json',report)
@@ -123,7 +137,8 @@ class MappingContract:
         self.checked[key]={'candidate':str(candidate),'result':result}
         write(self.out/'feedback'/f'{self.attempt:04d}.json',{'candidate':self.attempt,'native_candidate':str(candidate),'result':result})
         write(self.out/'accepted-mapping-path.json',{'candidate':str(candidate),'mapping':bind(candidate/'mapping.json'),
-            'status':'MECHANICAL_ONLY_FRESH_SEMANTIC_AUDIT_REQUIRED'})
+            'status':'PROOF_INTEGRITY_CHECKED_FINAL_INTERFACE_GATE_REQUIRED',
+            'proof_patches':patches})
         return result
 
 
@@ -159,6 +174,8 @@ class AssemblyStage(ArtifactStage):
 
     def dispatch(self,name,args):
         if name!='read_assembly_feedback':return super().dispatch(name,args)
+        if not hasattr(self.validator,'attempt'):
+            return {'accepted':False,'error':'This assignment is connection diagnosis; read its declared inputs before reporting the repair route.'}
         try:
             number=args['candidate'];kind=args['kind']
             if type(number) is not int or not 1<=number<=self.validator.attempt:
@@ -193,11 +210,15 @@ def adopt(out):
     if result.get('status')!='ACCEPTED' or result.get('exposure',{}).get('status')!='TRANSMITTED-EXPOSURE-CHECK-PASSED':
         raise ValueError('Actual submitted, exposure-qualified mapping required')
     choice=ir.load(out/'accepted-mapping-path.json');candidate=Path(choice['candidate'])
-    if ir.load(out/'stage/accepted.json')!=ir.load(candidate/'mapping.json'):raise ValueError('Candidate differs from actual final mapping')
+    actual=ir.load(out/'stage/accepted.json');actual.pop('proof_patches',None)
+    if actual!=ir.load(candidate/'mapping.json'):raise ValueError('Candidate differs from actual final mapping')
     directory=Path(ir.load(out/'authority.json')['workflow']);workflow.bound(directory)
     if (directory/'audit-b.initial-pending').exists():raise ValueError('Preserve prior adopted audit; use a new workflow')
     (directory/'audit-b').rename(directory/'audit-b.initial-pending')
     shutil.copytree(candidate,directory/'audit-b')
+    if choice.get('proof_patches'):
+        write(directory/'assembly-proof-patches.json',{'patches':choice['proof_patches'],
+            'actual_author_submission':bind(out/'stage/accepted.json'),'compiled_proof':bind(directory/'audit-b/Proof.lean')})
     audit_b.bound_inputs(directory/'audit-b')
     return {'status':'ACTUAL_BUILD_READY_FOR_FRESH_SEMANTIC_AUDIT','audit':str(directory/'audit-b')}
 

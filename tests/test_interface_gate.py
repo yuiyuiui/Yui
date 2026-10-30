@@ -132,7 +132,7 @@ class InterfaceGateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             proof_reuse.candidate(previous,inputs/'contract.json',plan,'T001',reviewed_interface=out/'review.json')
 
-    def test_interface_repair_diagnosis_routes_to_author_then_fresh_workflow_attempt(self):
+    def test_frozen_interface_defect_waits_for_user_without_new_author_attempt(self):
         import case_runner
         root=self.root/'case';source=root/'source';source.mkdir(parents=True)
         authority={'graph':str(source/'nl0.json')};calls=[]
@@ -142,16 +142,16 @@ class InterfaceGateTests(unittest.TestCase):
         def translate(*args,**kwargs):
             calls.append(kwargs)
             if len(calls)==1:
-                raise StageFailure('INTERFACE_REPAIR_REQUIRED','Neutral located mismatch',phase='interface-repair',
+                raise StageFailure('FROZEN_INTERFACE_REQUIRES_USER','Neutral located mismatch',phase='frozen-interface',
                     evidence=summary,details={'prior_proof_run':str(oldrun)})
             ir.write(root/'nl0-to-lean/0002/audit-b-review/review.json',{'fixture':'control only'})
             return {'status':'WORKFLOW-PASSED'} # Stub result only, never a scientific outcome.
         budgets=SimpleNamespace(serial=None,proof=None)
         with patch.object(case_runner.source_refactor,'run',return_value=authority),\
                 patch.object(full,'translate',side_effect=translate):
-            case_runner.translation_work({'root':str(root),'case':'neutral','policy':'normal'},authority,budgets,lambda *a,**k:None)
-        self.assertEqual(len(calls),2);self.assertEqual(calls[1]['prior_interface'],prior)
-        self.assertEqual(calls[1]['prior_run'],oldrun);self.assertTrue(calls[1]['diagnostics']['source_unchanged'])
+            with self.assertRaises(StageFailure) as error:
+                case_runner.translation_work({'root':str(root),'case':'neutral','policy':'normal'},authority,budgets,lambda *a,**k:None)
+        self.assertEqual(len(calls),1);self.assertEqual(error.exception.result['phase'],'frozen-interface')
         self.assertEqual(ir.load(prior),{'interface':'old'})
 
     def test_located_incomplete_review_routes_to_repair_without_becoming_full_pass(self):

@@ -154,6 +154,7 @@ elab "#nl2lean_audit_probe" : command => do
       (fun o => (o.setBool `pp.all true).setBool `pp.universes true) do
     let checks : Array (String × String × String × Array String) := __AUDIT_CHECKS__
     let mut comparisons : Array Json := #[]
+    let mut frozenComparisons : Array Json := #[]
     let mut roots : Array Name := #[`AuditBExport.P]
     for (id, selector, expectedText, parts) in checks do
       let stx ← ofExcept <| Parser.runParserCategory (← getEnv) `term expectedText
@@ -162,15 +163,20 @@ elab "#nl2lean_audit_probe" : command => do
       let expected ← instantiateMVars expected
       let actual ← actualType selector parts
       let (equal, method) ← sameSignature actual expected
-      comparisons := comparisons.push <| Json.mkObj [
+      let row := Json.mkObj [
         ("id", toJson id), ("selector", toJson selector),
         ("expected_type", toJson (← showType expected)),
         ("actual_type", toJson (← showType actual)), ("definitionally_equal", toJson equal),
         ("comparison_method", toJson method)]
+      if id.startsWith "__frozen__" then
+        frozenComparisons := frozenComparisons.push row
+      else
+        comparisons := comparisons.push row
       if selector.startsWith "decl:" then
         roots := roots.push (nameOf parts)
     let dependencies ← inspect roots
-    return Json.mkObj [("comparisons", toJson comparisons), ("dependencies", dependencies)]
+    return Json.mkObj [("comparisons", toJson comparisons),
+      ("frozen_comparisons", toJson frozenComparisons), ("dependencies", dependencies)]
   logInfo m!"NL2LEAN_AUDIT_JSON:{result.compress}"
 
 set_option maxHeartbeats 0 in

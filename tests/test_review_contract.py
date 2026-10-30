@@ -56,6 +56,23 @@ class ReviewCompletionTests(unittest.TestCase):
         self.assertEqual(result['status'],'REVIEW_BLOCKED_INCOMPLETE')
         self.assertEqual(result['coverage']['remaining'],['/checks/b'])
 
+    def test_global_complete_assessment_collects_all_findings_before_return(self):
+        self.c.complete_assessment=True
+        self.c.record('/checks/a','assessed',self.row('FAIL'))
+        finding={'verdict':'FAIL','explanation':'Synthetic first global defect.','locations':['/explicit']}
+        with self.assertRaisesRegex(ValueError,'Complete all assigned global checks'):
+            self.c.blocker(finding)
+        stage=ArtifactStage(self.root/'global-stage','Synthetic global review.',phase='audit-a-global',library=False,validator=self.c)
+        import shutil
+        try:
+            self.assertNotIn('submit_review_blocker',stage.tool_names)
+            self.c.record('/checks/b','assessed',self.row('FAIL'))
+            value={'from_saved_review':True,'summary':{'findings':[finding,dict(finding,explanation='Synthetic second defect.')]}}
+            self.c(value)
+            self.assertEqual(len(value['findings']),2)
+            self.assertEqual([row['verdict'] for row in value['checks'].values()],['FAIL','FAIL'])
+        finally:shutil.rmtree(stage.work)
+
     def test_stage_tools_keep_partial_review_inside_current_stage(self):
         stage=ArtifactStage(self.root/'stage','Synthetic review tool control.',phase='review',library=False,validator=self.c)
         import shutil

@@ -70,8 +70,10 @@ class NativeCleanupRecoveryTests(unittest.TestCase):
         out=self.root.parent/'new';out.mkdir()
         job={'root':str(out),'case':'synthetic','resume':descriptor,'policy':'normal'}
         def from_interface(*args,**kwargs):
-            write(Path(args[3]).parent/'audit-b-review/review.json',{'synthetic':True})
-            return {'status':'WORKFLOW-PASSED'}
+            receipt=Path(args[3])/'audit-b/machine-acceptance.json'
+            write(receipt,{'synthetic':'Controller wiring only; not actual acceptance'})
+            return {'status':'WORKFLOW-PASSED','audit_b':{'status':'AUDIT-B-PASSED',
+                'receipt_path':str(receipt),'acceptance_basis':'SYNTHETIC_CONTROL_ONLY'}}
         with patch.object(recovery,'validate_descriptor'), \
                 patch.object(case_runner.source_refactor,'run') as prepare, \
                 patch.object(case_runner.f,'translate') as author, \

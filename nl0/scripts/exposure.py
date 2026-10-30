@@ -65,6 +65,24 @@ def audit_stage(directory):
                   'no_foreign_instruction_roles':all(x.get('role') not in {'developer','system'} for x in sent.get('input',[]))}
         digest = hashlib.sha256(json.dumps(sent,ensure_ascii=False).encode()).hexdigest()
         checks['transmitted_body_binding'] = digest == row['sent_body_sha256']
+        roots={directory.resolve()}
+        for prior in (manifest.get('role_session') or {}).get('prior_submissions',[]):
+            roots.add(Path(prior['path']).resolve().parent)
+        for restored in row.get('controller_handoff_restorations',[]):
+            ok=False
+            try:
+                record=restored['record'];path=Path(record['path']).resolve()
+                saved=json.loads(path.read_text())
+                originals=[x for x in row['original_payload'].get('input',[]) if x.get('type')=='function_call_output' and x.get('call_id')==restored['call_id']]
+                actual=[x for x in sent['input'] if x.get('type')=='function_call_output' and x.get('call_id')==restored['call_id']]
+                ok=(path.parent.name=='handoff-results' and path.parent.parent in roots and
+                    hashlib.sha256(path.read_bytes()).hexdigest()==record['sha256'] and saved['confirmed'] is True and
+                    saved['call_id']==restored['call_id'] and len(originals)==len(actual)==1 and
+                    originals[0]['output']==restored['native_output']=='dynamic tool call was cancelled before receiving a response' and
+                    json.loads(actual[0]['output'])==saved['tool_result'] and
+                    hashlib.sha256(actual[0]['output'].encode()).hexdigest()==restored['restored_sha256'])
+            except (OSError,ValueError,KeyError,TypeError):pass
+            if not ok:errors.append({'request':number,'check':'controlled_handoff_history_binding'})
         checkpoint=row.get('controller_checkpoint')
         if checkpoint is not None:
             data=checkpoint.get('data',{})

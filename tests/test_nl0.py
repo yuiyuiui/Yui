@@ -51,7 +51,7 @@ class NL0Checks(unittest.TestCase):
 
     def test_actual_smoke_and_audit(self):
         result = self.check(True)[0]
-        self.assertTrue(result["audit_receipt_valid"])
+        self.assertFalse(result["audit_receipt_valid"])
         self.assertFalse(result["mathematics_automatically_verified"])
         self.assertEqual(result["kinds"]["hypothesis"], 2)
 
@@ -65,7 +65,7 @@ class NL0Checks(unittest.TestCase):
         packet = nl0.packet(data, "R015")
         self.assertEqual({p["id"] for p in packet["definition_prerequisites"]}, {"N007"})
         self.assertEqual(packet["graph_sha256"], nl0.sha(self.base / "nl0.json"))
-        self.assertTrue(packet["audit_receipt_valid"])
+        self.assertFalse(packet["audit_receipt_valid"])
 
     def test_packet_without_audit_does_not_claim_audited_inputs(self):
         packet = nl0.packet(self.check(), "R015")

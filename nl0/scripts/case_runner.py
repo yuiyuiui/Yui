@@ -95,12 +95,20 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
         before=json.loads((baseline/'spec.json').read_text());after=json.loads((source/'spec.json').read_text())
         if any(before[k]!=after[k] for k in ('full_target','conclusion','parameters','hypotheses')):
             raise StageFailure('SOURCE_CHANGE_REQUIRES_USER','Local repair changed the approved problem')
-        if source_key(source)==source_key(baseline):
-            raise StageFailure('REPAIR_UNCHANGED','No source change after an actual failed audit; no repeated review is started')
     return source
 
 
 def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
+    if job['policy']!='first-pass':
+        import nl0_review_loop
+        restored=None;prior=[];obligations=None
+        mode=(job.get('resume') or {}).get('mode')
+        if mode in {'audit-a','author-repair'}:
+            import interrupted
+            if mode=='audit-a':restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
+            else:restored,obligations,prior=interrupted.restore_repair(job)
+        return nl0_review_loop.run(job,budget,audit_budget,progress,author_stage,repair_obligations,
+            restored=restored,prior=prior,initial_issues=obligations)
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
     restored=None
     if (job.get('resume') or {}).get('mode')=='audit-a':
@@ -137,72 +145,80 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
 
 
 def translation_work(job, authority, budgets, progress):
-    root=Path(job['root'])
-    checkpoint=None
+    root=Path(job['root']);original=dict(authority)
+    before_native={p.name for p in (root/'native-checks').glob('*')}
+    while True:
+        try:return translation_attempt(job,original,budgets,progress)
+        except StageFailure as error:
+            if error.result.get('status')!='USER_REQUESTED_TRANSLATION_RESET':raise
+            import translation_reset
+            record=translation_reset.apply(root,original,budgets.serial.execution,error.result['user_decision'],before_native)
+            progress(job['case'],'USER_REQUESTED_TRANSLATION_RESET',record=str(record),nl0_audit_a_preserved=True)
+
+
+def translation_attempt(job, authority, budgets, progress):
+    from role_sessions import Sessions
+    sessions=Sessions();root=Path(job['root']);checkpoint=None
     if (job.get('resume') or {}).get('mode')=='native-proof-cleanup':
         import native_cleanup_recovery
         native_cleanup_recovery.validate_descriptor(job)
         checkpoint=job['resume'];authority=checkpoint['source_authority']
     else:
-        authority=source_refactor.run(authority,root/'nl0-to-lean/preparation',budgets.serial)
-    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0;prior_proof_run=None;rejected_interfaces=set()
+        extraction=0;previous=None;findings=None
+        while True:
+            extraction+=1
+            prepared=root/'nl0-to-lean'/('preparation' if extraction==1 else 'preparation-repairs/'+str(extraction).zfill(4))
+            try:
+                authority=source_refactor.run(authority,prepared,budgets.serial,sessions=sessions,
+                    prior_artifact=previous,findings=findings)
+                break
+            except StageFailure as error:
+                if error.result.get('phase')!='source-extraction-review':raise
+                previous=prepared/'stage/accepted.json';findings=Path(error.result['evidence'])
+                if not previous.is_file():raise
+                progress(job['case'],'SOURCE_EXTRACTION_REPAIR',findings=str(findings))
+    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0
     while True:
         attempt+=1;directory=root/'nl0-to-lean'/f'{attempt:04d}'
         current_interface=Path(checkpoint['interface']) if checkpoint else directory/'interface'
         try:
             if checkpoint:
                 result=f.from_interface(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
-                    proof_budget=budgets.proof,authority=authority,prior_run=Path(checkpoint['prior_proof_run']))
+                    proof_budget=budgets.proof,authority=authority,prior_run=Path(checkpoint['prior_proof_run']),sessions=sessions)
                 checkpoint=None
             else:
                 result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
                     proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
-                    prior_interface=prior_interface,diagnostics=diagnostics,prior_run=prior_proof_run)
-            write(root/'audit-b'/f'{attempt:04d}.json',{'status':'AUDIT-B-PASSED' if result['status']=='WORKFLOW-PASSED' else 'AUDIT-B-CONDITIONAL',
-                'review':bind(directory/'audit-b-review/review.json'),'workflow':str(directory/'workflow')})
+                    prior_interface=prior_interface,diagnostics=diagnostics,sessions=sessions)
+            write(root/'audit-b'/f'{attempt:04d}.json',{'status':result['audit_b']['status'],
+                'review':bind(result['audit_b']['receipt_path']),'workflow':str(directory/'workflow'),
+                'acceptance_basis':result['audit_b']['acceptance_basis']})
+            if result['status']=='DIFFERENT_RESULT_DELIVERED':
+                warning=json.loads((root/'warn.json').read_text()) if (root/'warn.json').exists() else {}
+                warning.update(status='ORIGINAL_GOAL_NOT_COMPLETED',message=result['warning'],
+                    actual_proof=result['proof'],findings=result['audit_b']['findings'])
+                write(root/'warn.json',warning)
+                with (root/'warn.md').open('a') as stream:stream.write('\n# Original goal not completed\n\n'+result['warning']+'\n')
+            if result['audit_b'].get('freeze_deviation'):
+                warning=json.loads((root/'warn.json').read_text()) if (root/'warn.json').exists() else {'status':'FROZEN_INTERFACE_DEVIATION'}
+                warning['freeze_deviation']={'message':result['audit_b']['warning'],
+                    'receipt':result['audit_b']['receipt_path'],'source_fidelity_accepted':True}
+                write(root/'warn.json',warning)
+                with (root/'warn.md').open('a') as stream:stream.write('\n## Frozen interface deviation\n\n'+result['audit_b']['warning']+'\n')
             return result
         except StageFailure as error:
-            candidate=current_interface/'stage/accepted.json'
-            if error.result.get('phase') in {'interface-review','interface-repair','audit-b'} and candidate.is_file():
-                key=bind(candidate)['sha256']
-                if key in rejected_interfaces:
-                    raise StageFailure('REPAIR_CYCLE','An already rejected interface reappeared; preserve its evidence instead of resampling review',
-                        phase=error.result['phase'],evidence=candidate) from error
-                rejected_interfaces.add(key)
-            if error.result.get('phase')=='interface-repair' and job['policy']!='first-pass':
-                report=Path(error.result['evidence'])
-                diagnostics=json.loads(report.read_text())
-                prior_proof_run=Path(error.result['prior_proof_run'])
-                checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
-                if not prior_interface.is_file():raise
-                write(root/'repairs'/f'proof-interface-{attempt:04d}.json',{'diagnosis':bind(report),
-                    'route':'interface_author_then_fresh_semantic_review','prior_proof_run':str(prior_proof_run),
-                    'source_unchanged':True,'old_evidence_preserved':True})
-                continue
-            if error.result.get('phase')=='interface-review':
-                report=directory/'interface-review/report.json'
-                if job['policy']=='first-pass' or not report.is_file():raise
-                report_value=json.loads(report.read_text())
-                if report_value.get('review_status')!='MATHEMATICAL_REVIEW_FAILED':raise
-                diagnostics={'report':report_value,
-                    'actual_review':json.loads((directory/'interface-review/stage/accepted.json').read_text()),
-                    'scope':'Repair the located source/interface mismatch; preserve accepted NL0 and its Audit A.'}
-                checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
-                if not prior_interface.is_file():raise
-                write(root/'repairs'/f'interface-{attempt:04d}.json',{'diagnosis':bind(report),
-                    'route':'interface_author_then_fresh_semantic_review','source_unchanged':True})
-                continue
-            report=directory/'audit-b-review/report.json'
-            if error.result.get('phase')!='audit-b' or job['policy']=='first-pass' or not report.is_file():raise
-            report_value=json.loads(report.read_text())
-            if report_value.get('review_status')!='MATHEMATICAL_REVIEW_FAILED':raise
-            diagnostics={'report':report_value,'actual_review':json.loads((directory/'audit-b-review/stage/accepted.json').read_text()),
-                         'review_packet':json.loads((directory/'workflow/audit-b/review-packet.json').read_text())}
-            checkpoint=None
-            prior_interface=current_interface/'stage/accepted.json'
+            # Only pre-freeze interface review returns to WB0/B0. Frozen
+            # contract defects and B-final nonpasses wait for the human.
+            if error.result.get('phase')!='interface-review' or job['policy']=='first-pass':raise
+            report=directory/'interface-review/report.json'
+            if not report.is_file():raise
+            diagnostics={'report':json.loads(report.read_text()),
+                'actual_review':json.loads((directory/'interface-review/stage/accepted.json').read_text()),
+                'scope':'Repair the located pre-freeze interface findings; preserve NL0 and its Audit A.'}
+            checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
             if not prior_interface.is_file():raise
-            write(root/'repairs'/f'audit-b-{attempt:04d}.json',{'diagnosis':bind(report),
-                'route':'interface_and_affected_proofs','source_unchanged':True})
+            write(root/'repairs'/f'interface-{attempt:04d}.json',{'diagnosis':bind(report),
+                'route':'same_pre_freeze_author_and_reviewer','source_unchanged':True})
 
 
 def execute(job, root=None):
@@ -253,7 +269,7 @@ def execute(job, root=None):
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
             allowed={'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL',
-                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED'}
+                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED'}
             if result.get('status') not in allowed:
                 from fault_control import Gate,outcome_error
                 saved=dict(result)
@@ -267,8 +283,9 @@ def execute(job, root=None):
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
             conditional=result.get('status') in {'DRAFT-AUDIT-CONDITIONAL','WORKFLOW-CONDITIONAL','AUDIT-B-CONDITIONAL'}
+            accepted_with_warning=bool(result.get('audit_b',{}).get('freeze_deviation') and not result['audit_b'].get('source_conditional',True))
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
-                completion={'acceptance_target_satisfied':passed,'workflow_completed':passed or conditional,
+                completion={'acceptance_target_satisfied':passed or accepted_with_warning,'accepted_with_warning':accepted_with_warning,'workflow_completed':passed or conditional,
                             'follow_up_required':not passed},time_budget_seconds=job['time_budget_seconds'])
             if (root/'warn.json').is_file():result['warnings']=json.loads((root/'warn.json').read_text())
             while True:

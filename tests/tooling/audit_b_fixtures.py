@@ -82,7 +82,7 @@ def prepare_control(base,variant='identity'):
     ir.write(directory/'mapping.json',mapping)
     return directory
 
-def synthetic_receipt(directory):
+def synthetic_receipt(directory, *, independent=False):
     """Receipt-format control, not an automated semantic audit."""
     record=ir.load(directory/'review-template.json')
     note=directory/'test-only-evidence.txt';note.write_text('TEST RECEIPT SHAPE ONLY. No independent certification or new mathematical review.\n')
@@ -90,6 +90,9 @@ def synthetic_receipt(directory):
     mechanical=ir.load(directory/'mechanical.json')
     record['reviewer']={'identity':'TEST_RECEIPT_SHAPE_ONLY','mode':'same_context_self_audit',
                         'independent':False,'disclosure':'Synthetic validator regression, not a substantive audit.'}
+    if independent:
+        record['reviewer'].update(mode='external_review',independent=True,
+            disclosure='Fabricated independent-review fields for a positive control only; not an actual mathematical audit.')
     for key,row in record['nodes'].items():
         row.update(verdict='PASS',notes='Synthetic located receipt for validator regression only.',
                    locations=mechanical['required_review_locations'][key],evidence=evidence)

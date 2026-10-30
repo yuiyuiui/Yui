@@ -325,7 +325,21 @@ def export_source(c,mapping,level_metadata=None):
     return assembly.export_source(c,mapping,level_metadata)
 
 
-def build(out):
+def frozen_endpoints(c, inventory):
+    premises={p['id']:p for p in c['premises']}
+    retained=[p for p in c['premises'] if p['kind']!='mathlib']
+    result={}
+    for row in inventory['propositions']:
+        sid=row['id']
+        if row['kind'] not in {'external','target'}:continue
+        if sid=='P':result[sid]=('decl:AuditBExport.P',full_type(c,c['conclusion']['type'],retained))
+        else:
+            before=retained[:next(i for i,p in enumerate(retained) if p['id']==sid)]
+            result[sid]=('premise:'+sid,full_type(c,premises[sid]['type'],before))
+    return result
+
+
+def build(out, *, frozen_contract=None):
     start = time.monotonic()
     manifest = bound_inputs(out)
     ir.need(not (out/'mechanical.json').exists(),'preserve the old audit; build in a new audit directory')
@@ -335,6 +349,8 @@ def build(out):
     ir.need(mapping['source_inventory_sha256']==ir.digest(out/'source-inventory.json'),'stale mapping inventory')
     validate_mapping(c,inventory,mapping)
     checks = [(sid,row['selector'],row['expected_type']) for sid,row in mapping['entries'].items()]
+    frozen=ir.contract(frozen_contract) if frozen_contract else c
+    checks += [('__frozen__'+sid,selector,typ) for sid,(selector,typ) in frozen_endpoints(frozen,inventory).items()]
     rows = [(*row, lean_names.parts(row[1][5:]) if row[1].startswith('decl:') else []) for row in checks]
     array = '#['+', '.join('('+', '.join(('#['+', '.join(json.dumps(p,ensure_ascii=False) for p in x)+']')
                           if isinstance(x,list) else json.dumps(x,ensure_ascii=False) for x in row)+')' for row in rows)+']'
@@ -375,6 +391,8 @@ def build(out):
         if evidence:
             if not all(r['definitionally_equal'] for r in evidence['comparisons']):
                 errors.append('ELABORATED_SIGNATURE_MISMATCH')
+            if not all(r['definitionally_equal'] for r in evidence['frozen_comparisons']):
+                errors.append('FROZEN_INTERFACE_MISMATCH')
             deps=evidence['dependencies']
             if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
             for d in deps['declarations']:
@@ -396,6 +414,7 @@ def build(out):
                 'reviewer':{'identity':'UNASSIGNED','mode':'UNVERIFIED','independent':False,'disclosure':'UNVERIFIED'},
                 'nodes':receipts,'checks':{k:{'verdict':'UNVERIFIED','notes':'Not performed.','locations':[],'evidence':[]} for k in REVIEW_CHECKS}}
         mechanical={'version':VERSION,'passed':not errors,'errors':sorted(set(errors)),
+            'frozen_contract_sha256':ir.digest(frozen_contract or cpath),
             'policy':correspondence.POLICY,
             'required_review_locations':required_locations,'wall_seconds':time.monotonic()-start,
             'local_checks':local,'compiler_exit_code':result['exit_code'],
@@ -426,6 +445,11 @@ def resolve(value,pointer):
 
 
 def check(out,review_path):
+    value=ir.load(review_path)
+    if value.get('schema')=='yui-frozen-interface-acceptance-1':
+        import final_acceptance
+        ir.need(Path(value['workflow']).resolve()/'audit-b'==Path(out).resolve(),'Machine receipt belongs to another audit')
+        return final_acceptance.validate_receipt(review_path)
     bound_inputs(out)
     mechanical=ir.load(out/'mechanical.json')
     ir.need(mechanical['manifest_sha256']==ir.digest(out/'manifest.json'),'changed audit manifest')
@@ -453,10 +477,12 @@ def check(out,review_path):
             path=(Path(review_path).parent/item['path']).resolve()
             ir.need(path.is_file() and ir.digest(path)==item['sha256'],'stale semantic evidence')
     inventory=ir.load(out/'source-inventory.json')
-    certified=inventory['scope']=='whole_structured_nl0' and inventory['audit_a_current_passed']
-    conditional=inventory['scope']=='whole_structured_nl0' and inventory.get('audit_a_conditional',False)
+    independent=reviewer['independent'] is True and reviewer['mode']!='same_context_self_audit'
+    certified=independent and inventory['scope']=='whole_structured_nl0' and inventory['audit_a_current_passed']
+    conditional=independent and inventory['scope']=='whole_structured_nl0' and inventory.get('audit_a_conditional',False)
     return {'status':'AUDIT-B-PASSED' if certified else 'AUDIT-B-CONDITIONAL' if conditional else 'DEVELOPMENT-AUDIT-B-PASSED',
             'checks_passed':True,'policy':correspondence.POLICY,'scope':inventory['scope'],'upstream_audit_a':inventory['audit_a_status'],
+            'independent_semantic_acceptance':independent,
             'whole_nl0_and_current_audit_a':certified,'reviewer':reviewer,
             'source_warnings':inventory.get('source_warnings',[]),
             'kernel_correct_relative_to_declared_externals':True,
