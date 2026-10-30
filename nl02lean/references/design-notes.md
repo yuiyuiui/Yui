@@ -17,12 +17,12 @@ establish faithful translation.
 
 [Official Codex app-server documentation](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
 documents the local conversation/turn carrier and plan-authenticated model
-transport. The pilot reuses this project's pre-existing subscription carrier
-and audited request-normalizing relay, with new explicit stage tools. The
-relay's sent-payload logs, not a stock CLI's default context, define the model
-inputs in this experiment. Bundled system skills can exist in the carrier's
-inventory while being removed from actual model requests; the two facts must
-be reported separately.
+transport. The current implementation uses isolated native Codex processes and explicit
+Yui dynamic tools. Python communicates over stdio and owns workflow gates;
+Codex owns direct model-service communication and native context management.
+Configuration/input/tool receipts describe the observable boundary. Built-in
+Codex instructions are retained, and raw provider HTTP payloads are not certified.
+The former request-normalizing relay exists only in historical run snapshots.
 
 The design leaves general natural-language semantic verification, automatic
 global-definition discovery, arbitrary dependent witness export and optimal

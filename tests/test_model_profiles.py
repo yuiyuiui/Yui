@@ -50,14 +50,12 @@ class ModelProfileTests(unittest.TestCase):
                 for stage, expected in [(author, 'gpt-6.1-sol'), (reviewer, 'gpt-6.1-sol')]:
                     stage.allowed_user_messages = {'EXPLICIT_TASK'}
                     stage.initial_user_message = 'EXPLICIT_TASK'
-                    payload = {'model': expected, 'reasoning': {'effort': 'high'},
-                        'input': [{'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': 'EXPLICIT_TASK'}]}]}
-                    self.assertEqual(stage.normalize_request(payload)['model'], expected)
-                    other = 'gpt-6-luna' if expected == 'gpt-6.1-sol' else 'gpt-6.1-sol'
-                    with self.assertRaises(ValueError): stage.normalize_request({**payload, 'model': other})
-                    run_pilot.validate_model_event({'response': {'model': expected}}, strict=True, expected_model=stage.model)
+                    native=__import__('native_client')
+                    self.assertIn('model = "'+expected+'"',native.configuration(stage))
+                    self.assertEqual(native.thread_parameters(stage)['model'],expected)
+                    stage.thread_id='role';stage.active_turn_id='turn'
                     with self.assertRaises(PermissionError):
-                        run_pilot.validate_model_event({'response': {'model': other}}, strict=True, expected_model=stage.model)
+                        native.observe(stage,{'method':'model/rerouted','params':{'threadId':'role','turnId':'turn','toModel':'unexpected'}})
                     manifest = json.loads((stage.logs / 'execution-manifest.json').read_text())
                     self.assertEqual(manifest['model'], expected)
                     self.assertEqual(manifest['model_selection'], stage.model_selection)

@@ -86,6 +86,7 @@ def diagnose(error):
     elif codes & {'harnessbug','localtoolerror','localerror','localprotocolrejected','localprovenancerejection'}:category='harness_bug'
     elif codes & (PERMANENT-quota-auth) or set(statuses)&{400,404,413,422}:category='model_request_rejected'
     elif 'workflowblocked' in codes:category='workflow_blocked'
+    elif 'nativeunknownerror' in codes:category='model_unknown'
     elif 'unknown' in codes:category='harness_bug'
     elif codes & {'responsestreamdisconnected','responsestreamconnectionfailed'}:category='model_stream_interrupted'
     elif codes & {'requesttimeout','timeout'} or 408 in statuses:category='model_timeout'

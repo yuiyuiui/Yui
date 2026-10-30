@@ -1,4 +1,9 @@
-"""Observe pathological tool serialization without interpreting mathematical content."""
+"""Legacy raw-event helpers and controller exception types.
+
+Native Codex stages do not receive partial provider argument/SSE events and do
+not install these raw-stream observers. Keep their standalone compatibility
+tests distinct from current native integration coverage.
+"""
 from copy import deepcopy
 import threading
 import time

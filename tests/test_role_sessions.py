@@ -56,27 +56,6 @@ class RoleSessionTests(unittest.TestCase):
         self.assertFalse(second.work.exists())
         self.assertEqual(self.budget.report()['active_model_stages'],0)
 
-    def test_second_submission_uses_the_same_live_relay_with_fresh_stage_evidence(self):
-        from relay_fixtures import RelayFixture
-        responses=[]
-        with RelayFixture(self.root/'wire') as wire:
-            first=wire.stage;first.budget=self.budget
-            first_thread=first.thread_id='same-native-role'
-            port=wire.port
-            def complete(stage):
-                stage.initial_user_message='Synthetic transport only.'
-                stage.allowed_user_messages.add(stage.initial_user_message)
-                responses.append(wire.exchange())
-                return self.complete(stage)
-            with patch.object(ArtifactStage,'_execute',complete):
-                with self.sessions.use('author'):first.execute()
-                second=self.stage('next-assignment')
-                with self.sessions.use('author'):second.execute()
-            self.assertEqual([r.split(b'\r\n',1)[0] for r in responses],[b'HTTP/1.1 200 OK']*2)
-            self.assertEqual(wire.port,port);self.assertEqual(first.thread_id,first_thread)
-            self.assertEqual(first.logs,second.logs)
-            self.assertTrue((first.logs/'response-0001.sse').is_file())
-            self.assertEqual(len(wire.calls),2)
 
     def test_author_and_reviewer_are_different_role_conversations(self):
         author=self.stage('author');reviewer=self.stage('reviewer')

@@ -1,75 +1,52 @@
-# Clean execution boundary
+# Native execution boundary
 
-The developer/controller process may inspect the implementation and user inputs.
-It is not itself a clean experimental model. Every measured model stage uses a
-new carrier session with a temporary home, state and working directory. Only
-subscription authentication and the selected model catalog are copied into that
-state; authentication files are removed when the stage ends and never logged.
+Yui controls the workflow through the official Codex app-server stdio interface.
+Codex connects directly to the model service using its own networking and login.
+Production Yui does not host a model HTTP endpoint, forward responses, parse SSE,
+rewrite model request bodies/headers, or renew bearer tokens.
 
-The local carrier is restricted by an OS sandbox to its own state and one
-loopback relay. Lean runs offline, can read only the pinned toolchain/library
-and its task workspace, and cannot read the developer's project tree. The model
-has no shell, arbitrary filesystem, browser, memory or personal-skill tool.
+Each role uses its own temporary home, CODEX_HOME and input directory. The native
+configuration disables personal memories, plugins, project-document discovery,
+shell/browser/computer tools and native delegation. Approved Yui dynamic tools
+read only declared inputs, frozen rule files or the pinned Mathlib. Python never
+executes model-generated Python or shell commands. Lean remains separately
+sandboxed offline with its configured single-call limit.
 
-The relay constructs a semantic request allowlist: exact model and reasoning,
-explicit Yui or bare instructions, exact authorized user messages, verified
-within-stage model history, actual tool results and explicit tool schemas.
-Developer/system additions, other user messages, server-conversation references
-and unrelated provider metadata are removed or rejected before transmission.
-No automatic inherited compaction context or model fallback is allowed.
-An opaque native compaction summary is still discarded. An NL0 author instead
-receives a small machine checkpoint naming only its own immutable current-stage
-candidate, actual structural-check result, last structurally valid candidate and
-remaining stage budget. Its source files and transmitted text are hash-bound
-and independently checked during exposure readback. `read_draft` retrieves that
-same-stage artifact. This restores working state after truncation without
-importing a summary, other conversation, new theorem or mathematical judgment.
-Outgoing HTTP headers also use an allowlist: authentication/account routing,
-protocol identity and content negotiation only. Carrier session/conversation
-state and premium-speed headers are omitted. Header names are logged; credential
-values are never logged.
+The native Codex process may make outbound service connections, but cannot read
+unrelated project files or launch arbitrary executables. Its approved dynamic
+tools execute in the Python controller under their own path/schema checks.
+System proxy environment variables may be inherited; Yui adds no network proxy.
+The named `yui-native` provider uses Codex's OpenAI-authenticated default endpoint
+selection, with no Yui base URL override. Native request/stream retries are set
+to zero so Python owns the explicit 60-second, 30-retry failed-work policy.
 
-The controller scans actual function-argument deltas for pathological JSON
-whitespace outside quoted strings. Its versioned policy and fixed threshold
-are recorded in each stage manifest. A protective stop interrupts only the
-exact active turn, preserves the unfinished attempt and never executes partial
-arguments. It does not inspect mathematical correctness or call another model.
-The same policy applies to both comparison arms. A provider output-token cap
-is recorded from its actual incomplete-response event, separately from network
-and controller health; no unsupported subscription parameter is injected.
+Native Codex built-in instructions and context compaction are retained. Yui
+supplies explicit role instructions and frozen task inputs through the native
+API; it does not strip system instructions or replace compression summaries on
+the wire. An unchanged role retains only its own conversation. Distinct authors,
+reviewers and cases keep separate sessions and tool/receipt namespaces.
 
-Allowed mathematical information consists of the frozen problem, definitions,
-permitted statements, supplied proof, selected Yui rules in the Yui arm, and
-explicit tool results. External primary text must be explicitly staged with its
-identity and hash before use. It is not obtained from arbitrary local files.
-The direct arm has no Yui strategy/plan/reference-answer material.
+`native-client.json`, effective-config.toml, client.jsonl, events.jsonl and actual
+tool/hand-off records describe this boundary. Readback checks configuration,
+model/effort/tier requests, controller-supplied messages, tool schemas and file
+hashes. It is not byte-level inspection of provider HTTP payloads. Actual model
+routing/service tier and per-response usage are reported only when exposed by
+the native client; otherwise they remain UNVERIFIED. A passed native-context
+receipt is not a mathematical review, a provider-isolation proof or a complete
+benchmark measurement.
 
-Audit both what the carrier attempted to send and what the relay actually sent.
-Retain payload hashes, tools, real replies, faults and denied-access controls.
-Yui NL0 authors and Audit A receive the same shared mathematical requirements
-extracted from the frozen Audit A document in their transmitted instructions.
-The manifest binds its version and section/document hashes. Exposure readback
-checks the archived source and actual instructions. Author notes stay outside
-fresh review packets; a common standard does not create a common context.
-Model self-report is supplementary; it is not proof of isolation. Provider-side
-pretraining, undisclosed server state and account infrastructure are outside
-this local verification boundary. "Clean" refers to the observable execution
-and transmitted-input contract, not an untrained or provably stateless provider.
+Tool RPCs must match the active role thread/turn, allowed tool catalog and exact
+call ID. Exact repeats return the immutable previous result without reexecution;
+changed arguments, foreign identities and unsupported tools are rejected. After
+submission, persist the artifact, stop only the current generation via the native
+API, confirm its matching completion and retain the role until the specified
+successful workflow boundary. Never manipulate HTTP connections to implement
+this handoff.
 
-For long NL0 author stages, `own-stage-state-2` restores only bounded facts
-from this same attempt: the latest draft pointer, real returned self-check
-progress/issue IDs and an index of actual successful native source probes.
-Immutable snapshot hashes, exact tool-result origins, source receipts and
-candidate/authority match flags are checked in transmitted-input readback.
-It does not admit an unbound carrier summary, another attempt's material,
-personal memory or independent audit feedback. Old progress cannot grant
-current readiness, and an index grants no theorem/application permission.
-This reminder adds measured input tokens but makes no extra model call; raw
-history is retained and no new history-pruning algorithm is applied.
-
-The Standard policy removes premium-speed request/header hints. Requested and
-observed tier metadata must be retained; an incompatible actual tier is a
-configuration failure. A missing reported tier remains explicitly unverified.
+Historical snapshots and archived raw-wire logs retain their original meanings.
+Legacy read-only exposure/usage readers remain for those records; new production
+runs cannot launch the removed relay. Provider-side state and account scheduling
+remain outside the locally observable boundary.
 
 ## Clean text stages
 
@@ -93,18 +70,20 @@ The later dedicated A/B gates must still validate the actual review evidence.
 acceptance. A model's substantive-gap judgment can receive an actual bounded
 review; keep both judgments and never silently relabel or erase the first.
 
-Each stage snapshots its runtime/rules, records actual requests and responses,
-and independently reads back exposure and usage. `measurement_valid` requires
-the requested observed model, confirmed Standard tier, complete token ledger,
-and no recorded execution fault. It does not imply mathematical acceptance.
+Each stage snapshots its runtime/rules and native configuration, records stdio
+work/tool events and reads back native context and usage. Cumulative usage
+snapshots are differenced, never summed. Unknown per-response coverage or actual
+service tier prevents a claim of complete benchmark measurement; it does not
+turn an otherwise valid mathematical submission into an automatic failure.
 
-The `delivered-tool-terminal-wait-2` policy records real tool-result delivery
-without a default idle timeout. Silence alone does not exhaust a mathematical
-budget. Explicit opt-in finite protocol limits remain available for controlled
-experiments; if triggered, record `PROVIDER_TERMINAL_WAIT_EXCEEDED` with cause
-`UNVERIFIED`, never a mathematical gap. Actual dead sockets/process exits remain
-execution failures. No synthetic terminal/usage or partial-call execution is
-permitted. This Python observer makes no model calls.
+The native completion policy has no controller-imposed model idle cutoff.
+Silence alone does not exhaust a mathematical budget. Codex stdio does not expose
+partial provider argument/SSE events, so the former consecutive-whitespace and
+raw-provider-terminal observers are not installed or claimed for native runs.
+Complete tool arguments are validated before execution. Native-reported errors
+and process/reader failures follow the retained fault lifecycle; no synthetic
+terminal/usage or partial-call execution is permitted. Legacy raw-event helper
+tests do not establish protection of an unobservable native stream.
 
 Case-local execution snapshots/control files are controller material, not
 worker inputs. Their updates and heartbeats make no model calls. Independent

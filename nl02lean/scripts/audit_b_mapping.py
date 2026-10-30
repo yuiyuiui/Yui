@@ -207,7 +207,7 @@ def run(out,timeout=None,budget=None):
 
 def adopt(out):
     out=Path(out).resolve();result=ir.load(out/'stage/result.json')
-    if result.get('status')!='ACCEPTED' or result.get('exposure',{}).get('status')!='TRANSMITTED-EXPOSURE-CHECK-PASSED':
+    if result.get('status')!='ACCEPTED' or not __import__('execution_health').record_qualification(result)['submitted_record_qualified']:
         raise ValueError('Actual submitted, exposure-qualified mapping required')
     choice=ir.load(out/'accepted-mapping-path.json');candidate=Path(choice['candidate'])
     actual=ir.load(out/'stage/accepted.json');actual.pop('proof_patches',None)

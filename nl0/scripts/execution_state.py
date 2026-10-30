@@ -138,7 +138,7 @@ class Recorder:
         self.deadline = self.started+time_budget_seconds if time_budget_seconds is not None else None
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
         self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}
-        self._usage_totals = {}; self._usage_unknown = {}
+        self._usage_totals = {}; self._usage_unknown = {}; self._native_usage = {}; self._native_seen = False
         self._usage_errors = []; self._signals = {}; self._locals = threading.local()
         owner = identity(os.getpid())
         if owner is None: raise RuntimeError('Cannot establish controller process identity')
@@ -263,6 +263,20 @@ class Recorder:
         self.process_finished(process)
         return confirmed
 
+    def native_event(self, task, stage, method, usage=None):
+        with self.lock:
+            self._native_seen=True;self.dirty=True
+        if task:
+            values={'last_transport_event_at_utc':now()}
+            if method.startswith(('item/','rawResponseItem/')):
+                values.update(last_model_event_at_utc=now(),last_substantive_model_event_at_utc=now())
+            self.task(task,**values)
+        if usage is not None:
+            with self.lock:
+                self._native_usage[str(Path(stage).resolve())]=usage
+                self.state['usage']['accounting_source']='native_cumulative_stage_deltas'
+                self.state['usage']['usage_last_observed_at_utc']=now();self.dirty=True
+
     def request_started(self, stage, number):
         with self.lock: self._requests.add((stage,number)); self.dirty=True
 
@@ -336,10 +350,15 @@ class Recorder:
                 if heartbeat:
                     self.state['controller_heartbeat_at_utc']=now();self._heartbeat=mono
                 totals={k: v if not self._usage_unknown[k] else None for k,v in self._usage_totals.items()} if self._responses else None
-                complete=(self.done.is_set() and bool(self._requests) and self._requests<=self._covered and not self._usage_errors)
-                self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses else 'UNKNOWN',
+                if self._native_usage:
+                    keys=('input_tokens','output_tokens','total_tokens','cached_input_tokens','reasoning_tokens')
+                    totals={k:None if (totals or {}).get(k,0) is None else sum(x[k] for x in self._native_usage.values())+(totals or {}).get(k,0) for k in keys}
+                complete=(not self._native_seen and self.done.is_set() and bool(self._requests) and self._requests<=self._covered and not self._usage_errors)
+                self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses or self._native_usage else 'UNKNOWN',
                     confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
                     in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
+                if self._native_seen:
+                    self.state['usage'].update(requests=None,requests_with_usage=None,in_flight_or_unreported_requests=None)
                 states=['PENDING','RUNNING','WAITING_REVIEW','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
                 self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
@@ -384,9 +403,10 @@ class Recorder:
                 ledger=Path(path).with_name('usage-ledger.jsonl')
                 if not ledger.is_file():missing.append(path);continue
                 for line in ledger.read_text().splitlines():
-                    row=json.loads(line);actual[row['response_id']]=row['usage']
+                    row=json.loads(line);actual[row.get('response_id') or row['record_id']]=row['usage']
             if ledgers:
-                matches=actual==self._responses and not missing
+                expected={**self._responses,**{'native-stage:'+k:v for k,v in self._native_usage.items()}}
+                matches=actual==expected and not missing
                 self.state['usage']['final_ledger_reconciliation']={'status':'MATCHED' if matches else 'INCOMPLETE_OR_MISMATCH',
                     'stage_usage_files':sorted(ledgers),'missing_ledgers':missing}
                 if not matches:self._usage_errors.append('Final ledger reconciliation incomplete/mismatched')
