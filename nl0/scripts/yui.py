@@ -71,7 +71,7 @@ def main():
         from exposure import audit_run
         result = audit_run(args.directory)
         print(json.dumps(result,indent=2))
-        return 0 if result and all(x['status']=='TRANSMITTED-EXPOSURE-CHECK-PASSED' for x in result) else 1
+        return 0 if result and all(x['status'] in {'TRANSMITTED-EXPOSURE-CHECK-PASSED','NATIVE-CODEX-CONTEXT-CHECK-PASSED'} for x in result) else 1
     elif args.command=='case-status':
         from case_status import project
         print(json.dumps(project(args.source,interface=args.interface,interface_review=args.interface_review,workflow=args.workflow),indent=2))

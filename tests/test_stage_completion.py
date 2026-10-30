@@ -28,13 +28,12 @@ class CompletionTests(unittest.TestCase):
         self.worker.proc=DummyProcess();self.worker.thread_id='synthetic-thread';self.worker.active_turn_id='synthetic-turn'
 
     def tearDown(self):
-        if self.worker.relay:self.worker.relay.shutdown();self.worker.relay.server_close()
         shutil.rmtree(self.worker.work,ignore_errors=True);self.temp.cleanup()
 
     def call(self,name):
         args={'artifact':{'control':'candidate'}}
         self.worker.model_calls['synthetic-call']={'name':name,'arguments':json.dumps(args)}
-        return {'id':91,'method':'item/tool/call','params':{'tool':name,'callId':'synthetic-call','arguments':args}}
+        return {'id':91,'method':'item/tool/call','params':{'threadId':self.worker.thread_id,'turnId':'synthetic-turn','tool':name,'callId':'synthetic-call','arguments':args}}
 
     def test_real_submission_closes_without_waiting_for_another_model_turn(self):
         self.worker.inbox.put(self.call('submit_draft'));calls=[]
@@ -83,25 +82,7 @@ class CompletionTests(unittest.TestCase):
         if output is not None:values.append({'type':'function_call_output','call_id':'own-call','output':output})
         return {'model':self.worker.model,'reasoning':{'effort':'high'},'input':values}
 
-    def test_native_idless_call_history_still_requires_exact_own_origin(self):
-        payload=self.history_payload();self.worker.normalize_request(payload)
-        payload['input'][1]['arguments']='{"forged":true}'
-        with self.assertRaises(PermissionError):self.worker.normalize_request(payload)
 
-    def test_cancelled_native_tool_history_restores_only_confirmed_submitted_result(self):
-        marker='dynamic tool call was cancelled before receiving a response'
-        payload=self.history_payload(marker);result={'stage_complete':True,'accepted':True}
-        self.worker.tool_history['own-call']=result
-        with self.assertRaises(PermissionError):self.worker.normalize_request(payload)
-        record=self.worker.logs/'handoff-results/fixture.json';record.parent.mkdir()
-        record.write_text(json.dumps({'call_id':'own-call','confirmed':True,'tool_result':result}))
-        self.worker.handoff_results={'own-call':{'confirmed':True,'record':{
-            'path':str(record),'sha256':hashlib.sha256(record.read_bytes()).hexdigest()}}}
-        sent=self.worker.normalize_request(payload)
-        self.assertEqual(json.loads(sent['input'][-1]['output']),result)
-        self.assertEqual(payload['input'][-1]['output'],marker)
-        record.write_text('{}')
-        with self.assertRaisesRegex(PermissionError,'evidence changed'):self.worker.normalize_request(payload)
 
     def test_provisional_check_does_not_close_the_stage(self):
         self.worker.started=time.monotonic();self.worker.inbox.put(self.call('check_draft'))
@@ -109,25 +90,7 @@ class CompletionTests(unittest.TestCase):
         self.worker.receive_until(lambda m:m.get('method')=='turn/completed',time.monotonic()+2)
         self.assertIsNone(self.worker.accepted);self.assertFalse(self.worker.submission_closed)
 
-    def test_post_submission_requests_are_suppressed_locally_not_forwarded(self):
-        self.worker.submission_closed=True;port=self.worker.start_relay()
-        connection=http.client.HTTPConnection('127.0.0.1',port,timeout=3)
-        connection.request('POST','/responses',body=b'{"control":"never-forward"}',headers={'Content-Type':'application/json'})
-        response=connection.getresponse();self.assertEqual(response.status,409);response.read();connection.close()
-        self.assertEqual(self.worker.api_calls,0)
-        self.assertFalse((self.root/'stage/requests.jsonl').exists())
-        row=json.loads((self.root/'stage/local-cancellations.jsonl').read_text())
-        self.assertIs(row['upstream_transmitted'],False)
 
-    def test_shutdown_waits_for_the_actual_response_log_to_finish(self):
-        done=threading.Event();self.worker.relay_stream_lock=threading.Lock()
-        self.worker.relay_streams={7:done}
-        timer=threading.Timer(0.04,done.set);timer.start()
-        self.worker.drain_relay_streams(timeout=1)
-        self.assertTrue(done.is_set());timer.join()
-        self.worker.relay_streams={8:threading.Event()}
-        with self.assertRaisesRegex(RuntimeError,'logging did not finish'):
-            self.worker.drain_relay_streams(timeout=0.01)
 
     def test_actual_tool_response_delivery_binds_its_originating_request(self):
         self.worker.started=time.monotonic()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Three isolated trials using Codex only as an authenticated model transport.
+"""Isolated native Codex sessions managed through official stdio interfaces.
 
-The local relay fixes the actual instructions/tools sent upstream. Dynamic
+Codex owns model networking and context management. Dynamic
 tools expose only the task, the pinned mathlib, and a sandboxed Lean checker.
 No API keys, bearer tokens, or authorization headers are written into logs.
 """
@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import gzip
 import hashlib
-import http.client
 import json
 import os
 import queue
@@ -23,13 +21,11 @@ import textwrap
 import threading
 import time
 import uuid
-import zlib
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
-from output_guard import ProviderWaitGuard, ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY
+from output_guard import ProviderTerminalWaitExceeded
 from runtime_config import model_profile
 import remote_retry
 
@@ -197,7 +193,6 @@ class Trial:
         self.started: float | None = None
         self.allowed_user_messages: set[str] = set()
         self.proc = None
-        self.relay = None
         self.model_history: dict[str, dict] = {}
         self.model_calls: dict[str, dict] = {}
         self.tool_history: dict[str, dict] = {}
@@ -325,451 +320,8 @@ class Trial:
                                          'wall_seconds': time.monotonic() - started})
         return result
 
-    def reserve_request_number(self):
-        # The relay is multithreaded (including compaction/continuation). Never
-        # recover a request's identity later from the mutable global counter.
-        with self.request_lock:
-            self.api_calls += 1
-            number=self.api_calls
-            self.request_turns[number]=self.native_turn_generation
-            append(self.logs/'request-lifecycle.jsonl',{'request_number':number,'event':'ALLOCATED','at_utc':now()})
-            return number
-
-    def response_succeeded(self, number, response_id):
-        """Only a clean, current own stream can end a consecutive-failure streak."""
-        with self.request_lock:
-            generation=self.request_turns.get(number)
-            if number!=self.api_calls or generation!=self.native_turn_generation:
-                return
-            marker={'request_number':number,'turn_generation':generation,
-                'response_id':response_id}
-            append(self.logs/'request-lifecycle.jsonl',{'event':'RESPONSE_SUCCEEDED',
-                **marker,'at_utc':now()})
-            self.last_response_success=marker
-
-    def normalize_request(self, payload: dict, *, request_number=None) -> dict:
-        if payload.get('model') != self.model:
-            raise ValueError('禁止替换指定模型：' + str(payload.get('model')))
-        effort = getattr(self, 'model_selection', {}).get('reasoning_effort', 'high')
-        if payload.get('reasoning', {}).get('effort') != effort:
-            raise ValueError('Reasoning effort differs from the frozen selection: '+effort)
-        # Only these explicit instructions, user messages and within-trial
-        # model/tool history are submitted. The pre-normalization request is
-        # retained to make every removal auditable.
-        result = dict(payload)
-        result['instructions'] = self.system
-        result['tools'] = [{'type': 'function', 'name': t['name'], 'description': t['description'],
-                            'parameters': t['inputSchema'], 'strict': False} for t in self.tools]
-        kept, removed, handoff_restorations = [], [], []
-        for item in payload.get('input', []):
-            role = item.get('role')
-            text = '\n'.join(c.get('text', '') for c in item.get('content', []) if isinstance(c, dict))
-            if role in ['developer', 'system'] or role == 'user' and text not in self.allowed_user_messages:
-                removed.append(item)
-            else:
-                kept.append(dict(item))
-        result['input'] = kept
-        result['store'] = False
-        if self.strict:
-            if payload.get('conversation') or payload.get('previous_response_id'):
-                raise PermissionError('新基线只接受显式本题历史，不继承服务器会话或响应。')
-            if not any(i.get('role') == 'user' and '\n\n'.join(
-                    c.get('text', '') for c in i.get('content', []) if isinstance(c, dict)
-                    ) in ({self.initial_user_message} if self.initial_user_message else self.allowed_user_messages)
-                    for i in kept):
-                raise PermissionError('请求缺少本题已授权输入。')
-            for item in kept:
-                if item.get('role') == 'user':
-                    if item.get('type') != 'message' or any(
-                            c.get('type') != 'input_text' for c in item.get('content', [])):
-                        raise PermissionError('本题只允许冻结的纯文本用户消息。')
-                elif item.get('type') == 'function_call_output':
-                    origin = self.tool_history.get(item.get('call_id'))
-                    handoff=getattr(self,'handoff_results',{}).get(item.get('call_id'))
-                    if (item.get('output')=='dynamic tool call was cancelled before receiving a response'
-                            and handoff and handoff.get('confirmed') and origin is not None):
-                        record=handoff['record'];path=Path(record['path'])
-                        if hashlib.sha256(path.read_bytes()).hexdigest()!=record['sha256']:
-                            raise PermissionError('Controlled handoff evidence changed')
-                        saved=json.loads(path.read_text())
-                        if saved['tool_result']!=origin or saved['call_id']!=item['call_id'] or not saved['confirmed']:
-                            raise PermissionError('Controlled handoff result differs from its origin')
-                        original=item['output'];item['output']=json.dumps(origin,ensure_ascii=False)
-                        handoff_restorations.append({'call_id':item['call_id'],'record':record,
-                            'native_output':original,'restored_sha256':hashlib.sha256(item['output'].encode()).hexdigest()})
-                    extra = set(item) - {'type', 'id', 'call_id', 'output'}
-                    reason = 'unknown_call' if origin is None else 'unexpected_fields' if extra else None
-                    try:
-                        actual = json.loads(item['output']) if not reason else None
-                    except (ValueError, TypeError, KeyError):
-                        reason, actual = 'invalid_json_output', None
-                    if reason or actual != origin:
-                        raw = item.get('output')
-                        raw = raw if isinstance(raw, str) else json.dumps(raw,ensure_ascii=False)
-                        expected = json.dumps(origin,ensure_ascii=False,sort_keys=True) if origin is not None else None
-                        details = {'call_id':item.get('call_id'), 'unexpected_fields':sorted(extra),
-                            'received_bytes':len(raw.encode()), 'received_sha256':hashlib.sha256(raw.encode()).hexdigest(),
-                            'expected_bytes':len(expected.encode()) if expected is not None else None,
-                            'expected_sha256':hashlib.sha256(expected.encode()).hexdigest() if expected is not None else None}
-                        error = LocalProtocolRejection(reason or 'unequal_payload',details)
-                        append(self.logs/'tool-provenance-rejections.jsonl',{'reason':error.reason,**details})
-                        raise error
-                else:
-                    origin = self.model_history.get(item.get('id'))
-                    if origin is None and item.get('type')=='function_call' and 'id' not in item:
-                        origin=self.model_calls.get(item.get('call_id'))
-                    if origin is None or any(origin.get(k) != v for k, v in item.items() if k != 'status'):
-                        raise PermissionError('模型历史不属于本题已接收输出。')
-            kept = [({'type': 'message', 'role': 'user', 'content':
-                      [{'type': 'input_text', 'text': c['text']} for c in i['content']]}
-                     if i.get('role') == 'user' else i) for i in kept]
-            # Construct the complete semantic request, rather than forwarding
-            # unreviewed provider fields such as client_metadata.
-            result = {'model': self.model, 'stream': True, 'input': kept, 'instructions': self.system,
-                      'tools': result['tools'], 'tool_choice': 'auto', 'parallel_tool_calls': False,
-                      'reasoning': {'effort': effort, 'context': 'all_turns'},
-                      'include': ['reasoning.encrypted_content'], 'store': False,
-                      'text': {'verbosity': getattr(self,'output_verbosity','low')}, 'prompt_cache_key': self.prompt_cache_key,
-                      'service_tier': 'default'}
-        # Native compaction summaries remain untrusted and removed. Restore only
-        # machine facts about this stage's own immutable checked drafts, rather
-        # than forwarding an opaque summary or silently losing working state.
-        checkpoint=None
-        hook=getattr(self,'controller_checkpoint',None)
-        if hook is not None:
-            checkpoint=hook()
-            if checkpoint is not None:
-                text='Current-stage machine checkpoint (no new mathematical premise): '+json.dumps(checkpoint['data'],ensure_ascii=False,sort_keys=True)
-                checkpoint={**checkpoint,'text':text,'text_sha256':hashlib.sha256(text.encode()).hexdigest()}
-                self.allowed_user_messages.add(text)
-                result['input'].append({'type':'message','role':'user','content':[{'type':'input_text','text':text}]})
-        if request_number is None:request_number=self.reserve_request_number()
-        append(self.logs / 'requests.jsonl', {'request_number': request_number,
-            'transport': 'Codex subscription authentication via documented custom provider',
-            'upstream_host': 'chatgpt.com', 'upstream_path': '/backend-api/codex/responses',
-            'original_payload': payload, 'removed_items': removed, 'sent_payload': result,
-            'controller_checkpoint': checkpoint,
-            'controller_handoff_restorations':handoff_restorations,
-            'dropped_top_level_fields': sorted(set(payload) - set(result)),
-            'sent_body_sha256': hashlib.sha256(json.dumps(result, ensure_ascii=False).encode()).hexdigest()})
-        # A mistaken adapter must fail before sending an empty first problem.
-        if request_number == 1 and not any(i.get('role') == 'user' for i in kept):
-            raise ValueError('首个请求缺少冻结题目，拒绝发送。')
-        append(self.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'NORMALIZED','at_utc':now()})
-        wait_guard=getattr(self,'provider_wait_guard',None)
-        if wait_guard is not None:wait_guard.normalized(request_number)
-        return result
-
-    def observe_model_event(self, event: dict, request_number=None) -> None:
-        validate_model_event(event, self.tool_names, strict=self.strict, expected_model=self.model)
-        wait_guard=getattr(self,'provider_wait_guard',None)
-        if wait_guard is not None:wait_guard.observe(event,request_number)
-        guard = getattr(self, 'argument_guard', None)
-        if guard is not None:
-            notice = guard.observe(event, request_number)
-            if notice and getattr(self, 'output_guard_notice', None) is None:
-                self.output_guard_notice = notice
-                append(self.logs/'model-output-events.jsonl', {'event': 'MODEL_OUTPUT_STALLED', **notice})
-            if (event.get('type') == 'response.incomplete' and
-                    (event.get('response', {}).get('incomplete_details') or {}).get('reason') == 'max_output_tokens'):
-                self.provider_output_limit = {'request_number': request_number,
-                    'response_id': event.get('response', {}).get('id'), 'reason': 'max_output_tokens'}
-                append(self.logs/'model-output-events.jsonl', {'event': 'MODEL_OUTPUT_LIMIT', **self.provider_output_limit})
-        execution=getattr(self,'execution',None)
-        if execution:
-            execution.model_event(self.execution_task,str(self.logs),request_number,event)
-        if event.get('type') == 'response.output_item.done':
-            item = event['item']
-            if item.get('type') == 'function_call' and item['call_id'] in self.tool_history:
-                previous=self.model_calls.get(item['call_id'])
-                if (previous is None or previous.get('name')!=item.get('name')
-                        or json.loads(previous['arguments'])!=json.loads(item['arguments'])):
-                    raise PermissionError('A completed tool-call ID was reused with a different origin')
-            self.model_history[item['id']] = item
-            if item.get('type') == 'function_call':
-                self.model_calls[item['call_id']] = item
-        if request_number is not None and event.get('type') in {'response.completed','response.failed','response.incomplete'}:
-            append(self.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'PROVIDER_TERMINAL',
-                'response_type':event['type'],'response_id':event.get('response',{}).get('id'),'at_utc':now()})
-
-    def validate_tool_rpc(self, params: dict) -> None:
-        if not self.strict:
-            return
-        origin = self.model_calls.get(params.get('callId'))
-        if (origin is None or origin.get('name') != params.get('tool')
-                or json.loads(origin['arguments']) != params.get('arguments')):
-            raise PermissionError('工具RPC与本题模型输出不对应。')
-
-    def start_relay(self) -> int:
-        trial = self
-        self.relay_streams={}
-        self.relay_stream_lock=threading.Lock()
-
-        class Handler(BaseHTTPRequestHandler):
-            protocol_version = 'HTTP/1.1'
-
-            def log_message(self, *args):
-                pass
-
-            def forward_sse(self, block: bytes, request_number: int) -> bool:
-                try:
-                    self.wfile.write(block); self.wfile.flush()
-                    return True
-                except (BrokenPipeError, ConnectionResetError) as e:
-                    cancellation = trial.cancelled_requests.get(request_number)
-                    if cancellation is None:
-                        raise
-                    # Only a downstream write for the exact request explicitly
-                    # interrupted by this controller is a local cancellation.
-                    append(trial.logs / 'local-cancellations.jsonl', {
-                        'request_number': request_number, 'layer': 'relay_to_carrier_sse_write',
-                        'error': str(e), 'error_type': type(e).__name__, **cancellation})
-                    self.close_connection = True
-                    return False
-
-            def do_GET(self):
-                headers_started=False
-                origin='local_model_catalog'
-                try:
-                    if not self.path.startswith('/models'):
-                        origin='downstream_catalog_headers';headers_started=True
-                        self.send_error(403); return
-                    cached = json.loads((trial.work / 'state/models_cache.json').read_text())
-                    models = [m for m in cached['models'] if m.get('slug') == trial.model]
-                    data = json.dumps({'models': models}).encode()
-                    append(trial.logs / 'http.jsonl', {'path': self.path, 'status': 200, 'source': 'local pinned model catalog; no upstream request'})
-                    origin='downstream_catalog_headers';headers_started=True
-                    self.send_response(200); self.send_header('Content-Type', 'application/json')
-                    self.send_header('Content-Length', str(len(data))); self.end_headers()
-                    origin='downstream_catalog_body';self.wfile.write(data);self.wfile.flush()
-                except Exception as error:
-                    failure={'code':'harness_bug','message':str(error),
-                        'exception_type':type(error).__name__,'relay_origin':origin}
-                    trial.non_remote_relay_fault=True
-                    trial.last_relay_failure={'request_number':None,'error':failure}
-                    try:append(trial.logs/'relay-errors.jsonl',{'request_number':None,
-                        'error':str(error),'error_type':type(error).__name__,'origin':origin,
-                        'path':self.path,'headers_started':headers_started,'category':'harness_bug'})
-                    except OSError as logging_error:trial.last_relay_failure['evidence_error']=str(logging_error)
-                    self.close_connection=True
-                    if not headers_started:
-                        try:
-                            data=json.dumps({'error':failure}).encode()
-                            self.send_response(500);self.send_header('Content-Type','application/json')
-                            self.send_header('Content-Length',str(len(data)));self.send_header('Connection','close')
-                            self.end_headers();self.wfile.write(data)
-                        except OSError:pass
-
-            def do_POST(self):
-                execution=getattr(trial,'execution',None)
-                if getattr(trial,'local_protocol_fault',None) or getattr(trial,'non_remote_relay_fault',False):
-                    self.rfile.read(int(self.headers.get('Content-Length','0')))
-                    message=b'{"error":{"message":"LOCAL_PROTOCOL_REJECTED: stage already stopped"}}'
-                    self.send_response(400);self.send_header('Content-Type','application/json')
-                    self.send_header('Content-Length',str(len(message)));self.send_header('Connection','close')
-                    self.end_headers();self.wfile.write(message);self.close_connection=True
-                    return
-                repair_control=getattr(trial,'repair_control',None)
-                retiring=bool(repair_control and repair_control.event.is_set())
-                if getattr(trial,'submission_closed',False) or retiring or (execution and execution.cancelled(trial.execution_task)):
-                    length=int(self.headers.get('Content-Length','0'))
-                    self.rfile.read(length)
-                    append(trial.logs/'local-cancellations.jsonl',{
-                        'layer':'post_submission_request_suppressed','upstream_transmitted':False,
-                        'reason':getattr(trial,'stage_close_reason','ACCEPTED_ARTIFACT') if getattr(trial,'submission_closed',False)
-                                 else 'PROOF_ROUND_RETIRED' if retiring else 'EXTERNAL_CANCEL'})
-                    body=b'{"error":{"message":"Stage closed after a recorded controller transition"}}'
-                    self.send_response(409);self.send_header('Content-Type','application/json')
-                    self.send_header('Content-Length',str(len(body)));self.send_header('Connection','close')
-                    self.end_headers();self.wfile.write(body);self.close_connection=True
-                    return
-                upstream = None
-                response = None
-                stream_done=None
-                request_number=None
-                headers_started=False
-                origin='request_validation'
-                terminal=None
-                success_id=None
-                try:
-                    if self.path.rstrip('/') != '/responses':
-                        raise PermissionError('只允许指定模型的 responses 路径。')
-                    body = self.rfile.read(int(self.headers.get('Content-Length', '0')))
-                    if self.headers.get('Content-Encoding') == 'gzip':
-                        try:body = gzip.decompress(body)
-                        except (OSError, EOFError, zlib.error) as error:
-                            raise ValueError('Invalid gzip request body') from error
-                    request_number=trial.reserve_request_number()
-                    trial.last_relay_failure=None
-                    payload = trial.normalize_request(json.loads(body),request_number=request_number)
-                    if execution: execution.request_started(str(trial.logs),request_number)
-                    stream_done=threading.Event()
-                    with trial.relay_stream_lock:
-                        trial.relay_streams[request_number]=stream_done
-                    data = json.dumps(payload, ensure_ascii=False).encode()
-                    # Authentication/account routing are required by the subscription.
-                    # No carrier conversation/session/state or speed headers cross this boundary.
-                    header_allowlist = {'authorization', 'chatgpt-account-id', 'openai-beta',
-                                        'user-agent', 'originator', 'content-type', 'accept'}
-                    headers = {k: v for k, v in self.headers.items() if k.lower() in header_allowlist}
-                    if getattr(trial,'resumed_auth_headers',None):
-                        headers={k:v for k,v in headers.items() if k.lower() not in {'authorization','chatgpt-account-id'}}
-                        headers.update(trial.resumed_auth_headers)
-                    headers['Content-Length'] = str(len(data))
-                    headers['Accept-Encoding'] = 'identity'
-                    origin='local_metadata'
-                    append(trial.logs / 'request-headers.jsonl', {'request_number':request_number,
-                        'forwarded_names':sorted(k.lower() for k in headers),
-                        'removed_names':sorted(k.lower() for k in self.headers if k.lower() not in header_allowlist),
-                        'policy':'Names only; credential/header values are never logged.'})
-                    if trial.network_proxy:
-                        host, port = trial.network_proxy
-                        upstream = http.client.HTTPSConnection(host, port, timeout=90)
-                        upstream.set_tunnel('chatgpt.com', 443)
-                    else:
-                        upstream = http.client.HTTPSConnection('chatgpt.com', timeout=90)
-                    origin='upstream_request'
-                    upstream.request('POST', '/backend-api/codex/responses', body=data, headers=headers)
-                    origin='local_metadata'
-                    append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'FORWARDED','at_utc':now()})
-                    origin='upstream_headers'
-                    response = upstream.getresponse()
-                    origin='local_metadata'
-                    with trial.request_lock:
-                        if request_number==trial.api_calls:
-                            trial.last_http_response={'request_number':request_number,'status':response.status}
-                    append(trial.logs / 'http.jsonl', {'status': response.status,
-                        'request_id': response.getheader('x-request-id'), 'path': self.path,
-                        'request_number': request_number,
-                        'retry_after': response.getheader('Retry-After')})
-                    trial.last_retry_after = remote_retry.retry_after(response.getheader('Retry-After'))
-                    append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'HTTP_RESPONSE',
-                        'status':response.status,'at_utc':now()})
-                    # A partial header write also commits this request to one
-                    # response. Later errors may close it, never start another.
-                    origin='downstream_headers'
-                    headers_started=True
-                    self.send_response(response.status)
-                    self.send_header('Content-Type', response.getheader('Content-Type', 'text/event-stream'))
-                    self.send_header('Connection', 'close')
-                    self.end_headers()
-                    origin='local_evidence'
-                    with (trial.logs / f'response-{request_number:04d}.sse').open('wb') as log:
-                        pending = b''
-                        while True:
-                            origin='upstream_body'
-                            chunk = response.read1(65536)
-                            if not chunk: break
-                            origin='local_event'
-                            pending += chunk
-                            while (separator := re.search(rb'\r?\n\r?\n', pending)) is not None:
-                                block, pending = pending[:separator.end()], pending[separator.end():]
-                                for line in block.splitlines():
-                                    if line.startswith(b'data: '):
-                                        try: event = json.loads(line[6:])
-                                        except json.JSONDecodeError: continue
-                                        trial.observe_model_event(event,request_number)
-                                        if event.get('type') in {'response.completed','response.failed','response.incomplete'}:
-                                            terminal=event
-                                origin='local_evidence'
-                                log.write(block); log.flush()
-                                origin='downstream_body'
-                                if not self.forward_sse(block, request_number):
-                                    return
-                                origin='local_event'
-                        if pending:
-                            origin='local_event'
-                            for line in pending.splitlines():
-                                if line.startswith(b'data: '):
-                                    try: event = json.loads(line[6:])
-                                    except json.JSONDecodeError: continue
-                                    trial.observe_model_event(event,request_number)
-                                    if event.get('type') in {'response.completed','response.failed','response.incomplete'}:
-                                        terminal=event
-                            origin='local_evidence'
-                            log.write(pending);log.flush()
-                            origin='downstream_body'
-                            if not self.forward_sse(pending, request_number):
-                                return
-                        origin='local_evidence'
-                    if (200<=response.status<300 and terminal and terminal.get('type')=='response.completed'
-                            and terminal.get('response',{}).get('status')=='completed'
-                            and terminal['response'].get('id')):
-                        success_id=terminal['response']['id']
-                    self.close_connection = True
-                except Exception as e:
-                    # Exception type alone cannot identify which side failed.
-                    failure=(remote_retry.transport_error(e) if origin.startswith('upstream_') else
-                        {'code':'harness_bug','message':str(e),'exception_type':type(e).__name__})
-                    failure['relay_origin']=origin
-                    trial.last_relay_failure={'request_number':request_number,'error':failure}
-                    if failure['code']=='harness_bug':
-                        trial.non_remote_relay_fault=True
-                    local = origin=='request_validation' and isinstance(e,(PermissionError,ValueError))
-                    if local:
-                        trial.local_protocol_fault={'kind':'LOCAL_PROTOCOL_REJECTED','request_number':request_number,
-                            'reason':getattr(e,'reason',type(e).__name__),'details':getattr(e,'details',{}),
-                            'error':str(e),'upstream_transmitted':False,'at_utc':now()}
-                    try:
-                        append(trial.logs / 'relay-errors.jsonl', {'request_number':request_number,'error': str(e),
-                            'error_type':type(e).__name__,'upstream_opened':upstream is not None,
-                            'origin':origin,'headers_started':headers_started,'category':remote_retry.diagnose(failure)['category']})
-                        if trial.strict and isinstance(e, (PermissionError, ValueError)):
-                            append(trial.logs / 'isolation-violations.jsonl', {'error': str(e), 'error_type': type(e).__name__})
-                        if local:append(trial.logs/'local-protocol-faults.jsonl',trial.local_protocol_fault)
-                    except OSError as logging_error:
-                        trial.non_remote_relay_fault=True
-                        trial.last_relay_failure['evidence_error']=str(logging_error)
-                    self.close_connection=True
-                    try:
-                        if not headers_started:
-                            message = json.dumps({'error': failure}).encode()
-                            self.send_response(400 if local else 500 if failure['code']=='harness_bug' else 502)
-                            self.send_header('Content-Type', 'application/json')
-                            self.send_header('Content-Length', str(len(message)));self.send_header('Connection','close')
-                            self.end_headers(); self.wfile.write(message)
-                    except OSError:
-                        pass
-                finally:
-                    try:
-                        try:
-                            if response:response.close()
-                        finally:
-                            if upstream:upstream.close()
-                        if request_number is not None:
-                            append(trial.logs/'request-lifecycle.jsonl',{'request_number':request_number,'event':'STREAM_CLOSED','at_utc':now()})
-                        if success_id:trial.response_succeeded(request_number,success_id)
-                    except Exception as error:
-                        trial.non_remote_relay_fault=True
-                        previous=trial.last_relay_failure
-                        trial.last_relay_failure={'request_number':request_number,'error':{
-                            'code':'harness_bug','relay_origin':'local_finalization',
-                            'message':str(error),'exception_type':type(error).__name__}}
-                        if previous and previous.get('request_number')==request_number:
-                            trial.last_relay_failure['error']['prior_relay_error']=previous['error']
-                        try:append(trial.logs/'relay-errors.jsonl',{'request_number':request_number,
-                            'error':str(error),'error_type':type(error).__name__,
-                            'origin':'local_finalization','headers_started':headers_started,'category':'harness_bug'})
-                        except OSError:pass
-                    finally:
-                        if stream_done is not None:stream_done.set()
-
-        self.relay = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-        self.relay.daemon_threads = True
-        threading.Thread(target=self.relay.serve_forever, daemon=True).start()
-        return self.relay.server_port
-
-    def drain_relay_streams(self,timeout=10):
-        """Finish logging already transmitted responses before usage readback."""
-        lock=getattr(self,'relay_stream_lock',None)
-        if lock is None:return
-        deadline=time.monotonic()+timeout
-        with lock:pending=list(self.relay_streams.items())
-        unfinished=[]
-        for number,event in pending:
-            if not event.wait(max(0,deadline-time.monotonic())):unfinished.append(number)
-        if unfinished:
-            raise RuntimeError('Response logging did not finish before bounded shutdown: '+str(unfinished))
+    def validate_tool_rpc(self, params):
+        return __import__('native_client').validate_tool(self,params)
 
     def send(self, method: str, params: dict | None = None) -> int:
         self.rpc_id += 1
@@ -791,6 +343,7 @@ class Trial:
                 if self.proc.poll() is not None: raise RuntimeError('Codex 传输进程提前结束。')
                 continue
             self.check_argument_guard()
+            if not __import__('native_client').observe(self,msg):continue
             if msg.get('method') == 'turn/started':
                 self.active_turn_id = msg.get('params', {}).get('turn', {}).get('id')
             if self.pending_turn_start_id is not None and msg.get('id') == self.pending_turn_start_id:
@@ -801,7 +354,7 @@ class Trial:
                 if not self.active_turn_id or turn_id==self.active_turn_id:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
-                if getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None) or getattr(self,'provider_wait_notice',None)):
+                if getattr(self,'submission_closed',False) and msg['params'].get('callId') not in self.tool_history or getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None) or getattr(self,'provider_wait_notice',None)):
                     # A completed call can race with the protective interrupt.
                     # Do not execute it after deciding to preserve an unfinished attempt.
                     self.proc.stdin.write(json.dumps({'id': msg['id'], 'error': {
@@ -874,9 +427,6 @@ class Trial:
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
         local=getattr(self,'local_protocol_fault',None)
         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
-        if getattr(self,'non_remote_relay_fault',False):
-            raise RuntimeError('Non-remote relay failure; automatic remote retry is disabled: '+
-                json.dumps(getattr(self,'last_relay_failure',None),ensure_ascii=False))
         notice = getattr(self, 'output_guard_notice', None)
         if notice:
             from output_guard import ModelOutputStalled
@@ -896,106 +446,56 @@ class Trial:
         return msg.get('result', {})
 
     def start_process(self) -> None:
-        self.provider_wait_guard=ProviderWaitGuard()
-        lock = load_lock()
-        self.network_proxy = system_https_proxy()
-        port = self.start_relay()
-        (self.logs / 'network-routing.json').write_text(json.dumps({'upstream': 'chatgpt.com:443',
-            'system_https_proxy': self.network_proxy, 'tools_network_access': False,
-            'carrier_peer': f'127.0.0.1:{port}', 'carrier_os_sandbox': self.strict}, indent=2))
-        state = self.work / 'state'
-        for name in ['auth.json', 'models_cache.json']:
-            source = __import__('runtime_config').auth_home() / name
-            if source.exists(): shutil.copyfile(source, state / name); os.chmod(state / name, 0o600)
-        if self.strict and (state / 'models_cache.json').exists():
-            cache = json.loads((state / 'models_cache.json').read_text())
-            cache['models'] = [m for m in cache['models'] if m.get('slug') == self.model]
-            if not cache['models']:
-                raise ValueError('本机缓存中缺少指定模型，禁止改用其他模型。')
-            (state / 'models_cache.json').write_text(json.dumps(cache))
-        config = f'''model = "{self.model}"
-model_provider = "pilot-relay"
-model_reasoning_effort = "{self.model_selection['reasoning_effort']}"
-web_search = "disabled"
-project_doc_max_bytes = 0
-tool_output_token_limit = 262144
-[model_providers.pilot-relay]
-name = "Yui isolated subscription carrier"
-base_url = "http://127.0.0.1:{port}"
-wire_api = "responses"
-requires_openai_auth = true
-supports_websockets = false
-request_max_retries = 0
-stream_max_retries = 0
-[features]
-apps = false
-plugins = false
-memories = false
-hooks = false
-multi_agent = false
-multi_agent_v2 = false
-shell_tool = false
-shell_snapshot = false
-view_image = false
-image_generation = false
-computer_use = false
-browser_use = false
-in_app_browser = false
-daemon_auto_start = false
-enable_request_compression = false
-recommended_plugins = false
-tool_suggest = false
-'''
-        # Leave context compaction to the carrier's model-aware default. It is
-        # not a task token budget, and disabling it prevents long runs continuing.
-        (state / 'config.toml').write_text(config)
-        (self.logs / 'effective-config.toml').write_text(config)
-        env = {'PATH': '/usr/bin:/bin', 'HOME': str(self.work / 'home'), 'CODEX_HOME': str(state),
-               'TMPDIR': str(self.work / 'tmp'), 'LANG': 'en_US.UTF-8'}
-        if self.network_proxy:
-            host, proxy_port = self.network_proxy
-            env.update({'HTTPS_PROXY': f'http://{host}:{proxy_port}', 'HTTP_PROXY': f'http://{host}:{proxy_port}',
-                        'NO_PROXY': '127.0.0.1,localhost'})
-        err = (self.logs / 'transport-stderr.log').open('w')
-        command = [lock['codex']['binary_path'], 'app-server', '--stdio']
+        # Native stdio does not expose partial provider argument/SSE events.
+        # Never advertise or install a dormant raw-stream watchdog here.
+        self.provider_wait_guard=None
+        lock=load_lock()
+        state=self.work/'state'
+        for name in ('auth.json','models_cache.json'):
+            source=__import__('runtime_config').auth_home()/name
+            if source.is_file():shutil.copyfile(source,state/name);os.chmod(state/name,0o600)
+        import native_client
+        config=native_client.configuration(self)
+        (state/'config.toml').write_text(config)
+        (self.logs/'effective-config.toml').write_text(config)
+        (self.logs/'native-client.json').write_text(json.dumps({
+            'transport':native_client.TRANSPORT,'profile':self.model_selection,
+            'config_sha256':hashlib.sha256(config.encode()).hexdigest(),
+            'role_system_sha256':hashlib.sha256(self.system.encode()).hexdigest(),
+            'retry_scope':'Python retries failed native work requests; native request/stream retries configured to zero.',
+            'network_owner':'official Codex client; no Yui relay'},indent=2)+'\n')
+        env={'PATH':'/usr/bin:/bin','HOME':str(self.work/'home'),'CODEX_HOME':str(state),
+             'TMPDIR':str(self.work/'tmp'),'LANG':'en_US.UTF-8'}
+        for key in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy'):
+            if key in os.environ:env[key]=os.environ[key]
+        command=[lock['codex']['binary_path'],'app-server','--stdio']
         if self.strict:
-            profile = self.work / 'transport.sb'
-            profile.write_text(transport_sandbox_profile(self.work, port))
-            shutil.copyfile(profile, self.logs / 'transport-sandbox.sb')
-            command = ['/usr/bin/sandbox-exec', '-f', str(profile)] + command
-        try:
-            self.proc = subprocess.Popen(command,
-                cwd=self.work / 'input', env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=err, text=True, bufsize=1, start_new_session=True)
-        finally:
-            err.close()
+            profile=self.work/'transport.sb';profile.write_text(transport_sandbox_profile(self.work))
+            shutil.copyfile(profile,self.logs/'transport-sandbox.sb')
+            command=['/usr/bin/sandbox-exec','-f',str(profile)]+command
+        with (self.logs/'transport-stderr.log').open('w') as error_log:
+            self.proc=subprocess.Popen(command,cwd=self.work/'input',env=env,stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,stderr=error_log,text=True,bufsize=1,start_new_session=True)
         from run_resources import register_child
-        register_child(self.work, self.proc, 'model-carrier')
-        if getattr(self,'execution',None):
-            self.execution.register_process(self.proc,'model-carrier',self.execution_task)
-
+        register_child(self.work,self.proc,'model-carrier')
+        if getattr(self,'execution',None):self.execution.register_process(self.proc,'model-carrier',self.execution_task)
         def reader():
             try:
                 for line in self.proc.stdout:
-                    try:msg = json.loads(line)
-                    except json.JSONDecodeError:
-                        append(self.logs / 'invalid-events.jsonl', {'text': line})
-                        raise ValueError('Invalid JSON from native carrier stdout')
+                    msg=json.loads(line)
                     if not isinstance(msg,dict):raise ValueError('Native JSON RPC event must be an object')
-                    append(self.logs / 'events.jsonl', msg)
-                    self.inbox.put(msg)
+                    append(self.logs/'events.jsonl',msg);self.inbox.put(msg)
+                if not getattr(self,'_resources_released',False):raise EOFError('Native Codex stdout closed unexpectedly')
             except Exception as error:
                 self.carrier_reader_fault={'code':'harness_bug','layer':'carrier_stdout',
                     'message':str(error),'exception_type':type(error).__name__}
                 try:append(self.logs/'carrier-reader-errors.jsonl',self.carrier_reader_fault)
                 except OSError as logging_error:self.carrier_reader_fault['evidence_error']=str(logging_error)
-                # Wake receive_until even if no further native event can arrive.
                 self.inbox.put({'controller_reader_fault':True})
-        self.reader_thread=threading.Thread(target=reader, daemon=True)
-        self.reader_thread.start()
-        self.rpc('initialize', {'clientInfo': {'name': 'yui', 'version': self.harness_version},
-                                'capabilities': {'experimentalApi': True}})
-        self.proc.stdin.write(json.dumps({'method': 'initialized'}) + '\n'); self.proc.stdin.flush()
+        self.reader_thread=threading.Thread(target=reader,daemon=True);self.reader_thread.start()
+        self.rpc('initialize',{'clientInfo':{'name':'yui','version':self.harness_version},
+                              'capabilities':{'experimentalApi':True}})
+        self.proc.stdin.write(json.dumps({'method':'initialized'})+'\n');self.proc.stdin.flush()
 
     def solve_turns(self, user: str, *, smoke: bool = False) -> dict:
         """Continue in the same isolated history; no deadline unless requested."""
@@ -1005,28 +505,28 @@ tool_suggest = false
         deadline = self.started + self.timeout if self.timeout is not None else None
         message = user
         continuation_prompt = getattr(self, 'continuation_prompt', CONTINUE_PROMPT)
+        __import__('native_client').bind_inputs(self,user,continuation_prompt)
         self.remote_retry_count=0
         incident_retries=0
         while True:
             with self.request_lock:
                 self.native_turn_generation+=1
                 generation=self.native_turn_generation
+            self.api_calls=getattr(self,'api_calls',0)+1
+            self.last_native_error=None
             started = self.rpc('turn/start', {'threadId': self.thread_id, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
-                'input': [{'type': 'text', 'text': message}], 'environments': []},
+                'input': [{'type': 'text', 'text': message}], 'environments': [],'serviceTierForTurn':'default'},
                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
             done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
                 and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
                 or getattr(self,'submission_closed',False), deadline)
             if getattr(self,'submission_closed',False):
-                self.drain_relay_streams()
                 self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
                 event=self.last_turn_event or done
                 self.turn_results.append(event)
+                if getattr(self,'carrier_reader_fault',None):raise RuntimeError('Native reader failed during handoff')
                 return event
-            # The native terminal event can race the relay's final evidence
-            # writes. Classify/reset only after those own responses are drained.
-            self.drain_relay_streams()
             self.turn_results.append(done)
             turn = done.get('params', {}).get('turn', {})
             with self.request_lock:
@@ -1042,21 +542,9 @@ tool_suggest = false
                 if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
                     from output_guard import ModelOutputLimit
                     raise ModelOutputLimit(limit)
-                fault=turn.get('error')
-                relay_failure=getattr(self,'last_relay_failure',None)
-                if relay_failure and relay_failure.get('request_number')==self.api_calls:
-                    fault={**relay_failure['error'],'carrier_error':fault}
-                # Native clients may wrap a real rejected HTTP response as
-                # codexErrorInfo=other. Retain our own bound numeric evidence;
-                # never infer a status by matching arbitrary error prose.
-                response=getattr(self,'last_http_response',None)
-                if (response and response['request_number']==self.api_calls
-                        and not 200<=response['status']<300):
-                    fault={**(fault if isinstance(fault,dict) else {'message':str(fault)}),
-                        'http_status':response['status']}
+                fault=__import__('native_client').fault(turn.get('error') or self.last_native_error)
                 reason=remote_retry.classify(fault)
                 if (reason and not getattr(self,'local_protocol_fault',None)
-                        and not getattr(self,'non_remote_relay_fault',False)
                         and not (self.logs/'isolation-violations.jsonl').exists()):
                     if incident_retries < REMOTE_RETRY_POLICY['maximum_attempts']:
                         incident_retries+=1;self.remote_retry_count+=1
@@ -1071,7 +559,7 @@ tool_suggest = false
                     message=continuation_prompt
                     continue
                 fault=fault or {'code':'unknown','message':'Model turn ended without completion'}
-                local=any(getattr(self,key,False) for key in ('local_protocol_fault','non_remote_relay_fault'))
+                local=bool(getattr(self,'local_protocol_fault',None))
                 if local:fault={'code':'harness_bug','cause':fault,'message':'A local protocol/provenance fault requires verified repair'}
                 self.pause_error(fault,retries=incident_retries,resumable=not local)
                 incident_retries=0
@@ -1105,23 +593,10 @@ tool_suggest = false
         if resumable:self.refresh_after_error_pause()
 
     def refresh_after_error_pause(self):
-        """Refresh routing/auth only after explicit resume, retaining the exact thread."""
-        if not getattr(self,'work',None):return
-        path=__import__('runtime_config').auth_home()/'auth.json'
-        state=self.work/'state/auth.json'
-        if path.is_file() and state.is_file():
-            current=json.loads(path.read_text());previous=json.loads(state.read_text())
-            fresh=current.get('tokens',{});old=previous.get('tokens',{})
-            if fresh.get('account_id')!=old.get('account_id'):
-                self.pause_error({'code':'authentication_error','message':'Account identity changed; explicit same-account repair required'},resumable=False)
-            token=fresh.get('access_token')
-            if token and token!=old.get('access_token'):
-                if not isinstance(token,str) or any(c in token for c in '\r\n') or any(c in (fresh.get('account_id') or '') for c in '\r\n'):
-                    self.pause_error({'code':'authentication_error','message':'Malformed credential; value withheld'},resumable=False)
-                shutil.copyfile(path,state);os.chmod(state,0o600)
-                self.resumed_auth_headers={'Authorization':'Bearer '+token}
-                if fresh.get('account_id'):self.resumed_auth_headers['ChatGPT-Account-Id']=fresh['account_id']
-        self.network_proxy=system_https_proxy()
+        """Codex owns authentication and connection renewal; keep this exact role."""
+        self.rpc('account/read',{'refreshToken':True})
+        append(self.logs/'controller.jsonl',{'event':'explicit_native_resume',
+            'thread_id':self.thread_id,'credential_handling':'official Codex client'})
 
     def wait_remote_retry(self, seconds, reason, turn, deadline):
         """Wait without model calls, retaining this exact thread and candidates."""
@@ -1174,8 +649,6 @@ tool_suggest = false
         append(record, {'event': 'interrupt_requested','reason':reason,
             'thread_id': self.thread_id, 'turn_id': self.active_turn_id,
             'request_number': self.api_calls})
-        self.cancelled_requests[self.api_calls] = {'thread_id': self.thread_id,
-            'turn_id': self.active_turn_id, 'interrupt_requested_at_utc': now(),'reason':reason}
         if pending:
             reply=self.receive_until(lambda m:m.get('id')==pending,time.monotonic()+15)
             self.handoff_interrupt=None
@@ -1219,10 +692,8 @@ tool_suggest = false
             self.start_process()
             inventory = self.rpc('skills/list', {'cwds': [str(self.work / 'input')], 'forceReload': True})
             (self.logs / 'skills-inventory.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2))
-            t = self.rpc('thread/start', {'model': self.model, 'modelProvider': 'pilot-relay',
-                'allowProviderModelFallback': False, 'ephemeral': True, 'cwd': str(self.work / 'input'),
-                'approvalPolicy': 'never', 'sandbox': 'read-only', 'baseInstructions': self.system,
-                'developerInstructions': '', 'dynamicTools': self.tools, 'environments': [], 'experimentalRawEvents': True})
+            t = self.rpc('thread/start',__import__('native_client').thread_parameters(self))
+            __import__('native_client').verify_thread(self,t)
             self.thread_id = t['thread']['id']
             if smoke:
                 user = ('本轮是工具链连接测试，不做数学任务。请先调用 search_mathlib 搜索 '
@@ -1297,7 +768,6 @@ tool_suggest = false
                 self.proc.terminate()
                 try: self.proc.wait(timeout=5)
                 except subprocess.TimeoutExpired: self.proc.kill(); self.proc.wait()
-            if self.relay: self.relay.shutdown()
             # Authentication is ephemeral and never part of the experiment artifact.
             for name in ['auth.json', 'models_cache.json']:
                 (self.work / 'state' / name).unlink(missing_ok=True)

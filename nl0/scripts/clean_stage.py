@@ -244,14 +244,14 @@ class ArtifactStage(pilot.Stage):
             'remote_retry_policy':pilot.REMOTE_RETRY_POLICY,
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
             'output_verbosity':self.output_verbosity,
-            'arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,
+            'transport':'native-codex-stdio-v1','arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,
             'library_catalog':selected_catalog,'resolved_environment':pilot.load_lock(),'task_documents':
             {k:hashlib.sha256(v.encode()).hexdigest() for k,v in self.task_inputs.items()},
             'frozen_task_files':task_bindings,
             'rule_documents':{str(Path(k).relative_to(CORE)):hashlib.sha256(v.encode()).hexdigest() for k,v in self.rule_texts.items()},
             'acceptance_contract':self.acceptance_authority.metadata() if self.acceptance_authority else None,
             'rule_snapshot_note':'The entry is saved as SKILL.md.snapshot.txt to prevent a second discoverable skill.',
-            'scope':'Only declared task documents and, in the Yui arm, frozen Yui rules are model-visible.'},indent=2)+'\n')
+            'scope':'Explicit task inputs and frozen Yui role instructions, through native Codex. Native built-in instructions/context management remain present; no HTTP payload interception.'},indent=2)+'\n')
         if kind == 'nl0':
             import nl0
             self.input_prompt += ('\nWrite the complete proof, retaining all supplied calculations, '

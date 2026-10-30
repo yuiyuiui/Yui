@@ -1,7 +1,7 @@
 # Functional development experiment
 
 Use the exact model/reasoning/speed frozen in config.json through the existing
-subscription relay (currently gpt-6.1-sol / high / Standard). Historical
+native Codex client (currently gpt-6.1-sol / high / Standard). Historical
 gpt-5.6-luna and gpt-6-luna results retain their recorded profiles and are not
 pooled with the current configuration.
 Do not substitute a model if it is unavailable. Pin the existing CLI, Lean
@@ -10,7 +10,7 @@ these results must not be pooled with earlier four/five-tool baselines.
 
 Each model stage gets a fresh carrier directory, ephemeral thread, empty
 personal context and only explicit source/contract/plan text plus whitelisted
-tools. Reuse the existing audited relay normalization, OS sandbox and offline
+tools. Use native configuration/input readback, the OS sandbox and offline
 Lean checker. Archive prompts, sent requests, tool outputs, model outputs,
 configuration and input hashes. Do not archive auth files or authorization
 headers. Log whether skills were exposed and whether transport faults occurred.

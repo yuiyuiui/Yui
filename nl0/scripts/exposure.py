@@ -12,6 +12,7 @@ from usage import events, json_rows as request_rows
 
 
 def audit_stage(directory):
+    if (Path(directory)/'native-client.json').is_file():return __import__('native_client').audit(directory)
     directory = Path(directory)
     system = (directory/'system.txt').read_text()
     system = system[:-1] if system.endswith('\n') else system
@@ -146,5 +147,5 @@ def audit_stage(directory):
 
 def audit_run(directory):
     directory = Path(directory)
-    return [dict(path=str(p.parent.relative_to(directory)),**audit_stage(p.parent))
-            for p in sorted(directory.rglob('requests.jsonl'))]
+    return [dict(path=str(p.relative_to(directory)),**audit_stage(p))
+            for p in sorted({p.parent for p in directory.rglob('requests.jsonl')}|{p.parent for p in directory.rglob('native-client.json')})]

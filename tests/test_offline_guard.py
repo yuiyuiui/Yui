@@ -16,9 +16,9 @@ class OfflineGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             stage=ArtifactStage(Path(raw)/'stage','Synthetic missed-mock regression.',phase='control',library=False)
             try:
-                with patch.object(stage,'start_relay') as relay:
+                with patch('native_client.configuration') as setup:
                     with self.assertRaises(harness_support.LiveModelAttemptBlocked):stage.execute()
-                relay.assert_not_called();self.assertIsNone(stage.proc)
+                setup.assert_not_called();self.assertIsNone(stage.proc)
                 self.assertEqual(stage.api_calls,0)
                 self.assertFalse((stage.work/'state/auth.json').exists())
                 self.assertFalse((stage.logs/'error-state.json').exists())

@@ -15,7 +15,8 @@ the network and model service are unavailable.
 | Remote request timeout | `model_timeout` | Same bounded retries |
 | Interrupted response stream | `model_stream_interrupted` | Same bounded retries |
 | HTTP 400/404/413/422, unsupported request/context/output settings | `model_request_rejected` | Pause immediately |
-| Local controller/tool/provenance fault or unknown cause | `harness_bug` | Pause immediately; require verified repair |
+| Unrecognized native service error | `model_unknown` | Pause immediately; preserve the original native event |
+| Local controller/tool/provenance fault | `harness_bug` | Pause immediately; require verified repair |
 | A remaining mathematical/source obstacle without a supported automatic repair | `workflow_blocked` | Pause with its original GAP/nonpass; do not misattribute it to software or service failure |
 
 Explicit quota/auth/rejection evidence takes priority over a generic capacity
@@ -27,28 +28,19 @@ The native Lean 300-second limit remains a separate candidate-check policy.
 The original failed attempt is followed by at most 30 additional attempts, each
 after 60seconds, in the exact same isolated carrier/thread with the same profile,
 drafts and tool receipts. Native provider retries are disabled so they cannot
-multiply the controller's limit. A fully completed own provider response ends the
-current consecutive-failure incident, even inside a long native turn; a successfully completed native turn
-also ends it. Bare HTTP 200, partial/failed/incomplete streams, local model-catalog
-queries and late responses from an older turn do not reset it. Lifetime retry
-totals remain cumulative; manual resume explicitly authorizes a new bounded
-incident. Counters,
-original faults, elapsed time and usage remain in the evidence.
+multiply the controller's limit. The counter covers failed native work requests;
+a successful matching native work completion resets the current incident. The
+native client may perform many model/tool exchanges inside one work request;
+Yui does not invent per-HTTP success/reset observations. Lifetime retry totals
+remain cumulative and explicit manual resume starts a new bounded incident.
+Faults, elapsed time, checkpoints and known usage remain retained.
 
-The relay sends one HTTP response per request. After response headers have
-started, an upstream or local failure closes that connection without appending
-another HTTP status or inventing a provider completion event. Error records
-identify upstream request/headers/body, downstream headers/body, or local
-validation/evidence/finalization. Only recognized upstream failures qualify for
-remote retries. An unexpected downstream disconnect or local I/O/protocol fault
-uses the existing retained local-error pause. An explicitly registered controller
-cancellation remains a local cancellation. Native stdout decode/logging faults
-wake the controller and preserve their original diagnostics instead of leaving
-its message loop waiting for a dead reader.
-Local model-catalog requests follow the same error boundary. Before headers,
-invalid local protocol input returns 400, other local faults return 500, and an
-upstream transport failure returns 502. A provider's actual HTTP status/body is
-forwarded unchanged. Local status codes never turn local faults into remote retries.
+A successful submission is saved before requesting native interruption. The
+matching native completion confirms the handoff. An unexpected native stdout
+EOF, invalid JSON, foreign thread/turn/tool or local evidence failure pauses as
+an actual local fault; a controller-requested interrupted work completion is
+not a network error. No Python HTTP headers, sockets or response tails are
+involved in this decision.
 
 Nonretryable faults and exhausted retries enter `PAUSED_ERROR`. The controller
 waits locally without model calls or automatic phase replay. It retains its
@@ -132,3 +124,20 @@ deferred cleanup does not rewrite hash-bound judgments/results. The existing
 source, target, independent-review, interface, kernel and A/B validators remain
 mandatory; an operational resume never grants mathematical acceptance or
 fault-free benchmark timing.
+
+## Native error source
+
+New runs consume Codex error/failed-turn notifications. Python never forwards
+HTTP or inserts error headers into a response stream. Native request and stream
+retry counts are configured to zero; the explicit 60-second/30-retry policy
+applies to failed native work requests in the same role thread. Native events
+are retained, including any reported internal retry. Exact native compatibility
+messages for `other` stream disconnect/idle-timeout errors are recognized only
+at this error boundary; arbitrary mathematical/tool prose is never scanned for
+HTTP codes. Unrecognized native failures pause with `model_unknown`.
+
+An explicit resume asks Codex to refresh its own account state, preserving the
+same process/thread. Python does not extract access tokens or construct headers.
+Post-submission native interruption is an expected handoff after durable save,
+not a remote fault or authorization to close the role. Unexpected native stdout
+EOF, invalid messages or local I/O errors remain actual execution faults.

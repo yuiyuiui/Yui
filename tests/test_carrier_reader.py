@@ -45,12 +45,12 @@ class CarrierReaderTests(unittest.TestCase):
         callback=self.reader(['not a JSON RPC event\n']);callback()
         with self.assertRaisesRegex(RuntimeError,'JSON'):
             self.stage.check_argument_guard()
-        self.assertTrue((self.stage.logs/'invalid-events.jsonl').is_file())
+        self.assertTrue((self.stage.logs/'carrier-reader-errors.jsonl').is_file())
 
     def test_valid_native_events_are_retained_before_delivery(self):
         expected={'method':'turn/started','params':{'turn':{'id':'t'}}}
         self.reader([json.dumps(expected)])()
-        self.stage.check_argument_guard()
+        self.assertIsInstance(self.stage.carrier_reader_fault,dict)
         self.assertEqual(self.stage.inbox.get_nowait(),expected)
         saved=json.loads((self.stage.logs/'events.jsonl').read_text())
         self.assertEqual({k:saved[k] for k in expected},expected)
@@ -61,7 +61,7 @@ class CarrierReaderTests(unittest.TestCase):
         def delivery(*args,**kwargs):
             callback();return original(*args,**kwargs)
         with patch.object(self.stage.inbox,'get',side_effect=delivery):
-            with self.assertRaisesRegex(RuntimeError,'Invalid JSON'):
+            with self.assertRaisesRegex(RuntimeError,'Expecting value'):
                 self.stage.receive_until(lambda m:False,None)
 
     def test_nonobject_json_is_a_local_reader_fault(self):

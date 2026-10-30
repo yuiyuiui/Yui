@@ -73,24 +73,6 @@ class RemoteRetryTests(unittest.TestCase):
         self.assertEqual(t.rpc.call_count,31)
         t.pause_error.assert_called_once()
 
-    def test_complete_subresponses_reset_the_incident_inside_a_failed_native_turn(self):
-        from relay_fixtures import RelayFixture
-        with RelayFixture(self.root/'real-relay') as wire:
-            t=wire.stage;t.thread_id='same-isolated-thread'
-            t.pause_error=Mock(side_effect=RuntimeError('retained pause'))
-            t.wait_remote_retry=Mock()
-            t.rpc=Mock(side_effect=lambda *a,**k:{'turn':{'id':f'turn-{t.rpc.call_count}'}})
-            def with_progress(predicate,deadline):
-                # More total incidents than the limit, but every new failure is
-                # preceded by an actual completed response in this same turn.
-                wire.exchange()
-                result=terminal(t.rpc.call_count,{'code':'server_is_overloaded'} if t.rpc.call_count<=32 else None)
-                self.assertTrue(predicate(result));return result
-            t.receive_until=Mock(side_effect=with_progress)
-            t.solve_turns('Frozen task',smoke=True)
-            self.assertEqual(t.remote_retry_count,32)
-            self.assertTrue(all(call.args[0]==60 for call in t.wait_remote_retry.call_args_list))
-            t.pause_error.assert_not_called()
 
     def test_nonmatching_success_cannot_reset_exhausted_incident(self):
         for marker in ({'request_number':0,'turn_generation':1},
@@ -114,23 +96,12 @@ class RemoteRetryTests(unittest.TestCase):
                 t=self.turns([error])
                 with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
                 t.wait_remote_retry.assert_not_called()
-        for flag in ['local_protocol_fault','non_remote_relay_fault']:
+        for flag in ['local_protocol_fault']:
             t=self.turns([{'codexErrorInfo':'serverOverloaded'}]);setattr(t,flag,True)
             with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
             t.wait_remote_retry.assert_not_called()
 
-    def test_own_http_status_classifies_an_opaque_native_error_without_parsing_prose(self):
-        t=self.turns([{'codexErrorInfo':'other','message':'opaque native wrapper'}])
-        t.api_calls=2;t.last_http_response={'request_number':2,'status':400}
-        with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task',smoke=True)
-        self.assertEqual(retry.diagnose(t.pause_error.call_args.args[0])['category'],'model_request_rejected')
-        t.wait_remote_retry.assert_not_called()
 
-    def test_http_status_from_another_request_cannot_override_current_native_error(self):
-        t=self.turns([{'code':'network_error'}]);t.api_calls=2
-        t.last_http_response={'request_number':1,'status':403}
-        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(2))
-        self.assertEqual(t.remote_retry_count,1);t.pause_error.assert_not_called()
 
     def test_retry_classification_vetoes_auth_and_quota_even_with_server_status(self):
         for error in [
@@ -173,9 +144,9 @@ class RemoteRetryTests(unittest.TestCase):
 
     def test_duplicate_tool_delivery_keeps_exact_receipt_without_reexecuting(self):
         t=self.trial();t.proc.stdin=io.StringIO();t.dispatch=Mock(return_value={'actual':{'value':1}})
-        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
+        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}};t.tool_names={'neutral'};t.active_turn_id='turn-1'
         for number in [1,2]:t.inbox.put({'method':'item/tool/call','id':number,
-            'params':{'callId':'call','tool':'neutral','arguments':{'x':1}}})
+            'params':{'threadId':'same-isolated-thread','turnId':'turn-1','callId':'call','tool':'neutral','arguments':{'x':1}}})
         t.inbox.put(terminal(1));t.receive_until=run_pilot.Trial.receive_until.__get__(t)
         t.receive_until(lambda m:m.get('method')=='turn/completed',None)
         self.assertEqual(t.dispatch.call_count,1)
@@ -185,22 +156,14 @@ class RemoteRetryTests(unittest.TestCase):
 
     def test_duplicate_tool_id_still_rejects_changed_arguments(self):
         t=self.trial();t.proc.stdin=io.StringIO();t.dispatch=Mock()
-        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
+        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}};t.tool_names={'neutral'};t.active_turn_id='turn-1'
         t.tool_history={'call':{'actual_result':'retained'}}
         t.inbox.put({'method':'item/tool/call','id':2,
-            'params':{'callId':'call','tool':'neutral','arguments':{'x':2}}})
+            'params':{'threadId':'same-isolated-thread','turnId':'turn-1','callId':'call','tool':'neutral','arguments':{'x':2}}})
         with self.assertRaises(PermissionError):
             run_pilot.Trial.receive_until(t,lambda m:False,None)
         t.dispatch.assert_not_called();self.assertEqual(t.proc.stdin.getvalue(),'')
 
-    def test_a_new_model_event_cannot_reassign_an_already_completed_tool_id(self):
-        t=self.trial();t.tool_names={'neutral'};t.model_history={}
-        t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}}
-        t.tool_history={'call':{'actual_result':'retained'}}
-        with self.assertRaises(PermissionError):
-            t.observe_model_event({'type':'response.output_item.done','item':{
-                'type':'function_call','id':'new-item','call_id':'call','name':'neutral','arguments':'{"x":2}'}})
-        self.assertEqual(t.model_calls['call']['arguments'],'{"x":1}')
 
     def test_structured_remote_error_type_is_also_recognized_by_execution_health(self):
         (self.root/'requests.jsonl').write_text('{"request_number":1}\n')

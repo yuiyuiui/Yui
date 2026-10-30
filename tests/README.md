@@ -1,143 +1,49 @@
-# Harness software tests
+# Controller and workflow software tests
 
-This is the single software-test suite for the entire harness: shared runtime,
-NL0/Audit A, Lean/Audit B and the connections between them. The two stage
-directories contain production code and rules; neither owns a second suite.
+Run `python3 -B -m unittest discover -s tests -v` from the skill repository.
+Native tests require the compatible Codex executable; kernel tests require the
+configured pinned Lean/Mathlib environment. A skipped native test is not a
+native integration pass. The suite blocks accidental live model calls and real
+owner-task notifications through harness_support.py.
 
-From the repository root, run:
+These are software tests. Synthetic reviewer judgments and deterministic
+provider replies do not certify a mathematical proof or a model's capability.
+The full mathematical test cases/results are maintained separately.
 
-```sh
-python3 -B nl0/scripts/yui.py selftest
-```
+| Boundary | Main tests | Required behavior |
+| --- | --- | --- |
+| Installed invocation and frozen runtime | test_job_entry.py, test_runtime_snapshot.py | Bind actual inputs/settings; no mutable installation drift or undeclared runtime files. |
+| Native configuration and isolation | test_native_protocol.py, test_model_profiles.py, test_isolation.py | Fixed requested profile, approved input/tool boundaries, no Yui model HTTP listener or endpoint rewriting. |
+| Real native submission | test_native_client.py | Persist the artifact, stop the current work, confirm completion, preserve the role; delayed provider tails cause no synthetic relay fault or extra inference. |
+| Retained role and successful closure | test_native_client.py, test_role_sessions.py, test_stage_completion.py | Reuse the same process/thread; only the approved completed-role boundary or user cancellation releases it. |
+| Native-to-A collection | test_native_review_pipeline.py | Actual Codex processes, coverage contracts and collectors produce bound receipts; a global FAIL cannot dispatch local reviews. Judgments remain synthetic software fixtures. |
+| Native error after actual progress | test_native_faults.py | A persisted checkpoint survives real endpoint errors, mid-stream closure and idle timeout; no successful tool is replayed. |
+| Retry, pause, resume, cancel | test_native_faults.py, test_remote_retry.py, test_fault_control.py | 60-second/30-retry policy, one actual minute wait, exact incident-bound manual resume, cancellable retained waits and isolated notifications. |
+| Post-recovery record eligibility | test_native_faults.py, test_execution_health.py | The real recovered native record reaches the review gate; auth recovery requires the matching bound operator resume. Historical faults/partial usage remain disclosed. |
+| Stdout/RPC faults and stale events | test_carrier_reader.py, test_native_protocol.py, test_carrier_cancellation.py | Fail visibly on invalid/closed native output; foreign/stale messages cannot execute tools or complete the current work. |
+| Accounting | test_native_protocol.py, test_accounting.py, test_phase_metrics.py | Difference cumulative native counters; do not sum duplicate snapshots, subsets or copied stage evidence. Missing provider coverage/tier stays unknown. |
+| Initial author and global Audit A | test_nl0_review_loop.py, test_review_contract.py, test_review_controllers.py | Complete global coverage/findings before the same-author revision or local admission. Receipt submission alone cannot grant PASS. |
+| Parallel local A and global escalation | test_nl0_review_loop.py, test_parallel_audit.py | Node-local modifications, shared active slots, exact merged reviewed versions, restored global role and affected-scope rechecks. |
+| Shared extraction and interface preparation | test_source_refactor_driver.py, test_source_preparation.py, test_workflow_handoffs.py, test_interface_controls.py | Skip unchanged incremental review; retain the approved author/reviewer pair and recheck actual changed scope before freeze. |
+| Frozen interfaces and parallel Lean | test_interface_gate.py, test_shared_parallel.py, test_graph_runner.py, test_proof_repair.py | No unreviewed worker dispatch, no E/P mutation, local repair stays with its author; global connection work preserves the frozen authority. |
+| Native Lean limits and advice | test_native_timeout_advice.py, test_execution_queue.py | One-call timeout is distinct from task completion; same-worker typed repair, cancellation and no success from partial conditional bodies. |
+| Assembly, kernel closure and final acceptance | test_assembly.py, test_audit_b.py, test_final_acceptance.py, test_postprocessing.py | Compile actual full files, close dependencies and trust; machine B inherits only exact reviewed semantics. B-final cannot cover invalid proof/closure. |
+| Exception decisions and final cleanup | test_translation_reset.py, test_workflow_handoffs.py, test_cleanup_tests.py | User-selected drift/recheck/reset/delivery is explicit; preserve original-goal status, exact ownership and scientific evidence. |
 
-The command discovers this directory once. Use `selftest --verbose` to list
-individual cases. A focused module can also run independently, for example:
+Real-native test endpoints are deterministic terminal services on loopback.
+They receive requests directly from the genuine Codex executable and never
+forward a request to a real model. Timing, endpoint fault injection and mocked
+notification sinks remain test-only. Production has no local model listener.
+Native fault events sometimes expose only an opaque error in a particular
+Codex version; unsupported meanings must remain unknown and paused rather than
+being inferred from arbitrary prose. Native usage tests never invent response
+IDs or claim exact provider accounting from work-level counters.
 
-```sh
-python3 -B -m unittest discover -s tests -p test_audit_b.py -v
-```
+Historical raw-wire exposure/usage readers retain regression coverage for old
+archives. They do not enable a legacy carrier in new runs. Obsolete live-relay
+implementation tests were removed; their relevant handoff/fault/ownership
+requirements are exercised through the native tests above.
 
-These are software controls, separate from user-supplied mathematical inputs and
-their generated run directories outside this installation. Automatic discovery does not call a model or
-start a paper-solving workflow. Native integration cases do run the pinned local Lean installation. The native
-handoff test uses the installed Codex client with a deterministic loopback Responses
-server, no credentials and no remote model. It verifies actual interruption,
-same-thread continuation, tool-result provenance and absence of extra requests;
-a missing compatible client is an explicit skip. Synthetic review records exercise validation rules;
-they never certify a mathematical proof or substitute for an independent audit.
+## Native migration validation record (2026-10-31)
 
-The PDF readback regression uses an installed `pdftotext` or `pypdf` backend;
-without either it reports an explicit skip. Installation controls copy the root
-skill to renamed paths containing spaces, omit the tests and optional catalog,
-and prepare/status a synthetic job from an unrelated working directory. They
-need no removed mathematical examples or benchmark files.
-Direct-session prompt preparation is also tested from a relocated copy using
-synthetic inputs, environment-selected tools and explicit CLI overrides.
-
-## Responsibility map
-
-| Behavior | Representative test modules |
-| --- | --- |
-| Entry points, profiles, scheduling, owner handoffs, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_owner_observation`, `test_model_profiles`, `test_remote_retry`, `test_native_faults`, `test_cleanup_tests` |
-| Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
-| Model isolation, HTTP/SSE framing and error origin, native message readers, task/proof state and usage accounting | `test_isolation`, `test_relay_transport`, `test_carrier_reader`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
-| NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |
-| Global PASS admission, retained review/repair pairs, global restoration and combined active slots | `test_parallel_audit`, `test_nl0_review_loop`, `test_role_sessions` |
-| Accepted-source preparation, same-role revisions, actual native submit handoffs and user-selected reset | `test_source_preparation`, `test_source_refactor_driver`, `test_minimal_translation`, `test_workflow_policy`, `test_workflow_handoffs`, `test_native_handoff`, `test_stage_completion`, `test_translation_reset` |
-| Conditional Lean tasks, concurrency, reuse and assembly | `test_translation`, `test_concurrency`, `test_execution_queue`, `test_shared_parallel`, `test_proof_reuse`, `test_assembly` |
-| Pre-proof semantic gate, explicit obstructions, passive progress accounting and same-owner repair | `test_interface_gate`, `test_proof_repair` |
-| Owned executable snapshots and streaming request-history readback | `test_runtime_snapshot`, `test_streaming_audits` |
-| General advice retrieval, evidence scope and maintenance | `test_strategy_bank` |
-| Native signatures, endpoint correspondence and Audit B | `test_signature_comparison`, `test_endpoint_correspondence`, `test_audit_b`, `test_postprocessing`, `test_final_acceptance` |
-
-File names group related behavior; they do not create separate execution suites.
-`harness_support.py` supplies common test paths and synthetic profiles.
-`tooling/*_fixtures.py` contains reusable data builders, with no test cases.
-Static input examples live in `fixtures/`, including `fixtures/lean/`.
-`fixtures/legacy/` preserves historical parser inputs and provenance verbatim,
-including old absolute paths. Its archived smoke runner is not a supported
-entry point and is not executed by discovery; use `selftest` for the current
-portable controls. Tests that need live tool locations resolve the current pins.
-Helpers must not import `test_*.py`; a test must not depend on another test having
-run or imported first. Scripts in `tooling/` that support explicit experiments
-are not executed by unittest discovery.
-
-## Maintenance rules
-
-1. State the observable behavior or regression a case protects. Check outputs,
-   rejected inputs, preserved files, evidence bindings or actual side effects.
-   Avoid assertions about private implementation shape alone.
-2. Before adding a case, inspect the existing owner of that behavior. Reuse its
-   fixtures; extend a test or use named subtests for equivalent input variants.
-   Do not copy a scenario into another module solely because the caller differs.
-3. Keep separate tests when they protect different boundaries: a local validator
-   rejecting an input does not establish that the public workflow invokes it.
-   Preserve meaningful positive, boundary, tampering, failure and recovery cases.
-4. Mock only dependencies outside the behavior being tested. Assertions must
-   exercise production code, not merely confirm a value returned by the mock.
-5. Native checks are necessary for claims about Lean elaboration, signatures or
-   trust. Reuse an immutable compiled fixture within a class where appropriate;
-   give mutation tests their own temporary copies. Do not replace native checks
-   with invented success receipts to make the suite faster.
-6. Run tests in temporary directories. Preserve repository examples, archived
-   results and shared toolchain files. Never require credentials or network model
-   calls for automatic software tests.
-The default carrier launch is fail-fast blocked by `harness_support.py`; an
-incomplete mock cannot read authentication or silently call a real model. Config
-tests explicitly mock process creation, and native protocol tests explicitly
-replace launch with their deterministic loopback carrier. `test_offline_guard`
-checks that an unmocked public stage fails before relay/process/credential access,
-without entering the production retained-error wait.
-The same fail-fast guard blocks an unmocked real owner notification; dedicated
-notification tests must inject a notifier or mock the local queue command.
-7. Remove or merge a case only after identifying equivalent retained coverage.
-   A lower test count is not a quality target. A passing count alone does not
-   establish that every relevant failure mode is covered.
-
-## Controller transport regressions
-
-`tooling/relay_fixtures.py` connects the real Yui relay to a deterministic
-loopback HTTP server. It replaces only the upstream connection destination;
-the test still sends raw HTTP requests and reads actual wire bytes. The matrix
-covers ordinary and fragmented SSE, HTTP auth/quota/capacity/rejection statuses,
-pre-header failures, partial downstream headers, read timeouts, truncated chunks,
-local evidence failures, unexpected downstream disconnects, exact controller
-cancellation, missing/corrupt local model catalogs, finalization and explicit
-response closure. No test manufactures
-provider completion to conceal an interrupted stream.
-
-Retry regressions verify 30 consecutive retries at 60 seconds, retained pause
-after exhaustion, manual same-thread resume, cancellation during waits, genuine
-provider success inside a long failed native turn, and rejection of local catalog
-queries, failed/partial streams and old concurrent responses as reset evidence.
-Lifetime retry totals are retained independently of the consecutive incident.
-
-Native-reader tests make disk/JSON failures reach the waiting controller with
-their original cause. Role-session tests use two actual HTTP submissions through
-one retained relay. `test_native_handoff` additionally runs the installed local
-Codex client through that real relay to a synthetic Responses server: interruption,
-tool receipts and same-thread revisions are exercised together without credentials
-or any remote model. `observe` reports all-task `counts` and separate proof-only
-`proof_counts`; neither field is an audit-coverage certificate.
-
-`test_native_faults` joins the components into running fault scenarios. A real
-installed Codex client calls the production tool dispatcher to save a checkpoint,
-then its next response suffers a real TCP cut, connection refusal, read timeout,
-HTTP 403/402/429/400/503, or an injected evidence-write failure. The production
-startup, sandbox, stdout reader, RPC loop, retry code, fault gate and execution
-Recorder run together. Assertions cover retained PID/thread/checkpoint, no
-duplicate completed tool action, actual PAUSED_ERROR, notification command/body,
-manual same-incident resume, retry exhaustion, cancellation and teardown failure.
-
-The simulated service uses HTTP on loopback with authentication disabled and
-explicit proxy bypass; no real credentials or remote model are used. Production
-notification formatting and queue invocation target an isolated executable
-outbox, so automatic tests never send a real front-end alert. This verifies
-generation/routing, not a fresh GUI-display or OAuth test. One disconnect test
-waits a **real 60 seconds** before continuation. The 30-retry exhaustion case
-advances only the retry wait clock and checks 30 configured 60-second waits; it
-does not wait 30 real minutes. The socket read-timeout threshold is shortened
-only for the simulated service. Test bounds and clock changes are not runtime
-budgets or production policy changes.
-These production-sandbox integrations require macOS `sandbox-exec` and an
-installed compatible Codex CLI; unavailable prerequisites are explicit skips.
+Full discovery completed with 859 tests in V1 and 869 in V2. Subsequent affected-module regression completed with 179 tests per version, including the final native fault classification, usage and capability metadata changes. Two additional native-to-A collector integration tests per version passed afterward. Skill validation and diff checks are separate release checks. These numbers record this migration checkpoint; later additions may change discovery counts.

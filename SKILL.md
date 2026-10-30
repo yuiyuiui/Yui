@@ -180,12 +180,13 @@ proofs are never an input source for these stages.
 
 The Yui arm receives only the declared Yui rules and task material. The direct
 arm receives a minimal task/tool contract and the same mathematical inputs,
-without Yui planning, strategy or shared-proof guidance. Log actual transmitted
-instructions, complete allowed inputs, tool schemas/results, model identity,
-phase, usage and health. Never execute model-generated Python or shell text.
+without Yui planning, strategy or shared-proof guidance. Log controller-supplied instructions, frozen inputs, native configuration,
+tool schemas/results, reported model identity, phase, usage and health. Native
+Codex manages model networking and context; Yui does not intercept HTTP payloads.
+Actual tier and per-response usage coverage remain unknown when not exposed. Never execute model-generated Python or shell text.
 
 Collect the active phase profiles as described above. `config.json` supplies
-defaults only when explicitly selected. The current isolated carrier supports
+defaults only when explicitly selected. The current isolated native Codex carrier requests
 Standard speed and checks model/effort availability without fallback. Freeze
 and record each stage's selected profile;
 never silently substitute a stronger model or fallback.

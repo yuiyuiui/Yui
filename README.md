@@ -360,3 +360,36 @@ When the full primary text is unavailable but a complete explicit
 secondary statement exists, the [conditional-source route](nl0/references/conditional-sources.md)
 can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
 never ordinary full PASS; actual mathematical failures remain blocking.
+
+## Native Codex execution and software validation
+
+Yui's Python controller communicates with isolated background `codex app-server`
+processes over stdio. Codex owns direct model-service communication and login;
+Yui has no model-network relay. Python owns workflow decisions and approved
+file/Mathlib/Lean tools. The existing author/reviewer, freeze, repair and machine
+Audit B boundaries are unchanged.
+
+Native Codex built-in instructions and context management remain enabled;
+personal memory, unrelated plugins/project documents and arbitrary tools are
+isolated through the per-role configuration and workspaces. See
+[native isolation](nl0/references/isolation.md) and
+[measurement](nl0/references/measurement.md) for the exact evidence boundary.
+Configuration/input/tool readback does not certify raw provider HTTP payloads.
+Native cumulative token counters are differenced; missing actual tier or
+per-response coverage remains unknown.
+
+Run the full software suite with `python3 -B -m unittest discover -s tests -v`.
+It includes controller/gate regressions, actual local Lean checks and real Codex
+process tests against deterministic local test endpoints without real model
+inference or user notifications. Native fault tests include in-flight disconnect,
+a real sixty-second retry wait, thirty-retry exhaustion and retained-session
+resume/cancel. Fake provider endpoints exist only in tests, never as forwarding
+services in production. These checks are distinct from a new mathematical test
+round and do not establish that arbitrary proofs will complete successfully.
+
+The native protocol migration was validated with Codex CLI
+`0.165.0-alpha.1.2`. It uses supported dynamic-tool and exact thread/turn
+notifications, explicit Standard work settings, and a named direct provider to
+configure native request/stream retries. An exposed model/provider/effort/tier
+mismatch is rejected before dispatch; unavailable actual service metadata is
+still recorded as unknown.

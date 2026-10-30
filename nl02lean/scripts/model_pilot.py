@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fresh subscription-carried Yui model stages for typed Lean obligations.
 
-Uses the existing request-normalizing relay; exposes neither owner references
+Uses the official native Codex client; exposes neither owner references
 nor shell/filesystem access. All actual transmitted inputs and usage are retained.
 """
 from __future__ import annotations
@@ -32,8 +32,8 @@ from shared_lemmas import Store
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
 import run_pilot as carrier
 from runtime_config import model_profile
-from output_guard import (ArgumentGuard, ModelOutputLimit, ModelOutputStalled, POLICY as OUTPUT_POLICY,
-                          ProviderTerminalWaitExceeded, PROVIDER_WAIT_POLICY)
+from output_guard import ModelOutputLimit, ModelOutputStalled, ProviderTerminalWaitExceeded
+from native_client import OUTPUT_POLICY, PROVIDER_WAIT_POLICY
 from pilot_common import sha256, load_lock as runtime_lock
 
 REMOTE_RETRY_POLICY = carrier.REMOTE_RETRY_POLICY
@@ -80,7 +80,6 @@ class Stage(carrier.Trial):
         self.timeout = __import__('runtime_config').time_limit(timeout)
         self.harness_version = HARNESS
         self.strict = True
-        self.argument_guard = ArgumentGuard()
         self.system = SYSTEM
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
@@ -182,7 +181,7 @@ class Stage(carrier.Trial):
         self.inbox = queue.Queue()
         self.started = None
         self.allowed_user_messages = set()
-        self.proc = self.relay = None
+        self.proc = None
         self.model_history, self.model_calls, self.tool_history = {}, {}, {}
         self.prompt_cache_key = 'nl0-ir-'+str(uuid.uuid4())
         self.continuation_count = 0
@@ -452,11 +451,6 @@ class Stage(carrier.Trial):
             if reader:reader.join(timeout=1)
             for stream in (self.proc.stdin,self.proc.stdout):
                 if stream:stream.close()
-        if self.relay:
-            self.relay.shutdown()
-            try:self.drain_relay_streams()
-            except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
-            self.relay.server_close()
         for name in ('auth.json','models_cache.json'):
             (self.work/'state'/name).unlink(missing_ok=True)
         if result.get('execution_fault'):raise RuntimeError(result['execution_fault'])
@@ -518,11 +512,8 @@ class Stage(carrier.Trial):
                 self.start_process()
                 inventory = self.rpc('skills/list',{'cwds':[str(self.work/'input')],'forceReload':True})
                 ir.write(self.logs/'skills-inventory.json',inventory)
-                thread = self.rpc('thread/start',{'model':self.model,'modelProvider':'pilot-relay',
-                'allowProviderModelFallback':False,'ephemeral':True,'cwd':str(self.work/'input'),
-                'approvalPolicy':'never','sandbox':'read-only','baseInstructions':self.system,
-                'developerInstructions':'','dynamicTools':getattr(self,'native_tools',self.tools),'environments':[],
-                'experimentalRawEvents':True})
+                thread = self.rpc('thread/start',__import__('native_client').thread_parameters(self))
+                __import__('native_client').verify_thread(self,thread)
                 self.thread_id = thread['thread']['id']
             elif self.proc.poll() is not None:
                 raise RuntimeError('Retained role carrier exited; preserve its checkpoint, do not restart silently')
@@ -605,9 +596,6 @@ class Stage(carrier.Trial):
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error
-            if self.relay:
-                try:self.drain_relay_streams()
-                except RuntimeError as error:result['execution_fault']='Response finalization: '+str(error)
             result['error_pauses']=getattr(getattr(self,'_fault_gate',None),'resumed',[])
             result.update({'wall_seconds':time.monotonic()-self.started if self.started else None,
                            'api_calls':self.api_calls,'lean_calls':self.lean_calls,
@@ -616,12 +604,10 @@ class Stage(carrier.Trial):
                            'remote_retries':getattr(self,'remote_retry_count',0)})
             if self.proof_progress is not None:result['proof_progress']=self.proof_progress.metadata()
             violations = self.logs/'isolation-violations.jsonl'
-            faults = self.logs/'relay-errors.jsonl'
             result['isolation_violation'] = violations.exists() and bool(violations.read_text().strip())
-            result['relay_fault'] = faults.exists() and bool(faults.read_text().strip())
             from execution_health import inspect
             result['transport_health']=inspect(self.logs)
-            result['execution_health'] = ('FAULT' if result.get('execution_fault') or result['relay_fault'] or
+            result['execution_health'] = ('FAULT' if result.get('execution_fault') or
                 result['isolation_violation'] else result['transport_health']['status'])
             if result['status']=='UNFINISHED' and result.get('stop_reason')=='DEADLINE':
                 result['task_outcome'] = ('MODEL_BUDGET_EXHAUSTED' if result['execution_health']=='NO_RECORDED_FAULT'
@@ -631,22 +617,21 @@ class Stage(carrier.Trial):
             result['speed_policy'] = 'standard'
             result['instruction_arm'] = getattr(self, 'instruction_arm', 'yui')
             result['measurement_valid'] = False
-            if (self.logs/'requests.jsonl').exists():
-                from exposure import audit_stage
+            if (self.logs/'native-client.json').exists():
                 try:
-                    result['exposure'] = audit_stage(self.logs)
-                    result['measurement_valid'] = (result['exposure']['status']=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
-                        and result['exposure']['actual_model_ids']==[self.model]
-                        and result['exposure']['standard_tier_verified'] and result['usage']['complete']
-                        and result['execution_health']=='NO_RECORDED_FAULT')
+                    result['exposure']=__import__('native_client').audit(self.logs)
                     if result['exposure']['errors']:
-                        result['execution_health']='FAULT'
-                        result['execution_fault']='Transmitted exposure readback failed'
+                        result['execution_health']='FAULT';result['execution_fault']='Native context readback failed'
                 except (ValueError,KeyError,OSError) as error:
-                    result['execution_health']='FAULT'
-                    result['execution_fault']='Exposure readback error: '+str(error)
+                    result['execution_health']='FAULT';result['execution_fault']='Native context readback error: '+str(error)
+                result['transport']='native-codex-stdio-v1'
+                result['native_turns']=self.api_calls
+                result['api_calls']=None
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and result['execution_health']=='FAULT':
                 result['task_outcome']='UNFINISHED_WITH_EXECUTION_FAULT'
+            result['transport']='native-codex-stdio-v1'
+            result['native_turns']=self.api_calls
+            result['api_calls']=None
             from execution_health import qualification
             result.update(qualification(result))
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and not result['identity_and_input_boundary_verified']:

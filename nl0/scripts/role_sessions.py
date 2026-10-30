@@ -52,13 +52,12 @@ class Sessions:
                     raise ValueError('A retained role cannot change its model profile')
                 if not {t['name'] for t in template.tools} <= entry['native_tools']:
                     raise ValueError('Role handoff requires tools absent from its original native registration')
-                stage.drain_relay_streams()
                 stage.check_argument_guard()
                 transport = {k: getattr(stage, k) for k in (
-                    'proc', 'relay', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
+                    'proc', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
                     'model_history', 'model_calls', 'tool_history', 'allowed_user_messages',
                     'prompt_cache_key', 'network_proxy','handoff_results',
-                    'relay_stream_lock') if hasattr(stage, k)}
+                    'native_usage_total') if hasattr(stage, k)}
                 owner_logs = getattr(stage, 'workspace_owner_logs', stage.logs)
                 if stage.mode=='proof' and template.mode=='proof':
                     template.own_lean_drafts=stage.own_lean_drafts
@@ -84,10 +83,16 @@ class Sessions:
                 stage.__dict__.clear()
                 stage.__dict__.update(template.__dict__)
                 stage.__dict__.update(transport)
-                if 'relay_stream_lock' in transport:
-                    stage.relay_streams={}
+                stage.native_usage_baseline=transport.get('native_usage_total',{})
+                for name in ('native-client.json','effective-config.toml'):
+                    original=Path(owner_logs)/name
+                    if original.is_file():shutil.copyfile(original,stage.logs/name)
+                if (stage.logs/'native-client.json').is_file():
+                    receipt=json.loads((stage.logs/'native-client.json').read_text())
+                    receipt['role_system_sha256']=__import__('hashlib').sha256(stage.system.encode()).hexdigest()
+                    write(stage.logs/'native-client.json',receipt)
                 stage.workspace_owner_logs = owner_logs
-                stage.provider_wait_guard = __import__('output_guard').ProviderWaitGuard()
+                stage.provider_wait_guard = None
             stage._role_dispatching = True
             stage.role_session = {'role': role, 'prior_submissions': list(entry['records']),
                 'restored_role': bool(self.history.get(role)),
@@ -104,7 +109,8 @@ class Sessions:
         finally:
             stage._role_dispatching = False
         with self.lock:
-            entry['records'].extend(bind(stage.logs/name) for name in ('result.json', 'accepted.json','execution-manifest.json','tools.jsonl','exposure-audit.json')
+            entry['records'].extend(bind(stage.logs/name) for name in ('result.json','accepted.json','execution-manifest.json','tools.jsonl','exposure-audit.json',
+                'native-client.json','effective-config.toml','client.jsonl','prompt.txt','system.txt')
                 if (stage.logs/name).is_file())
             entry['records'].extend(bind(path) for path in (stage.logs/'library').glob('*/library-sources.json'))
         return result

@@ -27,7 +27,9 @@ def qualification(result):
     exposure=result.get('exposure', {})
     configured=json.loads((Path(__file__).resolve().parents[2]/'config.json').read_text())['model']['id']
     expected_model=result.get('model',configured)
-    identity=(exposure.get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
+    native=(exposure.get('status')=='NATIVE-CODEX-CONTEXT-CHECK-PASSED'
+            and exposure.get('configured_model')==expected_model and not exposure.get('errors'))
+    identity=native or (exposure.get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
               and exposure.get('actual_model_ids')==[expected_model]
               and exposure.get('standard_tier_verified') is True)
     health=result.get('execution_health','UNVERIFIED')
@@ -46,9 +48,8 @@ def known_transport_recovery(result):
             or not __import__('run_resources').safe_stage_workspace(result)):return False
     transport=result.get('transport_health',{});faults=transport.get('faults',[])
     if transport.get('status')!='FAULT' or not faults:return False
-    if any(f.get('kind') not in {'RELAY_ERROR','HTTP_ERROR','PROVIDER_ERROR'} for f in faults):return False
     numbers={f.get('request_number') for f in faults if type(f.get('request_number')) is int}
-    def explicitly_resumed():
+    def explicitly_resumed(category=None):
         import hashlib
         for row in result.get('error_pauses',[]):
             try:
@@ -56,10 +57,18 @@ def known_transport_recovery(result):
                 if (hashlib.sha256(raw).hexdigest()==row['sha256'] and value.get('state')=='RESUMED'
                         and value.get('control',{}).get('incident')==value.get('incident')
                         and value.get('control',{}).get('action')=='resume'
-                        and value.get('fault',{}).get('category') in {'model_auth','model_balance','model_quota','model_request_rejected'}):
+                        and value.get('fault',{}).get('category') in {'model_auth','model_balance','model_quota','model_request_rejected'}
+                        and (category is None or value['fault']['category']==category)):
                     return True
             except (OSError,ValueError,KeyError):continue
         return False
+    if result.get('transport')=='native-codex-stdio-v1':
+        for row in faults:
+            if row.get('kind')!='NATIVE_PROVIDER_ERROR':return False
+            diagnosis=remote_retry.diagnose(row.get('details'))
+            if not diagnosis['retryable'] and not explicitly_resumed(diagnosis['category']):return False
+        return not transport.get('uncertainty')
+    if any(f.get('kind') not in {'RELAY_ERROR','HTTP_ERROR','PROVIDER_ERROR'} for f in faults):return False
     return all((u.get('kind')=='HTTP_EVIDENCE_INCOMPLETE'
                 and set(u.get('missing_requests',[]))<=numbers)
                or (u.get('kind')=='PROVIDER_ERROR' and explicitly_resumed()
@@ -103,6 +112,11 @@ def read_rows(path):
 
 def inspect(directory):
     root=Path(directory)
+    if (root/'native-client.json').is_file():
+        faults=[{'kind':'NATIVE_PROVIDER_ERROR','details':row.get('error'),'native_will_retry':row.get('native_will_retry',False)} for row in read_rows(root/'native-errors.jsonl')]
+        faults.extend({'kind':'CARRIER_READER_ERROR','details':row.get('message')} for row in read_rows(root/'carrier-reader-errors.jsonl'))
+        return {'status':'FAULT' if faults else 'NO_RECORDED_FAULT','faults':faults,'uncertainty':[],
+            'scope':'Native Codex error and stdio-reader events; HTTP transport and actual service tier are not intercepted.'}
     requests={row['request_number'] for row in read_rows(root/'requests.jsonl')}
     http=list(read_rows(root/'http.jsonl'))
     faults=[]

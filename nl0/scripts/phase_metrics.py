@@ -20,7 +20,7 @@ def summarize(directory):
         canonical=result.get('stage_log_path')
         if canonical and Path(canonical).resolve()!=stage.resolve():continue
         if not canonical and any(name in {'review-evidence','runtime','harness-snapshot'} for name in stage.relative_to(root).parts):continue
-        request_count=sum(1 for _ in rows(stage/'requests.jsonl'))
+        request_count=None if (stage/'native-client.json').exists() else sum(1 for _ in rows(stage/'requests.jsonl'))
         lifecycles={}
         for row in rows(stage/'request-lifecycle.jsonl'):
             lifecycles.setdefault(row['request_number'],{})[row['event']]=row

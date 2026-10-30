@@ -66,19 +66,27 @@ class OwnStateTests(unittest.TestCase):
             result,_=self.worker._execute()
         self.assertEqual(result['paused_outcome']['stop_reason'],'LOCAL_TOOL_EXECUTION_FAULT')
         self.assertEqual(result['tool_execution_fault']['tool'],'probe_library')
-        self.assertEqual(result['api_calls'],0);self.assertEqual(result['lean_calls'],0)
+        self.assertIsNone(result['api_calls']);self.assertEqual(result['lean_calls'],0)
         with self.assertRaises(__import__('execution_state').Cancelled):
             full_workflow.nl0_artifact_for_audit(self.worker.logs.parent)
 
     def sent(self):
-        user=self.worker.prompt();self.worker.allowed_user_messages.add(user)
-        self.worker.initial_user_message=user
-        # Models see only original authorized input plus actual machine facts;
-        # an unbound native-style summary is removed at this reset boundary.
-        self.worker.normalize_request({'model':MODEL,'reasoning':{'effort':'high'},
-            'input':[{'type':'message','role':'user','content':[{'type':'input_text','text':user}]},
-                     {'type':'message','role':'user','content':[{'type':'input_text','text':'FOREIGN_UNBOUND_SUMMARY'}]}]})
-        return json.loads((self.worker.logs/'requests.jsonl').read_text().splitlines()[-1])
+        value=self.worker.controller_checkpoint()
+        self.latest_checkpoint=value
+        return {'controller_checkpoint':value,'sent_payload':None}
+
+    def checkpoint_errors(self):
+        checkpoint=self.latest_checkpoint;records={};errors=[]
+        for row in checkpoint['sources']:
+            p=self.worker.logs/row['path']
+            if not p.is_file() or __import__('hashlib').sha256(p.read_bytes()).hexdigest()!=row['sha256']:
+                errors.append('changed source')
+            elif p.suffix=='.json':records[row['path']]=json.loads(p.read_text())
+        manifest=json.loads((self.worker.logs/'execution-manifest.json').read_text())
+        tools=[json.loads(l) for l in (self.worker.logs/'tools.jsonl').read_text().splitlines()]
+        actual={(r['tool'],own_state.digest(r['result'])):r['result'] for r in tools}
+        if not own_state.verify(self.worker.logs,checkpoint['data'],records,actual,manifest):errors.append('invalid own-state binding')
+        return {'errors':errors}
 
     def test_reset_checkpoint_has_only_real_displayed_progress_and_excludes_summary(self):
         number=self.draft();self.worker.dispatch('read_author_packet',{'candidate':number,'inference':'R001'})
@@ -88,7 +96,7 @@ class OwnStateTests(unittest.TestCase):
         self.assertFalse(state['progress']['author_release_ready'])
         self.assertTrue(state['progress_matches_current_candidate'])
         self.assertNotIn('FOREIGN_UNBOUND_SUMMARY',json.dumps(request['sent_payload']))
-        self.assertEqual(exposure.audit_stage(self.worker.logs)['errors'],[])
+        self.assertEqual(self.checkpoint_errors()['errors'],[])
 
     def test_rejected_edit_preserves_latest_draft_and_labels_old_progress_stale(self):
         number=self.draft()
@@ -99,14 +107,14 @@ class OwnStateTests(unittest.TestCase):
         self.assertEqual(data['candidate_number'],number+1)
         self.assertEqual(state['progress']['candidate'],number)
         self.assertFalse(state['progress_matches_current_candidate'])
-        self.assertEqual(exposure.audit_stage(self.worker.logs)['errors'],[])
+        self.assertEqual(self.checkpoint_errors()['errors'],[])
 
     def test_forged_progress_or_changed_snapshot_is_rejected(self):
         self.draft();request=self.sent();data=request['controller_checkpoint']['data']
         path=self.worker.logs/'case'/('own-state-'+own_state.digest(data['own_state'])+'.json')
         original=path.read_text();value=json.loads(original)
         value['progress']['author_release_ready']=True;path.write_text(json.dumps(value))
-        self.assertTrue(exposure.audit_stage(self.worker.logs)['errors'])
+        self.assertTrue(self.checkpoint_errors()['errors'])
         path.write_text(original)
         # An apparently re-hashed snapshot still has to match an actual tool result.
         changed=deepcopy(data);changed['own_state']['progress']['author_release_ready']=True
@@ -121,7 +129,7 @@ class OwnStateTests(unittest.TestCase):
         self.worker.dispatch('read_author_packet',{'candidate':number,'inference':'R001'})
         second=self.sent()['controller_checkpoint']
         self.assertNotEqual(first['data']['own_state'],second['data']['own_state'])
-        self.assertEqual(exposure.audit_stage(self.worker.logs)['errors'],[])
+        self.assertEqual(self.checkpoint_errors()['errors'],[])
 
     def test_source_index_is_same_stage_native_metadata_not_a_new_premise(self):
         self.draft();case=self.worker.validator.directory
@@ -136,17 +144,16 @@ class OwnStateTests(unittest.TestCase):
         request=self.sent();state=request['controller_checkpoint']['data']['own_state']
         self.assertEqual(state['source_probe_index'][0]['declaration'],'Nat.add_comm')
         self.assertIs(state['mathematical_acceptance'],False)
-        self.assertEqual(exposure.audit_stage(self.worker.logs)['errors'],[])
+        self.assertEqual(self.checkpoint_errors()['errors'],[])
         report['mathlib_commit']='wrong pin';path.write_text(json.dumps(report))
-        self.assertTrue(exposure.audit_stage(self.worker.logs)['errors'])
+        self.assertTrue(self.checkpoint_errors()['errors'])
         with self.assertRaisesRegex(ValueError,'pin differs'):self.worker.controller_checkpoint()
 
     def test_policy_downgrade_and_foreign_source_paths_are_rejected(self):
         self.draft();request=self.sent();checkpoint=request['controller_checkpoint']
         checkpoint['data']['checkpoint_version']=1
         # Readback also checks the actual transmitted text/body binding.
-        with (self.worker.logs/'requests.jsonl').open('w') as f:f.write(json.dumps(request)+'\n')
-        self.assertTrue(exposure.audit_stage(self.worker.logs)['errors'])
+        self.assertTrue(self.checkpoint_errors()['errors'])
 
     def test_an_external_probe_path_cannot_enter_an_own_snapshot(self):
         self.draft();request=self.sent();data=request['controller_checkpoint']['data']
@@ -178,7 +185,7 @@ class OwnStateTests(unittest.TestCase):
         self.draft();pin,original,alias=self.bound_source()
         request=self.sent();index=request['controller_checkpoint']['data']['own_state']['source_probe_index']
         self.assertEqual({x['id'] for x in index},{'M001','M002'})
-        self.assertEqual(exposure.audit_stage(self.worker.logs)['errors'],[])
+        self.assertEqual(self.checkpoint_errors()['errors'],[])
         row=json.loads(alias.read_text());row['sources']['M002']['declaration']='Nat.mul_comm'
         alias.write_text(json.dumps(row))
         with self.assertRaisesRegex(ValueError,'identity/content'):

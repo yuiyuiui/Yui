@@ -52,8 +52,8 @@ def sandbox_profile(work: Path) -> str:
     ]) + '\n'
 
 
-def transport_sandbox_profile(work: Path, relay_port: int) -> str:
-    """Restrict the subscription carrier to its own files and local relay."""
+def transport_sandbox_profile(work: Path) -> str:
+    """Restrict native Codex files/processes; Codex owns outbound model connections."""
     binary = Path(load_lock()['codex']['binary_path']).resolve()
     roots = [binary.parent, work.resolve()]
     read = ' '.join('(subpath ' + json.dumps(str(p)) + ')' for p in roots)
@@ -65,10 +65,9 @@ def transport_sandbox_profile(work: Path, relay_port: int) -> str:
     return '\n'.join([
         '(version 1)', '(allow default)',
         '(deny network-inbound)', '(deny network-bind)',
-        '(deny network-outbound (require-not (remote ip "localhost:' + str(relay_port) + '")))',
         '(deny process-exec (require-not (literal ' + json.dumps(str(binary)) + ')))',
         '(deny file-read-data (require-not (require-any (subpath "/System") '
-        '(subpath "/usr/lib") (subpath "/usr/share") (subpath "/private/var/db/dyld") '
+        '(subpath "/usr/lib") (subpath "/usr/share") (subpath "/private/var/db/dyld") (subpath "/private/etc/ssl") '
         '(literal "/dev/null") (literal "/dev/random") (literal "/dev/urandom") '
         '(literal "/private/etc/localtime") ' + read + ')))',
         '(deny file-write* (require-not (require-any (literal "/dev/null") ' + write + ')))',

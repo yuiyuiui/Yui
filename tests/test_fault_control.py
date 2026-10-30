@@ -308,8 +308,9 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         home=self.root/'authentication';home.mkdir();execution.atomic(home/'auth.json',new)
         with patch('runtime_config.auth_home',return_value=home),patch.object(run_pilot,'system_https_proxy',return_value=None):
             run_pilot.Trial.refresh_after_error_pause(t)
-        self.assertEqual(json.loads((t.work/'state/auth.json').read_text()),new)
-        self.assertEqual(t.resumed_auth_headers['Authorization'],'Bearer synthetic-refreshed')
+        self.assertEqual(json.loads((t.work/'state/auth.json').read_text()),old)
+        t.rpc.assert_called_with('account/read',{'refreshToken':True})
+        self.assertFalse(hasattr(t,'resumed_auth_headers'))
         self.assertEqual(t.thread_id,'retained-thread');self.assertEqual(t.tool_history,{'old-call':{'result':'retained'}})
 
     def test_retry_exhaustion_resumes_only_after_operator_action(self):

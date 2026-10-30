@@ -48,7 +48,7 @@ for line in sys.stdin:
                 result,_=results[0]
                 self.assertEqual(result['status'],'CANCELLED')
                 self.assertEqual(result['task_outcome'],'EXTERNAL_CANCELLED')
-                self.assertEqual(result['api_calls'],0)
+                self.assertIsNone(result['api_calls']);self.assertEqual(result['native_turns'],1)
                 self.assertIsNotNone(stage.proc.poll())
                 calls=[json.loads(s) for s in (root/'stage/client.jsonl').read_text().splitlines()]
                 interrupt=[c for c in calls if c.get('method')=='turn/interrupt']
