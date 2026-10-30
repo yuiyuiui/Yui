@@ -16,6 +16,13 @@ The native Codex process may make outbound service connections, but cannot read
 unrelated project files or launch arbitrary executables. Its approved dynamic
 tools execute in the Python controller under their own path/schema checks.
 System proxy environment variables may be inherited; Yui adds no network proxy.
+Codex's own local Code Mode helper executes tool-calling JavaScript. Its path
+comes from the selected installation's package manifest, or its adjacent
+standalone helper; no second PATH installation is substituted. Jobs and native
+receipts bind the main executable, helper and package manifest hashes. Each new
+role checks this binding before dispatch. The process sandbox permits only the
+main executable and this helper, with their required local read/IPC access.
+Dynamic Yui calls still pass through the same Python schema and path checks.
 The named `yui-native` provider uses Codex's OpenAI-authenticated default endpoint
 selection, with no Yui base URL override. Native request/stream retries are set
 to zero so Python owns the explicit 60-second, 30-retry failed-work policy.
@@ -34,6 +41,10 @@ routing/service tier and per-response usage are reported only when exposed by
 the native client; otherwise they remain UNVERIFIED. A passed native-context
 receipt is not a mathematical review, a provider-isolation proof or a complete
 benchmark measurement.
+
+Execution status counts actually completed tool RPCs separately from automatic
+continuations. Rejection feedback is still a completed tool call, not a proof
+success; replaying an already delivered call does not increment that counter.
 
 Tool RPCs must match the active role thread/turn, allowed tool catalog and exact
 call ID. Exact repeats return the immutable previous result without reexecution;

@@ -105,6 +105,16 @@ or authentication home are outside their usual locations. Credentials are
 never committed. The current carrier supports Standard speed; unavailable
 models, reasoning levels or speeds fail explicitly, without fallback.
 
+The selected Codex installation must include its matching local
+`codex-code-mode-host`. Yui locates this helper from that installation's package
+manifest (or beside a standalone executable), binds its hash and version along
+with the main executable, and verifies them before starting each role. The
+process sandbox permits these two executables; it does not enable arbitrary
+shell programs. Native Code Mode runs tool-calling JavaScript and sends approved
+Yui tool calls back to Python. It is part of Codex, not a Yui network relay.
+An actual helper startup failure pauses the affected role, stops its current
+generation and preserves its work instead of repeatedly sending “continue”.
+
 ### PDF text extraction
 
 Reading PDF inputs or downloaded PDF sources requires at least one existing

@@ -29,7 +29,9 @@ class NativeClientTests(unittest.TestCase):
         from role_sessions import Sessions
         import execution_state
         import threading
-        with tempfile.TemporaryDirectory() as root,NativeFixture(root,tail_delay=.05) as f:
+        def respond(f,handler,number,payload):
+            f.code(handler,number,'text(await tools.submit_draft({artifact:{synthetic:true}}));')
+        with tempfile.TemporaryDirectory() as root,NativeFixture(root,tail_delay=.05,responder=respond) as f:
             sessions=Sessions();f.start(sessions,'audit-a-global');f.wait()
             original=sessions.roles['audit-a-global']['stage'];pid=original.proc.pid;thread=original.thread_id
             self.assertEqual(f.outcomes[0][0]['status'],'ACCEPTED')
@@ -91,3 +93,19 @@ class NativeClientTests(unittest.TestCase):
             tool=root/'tools.json';before=tool.read_text();data=json.loads(before);data[0]['description']='changed catalog';tool.write_text(json.dumps(data))
             self.assertEqual(native_client.audit(root)['status'],'VALIDATION_FAILED');tool.write_text(before)
             self.assertEqual(native_client.audit(root)['status'],'NATIVE-CODEX-CONTEXT-CHECK-PASSED')
+            receipt=root/'native-client.json';before=receipt.read_text();value=json.loads(before)
+            value['native_components']['code_mode_host']['sha256']='changed';receipt.write_text(json.dumps(value))
+            self.assertIn('native_components_changed',native_client.audit(root)['errors'])
+            receipt.write_text(before)
+
+    def test_legacy_native_receipt_without_helper_binding_remains_readable(self):
+        import native_client
+        with tempfile.TemporaryDirectory() as root,NativeFixture(root) as f:
+            f.start();f.wait()
+            manifest=f.stage.logs/'execution-manifest.json';data=json.loads(manifest.read_text())
+            data['resolved_environment']['codex'].pop('code_mode_host')
+            data['resolved_environment']['codex'].pop('package_manifest')
+            manifest.write_text(json.dumps(data))
+            receipt=f.stage.logs/'native-client.json';data=json.loads(receipt.read_text())
+            data.pop('native_components');receipt.write_text(json.dumps(data))
+            self.assertEqual(native_client.audit(f.stage.logs)['status'],'NATIVE-CODEX-CONTEXT-CHECK-PASSED')

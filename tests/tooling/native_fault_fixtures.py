@@ -35,6 +35,12 @@ class NativeFaultFixture(NativeFixture):
             handler.send_response(self.failure);handler.send_header('Content-Length',str(len(body)))
             handler.send_header('Content-Type','application/json');handler.send_header('Connection','close')
             handler.end_headers();handler.wfile.write(body);handler.wfile.flush();handler.close_connection=True;return
+        if self.failure=='before_headers':
+            # Accepted TCP request loses the connection before any HTTP reply.
+            # This exercises the native "error sending request" path, unlike
+            # closing a response body after an HTTP 200 has already arrived.
+            handler.connection.shutdown(socket.SHUT_RDWR)
+            handler.connection.close();handler.close_connection=True;return
         handler.send_response(200);handler.send_header('Content-Type','text/event-stream')
         handler.send_header('Transfer-Encoding','chunked');handler.send_header('Connection','close');handler.end_headers()
         event={'type':'response.created','response':{'id':f'partial-{number}','model':self.stage.model,'status':'in_progress','output':[]}}

@@ -141,3 +141,12 @@ same process/thread. Python does not extract access tokens or construct headers.
 Post-submission native interruption is an expected handoff after durable save,
 not a remote fault or authorization to close the role. Unexpected native stdout
 EOF, invalid messages or local I/O errors remain actual execution faults.
+
+A Code Mode helper spawn failure can arrive as a native `exec` tool result,
+rather than a top-level error. The controller matches the completed native
+call/result identity and latches this as `harness_bug`. It requests interruption
+of that role's current generation once, records whether native completion was
+confirmed, and waits in retained `PAUSED_ERROR`. A normal later turn completion
+does not erase the fault or authorize another “continue”. Model-written prose
+and ordinary rejected candidates are not scanned for this error. Missing or
+changed bound native components fail verification before new role dispatch.

@@ -46,7 +46,7 @@ class NativeReviewPipelineTests(unittest.TestCase):
                     if stage.mode!='audit-a-global':
                         artifact.update(verdict='PASS',notes='SYNTHETIC software fixture judgment only.')
                     artifact['coverage']={p:'assessed' for p in contract.required}
-                    f.tool(handler,number,'submit_draft',artifact)
+                    f.code(handler,number,'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
                 with NativeFixture(root/('native-'+str(len(seen))),responder=respond) as f:
                     unused=f.stage;f.stage=stage;unused.release_resources('USER_CANCELLED')
                     def target():
