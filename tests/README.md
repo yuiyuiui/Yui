@@ -38,7 +38,7 @@ synthetic inputs, environment-selected tools and explicit CLI overrides.
 
 | Behavior | Representative test modules |
 | --- | --- |
-| Entry points, profiles, scheduling, owner handoffs, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_owner_observation`, `test_model_profiles`, `test_remote_retry`, `test_cleanup_tests` |
+| Entry points, profiles, scheduling, owner handoffs, cancellation and service recovery | `test_job_entry`, `test_queue_controller`, `test_owner_observation`, `test_model_profiles`, `test_remote_retry`, `test_native_faults`, `test_cleanup_tests` |
 | Selected targets, qualified source access, and direct-session persistence | `test_target_selection`, `test_source_access`, `test_source_qualification`, `test_direct_runner` |
 | Model isolation, HTTP/SSE framing and error origin, native message readers, task/proof state and usage accounting | `test_isolation`, `test_relay_transport`, `test_carrier_reader`, `test_execution_state`, `test_own_state`, `test_execution_health`, `test_accounting` |
 | NL0 structure, local scope, author release and Audit A evidence | `test_nl0`, `test_closure`, `test_artifact_validation`, `test_author_check`, `test_external_audit`, `test_audit_reuse`, `test_evidence_index` |
@@ -119,3 +119,25 @@ Codex client through that real relay to a synthetic Responses server: interrupti
 tool receipts and same-thread revisions are exercised together without credentials
 or any remote model. `observe` reports all-task `counts` and separate proof-only
 `proof_counts`; neither field is an audit-coverage certificate.
+
+`test_native_faults` joins the components into running fault scenarios. A real
+installed Codex client calls the production tool dispatcher to save a checkpoint,
+then its next response suffers a real TCP cut, connection refusal, read timeout,
+HTTP 403/402/429/400/503, or an injected evidence-write failure. The production
+startup, sandbox, stdout reader, RPC loop, retry code, fault gate and execution
+Recorder run together. Assertions cover retained PID/thread/checkpoint, no
+duplicate completed tool action, actual PAUSED_ERROR, notification command/body,
+manual same-incident resume, retry exhaustion, cancellation and teardown failure.
+
+The simulated service uses HTTP on loopback with authentication disabled and
+explicit proxy bypass; no real credentials or remote model are used. Production
+notification formatting and queue invocation target an isolated executable
+outbox, so automatic tests never send a real front-end alert. This verifies
+generation/routing, not a fresh GUI-display or OAuth test. One disconnect test
+waits a **real 60 seconds** before continuation. The 30-retry exhaustion case
+advances only the retry wait clock and checks 30 configured 60-second waits; it
+does not wait 30 real minutes. The socket read-timeout threshold is shortened
+only for the simulated service. Test bounds and clock changes are not runtime
+budgets or production policy changes.
+These production-sandbox integrations require macOS `sandbox-exec` and an
+installed compatible Codex CLI; unavailable prerequisites are explicit skips.
