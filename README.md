@@ -1,5 +1,14 @@
 # Yui
 
+This is the `nl0-detail` branch. It preserves the detailed NL0 workflow,
+including native verification of routine background before translation.
+The default `main` branch uses concise mathematical NL0 and defers exact
+Mathlib bindings to nl02lean. Both branches include the obsolete-runtime cleanup.
+Install the selected repository root as `rigorous-proof`; a symlink installation
+follows the checked-out branch. Use a clean `main` checkout for the default,
+or explicitly select `nl0-detail` for this alternative. No sibling checkout
+or separate `rigorous-proof-v2` installation is required.
+
 Yui is a harness for making an existing mathematical proof explicit, auditable,
 and ready for Lean. Its single entry is the `rigorous-proof` skill:
 
