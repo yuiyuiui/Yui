@@ -12,13 +12,23 @@ def stage_external(case, proposition, destination):
     """No network/browser access. Binary access failures remain visible, not PASS."""
     case=Path(case).resolve();destination=Path(destination)
     source=proposition['source'];records=[]
+    index_path=destination/'source-readback-index.json'
+    readbacks=json.loads(index_path.read_text()) if index_path.is_file() else {}
     primary={(e['path'],e['sha256']) for e in source['primary_evidence']}
     for index,evidence in enumerate(source['evidence'],1):
         path=(case/evidence['path']).resolve()
         if not path.is_relative_to(case) or not path.is_file():raise ValueError('Declared external evidence escapes/misses its case')
         if hashlib.sha256(path.read_bytes()).hexdigest()!=evidence['sha256']:raise ValueError('External evidence changed')
-        name=proposition['id']+f'-source-{index:03d}.txt'
+        name='source-'+evidence['sha256']+'.txt'
         record={'source':evidence,'primary':(evidence['path'],evidence['sha256']) in primary,'readback':name}
+        cached=readbacks.get(evidence['sha256'])
+        if cached is not None:
+            staged=destination/name
+            if (cached.get('readback')!=name or not staged.is_file()
+                    or hashlib.sha256(staged.read_bytes()).hexdigest()!=cached.get('readback_sha256')):
+                raise ValueError('Shared source readback changed')
+            records.append({**record,**cached})
+            continue
         try:
             raw=path.read_bytes()
             if path.suffix.lower()=='.pdf' or raw.startswith(b'%PDF-'):raise UnicodeError('PDF document')
@@ -41,6 +51,8 @@ def stage_external(case, proposition, destination):
                 record['readback_kind']='UNAVAILABLE'
         (destination/name).write_text(text)
         record['readback_sha256']=hashlib.sha256((destination/name).read_bytes()).hexdigest()
+        readbacks[evidence['sha256']]={k:v for k,v in record.items() if k not in {'source','primary'}}
+        index_path.write_text(json.dumps(readbacks,ensure_ascii=False,indent=2)+'\n')
         records.append(record)
     return {'id':proposition['id'],'source_contract':source,'documents':records,
             'scope':'Staged access evidence only. Document identity, occurrence, statement, context, eligibility and applications still require actual review.'}

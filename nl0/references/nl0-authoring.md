@@ -9,7 +9,7 @@ section to both roles. [The schema](nl0-format.md) describes serialization;
 The elementary permissions come from the same controller-owned foundation.
 Use ordinary rigorous mathematical granularity. Explicitly register important
 tools; eligible tiny background uses can be checked and recorded by Audit A
-under [verified-background admission](background-notes.md). Do not pre-emptively
+under [mathematical-background admission](background-notes.md). Do not pre-emptively
 rebuild elementary theories or treat an omitted basic M ID as a substantive gap.
 
 ## 1. Understand and freeze the supplied work
@@ -53,7 +53,7 @@ statement. Read that statement without the producer body. If the consumer
 cannot reconstruct a needed fact from it, enlarge the producer's proved
 output or give the consumer another genuine direct input. Then write the
 producer under precisely its inputs. This implements `statement_closure`,
-`inputs` and `output`; it is not permission to invent a stronger theorem.
+the grouped argument and applicability criteria; it is not permission to invent a stronger theorem.
 
 Start another S when the local parameters or purpose change; export a reused
 result as N and a within-R result as a complete F. Avoid one giant copied S
@@ -78,11 +78,10 @@ does not extend the fixed calculation profile. Prefer an adequate verified
 background input to unnecessarily rebuilding its whole theory.
 
 For each S, identify its substantive direct inputs and local grounds while
-writing. Ordinary correct elementary reasoning may be compressed; tiny basic
-library uses may receive verified audit notes. Check the
+writing. Ordinary correct elementary reasoning may be compressed; routine mathematical facts may receive concise mathematically reviewed
+background notes, without exact Mathlib lookup. Check the
 unit at that point; do not postpone its source inventory until after the whole
-proof. Read `dependency_closure`, `argument`, `dependency_accounting` and
-`scope` as construction obligations, not final assurances to fill in later.
+proof. Read `dependency_closure` and `argument` as construction obligations, not final assurances to fill in later.
 
 If a fact needs an M/E, inspect the real pinned/primary source, register its
 full contract, and write its actual application. Follow `sources` and
@@ -93,7 +92,9 @@ proved adequate general theorem to rebuilding it. A specialized bridge still
 needs its local proof. For E follow [external-source review](external-theorems.md).
 For inaccessible text follow Audit A's [retrieval/deferred checks](audit-a.md#paywalled-or-inaccessible-primary-text).
 
-For M, use the actual pinned declaration as the full source contract, including
+M is optional. Do not search native declarations for every routine fact before
+NL0 review; use precise mathematical reasoning and the background-note policy.
+If M is explicitly selected, use the actual pinned declaration as the full source contract, including
 its binders, implicit arguments and typeclass premises. Do not insert an
 extra condition into that contract or omit a native premise. Keep a specialized
 application distinct from the native statement and justify its substitutions.
@@ -112,7 +113,7 @@ extra claim rather than leave its proof incomplete.
 Introduce an auxiliary object at its actual first use, with its kind,
 existence basis and scope. Keep object dependencies in `objects` and earlier
 proof IDs in `from_local`. Preserve the object's type and all uses when
-renaming it. Apply `definitions` and `object_closure` to the actual prose.
+renaming it. Apply `definitions` and the grouped `statement_closure` check to the actual prose.
 Use [logical packaging](logical-rules.md) for quantified and conditional work.
 
 ## 4. Inspect the actual stored candidate

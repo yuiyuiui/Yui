@@ -1,9 +1,9 @@
 ---
 name: rigorous-proof
-description: Use Yui to make an existing mathematical proof self-contained as structured NL0 with Audit A, then optionally translate it through typed interfaces into Lean with source-faithful Audit B. Supports NL0-only, translation from an accepted NL0, and full workflows. Do not infer proof correctness from schema checks or introduce unproved assumptions to close a goal.
+description: Use Yui to make an existing proof self-contained as concise mathematical NL0 with independent Audit A, then optionally translate it through reviewed frozen interfaces into Lean with machine Audit B. Supports NL0-only, accepted-NL0 translation and full workflows; structural checks and compilation alone do not establish source fidelity.
 ---
 
-# Yui: rigorous proof development
+# Yui: mathematical NL0 and Lean implementation
 
 Use the smallest requested track. Preserve the original problem, hypotheses,
 definitions and proof route. The two stages share one specification and explicit
@@ -105,7 +105,9 @@ meaning-determining definitions. No fixed idle-turn threshold retires a round or
 cancels sibling jobs. Frozen-contract/source defects wait for the user.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
-   as the single mathematical standard for both author and auditor.
+   as the single mathematical standard for both author and auditor. Prefer concise grouped
+   review and batch completion; ordinary background facts require mathematical
+   conditions and justification, not a pre-translation native probe.
    Read [the NL0 stage](nl0/references/nl0-stage.md),
    [format](nl0/references/nl0-format.md), [self-containment](nl0/references/self-containment.md),
    [authoring](nl0/references/nl0-authoring.md), and Audit A's role-specific execution protocol.
@@ -115,7 +117,8 @@ cancels sibling jobs. Frozen-contract/source defects wait for the user.
    Controllers and reviewers follow [completion and local repair](nl0/references/review-execution.md)
    for global-first parallel R coverage, exact evidence inheritance and stage boundaries.
 2. **Translate an accepted NL0 and run Audit B.** Verify the supplied Audit A
-   authority and exact source version first; do not reconstruct or re-audit an
+   authority and exact source version first. This workflow requires audit-format-4
+   authority; do not relabel a detailed-NL0 format-3 receipt. Do not reconstruct or re-audit an
    unchanged proof. Start with [minimal translation](nl02lean/references/minimal-translation.md).
    Read [translation](nl02lean/references/stage.md),
    [the working sequence](nl02lean/references/integrated-workflow.md), and
@@ -136,12 +139,13 @@ cancels sibling jobs. Frozen-contract/source defects wait for the user.
 ## Mathematical invariants
 
 - Accepted NL0 is a complete natural-language proof relative to explicit H/E/M,
-  fixed logic and its hash-bound verified background supplement. Important
+  fixed logic and its hash-bound mathematically reviewed background supplement. Important
   tools remain explicit; ordinary correct elementary reasoning needs no
   exhaustive calculation chain. See [background notes](nl0/references/background-notes.md).
 - Within NL0, each inference uses only its direct inputs, global definitions and explicitly
-  established in-scope local facts or positively checked node-local background
-  notes. Notes never add H or repair a substantive gap. Source papers and producer proof bodies do
+  established in-scope local facts or mathematically checked node-local background
+  notes. Exact routine Mathlib declarations are resolved during translation.
+  Notes never add H or repair a substantive gap. Source papers and producer proof bodies do
   not fill gaps in a task packet.
 - Preserve one global mathematical identity while allowing local Lean views.
   Actual cross-view conversions need checked proofs. In stage two, the pinned

@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import background
+from variant import AUDIT_FORMAT, SKILL_NAME
 
 
 _CLOSURE_SPEC = importlib.util.spec_from_file_location("nl0_closure", Path(__file__).with_name("closure.py"))
@@ -100,6 +101,7 @@ RULES = {
     "exists_elimination", "natural_induction",
 }
 CHECKS = closure.acceptance.current().check_ids('inference')
+LEGACY_CHECKS = {'inputs', 'argument', 'dependency_accounting', 'output', 'scope', 'applicability'}
 EXTERNAL_CHECKS = {"literature_identity", "result_location", "statement_fidelity",
                    "context_completeness", "version_and_eligibility"}
 VERDICTS = {"PASS", "FAIL", "UNVERIFIED"}
@@ -353,7 +355,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
               "unused_original_hypotheses": sorted(hypotheses.keys() - target_closure),
               "topological_propositions": ordered,
               "graph_sha256": sha(graph_path), "spec_sha256": sha(spec_path),
-              "audit_receipt_valid": False, "mathematics_automatically_verified": False}
+              "audit_receipt_valid": False, "mathematics_automatically_verified": False,
+              "harness_variant": SKILL_NAME,
+              "mathematical_acceptance_contract": closure.acceptance.current().version}
     data = result, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
     if audit_path:
         audit = load(audit_path)
@@ -361,8 +365,8 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                        "definition_reviews", "source_reviews", "inference_reviews"}, "audit", optional={"structure_review", "background_policy"})
         if 'background_policy' in audit:
             require(audit['background_policy'] == background.POLICY, 'BACKGROUND-POLICY', 'unsupported supplement policy')
-        require(type(audit["format_version"]) is int and audit["format_version"] in ({3} if current else {1, 2}),
-                "AUDIT-VERSION", "v2 graphs require audit v3; legacy receipts cannot establish current acceptance")
+        require(type(audit["format_version"]) is int and audit["format_version"] in ({AUDIT_FORMAT} if current else {1, 2}),
+                "AUDIT-VERSION", "Yui requires its audit v4; another variant's receipt cannot establish current acceptance")
         has_external = any(p["kind"] == "external" for p in propositions.values())
         require(not has_external or audit["format_version"] >= 2, "AUDIT-VERSION", "external theorems require audit version >=2")
         require(audit["graph_sha256"] == sha(graph_path) and audit["spec_sha256"] == sha(spec_path), "STALE-AUDIT", "audit is bound to different bytes")
@@ -407,7 +411,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 for pointer in entry["locations"]:
                     closed_call(closure.resolve, located_packet, pointer)
             if inference:
-                record(entry["checks"], CHECKS | (closure.CLOSURE_CHECKS if current else set()), where + ".checks")
+                record(entry["checks"], (CHECKS | closure.CLOSURE_CHECKS) if current else LEGACY_CHECKS, where + ".checks")
                 for name, value in entry["checks"].items():
                     if current:
                         review(value, f"{where}.checks.{name}", located_packet=packet(data, where))
@@ -419,7 +423,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                             'BACKGROUND-POLICY', 'notes require their declared acceptance policy')
                     closed_call(background.validate, notes, packet(data, where), base)
                     replay = entry["replay"]
-                    record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence'})
+                    record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence','review_trace'})
+                    if 'review_trace' in replay:
+                        evidence(base,[replay['review_trace']])
                     expected = inherited['previous_packet_sha256'] if inherited else packet(data, where)["packet_sha256"]
                     require(replay["packet_sha256"] == expected, "STALE-PACKET", where)
                     require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only", background.MODE}, "REPLAY-BOUNDARY", where)
@@ -434,6 +440,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                             materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
                             require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
                                     'REPLAY-BOUNDARY', 'background source not in reviewed material list')
+                            native_refs=[e for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']]
+                            require(all(e in native_refs for e in refs),'REPLAY-BOUNDARY',
+                                    'Non-native tool traces are review_trace metadata, not library evidence')
                         else:
                             require(not notes and not refs, 'REPLAY-BOUNDARY', 'old packet-only replay cannot import background notes')
                             materials = ['packet:'+expected]

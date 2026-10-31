@@ -5,7 +5,7 @@ import json
 
 from clean_stage import read_page
 from artifact_validation import own_text_lines
-from read_views import read_json, MAX_TOOL_BYTES
+from read_views import read_json, read_batch, MAX_TOOL_BYTES
 
 
 class ReadPageTests(unittest.TestCase):
@@ -63,6 +63,40 @@ class ReadPageTests(unittest.TestCase):
         self.assertEqual(keys,list(document))
         self.assertIs(read_json({'flag':False},'/flag')['value'],False)
         with self.assertRaises(ValueError):read_json(document,'/bad~2escape')
+
+    def test_batch_reads_declared_fragments_with_individual_coordinates(self):
+        documents={'packet.json':json.dumps({'input':False,'output':'exact'}),
+                   'source.txt':'first\nsecond\nthird'}
+        page=read_batch(documents,[{'id':'packet.json','pointer':'/input'},
+                                   {'id':'source.txt','start':2,'end':3}])
+        self.assertIs(page['results'][0]['value'],False)
+        self.assertEqual(page['results'][1]['text'],'2: second\n3: third')
+        self.assertFalse(page['has_more'])
+
+    def test_large_batch_has_lossless_fragment_and_request_continuations(self):
+        original='中文🙂\\"'*16000
+        documents={'packet.json':json.dumps({'proof':original}), 'small.txt':'actual next document'}
+        page=read_batch(documents,[{'id':'packet.json','pointer':'/proof'},
+                                  {'id':'small.txt','start':1,'end':1}])
+        self.assertLessEqual(len(json.dumps(page,ensure_ascii=False).encode()),MAX_TOOL_BYTES)
+        self.assertEqual(page['next_request'],1)
+        self.assertTrue(page['results'][0]['has_more'])
+        parts=[page['results'][0]['value']];offset=page['results'][0]['next_offset']
+        while offset is not None:
+            value=read_batch(documents,[{'id':'packet.json','pointer':'/proof','offset':offset}])['results'][0]
+            parts.append(value['value']);offset=value['next_offset']
+        self.assertEqual(''.join(parts),original)
+        last=read_batch(documents,[{'id':'small.txt','start':1,'end':1}])
+        self.assertIn('actual next document',last['results'][0]['text'])
+
+    def test_batch_cannot_read_undeclared_inputs_or_hide_invalid_coordinates(self):
+        documents={'safe.txt':'one','safe.json':'{"x":1}'}
+        for requests in [[],[{'id':'safe.txt','start':1,'end':1}]*9,
+                         [{'id':'../private.txt','start':1,'end':1}],
+                         [{'id':'safe.json','pointer':'/x','start':1,'end':1}],
+                         [{'id':'safe.txt','start':0,'end':1}]]:
+            with self.subTest(requests=requests),self.assertRaises(ValueError):
+                read_batch(documents,requests)
 
 
 if __name__=='__main__':unittest.main()

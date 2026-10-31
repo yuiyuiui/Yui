@@ -13,8 +13,9 @@ import uuid
 from controller_common import CORE, bind, write, runtime_bindings, verify_bindings
 from runtime_config import validate_profile
 import library_catalog
+from variant import OUTPUT_DIRECTORY
 
-VERSION = 'yui-case-job-1'
+VERSION = 'yui-case-job-2'
 MARKER = '.yui-run.json'
 TRACKS = {'nl0','full','translate','audit-b'}
 
@@ -76,7 +77,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
     case_id = re.sub('[^a-z0-9-]+','-',problem.parent.name.lower()).strip('-') or 'problem'
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     run_id = stamp+'-'+uuid.uuid4().hex[:10]
-    root = Path(output).expanduser().absolute() if output else problem.parent/'rigorous-proof'/run_id
+    root = Path(output).expanduser().absolute() if output else problem.parent/OUTPUT_DIRECTORY/run_id
     if root.exists() or root.is_symlink() or root.resolve().is_relative_to(CORE):
         raise ValueError('Use a new run directory outside the installed skill')
     if any(p == root.resolve() or p.is_relative_to(root.resolve()) for p in [problem,*extra]):

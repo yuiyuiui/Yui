@@ -12,7 +12,7 @@ import time
 from runtime_config import CORE
 from acceptance import AcceptanceContract
 import own_state
-from read_views import read_page, read_json
+from read_views import read_page, read_json, read_batch
 sys.path.insert(0, str(CORE / 'nl02lean/scripts'))
 import model_pilot as pilot
 
@@ -99,9 +99,13 @@ class ArtifactStage(pilot.Stage):
                 {'source_id':{'type':'string'},'statement':{'type':'string'},'input_id':{'type':'string'},
                  'quote':{'type':'string'},'attempts':{'type':'array','items':{'type':'string'}}},
                 ['source_id','statement','input_id','quote','attempts']))
-        if self.background_review and not library:
-            self.tools += [dict(t) for t in pilot.carrier.TOOLS[:2]]
         if self.task_inputs:
+            self.tools.append(pilot.carrier.tool('read_task_inputs',
+                'Read one to eight declared text/JSON fragments together, at most 32 KiB total. Use the same coordinates as read_task_input. Each returned fragment retains its own continuation; next_request identifies any requests not yet read. No implicit source or arbitrary local file access.',
+                {'requests':{'type':'array','minItems':1,'maxItems':8,'items':{'type':'object',
+                    'properties':{'id':{'type':'string'},'pointer':{'type':'string'},
+                        **{k:{'type':'integer'} for k in ['start','end','column','offset','limit']}},
+                    'required':['id'],'additionalProperties':False}}},['requests']))
             self.tools.append(pilot.carrier.tool('read_task_input',
                 'Read one declared frozen document. For JSON use pointer (empty string lists the root); large objects return keys, and strings resume with offset=next_offset. '
                 'For text use inclusive start/end lines and column=next_column when continuing a long line. '
@@ -148,23 +152,20 @@ class ArtifactStage(pilot.Stage):
                 self.tools=[t for t in self.tools if t['name']!='submit_review_blocker']
                 self.input_prompt+='\nComplete every assigned global check, even after an ordinary FAIL. Return all findings together; do not replay local R proof bodies here.'
         if self.background_review:
-            self.tools += [pilot.carrier.tool('probe_background',
-                'Read-only native verification of a basic theorem in pinned Mathlib. No new mathematical hypothesis or target proof is supplied. Use an Mnnn ID and a declaration name, not Lean code.',
-                {'id':{'type':'string'},'declaration':{'type':'string'},'module':{'type':'string'}},['id','declaration']),
-                pilot.carrier.tool('record_background_note',
-                    'Record YOUR positively checked routine elementary inference or omitted basic Mathlib use. Check actual local conditions, mathematical correctness and routine scope. Does not establish PASS automatically. For mathlib first probe_background, then give its source_id. No guessed theorem, extra hypothesis, substantial gap or external citation qualifies.',
-                    {'id':{'type':'string'},'kind':{'type':'string','enum':['elementary','mathlib']},
+            self.tools += [pilot.carrier.tool('record_background_note',
+                    'Optionally checkpoint YOUR positively checked routine mathematical or elementary fact, precise statement and actual available conditions. A complete review may submit these notes together. Exact Mathlib bindings belong to nl02lean. No new H, core missing argument or uncertain external source qualifies; this tool never generates PASS.',
+                    {'id':{'type':'string'},'kind':{'type':'string','enum':['elementary','mathematical']},
                      'at':{'type':'string'},'fact':{'type':'string'},'justification':{'type':'string'},
                      'grounds':{'type':'array','items':{'type':'object','properties':{
                          'location':{'type':'string'},'reason':{'type':'string'}},'required':['location','reason'],'additionalProperties':False}},
-                     'source_id':{'type':'string'},'hint':{'type':'string'}},
+                     'hint':{'type':'string'}},
                     ['id','kind','at','fact','grounds','justification'])]
             if isinstance(self.validator, ReviewContract):
                 self.validator.base['background_notes'] = []
-            self.input_prompt += ('\nThis version permits logged pinned-Mathlib lookup for routine background only. '
-                'Retain every review check. Use probe_background and record_background_note for a positively '
-                'checked omitted basic library fact. Ordinary correct elementary inferences need no exhaustive '
-                'displayed calculation. A saved note is not an unresolved math TODO. If completing from saved '
+            self.input_prompt += ('\nNL0 reviews routine background mathematically without native Mathlib probes. '
+                'Assess all five grouped checks. Submit useful precise facts, local condition grounds and '
+                'mathematical justification together in background_notes, or checkpoint them with '
+                'record_background_note. A saved note is not an unresolved math TODO. If completing from saved '
                 'review rows, omit background_notes from summary: your recorded notes are retained automatically. '
                 'Do not read other project proofs, add assumptions, repair substantial gaps or supply new routes.')
         if kind == 'nl0' and library:
@@ -329,8 +330,10 @@ class ArtifactStage(pilot.Stage):
                 'syntax (numerals, number systems, empty-set/top notation) with {symbol:...}. There is no '
                 'domain vocabulary or whitelist of allowed subjects. Declare problem objects and notation '
                 'with their types/dependencies as parameters, D or locals. '
-                'Register principal analysis tools as E/M or prove their local derivation. Routine background '
-                'can be checked and recorded by Audit A under verified-background-1; correct elementary '
+                'Register substantial external tools as E/M or prove their local derivation. Routine background '
+                'is checked mathematically by Audit A under mathematical-background-v2-1, without '
+                'requiring an exact Mathlib declaration or native probe. Prefer mathematical explanations '
+                'over premature Lean API search; correct elementary '
                 'compression needs no exhaustive displayed chain. Inferences use R001-style IDs; argument paragraphs '
                 'use S001-style IDs; propositions use H001/E001/M001/N001 or P. An unknown field/rule is '
                 'a format repair, not a mathematical gap. Read references/nl0-format.md for every remaining field.')
@@ -476,18 +479,11 @@ class ArtifactStage(pilot.Stage):
                 result = signature_probe(self.validator.directory, args['id'], args['declaration'], args.get('module'),
                                          self.library_probes, timeout=self.lean_timeout(),
                                          on_native=lambda:setattr(self,'lean_calls',self.lean_calls+1))
-            elif name == 'probe_background':
-                from artifact_validation import signature_probe
-                self.library_probes += 1
-                result = signature_probe(self.logs, args['id'], args['declaration'], args.get('module'),
-                    self.library_probes, timeout=self.lean_timeout(),
-                    on_native=lambda:setattr(self,'lean_calls',self.lean_calls+1))
             elif name == 'record_background_note':
                 import background
-                value = {k:deepcopy(v) for k,v in args.items() if k != 'source_id'}
-                if value.get('kind') == 'mathlib':
-                    value['source'] = background.source_from_probe(self.logs, args.get('source_id',''))
-                elif 'source_id' in args:raise ValueError('Elementary notes do not use a source_id')
+                value = deepcopy(args)
+                if value.get('kind') not in {'elementary','mathematical'} or 'source_id' in value:
+                    raise ValueError('Mathematical-NL0 checkpoints record mathematical/elementary notes; native implementation belongs to nl02lean')
                 background.validate([value], json.loads(self.task_inputs['packet.json']), self.logs)
                 self.background_notes = [n for n in self.background_notes if n['id'] != value['id']] + [value]
                 if hasattr(self.validator,'base'):self.validator.base['background_notes']=deepcopy(self.background_notes)
@@ -514,6 +510,8 @@ class ArtifactStage(pilot.Stage):
                 result=self.validator.author_check.record(args['candidate'],args['original_context_note'],
                     args['output_notes'],args['inference_notes'],readiness=args['readiness'],
                     open_issues=args['open_issues'],resolutions=args.get('resolutions',[]))
+            elif name == 'read_task_inputs':
+                result=read_batch(self.task_inputs,args['requests'],cache=self.task_json_inputs)
             elif name == 'read_task_input':
                 text = self.task_inputs[args['id']]
                 if 'pointer' in args:

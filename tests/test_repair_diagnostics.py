@@ -15,7 +15,7 @@ class RepairDiagnosticTests(unittest.TestCase):
     def test_local_and_global_findings_import_into_the_real_author_issue_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);source=CORE/'tests/fixtures/closed-addition'
-            for group,record in [('R001',{'checks':{'object_closure':{'verdict':'FAIL',
+            for group,record in [('R001',{'checks':{'statement_closure':{'verdict':'FAIL',
                     'notes':'Neutral diagnostic fixture only.','locations':['/inference/argument/0']}}}),
                  ('global',{'target_review':{'verdict':'FAIL','notes':'Neutral target diagnostic only.',
                                              'locations':['spec.json#/full_target']}})]:
@@ -27,7 +27,7 @@ class RepairDiagnosticTests(unittest.TestCase):
             contract=NL0Contract(root/'author',{'baseline.json':json.dumps(baseline),
                 'repair-obligations.json':json.dumps(issues)},case_id=baseline['spec']['case_id'])
             self.assertEqual(len(contract.author_check.open_issues),2)
-            self.assertEqual({r['criterion'] for r in issues['issues']},{'object_closure','target'})
+            self.assertEqual({r['criterion'] for r in issues['issues']},{'statement_closure','target'})
             self.assertTrue(all(r['criterion'] in current().rows for r in issues['issues']))
 
 

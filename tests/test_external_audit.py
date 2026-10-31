@@ -44,7 +44,7 @@ class ExternalAuditRecords(unittest.TestCase):
         source_review = self.review()
         source_review["citation_checks"] = {k: self.review() for k in nl0.EXTERNAL_CHECKS}
         inference_review = self.review()
-        inference_review.update(checks={k: "PASS" for k in nl0.CHECKS},
+        inference_review.update(checks={k: "PASS" for k in nl0.LEGACY_CHECKS},
                                 external_applications={"A001": self.application_review()})
         self.audit = dict(format_version=2, graph_sha256="pending", spec_sha256="pending",
                           reviewer=dict(identity="synthetic unit fixture", mode="same_context_self_audit", independent=False,

@@ -6,7 +6,7 @@ The clean carrier binds the shared section/version/hash in execution and
 author-readiness records; these are controller records, not extra proof axioms
 or new fields to invent inside spec/graph.
 
-New graphs/specifications use v2 and audit records use v3. The existing v1
+New graphs/specifications use format v2 and Yui audit records use v4. The existing v1
 Koch/BO cases are historical snapshots and have not been reaccepted. Reading
 them requires `--legacy`; current default checks reject them. Historical
 receipt validity is labeled `LEGACY-*` and `current_standard_receipt_valid`
@@ -315,9 +315,10 @@ of trusted source. Transitive inputs need not be repeated unless used directly.
 `definition_reviews`, `source_reviews`, and `inference_reviews`.
 
 Each review contains `verdict: PASS|FAIL|UNVERIFIED`, substantive `notes`, and
-hashed `evidence`. Inference reviews contain ten separate check review objects:
-`inputs`, `argument`, `dependency_accounting`, `output`, `scope`, `applicability`,
-`statement_closure`, `object_closure`, `dependency_closure`, `packet_replay`.
+hashed `evidence`. Yui inference reviews contain five grouped check review objects:
+`statement_closure`, `dependency_closure`, `argument`, `applicability`,
+`packet_replay`. Object scope and exact output correctness remain required
+inside these grouped mathematical assessments.
 Each check has `{verdict, notes, evidence, locations}`. `locations` contains
 JSON pointers resolving inside that R's actual packet, such as
 `/inputs/0/statement` or `/inference/argument/1/text`. PASS requires at least
@@ -326,13 +327,14 @@ Every D, every E/M source, every R, and the target must be covered exactly once.
 Spec input hashes and source evidence are read back; malformed/duplicate JSON
 keys, missing files, changed bytes, failed verdicts, and stale audit hashes fail.
 
-Use audit `format_version: 3` for all new records. Audit v1/v2 are readable
-only with historical graph v1 and `--legacy`; they cannot satisfy this contract.
+Use audit `format_version: 4` for all new Yui records. A detailed-NL0 audit v3
+cannot establish format-4 acceptance. Historical audit v1/v2 remains inspectable only
+with historical graph v1 and --legacy, never as current acceptance.
 Each E source review additionally has `citation_checks`, mapping exactly
 `literature_identity`, `result_location`, `statement_fidelity`,
 `context_completeness`, `version_and_eligibility` to separate ordinary review
 objects `{verdict, notes, evidence}`.
-Each version-3 inference review additionally has `external_applications`,
+Each version-4 inference review additionally has `external_applications`,
 mapping exactly its E application A IDs to records
 `{input, verdict, notes, evidence, bindings_review, hypothesis_reviews,
 conclusion_review, bridges}`. `input` must match A's E; each nested review
@@ -348,6 +350,11 @@ inference requires the actual fresh carrier, empty prior proof exposure, and
 instructions supply the procedure, not additional mathematics. The hash must
 match the regenerated packet. Keep traces as evidence; metadata cannot
 authenticate a claimed identity or prove truthful isolation.
+
+Format 4 may additionally bind `review_trace:{path,sha256}` for actual tool logs.
+This is execution metadata, not a native theorem source or an extra premise.
+`library_evidence` contains only the successful pinned evidence of explicitly
+retained native mathlib notes; ordinary mathematical notes require none.
 
 `audit-template` creates only UNVERIFIED reviews, empty check locations and an
 unperformed replay. It refuses to overwrite an existing output. It does not
@@ -398,15 +405,15 @@ possible paraphrase or hidden import. Behavioral tests must actually ask an
 auditor to review unseen controls; manually prefilled FAIL records only test
 receipt rejection and must be reported as such.
 
-## Verified background receipt extension
+## Mathematical background receipt extension
 
-New receipts declare `background_policy: "verified-background-1"`. Each R review
-may contain `background_notes`, with fields in background-notes.md. These are
-actual reviewer judgments, not unverified extra hypotheses. Old consumers must
-reject unsupported fields rather than silently drop them. The authored graph
-remains unchanged. A new replay uses `fresh_packet_with_verified_background`
-and binds `library_evidence` plus its actual material hashes; old strict
-empty-note records can retain `fresh_packet_only`.
+New receipts declare `background_policy: "mathematical-background-v2-1"`.
+Each R may contain background_notes with precise mathematics, local grounds and
+actual justification; native lookup is not required. A new supplemented replay
+uses fresh_packet_with_mathematical_background. Optional existing native notes
+retain their complete bound library evidence; mathematical/elementary notes
+carry no native source claim. The authored graph remains unchanged. Other
+variant consumers must reject unsupported receipts instead of dropping fields.
 
 `nl0.validate` returns the note supplement/hash and note count. A packet read
 from an accepted source includes its notes and the original reviewed-packet

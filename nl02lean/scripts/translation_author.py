@@ -60,6 +60,11 @@ are available on demand. Do not read every rule or background note at startup.
 The controller retains all accepted paragraphs and attaches each step's own
 Audit A note index. Notes are optional implementation references, not new
 premise ports: do not give every note a Lean type or add it to premise_types.
+Mathematically reviewed background notes are mathematical assessments, not already verified Lean
+declarations. Resolve concrete library bindings and auxiliary proof details
+in this phase. Prepare public interfaces and genuinely shared definitions;
+leave per-node tactic choices and local lemma searches to proof workers.
+Do not front-load a complete Mathlib-use inventory into serial preparation.
 Keep the original H/E project inputs and every N/P output. The pinned Mathlib
 environment is freely available without registration. Prefer direct library use
 to M premise ports; omit M roots unless an intermediate port is useful. Choose a

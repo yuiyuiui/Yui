@@ -14,7 +14,8 @@ class AcceptanceTests(unittest.TestCase):
         self.assertNotIn('packet_replay',contract.rows)
         grouped=contract.author_groups()
         self.assertEqual(set().union(*(set(v) for v in grouped.values())),set(contract.rows))
-        self.assertEqual(grouped['output_notes'],['output','statement_closure'])
+        self.assertEqual(grouped['output_notes'],['statement_closure'])
+        self.assertEqual(len(nl0.CHECKS | nl0.closure.CLOSURE_CHECKS),5)
         self.assertIn('Conditional packet replay has a different input boundary',contract.section)
         self.assertIn('these statements are conditional premises',contract.section)
 

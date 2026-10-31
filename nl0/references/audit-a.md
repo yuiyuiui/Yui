@@ -1,377 +1,143 @@
-# Audit A: per-object natural-language verification
+# Audit A: mathematical review in Yui
 
 <!-- yui-nl0-acceptance:begin -->
 ## Shared mathematical acceptance requirements
 
-Contract version: `nl0-audit-a-8`.
+Contract version: `yui-nl0-audit-a-2`.
 
-This section is the single authority for what an accepted NL0 must satisfy.
-Authoring instructions explain how to meet it; the audit checks these same
-requirements. The table IDs also name executable coverage groups. Detailed
-definitions in self-containment, logical rules and external-theorem review are
-annexes to these requirements, not alternative permission policies.
+The author and independent auditor use this same mathematical standard. NL0
+reviews a complete natural-language proof and necessary mathematical detail.
+Specific Lean declarations, signatures, representations and proof tactics are
+implementation work for nl02lean, not prerequisites for ordinary NL0 review.
+The following grouped criteria replace V1's ten separate per-R report rows.
 
 | ID | Review group | Author evidence group | Requirement |
 | --- | --- | --- | --- |
-| `target` | package | original_context_note | Preserve the original target, every original H, quantifier, domain, range, normalization, endpoint and supplied core proof route. Parameters name ambient data; they cannot hide an H or a desired conclusion. |
-| `definitions` | package | original_context_note | Give each global object one complete typed definition and each local object a legitimate scoped introduction. Prove or directly assume every construction guard before use. Defining an object grants none of its properties. |
-| `sources` | package | original_context_note | Every selected M/E has an explicit faithful full statement and verified primary/native identity, context and hypotheses. Native typeclass premises are mathematical premises too. Record inaccessible checks as UNVERIFIED; they do not support an unqualified whole-proof pass. |
-| `structure` | package | original_context_note | H/E/M are the only proposition roots. Every N/P has one producer, every retained non-H node lies in P's AND dependency closure, and every local proof uses its actual direct inputs. Keep every original H, including an unused H, and report which are unused. An ancestor is not automatically an input. |
-| `statement_closure` | closure | output_notes | Every input and exported N/P states all formulas, quantifiers, conditions and semantic identifications needed by its consumers. A map or identity only present in the producer's body is unavailable to another node. Original text, equation labels and external notation cannot supply content. |
-| `object_closure` | closure | declaration_check | Reverse-check actual object occurrences against global, statement-bound or local declarations. Types, domains, witness existence, first/last use and parameter dependencies agree. A name in a ledger is not an introduction or existence proof. |
-| `dependency_closure` | closure | dependency_and_local_assumption_check | Ground factual uses in direct H/E/M/N, earlier in-scope local proofs, permitted elementary reasoning, or positively checked background notes under verified-background-1. Inspect actual prose and conditions; an inventory is not its proof. |
-| `inputs` | inference | dependency_and_local_assumption_check | Direct input statements are faithfully instantiated with compatible objects and assumptions. An internal input exports exactly its stated conclusion, not its producer's unexported facts. |
-| `argument` | inference | dependency_and_local_assumption_check | Establish every output clause at ordinary rigorous natural-language granularity. Check material domains, limits, regularity, uniformity, integrability, signs, constants and degeneracies. Correct routine compression needs no exhaustive elementary calculation chain. |
-| `dependency_accounting` | inference | dependency_and_local_assumption_check | Every explicit input has a real role. Record eligible omitted basic library uses as verified background notes instead of rejecting solely for missing M accounting. No unverified source, extra H, core proof or project lemma can hide in prose, definitions or typeclasses. |
-| `output` | inference | output_notes | The proved conclusion is the exact complete exported statement under its stated hypotheses, including all consumer-needed representations and identifications. Never weaken the target or strengthen an H to close the graph. |
-| `scope` | inference | dependency_and_local_assumption_check | Introduce and discharge temporary assumptions inside arguments. Close implications, cases, negations and quantifiers correctly; no witness or local assumption escapes. Original hypotheses remain explicit H inputs. |
-| `applicability` | inference | source_application_check | For every actual M/E use, give the exact substitution and a direct input or displayed earlier derivation for every premise, plus any proved bridge to the claimed conclusion. Saying that a condition holds is not grounds for it. |
+| `target` | package | original_context_note | Preserve the complete original theorem, every original H, quantifier, domain, normalization and supplied core proof route. A parameter or definition cannot hide a hypothesis or desired conclusion. |
+| `definitions` | package | declaration_check | Define mathematical objects and notation sufficiently for their actual uses. Check types, dependencies, construction guards and legitimate local introductions. A definition grants no unproved property. |
+| `sources` | package | original_context_note | Check complete E statements, primary-source identity, context and conditions under the source policy. An explicitly selected native M retains its bound signature checks; authors need not introduce M nodes for ordinary mathematical background. Unavailable originals remain disclosed UNVERIFIED source assumptions. |
+| `structure` | package | original_context_note | Verify the actual AND dependency graph, unique producers, absence of cycles and faithful exported statements. Retain every original H and disclose unused H. Internal results are proved, never new roots. |
+| `statement_closure` | closure | output_notes | Inputs and output state the mathematical content, objects, domains, quantifiers and conditions their consumers need. Check actual object occurrences and definitions. No missing identification can be supplied by an absent producer proof or a paper equation number. |
+| `dependency_closure` | closure | dependency_and_local_assumption_check | Check direct input use, earlier local facts, witness existence and proper discharge of assumptions. No circular dependency, future fact or escaped local object is allowed. Mathematically checked routine background may supplement the packet without prior native lookup. |
+| `argument` | inference | dependency_and_local_assumption_check | Verify the complete implication and every output clause at ordinary rigorous mathematical granularity, including material limiting operations, domains and regularity. Compress correct routine reasoning; locate a real gap rather than requiring a transcript of elementary steps. |
+| `applicability` | inference | source_application_check | Check actual instantiations and all material premises of invoked E/M or routine background facts, with grounds in inputs or earlier local derivations. Required bridges are proved. A familiar theorem name or a proposed Lean tactic supplies no mathematical justification. |
 
-### Scope of the same requirements
+### Scope and mathematical boundary
 
-Global review checks the original target/H, source authenticity and complete
-graph: H/E/M are its roots, and each N/P has its producer in that graph.
-Its source judgments establish identity, full-statement fidelity and source
-conditions; they do not re-prove each consumer's application. Its structure
-judgment checks the actual AND graph and declared producer/input boundaries,
-not whether a later packet reviewer has already returned PASS. Conditional
-packet review owns each actual substitution, premise discharge, local proof
-and output under those checked source statements. Final acceptance joins
-all required source, structure and packet judgments; none replaces another.
-Unfinished downstream assessment is not a reason to mark an already assessed
-source identity or structural graph uncertain. Genuine source uncertainty
-still blocks final acceptance. These assignments also govern author checks.
-An original H remains explicitly present even when the proof does not use it;
-report that unused condition. Do not invent a use or delete it to force graph
-reachability. Selected E/M and internal N remain in the actual target closure.
-Conditional packet replay has a different input boundary. Its task is the
-implication from its explicitly supplied H/E/M/N statements to its output;
-these statements are conditional premises. An input N is not a new global
-root. Its producer body is intentionally absent and is neither required nor
-available during this local check. Do not fail a valid conditional derivation
-because its input theorem's producer or original source is outside the packet;
-global review verifies source identity and producer membership, while the
-producer's own packet review checks its proof. Conversely, do not import an absent N, an
-ancestor's unexported fact or a theorem not present in the packet.
-For example, a supplied N stating A and B permits deriving A by conjunction
-elimination, without re-proving N. Having no such input does not permit
-asserting A. The local requirements still check the complete actual argument,
-all source-application premises, declarations, guards and discharged scopes.
-These scopes are also the scopes of the author's corresponding self-checks.
+Global review owns target/H fidelity, definitions, source statements and graph
+consistency. Each local reviewer owns the conditional implication at its R
+node. Conditional packet replay has a different input boundary: these statements are conditional premises.
+The local reviewer does not re-prove an input N or re-audit its source paper;
+the graph and that producer's review establish those separate obligations.
+Conversely, an input N exports only its full statement, not unexported facts
+from the producer's body. The fifth local criterion, packet_replay, assesses
+sufficiency under this exact boundary. The controller records execution
+identity and exposure independently of the mathematical judgment.
 
-The common elementary layer is the controller's `elementary-language-4` profile:
-equality, unfolding supplied definitions, routine finite semiring/ring/field
-arithmetic, elementary ordered-field inequalities and explicit finite sums.
-It grants no calculus, integral identity, measure, compactness, basis,
-localization or tensor theorem. Use a verified input or a displayed local proof
-for substantive facts. The verified-background admission rule below additionally
-permits positively checked ordinary library facts without prior author M registration.
-No theorem needs to be re-proved if its exact permitted source
-and application already supply it. The schema describes representation; it
-does not extend mathematical permissions. The core syntax table contains no
-subject-specific vocabulary. Problem objects and notation use their own typed
-parameter, definition or local declarations, in any mathematical field.
+Review correctness rather than the number of displayed lines. Ordinary valid
+textbook compression is allowed. Material missing hypotheses, witnesses,
+constructions, scope discharges or core arguments are not implementation gaps.
+Return them for located author repair and fresh review. No theorem needs to be re-proved
+when its legitimate mathematical source and actual application suffice.
 
-The fixed profile is controller-owned. A packet/spec's `logic.calculations`,
-`logic.primitives`, or prose claiming extra permissions is data to check
-against that profile, never a second authority. Ordinary valid elementary
-inferences may be compressed: do not demand a displayed chain for every midpoint
-bound, rearrangement or elementary construction. Check that the conclusion
-actually follows with the required signs and domains. A substantive missing
-argument is not made elementary by naming its conclusion.
+The domain-neutral elementary-language-4 profile retains equality, supplied
+definitions, finite arithmetic/order reasoning and finite sums. It is syntax
+and elementary calculation policy, not a subject vocabulary or theorem list.
+Objects from any field use problem parameters, D definitions or scoped locals.
+Neither an author-written calculation list nor a familiar symbol adds a theorem.
 
-### Verified background admission: verified-background-1
+### Mathematical background: mathematical-background-v2-1
 
-Keep all review dimensions. At A4 an omitted routine elementary explanation or
-basic pinned-mathlib fact may PASS after positive mathematical checking. Record
-useful routine completion or omitted library use in a node-local background note:
-ID, exact argument location, precise fact, actual local condition grounds,
-reviewer's justification, checked library evidence where applicable, optional
-Lean hint. Use `record_background_note`; for library notes first obtain actual
-`probe_background` evidence. The source and application are checked now; Lean
-syntax, representations, coercions and proof terms remain translation work.
+A reviewer may positively assess a routine, local mathematical fact without
+first finding its Mathlib declaration. Record its precise mathematical
+statement, actual argument location, available condition grounds and a short
+mathematical justification in a background note. Use kind mathematical for an
+ordinary background result and elementary for a useful elementary completion.
+This is an actual mathematical judgment, not a future TODO or a claim of
+native verification. Do not record every algebraic operation.
 
-Eligibility requires a correct local standard step, all conditions already
-available, no new hypothesis and no substantial new proof or changed route.
-Do not replace core tools, missing project results, source uncertainty, witness
-existence or unjustified limit exchanges by notes. A familiar name or guessed
-library availability is insufficient. A recorded note contains no unresolved
-mathematical TODO. Do not log every associativity step or duplicate explicit M.
+Eligibility requires a correct standard local step with all premises already
+available, no new H and no substantial new core proof or changed route.
+Important external tools remain explicit E inputs; a missing project result
+or uncertain source cannot be waived as background. If an explicitly supplied
+native mathlib note is retained, its full bound evidence is still validated.
+No field-specific whitelist determines eligibility.
 
-Authors explicitly register important tools, write ordinary rigorous arguments
-and self-check under this same policy; they need not anticipate every tiny M
-use. An auditor can transparently complete routine accounting without returning
-the whole NL0 for a rewrite. The accepted authority is immutable author NL0 plus
-the hash-bound audit/notes supplement. It is not an old-policy claim that every
-dependency was explicitly registered by the author.
+The accepted authority is immutable author NL0 plus its hash-bound mathematical
+review supplement. It is a natural-language audit under the mathematical-background policy, not a
+detailed-NL0 format-3 native-background receipt. At nl02lean, workers must discharge all necessary
+facts by actual Lean proofs or checked library use; a note never becomes an
+unproved H, axiom or extra external assumption. The exact implementation may
+differ while preserving the mathematical meaning.
 
-Fresh local reviewers may consult only logged read-only pinned-mathlib sources
-in addition to their own packet and Yui rules. Preserve successful source probes
-and actual tool readback evidence. This is
-`fresh_packet_with_verified_background`, not old `fresh_packet_only` replay.
-No other task, project proof, original/ancestor proof, repair history or owner
-hint is permitted. Unverified facts remain FAIL/UNVERIFIED as appropriate.
-Display PASS with background notes when present, retaining their count. The
-supplement is mandatory translation input; none of its facts may become an
-unproved Lean assumption. See [background notes](background-notes.md).
+### Actual review and result qualification
 
-A calculation label alone does not establish the existence of a canonical
-decomposition, normal form, extremizer, basis or structural identification.
-Give the actual construction and grounds for its required properties and
-completion, or supply a verified source with its actual application. Before
-declaring a mathematical obstruction, check the full quantified definition
-and the direction of the claimed bounds. One feasible value alone does not
-establish an extremal value. A failed attempted argument is not by itself
-evidence against the supplied proof.
+Independent reviewers assess the actual content; schema validation does not
+prove mathematics. An unexamined item remains unread/read. A mathematical
+uncertainty is assessed UNVERIFIED, not PASS. Missing or conflicting assessments
+block acceptance. Ordinary source-access deferral follows the conditional-source
+policy and must appear in final warnings; it cannot yield unqualified PASS.
 
-Unfolding an explicitly supplied definition and displaying its logical
-consequence is a local derivation; it does not need a separate source theorem
-merely because that consequence has a familiar name. Conversely, a familiar
-name without the required definition, premises and derivation supplies no
-fact. Check the actual argument and identify the specific unsupported step;
-do not replace that check with a blanket objection to a named result.
-Distinguish a genuinely partial construction from an explicitly total
-operation: its stated type/convention controls which existence guards are
-needed, and totality alone grants no intended analytic property.
-
-Authors construct arguments and their evidence together, then report their
-own actual check outcomes. An explicitly unresolved or unperformed check
-prevents release as a complete artifact. Finishing a checklist, retrieving a
-source, passing a structural gate or asserting that conditions hold proves
-none of the mathematical requirements. Audit A remains an independent actual
-judgment and can find an omission the author did not recognize.
+Use short located reasons for straightforward PASS items and enough detail to
+make a defect or uncertainty actionable. Avoid duplicate explanations across
+criteria. A concise report still covers every required mathematical check.
+Do not read author self-check notes, old verdicts, other R proof bodies, other
+case results or personal proof skills to manufacture independent approval.
 <!-- yui-nl0-acceptance:end -->
 
-## Auditor execution protocol
+## Execution protocol
 
-The sections below implement the shared requirements. Reviewer identity,
-fresh packet replay, negative controls, evidence capture and verdict handling
-are auditor/controller duties; they are not extra mathematical facts for an
-NL0 author. Mathematical FAIL findings identify the applicable shared table
-ID and the exact unsupported implication. If the permission boundary itself
-is ambiguous, disclose that ambiguity rather than silently raising the bar.
+1. Freeze the original problem, spec and NL0. A separate fresh global reviewer
+   reads the exhaustive global-overview.json, relevant canonical content and
+   source evidence. Review each D and selected E/M; the overview is data, not
+   an assessment. Do not infer absence from a partial page.
+2. Complete global source/graph review before dispatching local R reviews.
+   Up to the explicitly confirmed N independent R reviewers work concurrently.
+   Each receives only its own packet and mathematical-NL0 rules. Review full arguments,
+   actual applications and definitions; input N statements are conditional.
+3. Prefer one complete artifact with an explicit coverage map. Use
+   record_review_item and read_review_progress only for useful checkpoints.
+   record_background_note is optional; a complete artifact may include its
+   actual notes directly. Batch reading several declared fragments is available.
+4. Each local report has inference, packet_sha256, verdict, notes, checks,
+   findings and optional background_notes. The checks map contains exactly
+   statement_closure, dependency_closure, argument, applicability, packet_replay.
+   Each row has verdict, notes and resolving packet locations. E applications
+   additionally retain actual binding, per-hypothesis, conclusion and bridge
+   assessments; this is mathematical applicability, not a Lean API inventory.
+5. Global reports have target_review, definition_reviews, source_reviews,
+   structure_review and findings. Each E adds citation_checks for
+   literature_identity, result_location, statement_fidelity,
+   context_completeness, version_and_eligibility. Inaccessible primary text
+   leaves blocked checks UNVERIFIED while remaining assessment continues.
+6. A blocking finding needs its actual location, explanation and a short exact
+   quotation from that location. Preserve the defect and untouched coverage.
+   Return located mathematical repairs to the author; review changed scopes
+   independently. Do not resample a mathematical rejection or silently erase it.
+7. The collector checks complete coverage, consistency, exact bytes and actual
+   independent execution before producing the audit-format-4 receipt.
+   Old detailed-NL0 format-3 receipts are not silently upgraded. Inherited format-4 judgments retain
+   their original source/rule hashes, exposure and costs.
 
-Use [self-containment](self-containment.md) and the
-[audit template](../templates/audit-a.md). New acceptance requires spec/graph
-v2 and audit v3. Historical PASS records do not satisfy these requirements.
+## Sources, scopes and final handoff
 
-This audit does not use a successful project Lean build as evidence that the
-NL proof is correct. Querying pinned mathlib for source signatures is allowed;
-reusing the target's historical Lean proof/verdict requires explicit disclosure
-and does not establish an independent NL audit.
+Use [external theorem review](external-theorems.md) and
+[conditional sources](conditional-sources.md) for source identity, exact
+statements and warnings. Reuse adequate original text; several theorem uses
+may share one staged readback. Each application still discharges its own
+premises. No successful download or guessed Mathlib availability is approval.
 
-## A0. Freeze and disclose
+Use [logical rules](logical-rules.md) for local scopes and
+[background notes](background-notes.md) for the mathematical supplement.
+The ordinary complete result remains relative to explicit E assumptions.
+An inaccessible E original permits only a source-qualified result. Translation
+retains this exact audit and supplement until reviewed mathematical changes
+invalidate affected scopes. Typed interfaces, native checking, standalone
+assembly and independent semantic Audit B are separate later gates.
 
-Read the original problem and independently check `spec.json`: target,
-quantifiers, all H roots, parameter ranges, definitions, representatives,
-normalization, endpoint conventions, and one-target scope. No H may originate
-from the proof writer's desired conclusion. Audit target semantics, not just
-hash equality. Record reviewer/carrier, shared context, read artifacts, and
-whether any reference solution was seen. Read the canonical graph, not only
-its generated Markdown. Bind the receipt to spec/graph hashes.
-Generate the exhaustive global index with
-`python3 nl0/scripts/nl0.py overview nl0.json --spec spec.json --out global-overview.json`.
-It preserves every actual H (including unused or late-appended H), full global
-statements/definitions and dependency edges with canonical pointers and hashes.
-Read this inventory before claiming a node/condition is absent; a partial line
-page cannot establish absence. The index supplies no verdict and does not
-replace inspection of the relevant canonical proof and primary-source content.
-The clean test adapter uses this same core generator, not a separate inventory
-or mathematical standard.
-Original-problem/source fidelity and local proof validity are separate tasks.
-The original text may be read for target and citation checks; it may not fill
-missing content during per-R packet-only replay. Record the actual boundary.
-Check that original conditions really are H nodes, rather than predicates
-hidden in a globally visible parameter type. A prime/nonzero condition,
-characteristic constraint, range or equation must not become available to an
-R with empty inputs through that encoding. Matching the full closed theorem
-alone does not establish correct per-R H availability.
+## Paywalled or inaccessible primary text
 
-## A1. Definitions and notation
-
-For each D record a verdict with a concrete explanation. Check unique meaning,
-type/domain, global versus local binding, definition dependencies, construction
-or existence prerequisites, and applicability at every use. A guarded symbol
-must not supply its own prerequisite. Record arbitrary choices, parameter
-dependencies, and equivalence to the original definition. No project theorem
-may hide as a definition, record field, predicate, or typeclass assumption.
-
-Reverse-check every actual mathematical object occurrence against a legitimate
-declaration. Inspect local introduction position, first use, type/domain,
-basis and end scope. Input-bound variables are not free locals; witnesses need
-proved existence. Merely checking registered symbol names misses unregistered
-ones. Definitions cannot smuggle properties or extra ancestor statements.
-
-## A2. Sources
-
-For each M read the pinned official file and a successful full Lean signature
-probe, not merely a `#check` name or a search result. Confirm declaration kind,
-restatement, all implicit/typeclass assumptions, source hashes and commit,
-relevant axioms, and suitability of scalar fields/domains. Library definitions
-are not theorems. These source checks belong to global review; each using R's
-packet review inspects its actual application mappings and premise discharge.
-
-For each E execute all nine requirements in
-[external-theorem review](external-theorems.md). Give separate evidence-bound
-verdicts for document identity, occurrence of the actual result, faithful
-statement, complete surrounding context, and version/source eligibility.
-Record every actual application separately in its using R, including repeated
-uses of E in one R; packet review checks those applications. Global review
-checks the source identity and statement. Source existence, exact citation and valid application are separate
-obligations. Substantive transformations require an N proof. Do not infer any
-of these verdicts from a historical audit or a successful Lean build.
-
-### Paywalled or inaccessible primary text
-
-Search public sources using the title, DOI and authors: Google, arXiv,
-author manuscripts, institutional repositories and accessible publisher text.
-Use actual source readback, not a search snippet. A different readable version
-must be identified honestly and checked against its own statement and context.
-A page requiring JavaScript, login, payment or human verification is an access
-limitation; do not bypass it or treat the page as the theorem text.
-
-When the primary text remains inaccessible, follow the exact
-[conditional-source contract](conditional-sources.md). A complete statement
-actually quoted in a supplied secondary source may remain an explicit E
-assumption with a bound access-failure record. Keep its source review and
-unperformed citation checks UNVERIFIED. Every mathematical/application check
-must still be performed, and actual mismatches remain FAIL. Same-author closing
-readiness may disclose this source uncertainty separately from mathematical
-or inventory defects; it is not a verified-source claim.
-
-Continue the remaining work under that declared condition. A conditional A
-receipt can enter Lean work, but cannot be labeled DRAFT-AUDIT-PASSED. If local
-proofs, assembly and independent endpoint review succeed, the final status is
-WORKFLOW-CONDITIONAL with warn.json/warn.md and an explicit user-facing list of
-unchecked sources. A missing complete statement remains a missing input; do not
-invent it. Full acceptance requires actual primary-source verification.
-
-## A3. Structure
-
-Run `nl0.py check`. Confirm that every retained node is on P's dependency
-closure and every internal/target has one complete producer. Derive reachability
-by AND closure: accept an R's output only after all its inputs are accepted and
-the R itself passes mathematical review. Mere existence of a path is inadequate.
-Only E/M/H are trusted source proposition kinds; a proof with no mathematical
-inputs must still contain an actual permitted calculation/logical argument.
-
-## A4. Review every inference
-
-Apply verified-background-1 while retaining every check below. An eligible
-omitted basic fact receives a positively checked background note and does not
-fail solely for missing input accounting. Ordinary correct elementary
-compression needs no exhaustive displayed chain. Substantive missing grounds,
-conditions, sources or proof still block. The accepted local material includes
-the version-bound supplement; it cannot be reconstructed silently from memory.
-
-First check three closures from the actual text:
-
-- **statement_closure**: input/output statements include every claimed formula,
-  condition, binder and semantic convention. No producer proof is needed to
-  understand them. Source notation and inherited equation numbers are not content.
-- **object_closure**: actual object occurrences map to legitimate declarations
-  in scope. Compare text to the inventory, not the inventory to itself. Check
-  input instantiation, witness existence and parameter dependence.
-- **dependency_closure**: actual factual uses map to direct inputs, prior
-  in-scope local proofs or fixed logical/calculation steps. An ancestor not
-  listed as input is unavailable; prior/source proof bodies supply no extra fact.
-
-Then check the six mathematical obligations below. Every check needs a separate
-`{verdict, notes, evidence, locations}` record with precise packet locations and
-an explanation. Repeating author notes or generic assurances is not review.
-
-1. **inputs**: the cited propositions are the actual graph inputs and true
-   earlier results, original H, or verified sources. They are instantiated
-   with compatible parameters and definitions.
-2. **argument**: every step is justified and sufficient. Explicitly inspect
-   domain, limits, operator applications, integrability, sign, constants,
-   uniformity, degeneracies, and selected witnesses where material.
-3. **dependency_accounting**: each declared input has an identifiable role;
-   no additional nontrivial theorem is hidden in “clearly,” an analogy,
-   a definition, or a convenient abstract interface. Locally derived facts are
-   permitted only after their derivation. This is accounting for the present
-   argument, not a claim that its input set is minimal across all proofs.
-   A named theorem is also an imported fact unless its full required result
-   is actually proved locally. Explaining why its hypotheses hold is an
-   application check, not a proof of that theorem. For example, “apply FTC,”
-   “Fubini applies because the function is integrable,” “compactness gives
-   uniform continuity,” and “a dominated limit may be integrated” require
-   declared E/M inputs or complete earlier local proofs of the needed results.
-   Familiarity, a descriptive theorem name, or inclusion in an author-written
-   calculation-policy sentence cannot waive this obligation. Ordinary valid textbook compression is allowed for eligible background;
-   substantive tools and missing arguments still need their actual grounds.
-   An abstract finite-dimensional, tensor or localization lemma is not
-   automatically a finite arithmetic identity: inspect its displayed map,
-   inverse, basis or other derivation, or require the actual declared source.
-4. **output**: the derived theorem is exactly the output's full statement,
-   including quantifier order, assumptions, scope, constants and endpoints.
-5. **scope**: temporary assumptions are correctly closed into the implication,
-   negation, cases, or other allowed rule. Check binder freshness and witness
-   escape. Introduce/discharge metadata alone is not proof. Do not reclassify
-   a temporary assumption as an original H.
-6. **applicability**: check every E/M obligation using its actual bindings and
-   input/local proofs, including any proved bridge. For each E application A
-   record separate binding, per-hypothesis and conclusion reviews and the N
-   bridge IDs. “The theorem applies” is not a hypothesis mapping.
-
-Finally complete **packet_replay**, the tenth check. A fresh context reviews
-the exact packet, Yui rules and logged pinned-mathlib queries for verified
-background, without original-source proofs, other R
-bodies, old NL0, author audit notes or prefilled verdicts. Record actual carrier,
-packet hash, prior exposure, mathematical materials read and execution evidence.
-Source fidelity is a separate check. Same-context rereading is a diagnostic,
-not fresh replay. This standard does not authorize new agent/service dispatch;
-keep an unperformed replay UNVERIFIED. Metadata cannot authenticate a claimed
-identity or isolation; preserve actual execution evidence and disclose limits.
-
-For an authorized clean packet replay, expose only that frozen packet as a
-task document, plus the Yui procedure. The clean packet carrier exposes controlled read-only pinned-mathlib
-queries and source probes for background notes, never arbitrary local files.
-Source/signature verification is a separate stage with its own disclosed inputs.
-
-Use `audit-template` for scaffolds. Every generated verdict starts UNVERIFIED.
-Serialization may preserve actually made judgments, but cannot infer PASS from
-author notes, populated fields, successful hashes or absence of exceptions.
-Ineligible missing content blocks acceptance. Eligible routine background
-may be positively checked and recorded, never silently assumed from memory. Return the defect to authoring and review the newly frozen version.
-
-Stop granting acceptance at the first unsupported implication. Other diagnostic
-checks may continue, but a blocked descendant cannot receive a whole-proof
-pass. Report exact premises -> conclusion and the affected closure. Repairs
-require a new graph hash and replacement audit, never a silently stronger H.
-
-An ordinary omission or verifiable local mistake may return to routine NL0
-completion without interrupting the user for each correction. Review the
-revised argument before accepting it. If completion stalls, apply
-[routine completion and substantive proof gaps](nl0-authoring.md#routine-completion-and-substantive-proof-gaps)
-to assess whether construction must stop; do not turn every omitted detail
-into a substantive-gap report or silently begin a new proof strategy.
-
-## A5. Adversarial target checks
-
-Check actual excluded/included endpoints, zero/degenerate objects, a.e. versus
-everywhere, scalar/representation changes, and constant uniformity. Negative
-controls must distinguish machine-detectable corruption (unknown IDs, changed
-evidence) from semantic corruption (wrong argument with unchanged structure).
-A failed counterexample search or a valid JSON file cannot establish correctness.
-
-## Acceptance and report
-
-Behavioral controls must include an opaque formula output, a source-only object,
-an unlisted theorem and an unsupported witness. A real reviewer receives neutral
-packets without labels, old reviews or expected answers; the owner's answer key
-stays outside its input directory. Require located findings, not just verdicts.
-Manually assigning FAIL only tests receipt handling, not model detection. If no
-reviewer ran, report NOT_RUN. `prepare-review-cases.py --help` prepares a small
-control set without calling a model or claiming an isolation experiment.
-
-Grant `DRAFT-AUDIT-PASSED` only if A0–A5 are actually completed for the exact
-frozen artifact, every required review is PASS, source evidence is verified,
-and P closes without extra assumptions. Say “same-context self-audit” when
-that is the execution mode. `nl0.py --audit` verifies the hash-bound review
-record's completeness, not the truth of the reviewer statements. Preserve any
-FAIL/UNVERIFIED report and identify the first gap; do not erase it after repair.
-For access-limited sources, retain an explicit pending-citation list and
-UNVERIFIED source judgments. A complete otherwise-passing review may authorize
-only the [conditional continuation](conditional-sources.md); it is not an
-unqualified whole-proof pass.
+Follow [conditional sources](conditional-sources.md). Preserve the complete
+secondary statement and actual access evidence; unavailable source checks
+stay UNVERIFIED. Continue other work only with an explicitly qualified source
+assumption, and report warn.json/warn.md. No unqualified full PASS is granted.

@@ -1,69 +1,49 @@
-# Verified background notes
+# Mathematically reviewed background in Yui
 
-Audit A's shared acceptance section is the single mathematical authority.
-`verified-background-1` preserves all ten per-R checks and permits ordinary
-mathematical compression plus positively checked omitted basic mathlib uses.
+Audit A's shared section is the mathematical authority. The policy is
+mathematical-background-v2-1. Ordinary mathematics is reviewed in NL0; exact
+Mathlib implementation is resolved in nl02lean.
 
-## Admission
+## Eligibility and record
 
-An eligible step is correct, routine and local, has all material conditions
-already available, and needs neither a new hypothesis nor a new core argument.
-Check mathematical content, not length or familiarity alone. Major tools remain
-explicit inputs. Wrong quantifiers, unjustified witnesses/limits, hidden project
-lemmas and inaccessible external citations still block. A source guess is not
-verification; API difficulty alone is not a mathematical error.
+A note records a correct, routine local step with actual available premises,
+no new hypothesis, no missing project lemma and no new core proof route.
+Give id (BG001 etc.), kind (elementary or mathematical), at (an existing
+/inference/argument/N/text pointer), fact (precise mathematical statement),
+grounds ([{location,reason}] for real available conditions), and justification
+(actual mathematical reasoning). A familiar name alone is insufficient.
+Non-native notes have no source field or claim of a verified Lean declaration.
+The optional record_background_note tool saves a checkpoint; a complete review
+may submit all its notes in one artifact without separate tool calls.
 
-For example, continuity of a pointwise sum follows from the input continuity
-and the codomain's continuous addition. A reviewer can probe `Continuous.add`
-and record that application instead of demanding an epsilon-delta proof or an
-author rewrite. Arbitrary codomains do not supply continuous addition by name.
-Elementary arithmetic need not display every intermediate chain; a useful short
-completion can remain an elementary note, with no imported theorem.
+For example, continuity of a sum follows from the supplied continuity of the
+functions and continuous addition on their actual codomain. Check those
+conditions mathematically. The reviewer need not call Lean or identify
+Continuous.add before judging that routine step.
 
-## Record
+Substantive missing arguments, changed quantifiers, missing witness existence,
+unsupported limit exchanges and uncertain external statements remain blocking.
+The controller validates structure and local pointers; it never decides that
+a mathematical fact is true or routine. An actual independent reviewer owns
+that decision and may return FAIL or UNVERIFIED.
 
-The reviewer calls `record_background_note` with:
+## Handoff
 
-- `id`: local BG001-style ID; `at`: exact `/inference/argument/0/text` pointer;
-- `kind`: `elementary` or `mathlib`; `fact`: precise statement and conditions;
-- `grounds`: `{location,reason}` records for actual available inputs,
-  definitions, parameters or prior in-scope argument;
-- `justification`: actual correctness/eligibility judgment, not a future TODO;
-- optional `hint`: short Lean guidance;
-- for mathlib, `source_id`: the M001-style selector actually checked using
-  `probe_background`. The controller binds its source/signature/version/evidence;
-  the reviewer still owns faithful meaning and applicability.
+The immutable author graph and hash-bound review notes jointly describe the
+accepted mathematical proof. The format-4 receipt is not a format-3 verified native
+background policy. Explicit native mathlib notes can still be inspected only
+with their complete matching pinned evidence; they are optional, not a new
+requirement for routine mathematical notes.
 
-The receipt stores these as `inference_reviews[R].background_notes`; source
-metadata is case-relative and hash-bound. Existing PASS/FAIL/UNVERIFIED values
-remain. PASS with notes describes disclosed routine completion, not unqualified
-author pre-registration, Lean verification, or success under the old policy.
+Normal translation uses node_local_reference. Notes travel with their own
+paragraphs and do not become additional premise ports. Workers find appropriate
+library declarations or prove auxiliary facts with their actual conditions.
+The interface author chooses shared representations, not every local tactic
+or implementation lemma in advance. Every required fact must eventually be
+established in checked Lean. No note is an axiom or a new external E.
 
-## Review and handoff boundary
-
-Local review sees its frozen packet plus logged pinned-mathlib tool responses;
-it never receives another project proof, author repair history or owner hints.
-The replay mode and material list disclose this expanded boundary. The actual
-source probes and tool trace accompany the receipt. Source verification may
-reuse pinned evidence; it does not require a second model per note.
-
-`nl0.validate` returns the checked note supplement and its hash.
-`background.effective` creates a derived dependency view adding basic M ports
-to the appropriate R, without changing author graph bytes or proof paragraphs.
-At translation entry, retain that supplement and bind its hash in
-`contract.source.background_supplement_sha256` when notes exist. Include all
-notes in the local plan; elementary notes need no new theorem root. Mathlib
-notes become actual library applications, with no new H/axiom/sorry. Audit B
-checks the same effective inventory and actual Lean closure.
-
-Unchanged note evidence may be inherited with its actual review context. A
-source extraction changing a consumer with notes requires its affected local
-review first; the current adapter rejects that case explicitly rather than
-dropping the notes. Zero extraction and unchanged consumers remain supported.
-Changed math/conditions return to scoped Audit A; ordinary Lean binding work
-stays in translation. Historical strict results are preserved, not relabeled.
-
-The interface source also retains the complete `background_supplement`, not
-just its hash. Plan steps list the relevant qualified note IDs, for example
-`background_notes:["R004.BG001"]`. Workflow freeze checks the paragraph mapping;
-local Lean packets receive only their selected notes.
+The source supplement hash and exact notes are bound in the interface contract,
+worker packets and Audit B source inventory. They cannot be dropped, borrowed
+from another node or relabeled as native evidence. Mathematical changes return
+to affected Audit A scopes; representation-only changes remain reviewed Lean
+work. Ordinary pinned Mathlib use needs no NL0 theorem-use ledger.

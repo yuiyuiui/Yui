@@ -1,6 +1,6 @@
 # Yui
 
-Yui is a harness for making an existing mathematical proof explicit, auditable,
+Yui makes an existing mathematical proof explicit, auditable,
 and ready for Lean. Its single entry is the `rigorous-proof` skill:
 
 1. Write structured natural-language proof `NL0` and perform independent Audit A.
@@ -17,6 +17,37 @@ The pinned Mathlib environment
 is available freely. Literature theorems not proved in Lean remain explicit
 external premises. An LLM review is not a kernel proof of natural-language
 mathematics, and a successful compilation alone is not source-fidelity approval.
+
+
+`main` uses concise mathematical NL0 and Audit A. Routine background facts
+need mathematical conditions and justification; their exact Mathlib bindings
+are resolved during nl02lean. Independent pre-freeze E/P review, frozen
+interfaces, native limits, complete assembly/dependency checks and final machine
+Audit B remain required. This is the workflow previously developed as Yui V2.
+
+The `nl0-detail` branch preserves the earlier detailed NL0 workflow, including
+its pre-translation native-background verification. Both branches include the
+obsolete-inspector/observer cleanup. Choose a branch before installation:
+
+```sh
+git clone --branch main https://github.com/yuiyuiui/Yui.git
+# To select the detailed alternative in an existing clean checkout:
+git switch nl0-detail
+# To return to the default workflow:
+git switch main
+```
+
+Install the selected repository root as `$rigorous-proof`. A symlink-based
+installation follows the checked-out branch; use `main` for the default.
+Only one canonical skill registration is needed. There is no separate
+`rigorous-proof-v2` installation or output namespace in new jobs.
+
+New mathematical-NL0 jobs use Audit A format 4. Historical detailed format-3
+receipts are not upgraded or relabeled: use their original bound runtime or
+the matching detailed branch when inspecting or continuing such evidence.
+The policy identifier `mathematical-background-v2-1` is retained as a schema
+identifier, not as a checkout path or an additional installed skill.
+There is no measured speed or completion guarantee.
 
 ## Use
 

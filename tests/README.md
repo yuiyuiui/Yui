@@ -74,3 +74,19 @@ instead of its still-active sibling. The fixture was corrected; all 23 proof
 repair controls then passed in each variant. The shared-proof-graph inspector
 regression also passed with actual Lean under its 30-second control limit.
 No model inference or production owner notification is part of these checks.
+
+## Canonical main and detailed alternative
+
+The mathematical-NL0 policy controls now exercise the default `rigorous-proof`
+identity and `rigorous-proof/<run-id>/` output namespace. The detailed workflow
+is retained on `nl0-detail`; historical V1/V2 counts above describe their original
+checkpoints. The shared-term inspector control runs actual Lean with a shared
+proof graph and checks full types, dependencies and axioms without an obsolete
+proof-use classifier. Native fault, retained-role handoff and explicit repair
+controls exercise the current carrier; raw HTTP/SSE observers are removed.
+
+Final consolidation validation: canonical main passed all 879 controls in
+717.376 seconds. A Git-exported nl0-detail snapshot independently passed all
+869 controls in 757.856 seconds. Both complete runs exited successfully, with
+no model inference. The canonical synthetic fixture retains UNVERIFIED status;
+only its packet hashes were regenerated after the identity migration.

@@ -23,10 +23,10 @@ original domain. This pattern adds no new assumption or mathematical source.
 1. For `target` and `definitions`, extract the original H, ambient parameters
    and global typed definitions. Preserve the original source locations. Do
    not change a parameter's mathematical kind while fixing its metadata.
-2. For `statement_closure` and `output`, design N/R interfaces from what their
+2. For `statement_closure`, design N/R interfaces from what their
    consumers actually need. Put the complete formulas, quantified conditions
    and space identifications into the exported statement, not only its body.
-3. For `dependency_closure`, `argument` and `dependency_accounting`, construct
+3. For `dependency_closure` and `argument`, construct
    each proof unit alongside its premises. List exact source inputs or display
    a prior local derivation for every substantive fact beyond the fixed
    calculations. Split when local context changes; avoid a giant S whose
@@ -36,7 +36,7 @@ original domain. This pattern adds no new assumption or mathematical source.
    A signature lookup or a sentence claiming a hypothesis is true is not proof
    of that hypothesis. Reuse an adequate proved source rather than re-proving
    it; a project-specific bridge still requires its displayed derivation.
-5. For `object_closure` and `scope`, introduce objects and conditional premises
+5. For object declarations and local scopes under dependency_closure, introduce objects and conditional premises
    at their actual first use. Keep witness bases and local F dependencies
    correct. Preserve exact coefficients and ranges when copying calculations.
 6. Run check_draft, correct its actual located records, inspect every own

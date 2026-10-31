@@ -253,7 +253,7 @@ class ClosureChecks(unittest.TestCase):
 
     def test_audit_checks_require_individual_notes_evidence_and_locations(self):
         audit = self.shape_only_receipt()
-        audit["inference_reviews"]["R002"]["checks"]["object_closure"] = "PASS"
+        audit["inference_reviews"]["R002"]["checks"]["statement_closure"] = "PASS"
         with self.assertRaisesRegex(nl0.Invalid, "TYPE"):
             self.data(audit)
 
