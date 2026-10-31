@@ -74,3 +74,8 @@ instead of its still-active sibling. The fixture was corrected; all 23 proof
 repair controls then passed in each variant. The shared-proof-graph inspector
 regression also passed with actual Lean under its 30-second control limit.
 No model inference or production owner notification is part of these checks.
+
+Final detailed-branch validation: a Git-exported snapshot without a .git
+directory passed all 869 software controls in 757.856 seconds, including the
+corrected active-sibling cancellation fixture and actual shared-term Lean
+inspection. No model inference or real owner notification was used.
