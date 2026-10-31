@@ -10,6 +10,18 @@ These are software tests. Synthetic reviewer judgments and deterministic
 provider replies do not certify a mathematical proof or a model's capability.
 The full mathematical test cases/results are maintained separately.
 
+Strict-interface regressions use actual Lean to reject non-inferable hidden
+parameters in goals and inputs, accept explicit named arguments and legitimate
+inference, reject non-proposition obligations, and check unused public premises
+in the complete export signature. Internal-repair controls exercise protected-field
+rejection, dependency impact, retained author/reviewer
+routing after a rejected revision, actual delta receipt binding, current proof
+rechecking and final native/machine acceptance on a neutral fixture. All reviewer
+judgments in these controls are synthetic. Empty compiler-obstruction reports
+cannot close authors, and non-resumable alerts advertise no unusable resume.
+Closed-role restoration checks its saved bindings. Removed proof nodes retain
+their obstruction and may close only with the accepted final replacement.
+
 | Boundary | Main tests | Required behavior |
 | --- | --- | --- |
 | Installed invocation and frozen runtime | test_job_entry.py, test_runtime_snapshot.py | Bind actual inputs/settings; no mutable installation drift or undeclared runtime files. |
@@ -90,3 +102,13 @@ Final consolidation validation: canonical main passed all 879 controls in
 869 controls in 757.856 seconds. Both complete runs exited successfully, with
 no model inference. The canonical synthetic fixture retains UNVERIFIED status;
 only its packet hashes were regenerated after the identity migration.
+
+## Strict declarations and reviewed internal revisions (2026-10-31)
+
+Canonical main passed all 898 tests in 734.289 seconds after this repair. This
+includes six actual Lean signature controls, seven retained-role controls,
+reviewed internal revision/assembly/native acceptance, and actual native-carrier
+fault injection with a real 60-second retry wait. Reviewer verdicts and provider
+replies in software controls remain synthetic; no remote model was called.
+The legacy smoke-runner negative control deliberately prints graph-check FAILED;
+its asserted failure is distinct from the successful unittest suite.

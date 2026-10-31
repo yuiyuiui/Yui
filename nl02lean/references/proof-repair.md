@@ -46,7 +46,31 @@ applications, library discharges and proof connections. It cannot change frozen
 E/P, their hypotheses or definitions determining their meaning. A missing producer
 cannot become an assumption. Ordinary local repair returns to the owning author.
 
-A located frozen-contract defect, source gap or unresolved mathematical obstruction
+An implementation/interface compiler obstruction must include relevant actual
+failed own-context checks. Empty, foreign or stale reports return feedback to
+the active author; successful helpers alone do not establish a defect. Ordinary
+proof-body errors stay local. A located source allegation may instead cite its
+concrete source paragraphs; it still needs actual serial diagnosis. One decisive
+failed declaration check is enough; no minimum attempt count is imposed.
+
+`INTERNAL_INTERFACE_REPAIR` returns a located T-statement/allowed-input defect to
+the preprocessing author and separate reviewer after current-round handoffs.
+Only steps may change: retain the entire public header, original H/E/P, source,
+pins, output map and public representations. Preserve the old frozen revision.
+Strict declaration/source-boundary checks precede an independent delta review
+of changed steps and affected consumers. Exact unchanged scopes inherit the
+bound parent receipt; a new actual receipt binds the new revision and review
+scope. Rejected candidates/findings stay with the same repair roles. Close the
+preprocessing roles at the existing successful freeze boundary. A closed role
+is restored from its own saved handoff in a disclosed fresh carrier; no vanished
+native conversation is claimed. Previously checked own bodies are candidates
+until current native checks accept them; changed packets cannot inherit old
+helper-check status. No sibling is forcibly closed for an obstruction.
+If a reviewed revision removes an old node, its retained repair handoff closes
+only at final workflow acceptance. Preserve that old obstruction rather than
+relabeling it as a successful local proof.
+
+A located protected public-contract defect, source gap or unresolved mathematical obstruction
 pauses with saved evidence for the user. No automatic unfreeze, source rewrite,
 whole-workflow restart or new model/profile is authorized. Repeated identical
 obligation/evidence after a located advice handoff stays an explicit checkpoint;

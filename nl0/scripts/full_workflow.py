@@ -195,8 +195,13 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
                 phase='proof-diagnosis',evidence=summary_path,details={'checkpoint':{'proof_run':str(current),
                     'preserve_completed_work':True,'restart_whole_workflow':False}})
         if any(x['route']=='INTERFACE_REPAIR_REQUIRED' for x in diagnoses.values()):
-            raise StageFailure('FROZEN_INTERFACE_REQUIRES_USER','Located frozen E/P defect; no automatic rewrite or unfreeze is authorized',
+            raise StageFailure('FROZEN_INTERFACE_REQUIRES_USER','Located protected public-contract defect; user decision required',
                 phase='frozen-interface',evidence=summary_path,details={'prior_proof_run':str(current),'user_decision_required':True})
+        if any(x['route']=='INTERNAL_INTERFACE_REPAIR' for x in diagnoses.values()):
+            import internal_interface_repair
+            raise StageFailure('INTERNAL_INTERFACE_REPAIR_REQUIRED','Located internal T-plan defect; return to preprocessing under the unchanged public contract',
+                phase='internal-interface-repair',evidence=summary_path,
+                details={'prior_proof_run':str(current), 'internal_repair':internal_interface_repair.context(destination)})
         guidance.update(diagnoses);prior_run=current
         progress(case,'LOCATED_PROOF_BODY_REPAIR',diagnosis=str(summary_path),preserve_own_drafts=True)
 
@@ -255,7 +260,10 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
     result=finish_translation(case,destination,budget,progress)
     if sessions:
         if result['status']=='DIFFERENT_RESULT_DELIVERED':sessions.cancel_all()
-        else:sessions.close_all('WORKFLOW_FINALIZED',[destination/'report.json'])
+        else:
+            current_steps={step['id'] for step in ir.load(frozen['plan'])['steps']}
+            superseded={role for role in sessions.roles if role.startswith('lean:') and role[5:] not in current_steps}
+            sessions.close_all('WORKFLOW_FINALIZED',[destination/'report.json'],superseded=superseded)
     progress(case,result['status'],directory=str(destination));return result
 
 

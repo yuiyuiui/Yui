@@ -145,6 +145,7 @@ class Stage(carrier.Trial):
                     ['layer','explanation','locations','candidates']))
                 self.system+=(' If the fixed interface or source appears inconsistent, report_proof_obstruction '
                     'with located actual evidence instead of silently changing it or repeating a blocker. '
+                    'Compiler/interface reports require a relevant failed own-context check; successful helpers or bare inability are insufficient. Rejected reports leave you active. Ordinary proof-body errors remain your local repair work. '
                     'The controller routes the reported issue; it does not change frozen endpoints or retire sibling work on an idle-turn counter.')
         self.background_note_policy = None
         if (mode == 'proof' and instruction_arm == 'yui'

@@ -132,7 +132,10 @@ JSON before completing the whole interface.
 The lower-level mechanical freeze uses a checked binding with
 `source_graph_sha256`, `contract_sha256`, `plan_sha256`, `paragraph_mapping` and
 `source_outputs`. It checks exact source coverage and direct boundaries and runs
-Lean type elaboration. This binding is **not a semantic review receipt**; the
+strict Lean declaration checking of every exact local context and target,
+without proof bodies, placeholders or extra axioms. Author expression probes
+also commit checked definitions; `#check` alone is not an acceptance gate.
+This binding is **not a semantic review receipt**; the
 recorded semantic status is `PENDING_AUDIT_B`. This legacy route requires explicit semantic review before claiming complete
 acceptance. Normal full/translation entry runs the independent interface reviewer
 and reads back its actual hash-bound PASS before freezing/dispatch; final machine

@@ -40,6 +40,17 @@ class FaultFixture:
 
 
 class FaultControlTests(FaultFixture,unittest.TestCase):
+    def test_alert_advertises_resume_only_when_the_checkpoint_supports_it(self):
+        for resumable in (False,True):
+            gate=faults.Gate(self.root/str(resumable),notify=self.notifier)
+            gate.state={'incident':str(resumable),'notification':{'status':'PENDING'},
+                'fault':{'category':'harness_bug','http_statuses':[]},'retries':0,
+                'resumable':resumable,'resume_command':['python','resume-error'],
+                'cancel_command':['python','cancel']}
+            gate.report();message=self.notifier.call_args.args[1]
+            self.assertEqual('\nResume:' in message,resumable)
+            self.assertIn('\nCancel:',message)
+
     def test_b_final_decisions_require_an_explicit_matching_live_incident(self):
         for action in ('deliver-actual','recheck','reset-translation'):
             with self.subTest(action=action):

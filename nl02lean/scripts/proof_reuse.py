@@ -15,13 +15,18 @@ def same_port(oldc,oldplan,cpath,plan,step):
 
 
 def reviewed_repair(oldc,oldplan,cpath,plan,step,receipt):
-    if receipt is None or not same_port(oldc,oldplan,cpath,plan,step):return False
+    if receipt is None:return False
     import interface_review
     # A changed definition is allowed only after a real independent review of
     # the new interface, and every inherited body still gets current Lean checks.
     ppath=Path(receipt).parent/'inputs/plan.json'
     ir.need(ir.load(ppath)==plan,'Reviewed plan differs from the current program')
     interface_review.verify_receipt(receipt,cpath,ppath,ir.contract(cpath)['source']['sha256'])
+    if not same_port(oldc,oldplan,cpath,plan,step):
+        context=ir.load(receipt).get('internal_repair')
+        if not context or context['contract']['sha256']!=ir.digest(oldc) or ir.load(context['plan']['path'])!=oldplan:
+            return False
+        if step not in context['affected_steps']:return False
     return True
 
 
@@ -86,7 +91,8 @@ def restore_repair_drafts(stage,previous,*,reviewed_interface=None):
     from execution_health import record_qualification
     ir.need(record_qualification(result)['record_context_qualified'],'Unqualified prior proof-repair context')
     oldc=previous/'inputs/contract.json';oldplan=ir.load(previous/'inputs/plan.json')
-    if not same_port(oldc,oldplan,stage.cpath,stage.plan,stage.step):return None
+    if not same_port(oldc,oldplan,stage.cpath,stage.plan,stage.step) and not reviewed_repair(
+            oldc,oldplan,stage.cpath,stage.plan,stage.step,reviewed_interface):return None
     packet=ir.load(old/'prompt.txt')['packet'];current=__import__('json').loads(stage.prompt())['packet']
     if packet!=current and not reviewed_repair(oldc,oldplan,stage.cpath,stage.plan,stage.step,reviewed_interface):return None
     ir.need(result.get('model_selection')==stage.model_selection,'Prior own proof profile changed')

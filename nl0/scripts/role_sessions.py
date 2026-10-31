@@ -36,9 +36,14 @@ class Sessions:
         with self.lock:
             entry = self.roles.get(role)
             if entry is None:
-                entry = {'stage': template, 'records': [], 'native_tools': {t['name'] for t in getattr(template,'native_tools',template.tools)}}
+                restored=list(self.history.get(role,[]))
+                for row in restored:
+                    if bind(row['path'])!=row:raise ValueError('Saved role handoff changed before restoration')
+                entry = {'stage': template, 'records': restored, 'native_tools': {t['name'] for t in getattr(template,'native_tools',template.tools)}}
                 self.roles[role] = entry
                 stage = template
+                if restored:
+                    stage.input_prompt+='\nThis role is restored in a fresh carrier from its own bound saved handoff and the explicitly supplied current inputs. It does not retain a surviving native conversation; prior verdicts are not new acceptance.'
             else:
                 stage = entry['stage']
                 if getattr(stage, '_resources_released', False):
@@ -60,10 +65,12 @@ class Sessions:
                     'native_usage_total') if hasattr(stage, k)}
                 owner_logs = getattr(stage, 'workspace_owner_logs', stage.logs)
                 if stage.mode=='proof' and template.mode=='proof':
-                    template.own_lean_drafts=stage.own_lean_drafts
-                    for path in (stage.logs/'lean-drafts').glob('*.json'):
-                        target=template.logs/'lean-drafts'/path.name
-                        target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
+                    import ir
+                    if ir.local_packet(stage.cpath,stage.plan,stage.step)==ir.local_packet(template.cpath,template.plan,template.step):
+                        template.own_lean_drafts=stage.own_lean_drafts
+                        for path in (stage.logs/'lean-drafts').glob('*.json'):
+                            target=template.logs/'lean-drafts'/path.name
+                            target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
                 for path in (stage.logs/'library').glob('*/library-sources.json'):
                     target=template.logs/path.relative_to(stage.logs)
                     target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
@@ -95,7 +102,7 @@ class Sessions:
             stage._role_dispatching = True
             stage.role_session = {'role': role, 'prior_submissions': list(entry['records']),
                 'restored_role': bool(self.history.get(role)),
-                'disclosure': 'Distinct author/reviewer roles; this role retains its own prior conversation and findings.'}
+                'disclosure': 'Distinct author/reviewer roles; prior_submissions records retained or explicitly restored own handoffs. A restored closed role uses a fresh carrier and explicit saved inputs.'}
             manifest = stage.logs/'execution-manifest.json'
             if manifest.is_file():
                 value = json.loads(manifest.read_text()); value['role_session'] = stage.role_session
@@ -118,9 +125,12 @@ class Sessions:
         if boundary not in BOUNDARIES or not evidence:
             raise ValueError('Role closure requires a specified successful boundary and saved evidence')
         superseded=set(superseded)
-        if superseded and (boundary!='LOCAL_REVIEWS_PASSED' or not superseded<=set(roles)
-                or any(not role.startswith(('audit-a:','nl0-author:')) for role in superseded)):
-            raise ValueError('Only obsolete local roles may close with an accepted replacement NL0')
+        nl0_supersession=(boundary=='LOCAL_REVIEWS_PASSED' and
+            all(role.startswith(('audit-a:','nl0-author:')) for role in superseded))
+        proof_supersession=(boundary=='WORKFLOW_FINALIZED' and
+            all(role.startswith('lean:') for role in superseded))
+        if superseded and (not superseded<=set(roles) or not (nl0_supersession or proof_supersession)):
+            raise ValueError('Only obsolete local roles may close at their accepted replacement boundary')
         bindings = [bind(Path(p)) for p in evidence]
         for role in roles:
             entry = self.roles.get(role)
@@ -128,14 +138,17 @@ class Sessions:
                 continue
             stage = entry['stage']
             result = json.loads((stage.logs/'result.json').read_text())
-            obsolete_review=(role in superseded and result.get('status')=='BLOCKED'
+            obsolete_review=(role in superseded and nl0_supersession and result.get('status')=='BLOCKED'
                 and result.get('task_outcome')=='MATHEMATICAL_REVIEW_FAILED'
                 and result.get('execution_health')=='NO_RECORDED_FAULT'
                 and json.loads((stage.logs/'accepted.json').read_text()).get('status')=='REVIEW_BLOCKED_INCOMPLETE')
-            if (result.get('status') != 'ACCEPTED' and not obsolete_review) or result.get('execution_fault'):
+            obsolete_proof=(role in superseded and proof_supersession
+                and result.get('status') in {'REPAIR_REQUESTED','REPAIR_WAIT'}
+                and result.get('execution_health')=='NO_RECORDED_FAULT')
+            if (result.get('status') != 'ACCEPTED' and not obsolete_review and not obsolete_proof) or result.get('execution_fault'):
                 raise ValueError('An unfinished/faulted role cannot be released as completed')
             write(stage.logs/'role-completion.json', {'boundary': boundary, 'evidence': bindings,
-                'submission': bind(stage.logs/'accepted.json'), 'role': role,
+                'submission': bind(stage.logs/('result.json' if obsolete_proof else 'accepted.json')), 'role': role,
                 'superseded_by_accepted_revision':role in superseded})
             stage.release_resources('ROLE_COMPLETED')
             if getattr(stage,'execution',None):

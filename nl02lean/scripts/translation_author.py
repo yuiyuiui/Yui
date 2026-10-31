@@ -74,6 +74,10 @@ Inspect the actual pinned declarations and the meanings of order/index and
 capability parameters, including overloaded notation and coercions. Explain
 their source meaning rather than relying on remembered symbol conventions.
 Use typed steps for mathematical obligations; no proof bodies are required yet.
+Every complete node declaration must elaborate in its actual parameter and
+direct-input context. Explicitly supply named arguments that cannot be inferred
+from those argument types. The strict machine check rejects unresolved holes;
+proof bodies cannot fill holes in a preceding theorem declaration.
 
 Submit an object with header, parameters, premise_types, conclusion_type,
 representation, objects, steps, terminal, source_outputs, endpoint_correspondence.
@@ -141,7 +145,12 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
     if prior_interface:
         shutil.copyfile(prior_interface,inputs/'prior-interface.json')
         write(inputs/'repair-diagnostics.json',diagnostics)
-        prompt+='\nThis is a disclosed repair after actual Audit B. Read prior-interface.json and repair-diagnostics.json; patch the responsible encoding while preserving the accepted source. Never resubmit the unchanged rejected interface or strengthen its assumptions.'
+        prompt+='\nThis is a disclosed repair after actual located interface feedback. Read prior-interface.json and repair-diagnostics.json; patch the responsible encoding while preserving the accepted source. Never resubmit the unchanged rejected interface or strengthen its assumptions.'
+    if diagnostics and diagnostics.get('internal_repair'):
+        import internal_interface_repair as repair
+        repair.unchanged(diagnostics['internal_repair'])
+        write(inputs/'internal-repair-context.json', diagnostics['internal_repair'])
+        prompt+='\nThis is an internal T-plan revision after a frozen proof handoff. Only steps may change. Preserve all other prior-interface fields, including H/E/P, public header, source output map and pins. Repair the located internal statement/allowed-input/connection issue; no new premise. If correction actually needs a protected change, use report_obstacle with located evidence. The old proof bodies are not supplied as new premises.'
     manifest(inputs);(out/'prompt.txt').write_text(prompt)
     write(out/'authority.json',{'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
         'source_authority':authority,'source_bindings':[bind(p) for p in source_files]})
@@ -191,6 +200,9 @@ class InterfaceContract:
     def check(self,value,directory):
         expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs','endpoint_correspondence'}
         if not expected<=set(value) or not set(value)<=expected|{'shared_obligations'}:raise ValueError('Expected '+', '.join(sorted(expected))+'; optional shared_obligations')
+        if 'internal-repair-context.json' in self.documents:
+            from internal_interface_repair import protect_candidate
+            protect_candidate(value, json.loads(self.documents['prior-interface.json']))
         header=value['header']
         if not isinstance(header,str) or not header.startswith('import Mathlib\n'):
             raise ValueError('Header must start with import Mathlib followed by a newline')
@@ -319,9 +331,9 @@ class InterfaceStage(ArtifactStage):
             if len(set(names))!=len(names):raise ValueError('Duplicate parameter name')
             binders=' '.join(ir.parameter_text(p) for p in parameters)
             source=header+'\nset_option autoImplicit false\n'
-            for expression in types:
+            for index, expression in enumerate(types):
                 ir.type_text(expression)
-                source+='#check ('+('fun '+binders+' => ' if binders else '')+expression+')\n'
+                source+=ir.checked_expression('__probe_'+str(index),expression,binders)
             self.type_probes+=1;work=Path(tempfile.mkdtemp(prefix='yui-interface-types-'))
             (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
             from run_resources import register_workspace
@@ -333,7 +345,8 @@ class InterfaceStage(ArtifactStage):
                 shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
             finally:
                 shutil.rmtree(work)
-            result={'stage_complete':False,'scope':'EXPRESSION_ELABORATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
+            result={'stage_complete':False,'scope':'STRICT_EXPRESSION_DECLARATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
+                'type_check_policy':'strict-declaration-1',
                 'types_checked':native['exit_code']==0,'exit_code':native['exit_code'],
                 'stdout':native['stdout'][:16000],'stderr':native['stderr'][:1500]}
         except (ValueError,KeyError,TypeError) as error:result={'stage_complete':False,'types_checked':False,'error':str(error)}

@@ -16,11 +16,11 @@ error. Distinguish proof-body implementation difficulty from a source-to-formal
 mismatch. Do not add premises, weaken the target or introduce a replacement proof
 route. Do not produce a proof or grant Audit A/B or interface acceptance.
 Return exactly route, explanation, locations, repair_advice, comparison.
-route is LOCAL_PROOF_REPAIR, INTERFACE_REPAIR_REQUIRED, SOURCE_REVIEW_REQUIRED
+route is LOCAL_PROOF_REPAIR, INTERNAL_INTERFACE_REPAIR, INTERFACE_REPAIR_REQUIRED, SOURCE_REVIEW_REQUIRED
 or UNRESOLVED. locations are {document,pointer} resolving in the declared JSON
 inputs. explanation and repair_advice are concrete bounded text. Advice identifies
 the next local diagnostic/implementation correction, not new assumptions.
-INTERFACE_REPAIR_REQUIRED needs a paired actual quoted source/formal comparison
+INTERNAL_INTERFACE_REPAIR and INTERFACE_REPAIR_REQUIRED need a paired actual quoted source/formal comparison
 in the same form as the interface reviewer: {source:{document,pointer,quote},
 formal:{document,pointer,quote},difference}. Other routes use comparison:null.
 For a faithful interface, prefer a located local repair preserving the obligation.
@@ -30,6 +30,12 @@ This separate diagnostic sees the worker's allegation and own failed candidates;
 it is not an untouched independent interface review. Frozen E/P and their
 meaning-determining definitions cannot be changed here. Report an actual frozen
 contract defect for the user's decision; no automatic unfreeze is authorized.
+Use INTERNAL_INTERFACE_REPAIR for a located T-statement or allowed-input defect
+repairable while preserving the entire public header, original H/E/P and source.
+Examples include a non-inferable argument in an internal statement or a missing
+already-allowed direct input. This routes to reviewed preprocessing revision,
+not user pause. Reserve INTERFACE_REPAIR_REQUIRED for evidence that the protected
+public contract itself must change. Difficulty alone supports neither route.
 '''
 
 
@@ -69,7 +75,7 @@ def validate(value,out):
     from interface_review import validate_comparison
     ir.need(isinstance(value,dict) and set(value)=={'route','explanation','locations','repair_advice','comparison'},
             'Return exactly the diagnosis schema')
-    ir.need(value['route'] in {'LOCAL_PROOF_REPAIR','INTERFACE_REPAIR_REQUIRED','SOURCE_REVIEW_REQUIRED','UNRESOLVED'},
+    ir.need(value['route'] in {'LOCAL_PROOF_REPAIR','INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED','SOURCE_REVIEW_REQUIRED','UNRESOLVED'},
             'Unknown repair route')
     for key in ['explanation','repair_advice']:
         ir.need(isinstance(value[key],str) and 1<=len(value[key].strip())<=12000,'Provide bounded located diagnosis text')
@@ -79,7 +85,7 @@ def validate(value,out):
         ir.need(isinstance(loc,dict) and set(loc)=={'document','pointer'} and loc['document'] in docs
                 and isinstance(loc['pointer'],str) and loc['pointer'].startswith('/'),'Invalid diagnosis location')
         audit_b.resolve(docs[loc['document']],loc['pointer'])
-    if value['route']=='INTERFACE_REPAIR_REQUIRED':validate_comparison(value['comparison'],docs)
+    if value['route'] in {'INTERFACE_REPAIR_REQUIRED','INTERNAL_INTERFACE_REPAIR'}:validate_comparison(value['comparison'],docs)
     else:ir.need(value['comparison'] is None,'A paired mismatch comparison is reserved for interface repair')
     return {'scope':'Located diagnostic advice only; no proof, premise or semantic acceptance.'}
 
@@ -87,7 +93,7 @@ def validate(value,out):
 def run(proof_run,step,interface,out,*,budget,timeout=None):
     from audit_b_mapping import AssemblyStage
     prepare(proof_run,step,interface,out);out=Path(out)
-    stage=AssemblyStage(out/'stage',PROMPT+'\nYou are WB-connect diagnosing a connection/ownership issue under the immutable E/P contract. A contract defect is report-only and requires the user; no automatic unfreeze is authorized.',phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
+    stage=AssemblyStage(out/'stage',PROMPT+'\nYou are WB-connect diagnosing a connection/ownership issue under the immutable public contract. Internal T defects return to reviewed preprocessing; protected public-contract defects require the user.',phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
         library=True,timeout=timeout,budget=budget,validator=lambda value:validate(value,out))
     stage.execute()
     qualification=require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='proof-diagnosis')

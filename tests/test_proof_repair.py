@@ -50,8 +50,37 @@ class ProofRepairTests(unittest.TestCase):
         return stage.solve_turns('Synthetic fixed input; no external call'),number[0]
 
     def report(self):
-        return {'layer':'interface','explanation':'Compare the supplied target with its source statement.',
+        return {'layer':'source','explanation':'Compare the supplied target with its located source statement.',
                 'locations':['/target','/source_steps/0/text'],'candidates':[]}
+
+    def test_empty_compiler_obstruction_does_not_close_the_author(self):
+        stage=self.stage()
+        result=stage.dispatch('report_proof_obstruction',dict(self.report(),layer='interface'))
+        self.assertIn('failed own-context check',result['error'])
+        self.assertIsNone(stage.repair_request);self.assertFalse(stage.submission_closed)
+
+    def test_normal_body_error_stays_local_even_with_failed_candidate(self):
+        stage=self.stage()
+        with patch.object(ir,'check',return_value={'exit_code':1,'stdout':'fixture tactic error'}):
+            stage.dispatch('check_transition',{'proof':'exact h_H001'})
+        result=stage.dispatch('report_proof_obstruction',dict(self.report(),layer='local_proof',
+            candidates=[{'kind':'proof','candidate':1}]))
+        self.assertIn('stay with this author',result['error']);self.assertIsNone(stage.repair_request)
+
+    def test_successful_helper_does_not_establish_interface_obstruction(self):
+        stage=self.stage();stage.own_lean_drafts['auxiliary'][1]={'statement':'True',
+            'proof':'trivial','check':{'exit_code':0}}
+        result=stage.dispatch('report_proof_obstruction',dict(self.report(),layer='interface',
+            candidates=[{'kind':'auxiliary','candidate':1}]))
+        self.assertIn('failed own-context check',result['error']);self.assertIsNone(stage.repair_request)
+
+    def test_one_failed_current_attempt_can_escalate_a_header_problem(self):
+        stage=self.stage()
+        with patch.object(ir,'check',return_value={'exit_code':1,'stdout':'fixture declaration header error'}):
+            stage.dispatch('check_transition',{'proof':'exact h_H001'})
+        result=stage.dispatch('report_proof_obstruction',dict(self.report(),layer='interface',
+            candidates=[{'kind':'proof','candidate':1}]))
+        self.assertTrue(result['repair_requested']);self.assertIsNotNone(stage.repair_request)
 
     def test_idle_turn_accounting_has_no_automatic_retirement_threshold(self):
         stage=self.stage();_,turns=self.simulate(stage,finish=8)

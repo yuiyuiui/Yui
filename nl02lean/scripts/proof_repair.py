@@ -71,6 +71,15 @@ def obstruction(stage, value, *, automatic=False):
         row=stage.own_lean_drafts[kind][number]
         ir.need(isinstance(row.get('check'),dict),'No actual check evidence for this candidate')
         evidence.append({'kind':kind,'candidate':number,'sha256':digest(row)})
+    ir.need(value['layer']!='local_proof',
+            'Ordinary proof-body errors stay with this author; repair locally and recheck')
+    if value['layer'] in {'interface','unknown'}:
+        ir.need(evidence and any(stage.own_lean_drafts[x['kind']][x['candidate']]['check'].get('exit_code',0)!=0
+                                 for x in value['candidates']),
+                'A compiler/interface obstruction needs an actual failed own-context check; supply relevant evidence and continue this stage')
+    else:
+        ir.need(any(p.startswith('/source_steps/') for p in value['locations']),
+                'A source obstruction needs a concrete original source location')
     report={'version':POLICY['version'],'step':stage.step,'reason':'NO_OBSERVABLE_PROGRESS' if automatic else 'WORKER_REPORTED_OBSTRUCTION',
             **value,'contract_sha256':ir.digest(stage.cpath),'plan_sha256':digest(stage.plan),
             'packet_sha256':digest(packet),'candidate_evidence':evidence,

@@ -47,4 +47,12 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
 The runtime enforces the per-call wall limit independently of these writing
 rules. Whole-case and model-stage execution remain unlimited by default.
 Retain failed attempts and actual diagnostics. Standalone assembly, native
-trust/signature checks and independent endpoint-fidelity Audit B remain required.
+trust/signature checks and final machine Audit B remain required.
+
+Before freeze, every complete T declaration must elaborate with exactly its
+worker parameters, instances and direct inputs. Explicitly supply parameters
+that their argument types cannot determine; a same-named context variable is
+not an inference rule. The strict declaration check defines the proposition,
+without proving it, and rejects unresolved holes and non-proposition goals.
+`#check` is a useful reader aid, not sufficient declaration acceptance. A proof
+body cannot resolve a hole in its preceding theorem declaration.

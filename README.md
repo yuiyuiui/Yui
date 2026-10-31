@@ -100,7 +100,12 @@ incremental review. They close after accepted interface freeze. Ordinary Lean
 errors/timeouts return to the owning worker. A serial connection author can repair
 internal proofs, but cannot change frozen E/P or definitions determining their
 meaning. No fixed idle-turn count cancels siblings or unlocks the interface.
-Located frozen-contract/source defects pause for the user. See the generic
+Internal T-plan defects return to preprocessing after the current proof round's
+handoffs. All complete node declarations must pass strict machine checks;
+`#check` success alone is insufficient. An internal revision keeps the source,
+H/E/P, public definitions and pins unchanged, receives an independent delta
+review, and freezes a new version. Only currently rechecked own proofs can be
+reused. Protected public-contract/source defects pause for the user. See the generic
 [repair protocol](nl02lean/references/proof-repair.md).
 
 ## Runtime

@@ -165,12 +165,25 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
     candidate=contract.parent
     for name in ['Check.lean','result.json']:
         if (candidate/'types'/name).exists():shutil.copyfile(candidate/'types'/name,inputs/('type-'+name))
-    manifest(inputs);(out/'prompt.txt').write_text(PROMPT+ ('\nThis is a targeted adjudication. The prior review and located dispute are explicitly disclosed. Assess the actual source/types; preserve unresolved disagreement rather than inventing a PASS.\n' if adjudication else ''))
+    repair_context=None
+    if (author/'inputs/internal-repair-context.json').is_file():
+        import internal_interface_repair as repair
+        repair_context=ir.load(author/'inputs/internal-repair-context.json')
+        impact=repair.verify_revision(repair_context,contract,plan)
+        repair_context={**repair_context,**impact}
+        write(inputs/'internal-repair-context.json',repair_context)
+        for key in ('contract','plan','review'):
+            shutil.copyfile(repair_context[key]['path'],inputs/('repair-parent-'+key+'.json'))
+    prompt=PROMPT+ ('\nThis is a targeted adjudication. The prior review and located dispute are explicitly disclosed. Assess the actual source/types; preserve unresolved disagreement rather than inventing a PASS.\n' if adjudication else '')
+    if repair_context:
+        prompt+='\nThis is an INTERNAL_INTERFACE_DELTA review. The parent independent semantic receipt is disclosed and machine-validated. Protected source, H/E/P and all public definitions are unchanged. Inherit only those exact unchanged scopes; inspect changed T obligations and affected consumers against NL0, including allowed input boundaries and whether the reported defect was repaired. In the four check notes distinguish inherited judgments from this new delta review; do not claim a fresh whole-proof review or repeat unchanged work. A new actual passing receipt is required.'
+    manifest(inputs);(out/'prompt.txt').write_text(prompt)
     write(out/'selected-author-artifact.json',actual)
     write(out/'bindings.json',{'author':str(author),'contract':bind(contract),'plan':bind(plan),
         'source_graph':bind(author/'inputs/nl0.json'),'spec':bind(author/'inputs/spec.json'),
         'paragraph_mapping':paths['paragraph_mapping'],'source_outputs':paths['source_outputs'],
-        'candidate_selection':selection,'adjudication':adjudication})
+        'candidate_selection':selection,'adjudication':adjudication,
+        **({'internal_repair':repair_context} if repair_context else {})})
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
 
@@ -240,6 +253,12 @@ def collect(out):
         'preparation_cost':{'status':'DEVELOPMENT_ITERATIONS_NOT_COLD_BENCHMARK','owner_work':'UNMEASURED',
             'author_stage':str(Path(bindings['author'])/'stage'),'semantic_review_stage':str(out/'stage'),
             'candidate_selection':bindings.get('candidate_selection')}}
+    if bindings.get('internal_repair'):
+        import internal_interface_repair as repair
+        repair.verify_revision(bindings['internal_repair'],bindings['contract']['path'],bindings['plan']['path'])
+        review['internal_repair']=bindings['internal_repair']
+        review['review_scope']='INTERNAL_INTERFACE_DELTA'
+        review['reviewer']['disclosure']='Independent author-separated delta review; exact protected semantic scopes inherit the bound parent review, changed T obligations and affected consumers were reviewed in this stage.'
     if bindings.get('adjudication'):
         review['reviewer'].update(mode='targeted_adjudication',independent=False,
             disclosure=bindings['adjudication']['disclosure'])
@@ -290,6 +309,14 @@ def verify_receipt(path,contract,plan,graph_sha256):
             and ir.digest(file)==item['sha256'],'Invalid interface-review evidence binding')
         actual[file.name]=item['sha256']
     ir.need(actual==expected,'Missing actual interface-review evidence')
+    if bindings.get('internal_repair'):
+        import internal_interface_repair as repair
+        context=bindings['internal_repair']
+        ir.need(review.get('internal_repair')==context and
+            review.get('review_scope')=='INTERNAL_INTERFACE_DELTA' and
+            ir.load(out/'inputs/internal-repair-context.json')==context,
+            'Changed internal repair lineage or review scope')
+        repair.verify_revision(context,contract,plan)
     return review
 
 

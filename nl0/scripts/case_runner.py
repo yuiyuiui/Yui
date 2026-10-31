@@ -177,7 +177,7 @@ def translation_attempt(job, authority, budgets, progress):
                 previous=prepared/'stage/accepted.json';findings=Path(error.result['evidence'])
                 if not previous.is_file():raise
                 progress(job['case'],'SOURCE_EXTRACTION_REPAIR',findings=str(findings))
-    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0
+    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0;repair_prior_run=None;internal_context=None
     while True:
         attempt+=1;directory=root/'nl0-to-lean'/f'{attempt:04d}'
         current_interface=Path(checkpoint['interface']) if checkpoint else directory/'interface'
@@ -189,7 +189,7 @@ def translation_attempt(job, authority, budgets, progress):
             else:
                 result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
                     proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
-                    prior_interface=prior_interface,diagnostics=diagnostics,sessions=sessions)
+                    prior_interface=prior_interface,diagnostics=diagnostics,prior_run=repair_prior_run,sessions=sessions)
             write(root/'audit-b'/f'{attempt:04d}.json',{'status':result['audit_b']['status'],
                 'review':bind(result['audit_b']['receipt_path']),'workflow':str(directory/'workflow'),
                 'acceptance_basis':result['audit_b']['acceptance_basis']})
@@ -207,18 +207,25 @@ def translation_attempt(job, authority, budgets, progress):
                 with (root/'warn.md').open('a') as stream:stream.write('\n## Frozen interface deviation\n\n'+result['audit_b']['warning']+'\n')
             return result
         except StageFailure as error:
-            # Only pre-freeze interface review returns to WB0/B0. Frozen
-            # contract defects and B-final nonpasses wait for the human.
-            if error.result.get('phase')!='interface-review' or job['policy']=='first-pass':raise
-            report=directory/'interface-review/report.json'
+            phase=error.result.get('phase')
+            if phase not in {'interface-review','internal-interface-repair'} or job['policy']=='first-pass':raise
+            if phase=='internal-interface-repair':
+                internal_context=error.result['internal_repair']
+                repair_prior_run=Path(error.result['prior_proof_run'])
+                report=Path(error.result['evidence'])
+                diagnostics={'report':json.loads(report.read_text()),'internal_repair':internal_context,
+                    'scope':'Reviewed internal T revision; preserve all original source, H/E/P and public definitions.'}
+            else:
+                report=directory/'interface-review/report.json'
+                diagnostics={'report':json.loads(report.read_text()),
+                    'actual_review':json.loads((directory/'interface-review/stage/accepted.json').read_text()),
+                    'scope':'Repair the located interface findings; preserve NL0 and its Audit A.'}
+                if internal_context:diagnostics['internal_repair']=internal_context
             if not report.is_file():raise
-            diagnostics={'report':json.loads(report.read_text()),
-                'actual_review':json.loads((directory/'interface-review/stage/accepted.json').read_text()),
-                'scope':'Repair the located pre-freeze interface findings; preserve NL0 and its Audit A.'}
             checkpoint=None;prior_interface=current_interface/'stage/accepted.json'
             if not prior_interface.is_file():raise
             write(root/'repairs'/f'interface-{attempt:04d}.json',{'diagnosis':bind(report),
-                'route':'same_pre_freeze_author_and_reviewer','source_unchanged':True})
+                'route':'reviewed_internal_T_repair' if internal_context else 'same_pre_freeze_author_and_reviewer','source_unchanged':True})
 
 
 def execute(job, root=None):

@@ -27,7 +27,7 @@ VERSION = 'yui-fault-lifecycle-1'
 BLOCKERS = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT',
     'INPUT_CONFLICT','SOURCE_CHANGE_REQUIRES_USER','AUDIT_A_NONPASS','MATHEMATICAL_REVIEW_FAILED',
     'REVIEW_UNVERIFIED','REVIEW_INCOMPLETE','PROOF_REPAIR_STALLED','REPAIR_UNCHANGED','REPAIR_CYCLE',
-    'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','PROOF_REVIEW_REQUIRED'}
+    'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','INTERNAL_INTERFACE_REPAIR_REQUIRED','PROOF_REVIEW_REQUIRED'}
 SECRET = re.compile(r'(Bearer\s+)[^\s\"\']+|\bsk-[A-Za-z0-9_-]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', re.I)
 
 
@@ -140,7 +140,9 @@ class Gate:
                 '; automatic retries='+str(self.state['retries'])+'.\n'
                 'Task is paused, not finished. Existing drafts, checkpoints and owned temporary resources are preserved; no automatic cleanup.\n'
                 'Run: '+str(self.root)+'\nFull diagnostic: '+str(self.path)+'\n'
-                'Controller logs: '+str(self.logs)+'\nResume: '+shlex.join(self.state['resume_command'])+
+                'Controller logs: '+str(self.logs)+
+                ('\nResume: '+shlex.join(self.state['resume_command']) if self.state['resumable'] else
+                 '\nAutomatic resume is unavailable; inspect the diagnostic and choose an authorized repair or user action.')+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
         if self.state.get('decisions'):

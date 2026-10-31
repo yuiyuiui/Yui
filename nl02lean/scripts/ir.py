@@ -60,8 +60,22 @@ def compact(text):
 
 def type_text(value):
     need(isinstance(value, str) and bool(value.strip()), 'empty proposition/type')
-    need(not FORBIDDEN.search(value) and ':=' not in value,
+    # Named arguments are ordinary Lean terms, not declaration assignments.
+    assignments = re.sub(r"\(\s*[\w']+\s*:=", '(', value)
+    need(not FORBIDDEN.search(value) and ':=' not in assignments,
          'command/placeholder in proposition/type')
+
+
+def checked_expression(name, expression, binders='', *, proposition=False):
+    """Commit an actual definition: #check alone may retain unresolved holes.
+
+    A Prop-valued definition checks a proposition, without pretending to prove
+    it or introducing an axiom. Ordinary expression probes infer their type.
+    """
+    term = f'∀ {binders}, ({expression})' if proposition and binders else (
+        f'fun {binders} => ({expression})' if binders else expression)
+    annotation = ' : Prop' if proposition else ''
+    return f'def {name}{annotation} :=\n  ({term})\n'
 
 
 def contract(path):
@@ -284,15 +298,21 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
         s = nodes[sid]
         ins = ' '.join(f'(h_{k} : {types[k]})' for k in s['inputs'])
         if types_only:
-            text += f"#check (∀ {context} {ins}, {s['statement']})\n"
-            for binding in s.get('representations', []):
+            text += checked_expression('__signature_'+sid, s['statement'],
+                                       (context+' '+ins).strip(), proposition=True)
+            for index, binding in enumerate(s.get('representations', [])):
                 obj = next(o for o in c['objects'] if o['id'] == binding['object'])
                 view = next(v for v in obj['views'] if v['id'] == binding['view'])
-                text += f"#check (fun {context} {ins} => ({binding['expression']} : {view['lean_type']}))\n"
+                text += checked_expression(f'__representation_{sid}_{index}',
+                    f"({binding['expression']} : {view['lean_type']})", (context+' '+ins).strip())
         else:
             need(proofs is not None and sid in proofs, f'missing proof for {sid}')
             text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(proofs[sid])}\n\n"
-    if not only and not types_only:
+    if types_only and not only:
+        ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
+        text += checked_expression('__signature_P', c['conclusion']['type'],
+                                   (context+' '+ins).strip(), proposition=True)
+    elif not only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
         # The body may generalize universe parameters absent from its result.
         # Elaborate this assembly synchronously so declaration commit sees them.
@@ -320,6 +340,8 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
                        'LOCAL-PROOF-CHECKED' if only else 'FRAGMENT-ASSEMBLED',
                        'contract_sha256': digest(cpath),
                        'lean_sha256': digest(file), 'scope': only or 'fragment'})
+        if types_only:
+            result['type_check_policy'] = 'strict-declaration-1'
         if result['exit_code'] != 0:
             result['status'] = 'LEAN-CHECK-FAILED'
         if result['exit_code'] == 0 and not types_only:

@@ -85,6 +85,22 @@ class RoleSessionTests(unittest.TestCase):
         with patch.object(ArtifactStage,'_execute',self.complete):
             with self.sessions.use('author'):restored.execute()
         self.assertTrue(restored.role_session['restored_role'])
+        self.assertIn(str(first.logs/'accepted.json'),
+                      [row['path'] for row in restored.role_session['prior_submissions']])
+        self.assertIn('fresh carrier',restored.input_prompt)
+        self.assertIs(self.sessions.roles['author']['stage'],restored)
+
+    def test_closed_role_restoration_rejects_changed_saved_handoff(self):
+        first=self.stage('first');gate=self.root/'gate.json';write(gate,{'synthetic':'accepted boundary'})
+        with patch.object(ArtifactStage,'_execute',self.complete):
+            with self.sessions.use('author'):first.execute()
+        self.sessions.close(['author'],'INTERFACE_FROZEN',[gate])
+        write(first.logs/'accepted.json',{'changed':'saved artifact'})
+        with patch.object(ArtifactStage,'_execute',autospec=True,side_effect=self.complete) as execute:
+            with self.sessions.use('author'):
+                with self.assertRaisesRegex(ValueError,'Saved role handoff changed'):
+                    self.stage('restored').execute()
+            execute.assert_not_called()
 
     def test_obsolete_blocked_review_can_close_only_at_local_acceptance_without_rewriting_verdict(self):
         first=self.stage('first');gate=self.root/'gate.json';write(gate,{'synthetic':'accepted replacement'})
@@ -104,6 +120,31 @@ class RoleSessionTests(unittest.TestCase):
         self.assertEqual(json.loads((first.logs/'result.json').read_text()),blocked)
         self.assertFalse(first.work.exists())
         self.assertTrue(json.loads((first.logs/'role-completion.json').read_text())['superseded_by_accepted_revision'])
+
+    def test_removed_proof_role_closes_only_at_final_acceptance_preserving_obstruction(self):
+        first=self.stage('removed');gate=self.root/'gate.json';write(gate,{'synthetic':'final accepted proof'})
+        def handoff(stage):
+            stage.submission_closed=True
+            result={'status':'REPAIR_REQUESTED','execution_health':'NO_RECORDED_FAULT'}
+            write(stage.logs/'result.json',result)
+            return result,None
+        with patch.object(ArtifactStage,'_execute',handoff):
+            with self.sessions.use('lean:T001'):first.execute()
+        for boundary,superseded in [('INTERFACE_FROZEN',{'lean:T001'}),('WORKFLOW_FINALIZED',set())]:
+            with self.subTest(boundary=boundary,superseded=superseded),self.assertRaises(ValueError):
+                self.sessions.close_all(boundary,[gate],superseded=superseded)
+            self.assertTrue(first.work.exists())
+        original=json.loads((first.logs/'result.json').read_text())
+        write(first.logs/'result.json',{**original,'execution_fault':'Synthetic runtime fault'})
+        with self.assertRaises(ValueError):
+            self.sessions.close_all('WORKFLOW_FINALIZED',[gate],superseded={'lean:T001'})
+        write(first.logs/'result.json',original)
+        self.sessions.close_all('WORKFLOW_FINALIZED',[gate],superseded={'lean:T001'})
+        self.assertEqual(json.loads((first.logs/'result.json').read_text()),original)
+        self.assertFalse(first.work.exists())
+        receipt=json.loads((first.logs/'role-completion.json').read_text())
+        self.assertEqual(receipt['submission']['path'],str(first.logs/'result.json'))
+        self.assertTrue(receipt['superseded_by_accepted_revision'])
 
 
 if __name__=='__main__':unittest.main()

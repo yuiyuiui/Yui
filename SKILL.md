@@ -102,7 +102,11 @@ Follow [proof diagnosis and reviewed repair](nl02lean/references/proof-repair.md
 Local compiler defects return to their own author; explicit global proof-connection
 issues go to the serial connection author. It cannot change frozen E/P or their
 meaning-determining definitions. No fixed idle-turn threshold retires a round or
-cancels sibling jobs. Frozen-contract/source defects wait for the user.
+cancels sibling jobs. Located internal T-plan defects return to preprocessing
+after the current round's handoffs. Strict declaration checks and an independent
+delta review precede a new frozen revision; reuse own bodies only after current
+Lean checks. Original source, H/E/P and the public header remain fixed.
+Protected public-contract/source defects wait for the user.
 
 1. **NL0 and Audit A.** Use [Audit A's shared acceptance requirements](nl0/references/audit-a.md#shared-mathematical-acceptance-requirements)
    as the single mathematical standard for both author and auditor. Prefer concise grouped
