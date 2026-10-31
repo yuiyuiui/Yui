@@ -68,6 +68,9 @@ class Sessions:
                     import ir
                     if ir.local_packet(stage.cpath,stage.plan,stage.step)==ir.local_packet(template.cpath,template.plan,template.step):
                         template.own_lean_drafts=stage.own_lean_drafts
+                        template.local_helpers=stage.local_helpers
+                        if template.local_helpers:
+                            write(template.logs/'local-helpers.json',template.local_helpers)
                         for path in (stage.logs/'lean-drafts').glob('*.json'):
                             target=template.logs/'lean-drafts'/path.name
                             target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)

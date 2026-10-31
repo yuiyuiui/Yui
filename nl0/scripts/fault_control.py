@@ -133,6 +133,15 @@ class Gate:
     def report(self):
         """A persisted bounded outbox; no LLM, no repeated successful messages."""
         if self.state.get('notification', {}).get('status') == 'QUEUED':return
+        for receipt in self.state.get('checkpoint',{}).get('source_issue_notices',[]):
+            try:
+                path=Path(receipt['path'])
+                if (path.is_relative_to(self.root/'source-issues') and
+                    hashlib.sha256(path.read_bytes()).hexdigest()==receipt['sha256'] and
+                    json.loads(path.read_text())['notification']['status']=='QUEUED'):
+                    self.state['notification']={'status':'QUEUED','earlier_source_notice':receipt}
+                    self.persist();return
+            except (OSError,ValueError,KeyError):pass
         if self.notification_attempts >= 3:return
         self.notification_attempts += 1
         text = ('[Yui ERROR PAUSED] '+self.state['fault']['category']+'; stage='+self.stage+

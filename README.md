@@ -178,9 +178,8 @@ especially subscripts and fractions, before freezing it as proof input.
 
 ### Lean and Mathlib locations
 
-Each native Lean check has a **5-minute wall limit** by default, configured as
-`timeouts.native_seconds: 300` in `config.json`. Lean's finite default heartbeat
-budget also remains enabled. A timed-out candidate is retained and returned to
+Each native Lean check has a **3-minute wall limit** by default, configured as
+`timeouts.native_seconds: 180` in `config.json`. `lean.max_heartbeats: 20000000` supplies the separate calculation budget. A timed-out candidate is retained and returned to
 its worker for a smaller check and repair; it is never accepted or interpreted
 as a mathematical failure merely because time elapsed. In Yui proof workers,
 verified native wall/heartbeat exhaustion automatically includes the frozen

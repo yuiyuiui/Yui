@@ -40,7 +40,9 @@ their obstruction and may close only with the accepted final replacement.
 | Parallel local A and global escalation | test_nl0_review_loop.py, test_parallel_audit.py | Node-local modifications, shared active slots, exact merged reviewed versions, restored global role and affected-scope rechecks. |
 | Shared extraction and interface preparation | test_source_refactor_driver.py, test_source_preparation.py, test_workflow_handoffs.py, test_interface_controls.py | Skip unchanged incremental review; retain the approved author/reviewer pair and recheck actual changed scope before freeze. |
 | Frozen interfaces and parallel Lean | test_interface_gate.py, test_shared_parallel.py, test_graph_runner.py, test_proof_repair.py | No unreviewed worker dispatch, no E/P mutation, local repair stays with its author; global connection work preserves the frozen authority. |
-| Native Lean limits and advice | test_native_timeout_advice.py, test_execution_queue.py | One-call timeout is distinct from task completion; same-worker typed repair, cancellation and no success from partial conditional bodies. |
+| Native Lean limits and advice | test_native_resource_limits.py, test_native_timeout_advice.py, test_execution_queue.py | Actual 20M option, 180-second configured ceiling, shorter call timeout and owned cleanup; same-author repair without a mathematical rejection. |
+| Checked local helper modules | test_local_helpers.py | Real helper chains, same-node binding, changed/missing/cyclic helper rejection, whole-file compilation and actual kernel dependency inspection. |
+| Diagnosis within a retained proof session | test_live_proof_diagnosis.py, test_native_proof_diagnosis.py | All occupied slots may request review without deadlock; original native author resumes after its tool response. Only qualified substantive defects permit handoff; resource-only and uncertain reports keep the author. |
 | Assembly, kernel closure and final acceptance | test_assembly.py, test_audit_b.py, test_final_acceptance.py, test_postprocessing.py | Compile actual full files, close dependencies and trust; machine B inherits only exact reviewed semantics. B-final cannot cover invalid proof/closure. |
 | Exception decisions and final cleanup | test_translation_reset.py, test_workflow_handoffs.py, test_cleanup_tests.py | User-selected drift/recheck/reset/delivery is explicit; preserve original-goal status, exact ownership and scientific evidence. |
 
@@ -112,3 +114,25 @@ fault injection with a real 60-second retry wait. Reviewer verdicts and provider
 replies in software controls remain synthetic; no remote model was called.
 The legacy smoke-runner negative control deliberately prints graph-check FAILED;
 its asserted failure is distinct from the successful unittest suite.
+
+## Retained proof work and resource repair
+
+The new controls exercise the real native Codex process against a loopback
+fixture: a failed Lean check, obstruction request, separate diagnostic task,
+returned tool feedback and successful submission from the original author
+thread. The diagnostic judgments are synthetic and do not certify mathematics.
+Concurrent all-slot requests, parent cancellation, repeated evidence, source
+allegation requirements and notification deduplication have separate controls.
+
+Actual Lean tests compose two checked helpers, inspect their bodies in final
+kernel dependencies, reject altered context/receipts and retain modular drafts
+for an authorized continuation. Resource controls read the real configured
+Lean option and force a short wall timeout. The existing fault-injection suite
+continues to cover mid-response disconnects, retries and retained errors.
+
+The final repair tree passed **921 tests** in 786.436 seconds, with no skipped
+tests. Two record-aliasing regressions were first reproduced as failures and
+then passed after the fixes. The complete suite was rerun on the final fixed
+tree without intervening source edits. Skill validation, environment checks
+and whitespace validation passed separately. See
+[controller-repair-validation.json](controller-repair-validation.json).

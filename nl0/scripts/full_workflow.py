@@ -151,7 +151,7 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
         progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(current),repair_round=round_number)
         proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),current,
             timeout_seconds=stage_seconds(proof_budget),bank=False,budget=proof_budget,prior_run=prior_run,
-            repair_guidance=guidance,reviewed_interface=reviewed_interface,sessions=sessions,
+            repair_guidance=guidance,reviewed_interface=reviewed_interface,sessions=sessions,diagnostic_interface=interface,
             shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
         rounds.append(bind(current/'report.json'))
         workflow.bound(destination)
@@ -179,7 +179,10 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
         progress(case,'PROOF_CONNECTION_DIAGNOSIS_AFTER_HANDOFF',directory=str(current))
         diagnoses={}
         for step,request in sorted(proof['repair_requests'].items()):
-            if sessions:
+            if request.get('diagnosis'):
+                diagnoses[step]=ir.load(request['diagnosis']['diagnosis_report'])
+                ir.need(diagnoses[step]==request['diagnosis'],'Changed qualified live diagnosis')
+            elif sessions:
                 with sessions.use('proof-connection'):
                     diagnoses[step]=proof_diagnosis.run(current,step,interface,destination/'diagnoses'/f'{round_number:04d}'/step,
                         budget=budget,timeout=stage_seconds(budget))
@@ -189,11 +192,16 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
                  'scope':'No theorem accepted; active local assignments reached handoffs before serial connection diagnosis.'}
         summary_path=destination/'diagnoses'/f'{round_number:04d}'/'report.json';ir.write(summary_path,summary)
         diagnostic_reports.append(bind(summary_path))
-        unresolved=[x for x in diagnoses.values() if x['route'] in {'SOURCE_REVIEW_REQUIRED','UNRESOLVED'}]
+        unresolved=[x for x in diagnoses.values() if x['route']=='SOURCE_REVIEW_REQUIRED']
         if unresolved:
-            raise StageFailure('PROOF_REVIEW_REQUIRED','Located diagnosis needs source review or remains unresolved; no frozen premise or target was changed',
+            notices=[]
+            for diagnosis in unresolved:
+                path=Path(diagnosis.get('diagnosis_report','')).parent
+                if path.is_dir() and (path/'report.json').is_file():
+                    notices.append(proof_diagnosis.notice_source(current/'inputs/contract.json',diagnosis['step'],path,diagnosis))
+            raise StageFailure('PROOF_REVIEW_REQUIRED','Qualified diagnosis identifies a source error or important missing mathematical justification; no frozen premise or target was changed',
                 phase='proof-diagnosis',evidence=summary_path,details={'checkpoint':{'proof_run':str(current),
-                    'preserve_completed_work':True,'restart_whole_workflow':False}})
+                    'source_issue_notices':notices,'preserve_completed_work':True,'restart_whole_workflow':False}})
         if any(x['route']=='INTERFACE_REPAIR_REQUIRED' for x in diagnoses.values()):
             raise StageFailure('FROZEN_INTERFACE_REQUIRES_USER','Located protected public-contract defect; user decision required',
                 phase='frozen-interface',evidence=summary_path,details={'prior_proof_run':str(current),'user_decision_required':True})

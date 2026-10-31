@@ -28,30 +28,36 @@ machine acceptance only when the actual final artifact still matches it.
 ## Local proof work
 
 Each node has its own retained author. Ordinary compiler/API/tactic feedback stays
-with that author. A 300-second native timeout or heartbeat failure retains the
+with that author. A 180-second native timeout or heartbeat failure retains the
 candidate and supplies frozen ST020 advice in the failed tool result. Isolate the
 expensive application, repair and recheck the unchanged target. There is no total
 case, token, call, repair-round or turn allowance by default.
 
-`report_proof_obstruction` records a concrete alleged layer, explanation, resolving
-packet locations and actual own candidate evidence. An allegation is not a proved
-interface defect. Preserve healthy siblings and let already active work reach its
-normal handoff. No fixed count of idle replies retires the round, cancels queued
-jobs or changes inputs. Progress counters remain passive measurement.
+`report_proof_obstruction` requests a diagnosis; it does not itself finish the
+node. The original author waits for this tool result, releases its active model
+slot, and retains its native conversation, checked helpers and drafts. A separate
+evidence-informed diagnostic uses the same bounded proof lane and an immutable
+snapshot of this node's source, interface and selected actual attempts. It does
+not wait for other nodes to complete or inspect their proof bodies.
 
-After local assignments reach handoffs, the serial connection author may diagnose
-a reported global issue using its actual source/formal pair and selected own
-attempts. It may repair internal proof bodies, proved local helpers, parameter
-applications, library discharges and proof connections. It cannot change frozen
-E/P, their hypotheses or definitions determining their meaning. A missing producer
-cannot become an assumption. Ordinary local repair returns to the owning author.
+Ordinary proof errors remain local. A failed compile or resource limit does not
+establish a source defect. LOCAL_PROOF_REPAIR and UNRESOLVED return concrete
+feedback to the same author, which continues without an attempt/idle threshold.
+Rewording the same evidence reuses the stored diagnostic rather than sampling a
+new verdict. Healthy siblings are neither cancelled nor restarted.
 
-An implementation/interface compiler obstruction must include relevant actual
-failed own-context checks. Empty, foreign or stale reports return feedback to
-the active author; successful helpers alone do not establish a defect. Ordinary
-proof-body errors stay local. A located source allegation may instead cite its
-concrete source paragraphs; it still needs actual serial diagnosis. One decisive
-failed declaration check is enough; no minimum attempt count is imposed.
+A source allegation must quote the current source, state its permitted
+hypotheses and claimed conclusion, locate a false implication or important
+missing mathematical justification, and explain why it is not merely a Lean
+implementation difficulty. Only a qualified diagnostic confirming such evidence
+can request the source-review boundary. Distinguish an incomplete source argument
+from a false theorem. Report the specific issue once; retain all unsuccessful
+attempts and diagnostic costs.
+
+The diagnostic cannot add premises or change frozen E/P and their meaning.
+Only a located, compared and qualified interface defect can hand the node to the
+existing interface-repair path. No fixed count of failed checks or idle replies
+retires an author. Progress counters measure activity, not proof completion.
 
 `INTERNAL_INTERFACE_REPAIR` returns a located T-statement/allowed-input defect to
 the preprocessing author and separate reviewer after current-round handoffs.
@@ -70,8 +76,8 @@ If a reviewed revision removes an old node, its retained repair handoff closes
 only at final workflow acceptance. Preserve that old obstruction rather than
 relabeling it as a successful local proof.
 
-A located protected public-contract defect, source gap or unresolved mathematical obstruction
-pauses with saved evidence for the user. No automatic unfreeze, source rewrite,
+A located protected public-contract defect or confirmed substantial source gap
+pauses with saved evidence for the user. Uncertain difficulty stays with the author. No automatic unfreeze, source rewrite,
 whole-workflow restart or new model/profile is authorized. Repeated identical
 obligation/evidence after a located advice handoff stays an explicit checkpoint;
 it is not a reason to resample a diagnostic or declare mathematical impossibility.

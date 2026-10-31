@@ -21,6 +21,12 @@ VERSION = 1
 SUPPORTED_VERSIONS = {1, 2}
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
 FORBIDDEN = re.compile(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|set_option|initialize|elab|macro|syntax|import|namespace|section|end|theorem|lemma|instance|attribute)\b|(^|\n)\s*#')
+AUXILIARY_PARSER = '''
+open Lean Elab Term
+elab "yui_aux_type% " text:str : term => do
+  let parsed ← ofExcept <| Parser.runParserCategory (← getEnv) `term text.getString
+  Term.elabTerm parsed none
+'''
 
 
 class Invalid(ValueError):
@@ -292,7 +298,8 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
     if only:
         need(only in nodes, 'unknown transition')
         order = [only]
-    text = c['header'].rstrip() + '\n\nnamespace Translation\nset_option autoImplicit false\n\n'
+    parser = AUXILIARY_PARSER if proofs and any(isinstance(p,dict) for p in proofs.values()) else ''
+    text = c['header'].rstrip() + '\n'+parser+'\nnamespace Translation\nset_option autoImplicit false\n\n'
     context = binder_text(c)
     for sid in order:
         s = nodes[sid]
@@ -307,7 +314,13 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
                     f"({binding['expression']} : {view['lean_type']})", (context+' '+ins).strip())
         else:
             need(proofs is not None and sid in proofs, f'missing proof for {sid}')
-            text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(proofs[sid])}\n\n"
+            import local_helpers
+            helpers, body = local_helpers.unpack(cpath, plan, sid, proofs[sid])
+            if helpers:
+                text += f'namespace Local_{sid}\n'
+                text += local_helpers.declarations(helpers, (context+' '+ins).strip())
+                text += f'end Local_{sid}\nopen Local_{sid} in\n'
+            text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(body)}\n\n"
     if types_only and not only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
         text += checked_expression('__signature_P', c['conclusion']['type'],
@@ -366,32 +379,30 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
         shutil.rmtree(work)
 
 
-def render_auxiliary(cpath,plan,step,statement,proof):
+def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=False):
     """Render the exact local helper wrapper without running Lean."""
     c,nodes,_=validate(cpath,plan)
     need(step in nodes,'unknown auxiliary context port')
     need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
          'forbidden command or placeholder in auxiliary statement')
     body=proof_text(proof)
+    import local_helpers
+    if not validated:local_helpers.validate(cpath,plan,step,list(helpers))
+    local_helpers.references(statement+'\n'+proof,[r['name'] for r in helpers])
     types={**premises(c),**{key:value['statement'] for key,value in nodes.items()}}
     inputs=' '.join(f'(h_{key} : {types[key]})' for key in nodes[step]['inputs'])
     # Parse a complete term from a string literal. This permits ordinary letI
     # expressions without exposing a command-injection splice into Lean source.
-    parser='''
-open Lean Elab Term
-elab "yui_aux_type% " text:str : term => do
-  let parsed ← ofExcept <| Parser.runParserCategory (← getEnv) `term text.getString
-  Term.elabTerm parsed none
-'''
-    source=c['header'].rstrip()+'\n'+parser+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
+    source=c['header'].rstrip()+'\n'+AUXILIARY_PARSER+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
+    source+=local_helpers.declarations(helpers,(binder_text(c)+' '+inputs).strip())
     source+=f'theorem checked {binder_text(c)} {inputs} : yui_aux_type% '+json.dumps(statement,ensure_ascii=False)+' := by\n'+body+'\n'
     source+='#check @checked\n#print axioms checked\nend YuiAuxiliary\n'
     return source
 
 
-def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None):
+def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=()):
     """Check one closed helper in exactly this port's context; add no premise."""
-    source=render_auxiliary(cpath,plan,step,statement,proof)
+    source=render_auxiliary(cpath,plan,step,statement,proof,helpers=helpers)
     work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
     try:
         path=work/'output/Auxiliary.lean';path.write_text(source)
@@ -400,7 +411,10 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None):
         axioms={v.strip() for v in match[1].split(',') if v.strip()} if match else set() if "'YuiAuxiliary.checked' does not depend on any axioms" in result['stdout'] else {'MISSING_AXIOM_REPORT'}
         valid=result['exit_code']==0 and not axioms-{'propext','Classical.choice','Quot.sound'}
         result.update(auxiliary_valid=valid,axioms=sorted(axioms),
+            lean_sha256=hashlib.sha256(source.encode()).hexdigest(),
             scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
+        if result['exit_code']==0 and not valid:
+            result.update(compiler_exit_code=0,exit_code=1,status='AXIOM-CHECK-FAILED')
         out=Path(out);out.mkdir(parents=True,exist_ok=False);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
         return result
     finally:

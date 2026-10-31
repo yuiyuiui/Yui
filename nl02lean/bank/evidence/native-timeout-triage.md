@@ -27,3 +27,12 @@ The detailed sources, timings, controls and uncertainty belong to the user's
 work records outside this live bank. This sanitized note supplies implementation
 guidance, not a proof template, a guaranteed speedup or independent mathematical
 acceptance. Broader effectiveness remains unestablished.
+
+Additional controlled comparisons isolated diagnostic term-printing wrappers:
+the wrapped checks exhausted a native calculation budget while the unchanged
+proof tactics, with the diagnostic wrapper removed, compiled. This supports a
+diagnostic-overhead branch, not ignoring failed exits or deleting mathematical
+steps. A completed modular implementation also motivates retaining separately
+checked helper declarations rather than repeatedly elaborating their bodies
+inside one large expression. That latter observation does not isolate a
+universal performance cause or predict a speedup.

@@ -78,6 +78,10 @@ Every complete node declaration must elaborate in its actual parameter and
 direct-input context. Explicitly supply named arguments that cannot be inferred
 from those argument types. The strict machine check rejects unresolved holes;
 proof bodies cannot fill holes in a preceding theorem declaration.
+Use the existing explanation/statement fields to settle mathematical ambiguity:
+domains, equality or convergence mode, uniformity dependencies and interchange
+conditions when relevant. Do not create dozens of administrative nodes or embed
+Lean tactic recipes in NL0. Routine implementation length is not a source gap.
 
 Submit an object with header, parameters, premise_types, conclusion_type,
 representation, objects, steps, terminal, source_outputs, endpoint_correspondence.

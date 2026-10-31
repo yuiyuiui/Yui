@@ -60,6 +60,14 @@ def native_timeout(requested=None):
     return min(limits) if limits else None
 
 
+def native_heartbeats():
+    """Controller-owned budget for one elaboration; never a model-turn cap."""
+    value = json.loads((CORE / 'config.json').read_text())['lean']['max_heartbeats']
+    if type(value) is not int or value <= 0:
+        raise ValueError('lean.max_heartbeats must be a positive integer')
+    return value
+
+
 def model_profile(phase=None):
     """Resolve a declared phase without changing another live stage's model."""
     raw = (CORE / 'config.json').read_bytes()

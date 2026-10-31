@@ -103,9 +103,15 @@ class MappingContract:
         value={k:v for k,v in value.items() if k!='proof_patches'}
         try:
             ir.need(isinstance(patches,dict),'Internal proof patches must be an object')
+            patches=dict(patches)
             bundle=ir.load(selected/'proofs.json')
             ir.need(set(patches)<=set(bundle['proofs']),'Connection repair cannot create a missing node or change its interface')
-            for body in patches.values():ir.proof_text(body)
+            import local_helpers
+            for sid,body in list(patches.items()):
+                ir.proof_text(body)
+                existing=bundle['proofs'][sid]
+                if isinstance(existing,dict):
+                    patches[sid]=local_helpers.package(cpath,ir.load(ppath),sid,body,existing['helpers'])
             bundle['proofs'].update(patches)
             if value.get('source_inventory_sha256')!=ir.digest(directory/'audit-b/source-inventory.json'):
                 raise ValueError('Map the exact original inventory')

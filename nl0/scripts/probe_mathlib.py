@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from execution_state import identity, terminate_owned
-from runtime_config import native_timeout
+from runtime_config import native_timeout, native_heartbeats
 
 
 def run_probe(command, cwd):
@@ -78,7 +78,7 @@ def main():
                   f'#eval IO.println "BEGIN_AXIOMS:{item["id"]}"', f"#print axioms {name}",
                   f'#eval IO.println "END_SOURCE:{item["id"]}"']
     probe.write_text("\n".join(lines) + "\n")
-    command = ["lake", "env", "lean", str(probe)]
+    command = ["lake", "env", "lean", '-DmaxHeartbeats='+str(native_heartbeats()), str(probe)]
     started = datetime.now(timezone.utc).isoformat()
     result = run_probe(command,args.mathlib)
     (out / "library-probe.log").write_text(result.stdout + result.stderr)
@@ -103,6 +103,7 @@ def main():
         sources[key] = data
     report = {"probe_version": 1, "started_at": started, "finished_at": datetime.now(timezone.utc).isoformat(),
               "command": command, "cwd": str(args.mathlib), "exit_code": result.returncode,
+              "native_limits": {"timeout_seconds":native_timeout(), "max_heartbeats":native_heartbeats()},
               "lean_version": subprocess.check_output(["lake", "env", "lean", "--version"], cwd=args.mathlib, text=True).strip(),
               "mathlib_commit": commit, "sources": sources,
               "previous_artifacts_archive":previous_archive}

@@ -136,12 +136,16 @@ class Stage(carrier.Trial):
                 {'kind':{'type':'string','enum':['index','proof','auxiliary']},'candidate':{'type':'integer'},'start':{'type':'integer'},'end':{'type':'integer'}},['kind','candidate','start','end'])]
             if instruction_arm=='yui':
                 self.tools.append(carrier.tool('report_proof_obstruction',
-                    'Escalate an observed obstruction for serial diagnosis. Reference resolving JSON pointers in your current packet and at most six actual own proof/helper attempts. Alleging an interface/source error grants no premise or acceptance. Do not keep repeating inability messages: use this tool. Ordinary proof errors should first be repaired locally.',
+                    'Request diagnosis while retaining this author. Reference current packet pointers and at most six actual own attempts. A source allegation requires source_issue with a verbatim source_quote and the mathematical defect. Ordinary errors, resource exhaustion or inability do not authorize ending the task.',
                     {'layer':{'type':'string','enum':['local_proof','interface','source','unknown']},
                      'explanation':{'type':'string'},'locations':{'type':'array','items':{'type':'string'}},
                      'candidates':{'type':'array','items':{'type':'object','properties':{
                          'kind':{'type':'string','enum':['proof','auxiliary']},'candidate':{'type':'integer'}},
-                         'required':['kind','candidate'],'additionalProperties':False}}},
+                         'required':['kind','candidate'],'additionalProperties':False}},
+                     'source_issue':{'type':'object','properties':{k:{'type':'string'} for k in
+                         ['kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty']},
+                         'required':['kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty'],
+                         'additionalProperties':False}},
                     ['layer','explanation','locations','candidates']))
                 self.system+=(' If the fixed interface or source appears inconsistent, report_proof_obstruction '
                     'with located actual evidence instead of silently changing it or repeating a blocker. '
@@ -168,6 +172,18 @@ class Stage(carrier.Trial):
         self.tool_names = {t['name'] for t in self.tools}
         self.accepted = None
         self.own_lean_drafts={'proof':{},'auxiliary':{}}
+        self.local_helpers=[]
+        self.diagnose_obstruction=None
+        self.diagnosis_cache={}
+        if mode=='proof':
+            self.system += (' Successful check_auxiliary results register a same-node yui_aux_... theorem. '
+                'Use its returned application in later helpers or the final proof instead of copying its body. '
+                'All helper proofs remain in standalone assembly and use only the listed inputs. '
+                'Unknown difficulty or repeated failure does not end this task. A source issue must locate '
+                'a false implication or major missing mathematical justification; not missing Lean syntax or APIs.')
+            self.continuation_prompt=('Continue the same proof from saved drafts, checked helpers and actual feedback. '
+                'Repair the next concrete implementation error. Repeated failures or inability alone are not '
+                'a source defect and do not end the task. Submit the complete unchanged target when checked.')
         self.stop_on_submission=True
         self.submission_closed=False
         self.api_calls = self.lean_calls = self.rpc_id = 0
@@ -198,9 +214,7 @@ class Stage(carrier.Trial):
                 raise ir.Invalid('stage already closed; no overwrite')
             if self.mode=='proof' and self.instruction_arm=='yui' and name=='report_proof_obstruction':
                 report=proof_repair.obstruction(self,args)
-                self.request_proof_repair(report)
-                result={'accepted':False,'stage_complete':False,'repair_requested':True,
-                        'next_action':'End this turn. The controller owns serial diagnosis; no proof was accepted.'}
+                result=self.request_proof_repair(report)
             elif name == 'find_strategies':
                 c=ir.contract(self.cpath)
                 if self.mode=='proof':
@@ -239,25 +253,40 @@ class Stage(carrier.Trial):
                     self.accepted = value
             elif name in ('check_transition','submit_transition'):
                 value = args['proof']
+                import local_helpers
+                packaged=local_helpers.package(self.cpath,self.plan,self.step,value,self.local_helpers)
                 number=len(self.own_lean_drafts['proof'])+1
-                record={'proof':value,'statement':self.plan['steps'][next(i for i,s in enumerate(self.plan['steps']) if s['id']==self.step)]['statement']}
+                record={'proof':value,'statement':self.plan['steps'][next(i for i,s in enumerate(self.plan['steps']) if s['id']==self.step)]['statement'],
+                        'proof_package':packaged}
                 self.own_lean_drafts['proof'][number]=record;record_path=self.logs/'lean-drafts'/f'proof-{number:04d}.json'
-                result = ir.check(self.cpath,self.plan,{self.step:value},only=self.step,timeout=self.lean_timeout())
+                result = ir.check(self.cpath,self.plan,{self.step:packaged},only=self.step,timeout=self.lean_timeout())
                 self.lean_calls += 1
                 if result['exit_code'] == 0 and name.startswith('submit'):
-                    self.accepted = {'proof':value}
+                    self.accepted = {'proof':packaged}
             elif self.mode=='proof' and name=='check_auxiliary':
                 number=len(self.own_lean_drafts['auxiliary'])+1
                 record={'statement':args['statement'],'proof':args['proof']}
                 self.own_lean_drafts['auxiliary'][number]=record;record_path=self.logs/'lean-drafts'/f'auxiliary-{number:04d}.json'
                 result=ir.check_auxiliary(self.cpath,self.plan,self.step,args['statement'],args['proof'],
-                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout())
+                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout(),helpers=self.local_helpers)
                 self.lean_calls+=1
                 result['candidate']=number
+                if result.get('auxiliary_valid') and result.get('lean_sha256'):
+                    import local_helpers
+                    helper=local_helpers.append(self.cpath,self.plan,self.step,self.local_helpers,
+                        args['statement'],args['proof'],result)
+                    self.local_helpers.append(helper)
+                    ir.write(self.logs/'local-helpers.json',self.local_helpers)
+                    result['helper']={'name':helper['name'],'statement':helper['statement'],
+                        'application':'@'+helper['name']+' '+ ' '.join(
+                            [p['name'] for p in ir.contract(self.cpath)['parameters']]+
+                            [p['binder'] for p in ir.local_packet(self.cpath,self.plan,self.step)['inputs']]),
+                        'scope':'Checked same-node theorem; available in later checks and the final body.'}
             elif self.mode=='proof' and name=='read_lean_draft':
                 kind=args['kind']
                 if kind=='index':
-                    result={'own_same_stage_attempts':{key:[{'candidate':n,'statement_preview':r['statement'][:300],
+                    result={'local_helpers':[{'name':r['name'],'statement':r['statement']} for r in self.local_helpers],
+                        'own_same_stage_attempts':{key:[{'candidate':n,'statement_preview':r['statement'][:300],
                         'actual_check':{k:r.get('check',{}).get(k) for k in ['status','exit_code','auxiliary_valid','error']}}
                         for n,r in rows.items()] for key,rows in self.own_lean_drafts.items()},
                         'scope':'Only actual own-stage attempts; no helper has been added as a premise.'}
@@ -304,13 +333,45 @@ class Stage(carrier.Trial):
         if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
 
     def request_proof_repair(self,report):
-        self.repair_request=report
-        ir.write(self.logs/'proof-repair-request.json',report)
-        ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(self.proof_progress.seen)})
-        self.submission_closed=True;self.stage_close_reason='PROOF_REPAIR_ESCALATION'
+        key=report['evidence_key']
+        out=self.logs/'diagnosis-requests'/key
+        ir.write(out/'request.json',report)
         recorder=getattr(self,'execution',None)
-        if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',
-            repair_request=str(self.logs/'proof-repair-request.json'),proof_progress=self.proof_progress.metadata())
+        failed=[self.own_lean_drafts[x['kind']][x['candidate']]['check'] for x in report['candidates']
+                if self.own_lean_drafts[x['kind']][x['candidate']]['check'].get('exit_code',0)!=0]
+        if report['layer']!='source' and failed and all(proof_repair.resource_only(r) for r in failed):
+            result={'accepted':False,'stage_complete':False,'repair_requested':False,
+                'next_action':'Resource exhaustion alone is not an interface/source defect. Continue the same author using ST020 and checked helpers.',
+                'diagnosis':{'route':'LOCAL_PROOF_REPAIR','basis':'RECORDED_RESOURCE_LIMIT_ONLY'}}
+            ir.write(out/'diagnosis.json',result['diagnosis'])
+            return result
+        if self.diagnose_obstruction is None:
+            return {'accepted':False,'stage_complete':False,'repair_requested':False,
+                    'next_action':'No qualified diagnosis is available. Retain your work and continue the unchanged local obligation.'}
+        if key in self.diagnosis_cache:
+            diagnosis=self.diagnosis_cache[key]
+        else:
+            if recorder:recorder.task(self.execution_task,activity='WAITING_FOR_DIAGNOSIS')
+            try:
+                with self.budget.suspended():
+                    diagnosis=self.diagnose_obstruction(self,report,out)
+            finally:
+                if recorder:recorder.task(self.execution_task,activity='MODEL_RUNNING')
+            self.diagnosis_cache[key]=diagnosis
+        ir.write(out/'diagnosis.json',diagnosis)
+        route=diagnosis['route']
+        handoff=route in {'SOURCE_REVIEW_REQUIRED','INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED'}
+        if handoff:
+            self.repair_request={**report,'diagnosis':diagnosis}
+            ir.write(self.logs/'proof-repair-request.json',self.repair_request)
+            ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(self.proof_progress.seen)})
+            self.submission_closed=True;self.stage_close_reason='QUALIFIED_PROOF_DEFECT'
+            if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',
+                repair_request=str(self.logs/'proof-repair-request.json'),proof_progress=self.proof_progress.metadata())
+        return {'accepted':False,'stage_complete':False,'repair_requested':handoff,
+                'diagnosis':diagnosis,'same_author_retained':True,
+                'next_action':('Hand off the qualified defect to the controller.' if handoff else
+                    'Continue this same obligation using the diagnosis; preserve checked helpers. Difficulty is not a source defect.')}
 
     def after_unaccepted_turn(self):
         progress=getattr(self,'proof_progress',None)
@@ -326,7 +387,10 @@ class Stage(carrier.Trial):
         super().check_runtime_state()
         if not getattr(self,'_stopping',False) and not getattr(self,'submission_closed',False):
             recorder=getattr(self,'execution',None)
-            if recorder:recorder.check(self.execution_task)
+            if recorder:
+                recorder.check(self.execution_task)
+                parent=getattr(self,'parent_execution_task',None)
+                if parent:recorder.check(parent)
 
     def timeout_policy_metadata(self):
         snapshot=getattr(self,'native_timeout_snapshot',None)

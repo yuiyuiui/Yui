@@ -102,7 +102,8 @@ def proof_bundle(cpath, ppath, bpath):
     else:
         ir.need(bundle.get('plan_digest') == hashed(plan), 'stale proof plan digest')
     ir.need(set(bundle['proofs']) == set(nodes), 'missing/extra proof bodies')
-    for body in bundle['proofs'].values(): ir.proof_text(body)
+    import local_helpers
+    for sid,body in bundle['proofs'].items():local_helpers.unpack(cpath,plan,sid,body)
     return plan,bundle['proofs']
 
 
@@ -147,6 +148,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
+             HERE/'scripts/local_helpers.py',
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',

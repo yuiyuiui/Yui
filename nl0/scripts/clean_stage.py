@@ -21,7 +21,9 @@ class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None):
         logs=Path(logs).resolve()
-        if not (phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r'):
+        local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
+        local_diagnosis=(phase=='interface-proof-diagnosis' and budget is not None and budget.role=='proof')
+        if not (local_review or local_diagnosis):
             budget = pilot.concurrency.serial_budget(budget)
         super().__init__(logs, logs / 'unused-contract.json', phase, timeout, budget=budget)
         if arm not in {'yui', 'direct'}:

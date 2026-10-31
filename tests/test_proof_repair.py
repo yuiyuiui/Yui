@@ -17,6 +17,7 @@ import model_pilot
 import proof_diagnosis
 import proof_repair
 import scheduler
+import concurrency
 from lean_fixtures import shared_fixture, LIFT
 
 
@@ -32,6 +33,11 @@ class ProofRepairTests(unittest.TestCase):
     def stage(self,*,arm='yui'):
         stage=model_pilot.Stage(self.root/f'worker-{len(self.stages)}',self.cpath,'proof',None,
             self.plan,'T001',instruction_arm=arm)
+        stage.budget=concurrency.Budget(concurrency.resolve(1),role='proof')
+        # Synthetic qualified diagnosis for handoff-path controls only.
+        stage.diagnose_obstruction=lambda author,report,out: {
+            'route':'SOURCE_REVIEW_REQUIRED' if report['layer']=='source' else 'LOCAL_PROOF_REPAIR',
+            'scope':'Synthetic controller fixture, not a mathematical review'}
         self.stages.append(stage);return stage
 
     def simulate(self,stage,actions=None,finish=None):
@@ -51,7 +57,12 @@ class ProofRepairTests(unittest.TestCase):
 
     def report(self):
         return {'layer':'source','explanation':'Compare the supplied target with its located source statement.',
-                'locations':['/target','/source_steps/0/text'],'candidates':[]}
+                'locations':['/target','/source_steps/0/text'],'candidates':[],
+                'source_issue':{'kind':'MISSING_JUSTIFICATION',
+                    'source_quote':ir.local_packet(self.cpath,self.plan,'T001')['source_steps'][0]['text'],
+                    'hypotheses':'Synthetic allowed hypotheses','claim':'Synthetic test claim',
+                    'defect':'Synthetic missing mathematical implication',
+                    'why_not_lean_difficulty':'Controller fixture only; no mathematical verdict'}}
 
     def test_empty_compiler_obstruction_does_not_close_the_author(self):
         stage=self.stage()
@@ -74,13 +85,13 @@ class ProofRepairTests(unittest.TestCase):
             candidates=[{'kind':'auxiliary','candidate':1}]))
         self.assertIn('failed own-context check',result['error']);self.assertIsNone(stage.repair_request)
 
-    def test_one_failed_current_attempt_can_escalate_a_header_problem(self):
+    def test_failed_check_alone_does_not_establish_a_header_problem(self):
         stage=self.stage()
         with patch.object(ir,'check',return_value={'exit_code':1,'stdout':'fixture declaration header error'}):
             stage.dispatch('check_transition',{'proof':'exact h_H001'})
         result=stage.dispatch('report_proof_obstruction',dict(self.report(),layer='interface',
             candidates=[{'kind':'proof','candidate':1}]))
-        self.assertTrue(result['repair_requested']);self.assertIsNotNone(stage.repair_request)
+        self.assertFalse(result['repair_requested']);self.assertIsNone(stage.repair_request)
 
     def test_idle_turn_accounting_has_no_automatic_retirement_threshold(self):
         stage=self.stage();_,turns=self.simulate(stage,finish=8)
@@ -235,7 +246,7 @@ class ProofRepairTests(unittest.TestCase):
         import run_graph,workflow
         row={'status':'GRAPH_REPAIR_REQUIRED','repair_requests':{'T001':{'evidence_key':'same'}}}
         def run(c,p,out,**kw):ir.write(out/'report.json',row);return row
-        for route in ['SOURCE_REVIEW_REQUIRED','UNRESOLVED','INTERFACE_REPAIR_REQUIRED']:
+        for route in ['SOURCE_REVIEW_REQUIRED','INTERFACE_REPAIR_REQUIRED']:
             with patch.object(run_graph,'run',side_effect=run),patch.object(workflow,'bound'),\
                     patch.object(full,'stage_seconds',return_value=None),\
                     patch.object(proof_diagnosis,'run',return_value={'route':route}):

@@ -39,3 +39,12 @@ Audit A, model reasoning/tool time, assembly and final checks separately.
 Parallel conversion requires stable interfaces and final proof closure; the
 critical path, total work and success rate all matter. Internal regression
 fixtures are functional controls, not new mathematical tests or benchmarks.
+
+Before parallel translation, preserve the mathematical information actually
+needed by each obligation: domains and hypotheses, the meaning of equality or
+convergence (pointwise, almost everywhere, norm, and so on), dependencies of
+uniform bounds, and conditions for exchanging limits, derivatives, sums or
+integrals when the argument uses them. Resolve a genuine ambiguity in the
+existing step/explanation fields. Do not expand every routine inference into a
+separate node or prescribe Lean tactics in NL0. A long formal implementation is
+not by itself a gap in the accepted mathematical argument.

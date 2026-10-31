@@ -36,7 +36,7 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    obligation; success of a helper alone does not accept the target.
 
 5. **Repair after a bounded check.** Native checks have a separate per-call wall
-   limit, normally 300 seconds, and use Lean's finite default heartbeat budget.
+   limit, normally 180 seconds, and use the controller-owned 20,000,000 heartbeat budget.
    A timeout or heartbeat diagnostic leaves the goal unaccepted and returns
    control to the same worker. Inspect the retained candidate and diagnostic,
    then check a smaller typed application, conversion or proof fragment before
@@ -56,3 +56,18 @@ not an inference rule. The strict declaration check defines the proposition,
 without proving it, and rejects unresolved holes and non-proposition goals.
 `#check` is a useful reader aid, not sufficient declaration acceptance. A proof
 body cannot resolve a hole in its preceding theorem declaration.
+
+Checked auxiliary propositions receive a `yui_aux_...` name and an explicit
+application with the existing local parameters/inputs. Reuse these theorems in
+later auxiliary checks and the final body. The controller retains their actual
+proof bodies and compiles them into standalone assembly. They are same-node
+implementation lemmas, not extra assumptions. Read the helper index after a
+context reset; never rebuild a checked helper merely because a turn ended.
+
+Separate diagnostic printing from proving. `show_term` and similar suggestion
+output may spend substantial time after the proof tactic runs. If that diagnostic
+wrapper is implicated, check the same proof without it; only the new successful
+check establishes acceptance. Do not ignore an unsuccessful process exit. If
+small helpers pass but a monolithic body exhausts resources, retain the separate
+checked helper declarations and compose them rather than repeatedly copying
+their bodies into a growing proof.

@@ -133,6 +133,5 @@ elab "#nl2lean_audit_probe" : command => do
       ("frozen_comparisons", toJson frozenComparisons), ("dependencies", dependencies)]
   logInfo m!"NL2LEAN_AUDIT_JSON:{result.compress}"
 
-set_option maxHeartbeats 0 in
 #nl2lean_audit_probe
 end NL2LeanAuditProbe

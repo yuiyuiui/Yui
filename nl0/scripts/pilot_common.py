@@ -81,11 +81,14 @@ def transport_sandbox_profile(work: Path) -> str:
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
              output: Path | None = None, timeout: float | None = None) -> dict:
-    timeout = __import__('runtime_config').native_timeout(timeout)
+    config = __import__('runtime_config')
+    timeout = config.native_timeout(timeout)
+    heartbeats = config.native_heartbeats()
     lock = load_lock()
     for name in ['home', 'tmp', 'output']:
         (work / name).mkdir(parents=True, exist_ok=True)
-    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1']
+    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1',
+           '-DmaxHeartbeats='+str(heartbeats)]
     if output: cmd += ['-o', str(output)]
     cmd += [str(file)]
     if sandbox:
@@ -131,6 +134,7 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
                         result.update(timed_out=True,error_kind='LEAN_TIMEOUT',
                                       timeout_seconds=timeout,timeout_scope='native_call')
                     break
+        result['native_limits'] = {'timeout_seconds': timeout, 'max_heartbeats': heartbeats}
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
         return result

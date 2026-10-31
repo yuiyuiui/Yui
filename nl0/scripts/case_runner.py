@@ -285,7 +285,9 @@ def execute(job, root=None):
                         Gate(root/'logs/controller-errors',recorder=recorder,task='case-controller',
                              stage=recorder.state.get('phase')).pause(
                             outcome_error(saved),resumable=False,
-                            checkpoint={'preserve_completed_work':True,'restart_whole_workflow':False})
+                            checkpoint={'preserve_completed_work':True,'restart_whole_workflow':False,
+                                **({'source_issue_notices':saved.get('checkpoint',{}).get('source_issue_notices',[])}
+                                   if saved.get('status')=='PROOF_REVIEW_REQUIRED' else {})})
                 except execution.Cancelled:
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
             passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}

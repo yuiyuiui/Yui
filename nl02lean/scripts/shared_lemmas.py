@@ -79,7 +79,8 @@ def reuse_body(entry, requested):
     body = f"have {local_name} : {quantified(old)} := by\n"
     if names:
         body += '  intro ' + ' '.join(names) + '\n'
-    body += ir.proof_text(entry['proof']) + '\n'
+    from local_helpers import as_tactic
+    body += ir.proof_text(as_tactic(entry['proof'],old)) + '\n'
     args = [p['name'] for p in requested['parameters']] + [p['binder'] for p in requested['inputs']]
     return body + f'exact @{local_name}' + ((' ' + ' '.join(args)) if args else '')
 
@@ -143,6 +144,11 @@ class Store:
     def admit(self, cpath, plan, sid, proof, checked=None):
         start = time.monotonic()
         value = obligation(cpath, plan, sid)
+        if isinstance(proof,dict):
+            # The existing external store format holds a single tactic body.
+            # Keep node-local checked modules in the run rather than flattening
+            # them merely to populate an optional cache.
+            return {'status':'SKIPPED_NODE_LOCAL_HELPERS','registration_seconds':time.monotonic()-start}
         ir.proof_text(proof)
         key = signature_key(value)
         prior, _ = self.lookup(value)

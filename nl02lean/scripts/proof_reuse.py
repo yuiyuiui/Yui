@@ -1,5 +1,6 @@
 """Explicit same-case reuse of an identical local Lean program, checked again."""
 from pathlib import Path
+from copy import deepcopy
 import hashlib
 import json
 import shutil
@@ -97,6 +98,13 @@ def restore_repair_drafts(stage,previous,*,reviewed_interface=None):
     if packet!=current and not reviewed_repair(oldc,oldplan,stage.cpath,stage.plan,stage.step,reviewed_interface):return None
     ir.need(result.get('model_selection')==stage.model_selection,'Prior own proof profile changed')
     restored=[]
+    helpers=old/'local-helpers.json'
+    if packet==current and helpers.is_file():
+        import local_helpers
+        rows=ir.load(helpers)
+        local_helpers.validate(stage.cpath,stage.plan,stage.step,rows)
+        stage.local_helpers=rows
+        ir.write(stage.logs/'local-helpers.json',rows)
     for kind in ['proof','auxiliary']:
         for file in sorted((old/'lean-drafts').glob(kind+'-*.json')):
             ir.need(not file.is_symlink(),'Untrusted own-draft link')
@@ -125,10 +133,15 @@ def restore_repair_drafts(stage,previous,*,reviewed_interface=None):
 
 def retain_recheck_failure(stage,candidate,checked):
     """Return an inherited own body and its new failure to the repairing worker."""
-    ir.need(checked.get('exit_code')!=0 and isinstance(candidate.get('body'),str),
+    ir.need(checked.get('exit_code')!=0 and isinstance(candidate.get('body'),(str,dict)),
             'Only a failed current recheck needs a repair draft')
+    import local_helpers
+    helpers,body=local_helpers.unpack(stage.cpath,stage.plan,stage.step,candidate['body'])
+    if helpers:
+        stage.local_helpers=deepcopy(helpers)
+        ir.write(stage.logs/'local-helpers.json',helpers)
     number=max(stage.own_lean_drafts['proof'],default=0)+1
-    row={'proof':candidate['body'],
+    row={'proof':body,'proof_package':candidate['body'],
         'statement':next(x['statement'] for x in stage.plan['steps'] if x['id']==stage.step),
         'check':checked,'origin':{k:v for k,v in candidate.items() if k!='body'}}
     stage.own_lean_drafts['proof'][number]=row

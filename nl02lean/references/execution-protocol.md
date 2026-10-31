@@ -50,9 +50,9 @@ output ownership. User cancellation remains an explicit terminal outcome. No ada
 Omitted or null `time_budget_seconds` means unlimited whole-case execution.
 Configuration also leaves stage time limits and the total token budget null. The
 runtime does not cap model-call count or stop a healthy task because tool-result
-idle time exceeded a threshold. Each native Lean call has a separate 300-second
-wall limit from `config.json` (`timeouts.native_seconds`), uses Lean's finite
-default heartbeat budget and has no artificial per-process heap quota. A shorter
+idle time exceeded a threshold. Each native Lean call has a separate 180-second
+wall limit from `config.json` (`timeouts.native_seconds`), uses the configured 20,000,000
+heartbeat budget and has no artificial per-process heap quota. A shorter
 explicit caller or remaining case/stage deadline takes precedence. A native
 timeout terminates and reaps the owned process, retains the candidate and actual
 diagnostic, and returns exit code 124 with `error_kind: LEAN_TIMEOUT` to the same
@@ -66,11 +66,14 @@ queries. Card hashes/revision and unavailable-advice reasons are retained with
 the original failed result. Explicit cancellation and actual execution failures
 retain their stop rules; ordinary candidate rejection permits local repair.
 
-Proof workers may submit `report_proof_obstruction` with located own evidence.
-Other healthy/queued nodes keep their work. After active handoffs, serial global
-connection repair may change internal bodies and connections, never frozen E/P
-or meaning-determining definitions. Located frozen-contract/source defects wait
-for the user. No fixed idle-turn threshold retires a round or cancels siblings.
+Proof workers may request `report_proof_obstruction` with located own evidence.
+The retained author releases its activity slot while the diagnostic uses the
+same bounded proof budget. Local or uncertain outcomes return to that author;
+only confirmed substantive defects enter the existing handoff routes. Other
+healthy/queued nodes keep their work. Connection repair may change internal
+bodies and connections, never frozen E/P or meaning-determining definitions.
+Confirmed source defects and protected contract defects wait for the user.
+No fixed idle-turn threshold retires a round or cancels siblings.
 See [repair routing](proof-repair.md) for the allowed transitions.
 
 Only an explicit user request may enable a positive case deadline for a separate

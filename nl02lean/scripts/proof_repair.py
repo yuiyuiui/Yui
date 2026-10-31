@@ -3,13 +3,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
-POLICY = {'version':'proof-progress-and-repair-2', 'completed_idle_turns':None,
-          'scope':'Passive progress accounting; only explicit located reports request repair.'}
+POLICY = {'version':'proof-progress-and-repair-3', 'completed_idle_turns':None,
+          'scope':'A diagnosis request keeps the author active; only a qualified defect authorizes handoff.'}
 
 
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+
+
+def resource_only(result):
+    """Resource advice can coexist with an earlier ordinary compiler error."""
+    from strategy_bank import native_timeout_kind
+    if not native_timeout_kind(result):return False
+    text=result.get('stdout','')+'\n'+result.get('stderr','')
+    errors=re.findall(r'^.*\.lean:\d+:\d+:\s+error(?:\([^\n)]*\))?:([^\n]*)',text,re.MULTILINE)
+    return all('timeout' in message and 'heartbeat' in message for message in errors)
 
 
 class RoundInterrupted(Exception):
@@ -52,7 +62,8 @@ def obstruction(stage, value, *, automatic=False):
     import audit_b
     import ir
     required={'layer','explanation','locations','candidates'}
-    ir.need(isinstance(value,dict) and set(value)==required,'Obstruction needs layer, explanation, locations and candidates')
+    ir.need(isinstance(value,dict) and required <= set(value) <= required|{'source_issue'},
+            'Obstruction needs layer, explanation, locations and candidates')
     ir.need(value['layer'] in {'local_proof','interface','source','unknown'},'Unknown alleged obstruction layer')
     ir.need(isinstance(value['explanation'],str) and 1<=len(value['explanation'].strip())<=12000,
             'Provide a bounded concrete obstruction explanation')
@@ -80,6 +91,7 @@ def obstruction(stage, value, *, automatic=False):
     else:
         ir.need(any(p.startswith('/source_steps/') for p in value['locations']),
                 'A source obstruction needs a concrete original source location')
+        validate_source_issue(value.get('source_issue'),packet)
     report={'version':POLICY['version'],'step':stage.step,'reason':'NO_OBSERVABLE_PROGRESS' if automatic else 'WORKER_REPORTED_OBSTRUCTION',
             **value,'contract_sha256':ir.digest(stage.cpath),'plan_sha256':digest(stage.plan),
             'packet_sha256':digest(packet),'candidate_evidence':evidence,
@@ -87,5 +99,28 @@ def obstruction(stage, value, *, automatic=False):
             'acceptance':False,'scope':'Allegation and actual local evidence only; serial diagnosis and fresh review decide the repair boundary.'}
     # This identity excludes prose, counters and timestamps. It records repeated
     # evidence without authorizing a stop or a fresh-context verdict resample.
-    report['evidence_key']=digest([report['packet_sha256'],sorted(stage.proof_progress.seen)])
+    stable=[]
+    for item in value['candidates']:
+        row=stage.own_lean_drafts[item['kind']][item['candidate']]
+        helpers=row.get('proof_package',{})
+        helpers=helpers.get('helpers',[]) if isinstance(helpers,dict) else []
+        stable.append(digest([item['kind'],row['statement'],row['proof'],
+            [r['sha256'] for r in helpers],row['check'].get('exit_code'),row['check'].get('error_kind')]))
+    report['evidence_key']=digest([report['packet_sha256'], sorted(value['locations']),
+                                  sorted(stable), value.get('source_issue')])
     return report
+
+
+def validate_source_issue(value, packet):
+    """Require a concrete mathematical allegation, never certify its truth."""
+    import ir
+    fields={'kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty'}
+    ir.need(isinstance(value,dict) and set(value)==fields,
+            'A source issue needs kind, source_quote, hypotheses, claim, defect and why_not_lean_difficulty')
+    ir.need(value['kind'] in {'FALSE_IMPLICATION','MISSING_JUSTIFICATION'},'Unknown mathematical issue kind')
+    for key in fields-{'kind'}:
+        ir.need(isinstance(value[key],str) and 1<=len(value[key].strip())<=12000,
+                'Provide concrete mathematical source evidence: '+key)
+    source='\n'.join(str(s.get('text','')) for s in packet['source_steps'])
+    ir.need(value['source_quote'] in source,'The source issue must quote the current NL step verbatim')
+    return value

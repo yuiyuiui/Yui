@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import contextmanager
 
 import ir
 from execution_state import current
@@ -66,6 +67,7 @@ class Budget:
         return self
 
     def __exit__(self, kind, value, traceback):
+        if not getattr(self._local, 'active', False):return
         with self._lock:
             self._local.row['finished_offset_seconds'] = time.monotonic() - self._start
             self._local.row['raised'] = kind.__name__ if kind else None
@@ -73,6 +75,16 @@ class Budget:
         self._local.active = False
         if self._local.recorder: self._local.recorder.model_slot(-1, role=self.role)
         self._slots.release()
+
+    @contextmanager
+    def suspended(self):
+        """A tool-blocked author keeps its session but lends its active slot."""
+        held = getattr(self._local, 'active', False)
+        if held:self.__exit__(None,None,None)
+        try:
+            yield
+        finally:
+            if held:self.__enter__()
 
     def report(self):
         with self._lock:
