@@ -93,7 +93,7 @@ partial provider argument/SSE events, so the former consecutive-whitespace and
 raw-provider-terminal observers are not installed or claimed for native runs.
 Complete tool arguments are validated before execution. Native-reported errors
 and process/reader failures follow the retained fault lifecycle; no synthetic
-terminal/usage or partial-call execution is permitted. Legacy raw-event helper
+terminal/usage or partial-call execution is permitted. Historical event-classification
 tests do not establish protection of an unobservable native stream.
 
 Case-local execution snapshots/control files are controller material, not

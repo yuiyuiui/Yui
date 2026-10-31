@@ -1,6 +1,5 @@
 """Remote-failure continuation and cancellation controls; no provider calls."""
 import harness_support
-from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
@@ -38,7 +37,7 @@ class RemoteRetryTests(unittest.TestCase):
         t.request_lock=threading.Lock()
         t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
         t.tool_history={};t.model_calls={};t.inbox=queue.Queue();t.pending_turn_start_id=None
-        t.last_turn_event=None;t.active_turn_id=None;t.check_argument_guard=Mock();t.execution=None
+        t.last_turn_event=None;t.active_turn_id=None;t.check_runtime_state=Mock();t.execution=None
         t.pause_error=Mock(side_effect=RuntimeError('Explicit retained pause software fixture'))
         t.execution_task='neutral-task'
         return t
@@ -118,10 +117,6 @@ class RemoteRetryTests(unittest.TestCase):
         self.assertEqual(retry.delay(1),60);self.assertEqual(retry.delay(2),60)
         self.assertEqual(retry.delay(999),60)
         self.assertEqual(retry.delay(1,retry_after_seconds=600),60)
-        self.assertEqual(retry.retry_after('30'),30)
-        self.assertEqual(retry.retry_after('Wed, 21 Oct 2026 07:01:00 GMT',
-            at=datetime(2026,10,21,7,tzinfo=timezone.utc)),60)
-        for value in ['invalid','nan','inf',True]:self.assertIsNone(retry.retry_after(value))
 
     def test_cancellation_and_explicit_deadline_interrupt_the_wait(self):
         reason={'kind':'REMOTE_SERVICE_TRANSIENT'}

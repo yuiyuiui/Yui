@@ -20,12 +20,10 @@ import tempfile
 import textwrap
 import threading
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
-from output_guard import ProviderTerminalWaitExceeded
 from runtime_config import model_profile
 import remote_retry
 
@@ -110,22 +108,6 @@ def format_proof_body(proof: str) -> str:
     return textwrap.indent(textwrap.dedent(proof).strip('\n'), '  ')
 
 
-def validate_model_event(event: dict, allowed_names: set[str] | None = None, *, strict: bool = False, expected_model=None) -> None:
-    allowed_names = TOOL_NAMES if allowed_names is None else allowed_names
-    items = [event.get('item', {})] + event.get('response', {}).get('output', [])
-    for item in items:
-        if strict and item and item.get('type') not in {'reasoning', 'message', 'function_call'}:
-            raise PermissionError('上游返回了未许可的输出项类型：' + str(item.get('type')))
-        if strict and item.get('type') == 'message' and item.get('role') != 'assistant':
-            raise PermissionError('上游消息角色不属于本题模型。')
-        if item.get('type') == 'function_call' and item.get('name') not in allowed_names:
-            raise PermissionError('上游返回了非白名单工具调用：' + str(item.get('name')))
-    if strict and event.get('response', {}).get('model') not in [None, expected_model or MODEL]:
-        raise PermissionError('上游实际返回了其他模型。')
-    if strict and event.get('type') in {'response.completed', 'response.incomplete', 'response.failed'}:
-        tier = event.get('response', {}).get('service_tier')
-        if tier not in [None, 'default', 'standard', 'auto']:
-            raise PermissionError('The actual model response used a non-Standard service tier.')
 
 
 def system_https_proxy() -> tuple[str, int] | None:
@@ -187,23 +169,19 @@ class Trial:
         self.native_turn_generation = 0
         self.request_turns = {}
         self.last_response_success = None
-        self.last_http_response = None
         self.rpc_id = 0
         self.inbox: queue.Queue = queue.Queue()
         self.started: float | None = None
         self.allowed_user_messages: set[str] = set()
         self.proc = None
-        self.model_history: dict[str, dict] = {}
         self.model_calls: dict[str, dict] = {}
         self.tool_history: dict[str, dict] = {}
-        self.prompt_cache_key = 'nl2lean-' + str(uuid.uuid4())
         self.phase = 'proof'
         self.continuation_count = 0
         self.turn_results: list[dict] = []
         self.last_turn_event = None
         self.active_turn_id = None
         self.pending_turn_start_id = None
-        self.cancelled_requests: dict[int, dict] = {}
         self.initial_user_message = None
 
     def lean_timeout(self) -> float | None:
@@ -335,14 +313,14 @@ class Trial:
 
     def receive_until(self, predicate, deadline: float | None):
         while deadline is None or time.monotonic() < deadline:
-            self.check_argument_guard()
+            self.check_runtime_state()
             execution=getattr(self,'execution',None)
             if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
             try: msg = self.inbox.get(timeout=1 if deadline is None else max(0, min(1, deadline - time.monotonic())))
             except queue.Empty:
                 if self.proc.poll() is not None: raise RuntimeError('Codex 传输进程提前结束。')
                 continue
-            self.check_argument_guard()
+            self.check_runtime_state()
             if not __import__('native_client').observe(self,msg):continue
             if msg.get('method') == 'turn/started':
                 self.active_turn_id = msg.get('params', {}).get('turn', {}).get('id')
@@ -355,8 +333,7 @@ class Trial:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
                 if (getattr(self,'submission_closed',False) and msg['params'].get('callId') not in self.tool_history
-                        or getattr(self, '_stopping', False) and (getattr(self, 'output_guard_notice', None)
-                            or getattr(self,'provider_wait_notice',None) or getattr(self,'native_infrastructure_fault',None))):
+                        or getattr(self, '_stopping', False) and getattr(self,'native_infrastructure_fault',None)):
                     # A completed call can race with the protective interrupt.
                     # Do not execute it after deciding to preserve an unfinished attempt.
                     self.proc.stdin.write(json.dumps({'id': msg['id'], 'error': {
@@ -402,17 +379,12 @@ class Trial:
                     'contentItems': [{'type': 'inputText', 'text': delivered}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
                 delivered_at=now()
-                wait_guard=getattr(self,'provider_wait_guard',None)
-                waiting=wait_guard.delivered(params['callId'],delivered_at) if wait_guard else None
-                origin=wait_guard.origin(params['callId']) if wait_guard else None
                 append(self.logs/'request-lifecycle.jsonl',{'event':'TOOL_RESULT_DELIVERED',
                     'call_id':params['callId'],'tool':params['tool'],'at_utc':delivered_at,
-                    'request_number':origin['request_number'] if origin else None,
-                    'delivery_boundary':'actual tool response flushed to native carrier stdin',
-                    'awaiting_provider_terminal':waiting is not None})
+                    'delivery_boundary':'actual tool response flushed to native carrier stdin'})
                 if execution:
                     execution.task(self.execution_task,last_tool_result_at_utc=delivered_at,
-                        activity='AWAITING_PROVIDER_TERMINAL' if waiting else 'TOOL_RESULT_DELIVERED',
+                        activity='TOOL_RESULT_DELIVERED',
                         last_activity_at_utc=delivered_at)
             elif 'method' in msg and 'id' in msg:
                 response = {'id': msg['id'], 'error': {'code': -32601, 'message': 'Not allowed by pilot harness'}}
@@ -426,7 +398,7 @@ class Trial:
         self.tool_history[call_id]=json.loads(delivered)
         return delivered
 
-    def check_argument_guard(self):
+    def check_runtime_state(self):
         reader_fault=getattr(self,'carrier_reader_fault',None)
         if reader_fault:raise RuntimeError('Local carrier message reader failed: '+json.dumps(reader_fault,ensure_ascii=False))
         if getattr(self,'_stopping',False) or getattr(self,'submission_closed',False):return
@@ -443,17 +415,6 @@ class Trial:
             self.pause_error(fault,resumable=False)
         local=getattr(self,'local_protocol_fault',None)
         if local:raise LocalProtocolRejection(local['reason'],local.get('details'))
-        notice = getattr(self, 'output_guard_notice', None)
-        if notice:
-            from output_guard import ModelOutputStalled
-            raise ModelOutputStalled(notice)
-        wait_guard=getattr(self,'provider_wait_guard',None)
-        wait_notice=wait_guard.check() if wait_guard else None
-        if wait_notice:
-            if not getattr(self,'provider_wait_notice',None):
-                self.provider_wait_notice=wait_notice
-                append(self.logs/'model-output-events.jsonl',{'event':'PROVIDER_TERMINAL_WAIT_EXCEEDED',**wait_notice})
-            raise ProviderTerminalWaitExceeded(self.provider_wait_notice)
 
     def rpc(self, method: str, params: dict, seconds: float = 30) -> dict:
         rid = self.send(method, params)
@@ -462,9 +423,6 @@ class Trial:
         return msg.get('result', {})
 
     def start_process(self) -> None:
-        # Native stdio does not expose partial provider argument/SSE events.
-        # Never advertise or install a dormant raw-stream watchdog here.
-        self.provider_wait_guard=None
         lock=load_lock()
         from native_runtime import for_stage
         for_stage(self.logs,lock['codex'])
@@ -557,10 +515,6 @@ class Trial:
                 incident_retries=0
                 self.remote_incident_retries=0
             if turn.get('status') != 'completed':
-                limit = getattr(self, 'provider_output_limit', None)
-                if limit and 'max_output_tokens' in json.dumps(turn.get('error')):
-                    from output_guard import ModelOutputLimit
-                    raise ModelOutputLimit(limit)
                 fault=__import__('native_client').fault(turn.get('error') or self.last_native_error)
                 reason=remote_retry.classify(fault)
                 if (reason and not getattr(self,'local_protocol_fault',None)
@@ -568,8 +522,7 @@ class Trial:
                     if incident_retries < REMOTE_RETRY_POLICY['maximum_attempts']:
                         incident_retries+=1;self.remote_retry_count+=1
                         self.remote_incident_retries=incident_retries
-                        wait=remote_retry.delay(incident_retries,
-                            retry_after_seconds=getattr(self,'last_retry_after',None))
+                        wait=remote_retry.delay(incident_retries)
                         self.wait_remote_retry(wait,reason,turn,deadline)
                     else:
                         self.pause_error(fault,retries=incident_retries)
@@ -634,7 +587,7 @@ class Trial:
         end=time.monotonic()+seconds
         sleeper=threading.Event()
         while time.monotonic()<end:
-            self.check_argument_guard()
+            self.check_runtime_state()
             if execution:execution.check(self.execution_task)
             if deadline is not None and time.monotonic()>=deadline:
                 raise TimeoutError('Explicit stage deadline reached during remote retry wait')
@@ -764,11 +717,6 @@ class Trial:
                 self.receive_until(lambda m: m.get('method') == 'turn/completed',
                     self.started + self.timeout if self.timeout is not None else None)
                 result['environment_audit_status'] = 'COMPLETED'
-        except ProviderTerminalWaitExceeded as e:
-            result.update(status='UNFINISHED',task_outcome='PROVIDER_TERMINAL_WAIT_EXCEEDED',
-                stop_reason='PROTOCOL_WAIT_GUARD',attribution='UNVERIFIED',provider_wait_evidence=e.evidence,error=str(e))
-            try:self.interrupt_active_turn(reason='PROVIDER_TERMINAL_WAIT_EXCEEDED')
-            except Exception as stop_error:result['interrupt_error']=str(stop_error)
         except Exception as e:
             result['status'] = 'TIMEOUT' if isinstance(e, TimeoutError) else 'ERROR'
             result['error'] = str(e)

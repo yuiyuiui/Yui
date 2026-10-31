@@ -101,7 +101,7 @@ class NativeProtocolTests(unittest.TestCase):
         self.stage.interrupt_active_turn=Mock(side_effect=TimeoutError('no native acknowledgement'))
         self.stage.pause_error=Mock(side_effect=RuntimeError('retained pause'))
         for _ in range(2):
-            with self.assertRaisesRegex(RuntimeError,'retained pause'):self.stage.check_argument_guard()
+            with self.assertRaisesRegex(RuntimeError,'retained pause'):self.stage.check_runtime_state()
         self.stage.interrupt_active_turn.assert_called_once_with(reason='NATIVE_INFRASTRUCTURE_FAULT')
         error=self.stage.pause_error.call_args.args[0]
         self.assertIs(error['current_generation_stop_confirmed'],False)

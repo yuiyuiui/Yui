@@ -9,7 +9,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 import runtime_config
-from output_guard import ProviderWaitGuard
 from run_pilot import Trial
 
 
@@ -89,16 +88,6 @@ class UnlimitedExecutionTests(unittest.TestCase):
                 t.timeout=30
                 self.assertEqual(t.lean_timeout(),20)
 
-    def test_long_post_tool_wait_is_not_an_automatic_stop(self):
-        clock = [0]
-        guard = ProviderWaitGuard(clock=lambda: clock[0])
-        guard.normalized(1)
-        guard.observe({'type': 'response.output_item.done', 'item': {
-            'type': 'function_call', 'id': 'item', 'call_id': 'call', 'name': 'check_draft'}}, 1)
-        self.assertIsNotNone(guard.delivered('call', 'synthetic-delivery'))
-        clock[0] = 99999999
-        self.assertIsNone(guard.check())
-        self.assertIn(1, guard.waits)
 
 
 if __name__ == '__main__':

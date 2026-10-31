@@ -277,7 +277,7 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None;t.execution=None;t.execution_task='worker'
         t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
-        t.tool_history={'old-call':{'result':'retained'}};t.check_argument_guard=Mock()
+        t.tool_history={'old-call':{'result':'retained'}};t.check_runtime_state=Mock()
         t._fault_gate=self.gate();t.refresh_after_error_pause=Mock()
         values=[terminal(i,error) for i,error in enumerate(errors)]+[terminal(len(errors))]
         t.rpc=Mock(side_effect=lambda *a,**k:{'turn':{'id':str(t.rpc.call_count-1)}})

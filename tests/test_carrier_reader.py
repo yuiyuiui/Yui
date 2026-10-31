@@ -38,13 +38,13 @@ class CarrierReaderTests(unittest.TestCase):
             return original(path,value)
         with patch.object(run_pilot,'append',failed_log):callback()
         with self.assertRaisesRegex(RuntimeError,'synthetic event disk failure'):
-            self.stage.check_argument_guard()
+            self.stage.check_runtime_state()
         self.assertFalse(self.stage.inbox.empty())
 
     def test_invalid_native_json_is_a_local_protocol_fault_instead_of_silent_wait(self):
         callback=self.reader(['not a JSON RPC event\n']);callback()
         with self.assertRaisesRegex(RuntimeError,'JSON'):
-            self.stage.check_argument_guard()
+            self.stage.check_runtime_state()
         self.assertTrue((self.stage.logs/'carrier-reader-errors.jsonl').is_file())
 
     def test_valid_native_events_are_retained_before_delivery(self):
@@ -66,19 +66,19 @@ class CarrierReaderTests(unittest.TestCase):
 
     def test_nonobject_json_is_a_local_reader_fault(self):
         self.reader(['[]\n'])()
-        with self.assertRaisesRegex(RuntimeError,'must be an object'):self.stage.check_argument_guard()
+        with self.assertRaisesRegex(RuntimeError,'must be an object'):self.stage.check_runtime_state()
 
     def test_stdout_decode_failure_reaches_the_controller(self):
         class InvalidText:
             def __iter__(self):return self
             def __next__(self):raise UnicodeDecodeError('utf-8',b'\xff',0,1,'synthetic invalid native stdout')
         self.reader(InvalidText())()
-        with self.assertRaisesRegex(RuntimeError,'synthetic invalid native stdout'):self.stage.check_argument_guard()
+        with self.assertRaisesRegex(RuntimeError,'synthetic invalid native stdout'):self.stage.check_runtime_state()
 
     def test_reader_fault_is_retained_even_when_diagnostic_storage_also_fails(self):
         callback=self.reader(['invalid native JSON\n'])
         with patch.object(run_pilot,'append',side_effect=OSError('synthetic storage unavailable')):callback()
-        with self.assertRaisesRegex(RuntimeError,'synthetic storage unavailable'):self.stage.check_argument_guard()
+        with self.assertRaisesRegex(RuntimeError,'synthetic storage unavailable'):self.stage.check_runtime_state()
         self.assertIn('evidence_error',self.stage.carrier_reader_fault)
 
 

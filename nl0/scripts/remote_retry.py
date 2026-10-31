@@ -1,7 +1,4 @@
 """Positive classification and backoff for temporary remote service failures."""
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
-import math
 import re
 import errno
 import http.client
@@ -45,18 +42,6 @@ def transport_error(error):
     return {'code':code,'message':str(error),'exception_type':type(error).__name__}
 
 
-def retry_after(value, *, at=None):
-    """Parse a real Retry-After header; malformed values grant no delay."""
-    if isinstance(value,bool) or value is None:return None
-    try:
-        seconds=float(value)
-    except (ValueError,TypeError):
-        try:
-            date=parsedate_to_datetime(str(value))
-            if date.tzinfo is None:date=date.replace(tzinfo=timezone.utc)
-            seconds=(date-(at or datetime.now(timezone.utc))).total_seconds()
-        except (ValueError,TypeError,OverflowError):return None
-    return max(0,seconds) if math.isfinite(seconds) else None
 
 
 def diagnose(error):

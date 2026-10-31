@@ -101,9 +101,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json'),
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
     # An explicit node obstruction does not cancel its siblings or queued jobs.
-    repair_control=None
     def worker(sid, packet):
-        if repair_control:repair_control.check()
         cached=None;checked=None
         if prior_run is not None:
             import proof_reuse
@@ -115,7 +113,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
                     return {'proof':cached['body'],'model_worker_called':False,
                             'stage':{'status':'SAME_CASE_NATIVE_RECHECKED','previous_run':str(prior_run)}}
         stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm,
-                            timeout_policy=timeout_policy,repair_control=repair_control)
+                            timeout_policy=timeout_policy)
         if prior_run is not None:
             import proof_reuse
             proof_reuse.restore_cleanup_drafts(stage,prior_run)
@@ -133,8 +131,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
             with sessions.use('lean:'+sid):result,proof=stage.execute()
         else:result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
-    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder,
-                                   repair_control=repair_control)
+    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
     if result['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
