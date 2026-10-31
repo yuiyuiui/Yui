@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import threading
 
 POLICY = {'version':'proof-progress-and-repair-2', 'completed_idle_turns':None,
           'scope':'Passive progress accounting; only explicit located reports request repair.'}
@@ -17,16 +16,6 @@ class RoundInterrupted(Exception):
     """Retire this proof round for serial diagnosis, distinct from user cancellation."""
 
 
-class RoundControl:
-    """Legacy report container; a node report does not cancel sibling work."""
-    def __init__(self):
-        self.event=threading.Event();self.lock=threading.Lock();self.reports={}
-
-    def request(self, step, report):
-        with self.lock:self.reports[step]=report
-
-    def check(self):
-        return None
 
 
 class Progress:

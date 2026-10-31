@@ -34,7 +34,7 @@ class RoleSessionTests(unittest.TestCase):
         stage.submission_closed=True;stage.accepted={'own':'synthetic artifact'}
         stage.thread_id=getattr(stage,'thread_id','retained-native-thread')
         stage.rpc_id=41;stage.allowed_user_messages.add('own authorized history')
-        stage.model_history['own-item']={'id':'own-item'}
+        stage.model_calls['own-call']={'id':'own-item'}
         result={'status':'ACCEPTED','temporary_workspace_removed':True}
         write(stage.logs/'result.json',result);write(stage.logs/'accepted.json',stage.accepted)
         return result,stage.accepted
@@ -49,7 +49,7 @@ class RoleSessionTests(unittest.TestCase):
         active=self.sessions.roles['author']['stage']
         self.assertIs(active,first)
         self.assertEqual(active.thread_id,'retained-native-thread')
-        self.assertIn('own-item',active.model_history)
+        self.assertEqual(active.model_calls['own-call'],{'id':'own-item'})
         self.assertIn('own authorized history',active.allowed_user_messages)
         self.assertEqual(active.rpc_id,41)
         self.assertGreaterEqual(len(active.role_session['prior_submissions']),2)

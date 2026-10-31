@@ -52,11 +52,11 @@ class Sessions:
                     raise ValueError('A retained role cannot change its model profile')
                 if not {t['name'] for t in template.tools} <= entry['native_tools']:
                     raise ValueError('Role handoff requires tools absent from its original native registration')
-                stage.check_argument_guard()
+                stage.check_runtime_state()
                 transport = {k: getattr(stage, k) for k in (
                     'proc', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
-                    'model_history', 'model_calls', 'tool_history', 'allowed_user_messages',
-                    'prompt_cache_key', 'network_proxy','handoff_results',
+                    'model_calls', 'tool_history', 'allowed_user_messages',
+                    'network_proxy','handoff_results',
                     'native_usage_total') if hasattr(stage, k)}
                 owner_logs = getattr(stage, 'workspace_owner_logs', stage.logs)
                 if stage.mode=='proof' and template.mode=='proof':
@@ -92,7 +92,6 @@ class Sessions:
                     receipt['role_system_sha256']=__import__('hashlib').sha256(stage.system.encode()).hexdigest()
                     write(stage.logs/'native-client.json',receipt)
                 stage.workspace_owner_logs = owner_logs
-                stage.provider_wait_guard = None
             stage._role_dispatching = True
             stage.role_session = {'role': role, 'prior_submissions': list(entry['records']),
                 'restored_role': bool(self.history.get(role)),

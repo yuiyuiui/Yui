@@ -64,3 +64,13 @@ using gpt-6.1-sol/high with Standard requested and no fallback. This tests the
 production tool chain, not mathematical acceptance. Actual service tier remains
 unverified when the native client does not expose it. Compact evidence and log
 hashes are in [native-execution-validation.json](native-execution-validation.json).
+
+## Obsolete runtime cleanup validation
+
+The complete catalogues exercised 869 V1 and 879 V2 controls, including actual
+Lean inspection, standalone assembly and deterministic native-carrier faults.
+One migrated cancellation fixture initially checked the already-submitted role
+instead of its still-active sibling. The fixture was corrected; all 23 proof
+repair controls then passed in each variant. The shared-proof-graph inspector
+regression also passed with actual Lean under its 30-second control limit.
+No model inference or production owner notification is part of these checks.

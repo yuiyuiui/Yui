@@ -76,31 +76,6 @@ class IsolationTests(unittest.TestCase):
             import shutil
             shutil.rmtree(direct.work)
 
-    def test_output_protective_stops_preserve_unfinished_state_and_actual_health(self):
-        from output_guard import ModelOutputLimit, ModelOutputStalled
-        for i, (error_type, relay_fault) in enumerate([(ModelOutputLimit,False),
-                (ModelOutputStalled,False),(ModelOutputLimit,True)]):
-            worker=ArtifactStage(self.root/f'output-stop-{i}','Neutral controller test',phase='control',library=False)
-            worker.execution=None
-            worker.start_process=Mock()
-            worker.rpc=Mock(return_value={'thread':{'id':'neutral-thread'}})
-            worker.interrupt_active_turn=Mock()
-            def stopped(*args):
-                worker.started=time.monotonic()
-                raise error_type({'request_number':1,'reason':'synthetic controller test'})
-            worker.solve_turns=stopped
-            if relay_fault:(worker.logs/'relay-errors.jsonl').write_text('{"error":"TLS EOF"}\n')
-            with patch.object(worker,'pause_error',side_effect=__import__('execution_state').Cancelled('Synthetic user cancellation')):
-                result,accepted=worker._execute()
-            self.assertIsNone(accepted)
-            self.assertEqual(result['status'],'CANCELLED')
-            self.assertEqual(result['paused_outcome']['task_outcome'],'MODEL_OUTPUT_LIMIT' if error_type is ModelOutputLimit else 'MODEL_OUTPUT_STALLED')
-            self.assertTrue(result['model_output_stop_confirmed'])
-            self.assertFalse(worker.work.exists())
-            self.assertFalse(result['measurement_valid'])
-            self.assertEqual(result['execution_health'],'FAULT' if relay_fault else 'UNVERIFIED')
-            self.assertNotIn('execution_fault',result)
-            worker.interrupt_active_turn.assert_called_once()
 
 
     def test_artifact_phase_label_does_not_disable_live_library_tools(self):

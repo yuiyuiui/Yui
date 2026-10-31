@@ -29,9 +29,9 @@ class ProofRepairTests(unittest.TestCase):
         for stage in self.stages:shutil.rmtree(stage.work,ignore_errors=True)
         self.temp.cleanup()
 
-    def stage(self,*,arm='yui',control=None):
+    def stage(self,*,arm='yui'):
         stage=model_pilot.Stage(self.root/f'worker-{len(self.stages)}',self.cpath,'proof',None,
-            self.plan,'T001',instruction_arm=arm,repair_control=control)
+            self.plan,'T001',instruction_arm=arm)
         self.stages.append(stage);return stage
 
     def simulate(self,stage,actions=None,finish=None):
@@ -76,11 +76,11 @@ class ProofRepairTests(unittest.TestCase):
         self.assertIsNone(stage.repair_request)
 
     def test_obstruction_is_located_and_never_a_submission(self):
-        control=proof_repair.RoundControl();stage=self.stage(control=control)
+        stage=self.stage()
         result=stage.dispatch('report_proof_obstruction',self.report())
         self.assertFalse(result['accepted']);self.assertFalse(result['stage_complete'])
-        self.assertTrue(result['repair_requested']);self.assertFalse(control.event.is_set())
-        self.assertIsNone(stage.accepted);self.assertEqual(set(control.reports),{'T001'})
+        self.assertTrue(result['repair_requested'])
+        self.assertIsNone(stage.accepted);self.assertEqual(stage.repair_request['step'],'T001')
         self.assertFalse((stage.logs/'accepted.json').exists())
 
     def test_fabricated_attempt_or_nonresolving_location_cannot_escalate(self):
@@ -114,13 +114,13 @@ class ProofRepairTests(unittest.TestCase):
         self.assertEqual(turns,7);self.assertIsNone(stage.repair_request)
 
     def test_report_does_not_interrupt_other_nodes_and_user_cancel_has_priority(self):
-        control=proof_repair.RoundControl();stage=self.stage(control=control);other=self.stage()
-        control.request('T002',{'fixture':'new evidence'})
-        stage.check_argument_guard()
-        other.check_argument_guard()
-        stage.execution=Mock();stage.execution_task='T001'
-        stage.execution.check.side_effect=execution_state.Cancelled('Actual human stop')
-        with self.assertRaises(execution_state.Cancelled):stage.check_argument_guard()
+        stage=self.stage();other=self.stage()
+        stage.dispatch('report_proof_obstruction',self.report())
+        stage.check_runtime_state()
+        other.check_runtime_state()
+        other.execution=Mock();other.execution_task='T002'
+        other.execution.check.side_effect=execution_state.Cancelled('Actual human stop')
+        with self.assertRaises(execution_state.Cancelled):other.check_runtime_state()
 
     def test_remote_wait_does_not_increment_completed_idle_turns(self):
         stage=self.stage();stage.started=__import__('time').monotonic();stage.remote_retry_count=1
@@ -129,30 +129,29 @@ class ProofRepairTests(unittest.TestCase):
         self.assertEqual(stage.proof_progress.idle_turns,0);self.assertIsNone(stage.repair_request)
 
     def test_scheduler_preserves_checked_bodies_and_does_not_claim_assembly(self):
-        control=proof_repair.RoundControl()
         request={'step':'T002','acceptance':False,'evidence_key':'fixture'}
         def worker(sid,packet):
             if sid=='T001':return {'proof':LIFT}
             return {'proof':None,'stage':{'status':'REPAIR_REQUESTED','repair_request':request}}
         with patch.object(ir,'check',return_value={'exit_code':0}) as check:
-            result=scheduler.prove_graph(self.cpath,self.plan,worker,max_workers=1,repair_control=control)
+            result=scheduler.prove_graph(self.cpath,self.plan,worker,max_workers=1)
         self.assertEqual(result['status'],'GRAPH_REPAIR_REQUIRED')
         self.assertEqual(result['proofs'],{'T001':LIFT});self.assertIsNone(result['assembly'])
         self.assertEqual(check.call_count,2) # Types and the one completed node, no assembly.
 
     def test_scheduler_preserves_other_running_workers_after_a_report(self):
-        control=proof_repair.RoundControl();barrier=threading.Barrier(2)
+        barrier=threading.Barrier(2)
         def worker(sid,packet):
             barrier.wait(timeout=3)
             if sid=='T001':
                 request={'step':sid,'acceptance':False,'evidence_key':'fixture'}
-                control.request(sid,request)
                 return {'proof':None,'stage':{'repair_request':request}}
             return {'proof':LIFT}
         with patch.object(ir,'check',return_value={'exit_code':0}):
-            result=scheduler.prove_graph(self.cpath,self.plan,worker,max_workers=2,repair_control=control)
+            result=scheduler.prove_graph(self.cpath,self.plan,worker,max_workers=2)
         self.assertEqual({j['status'] for j in result['jobs']},{'REPAIR_REQUESTED','LOCAL_PROOFS_CHECKED'})
-        self.assertNotIn('CANCELLED',json.dumps(result));self.assertFalse(proof_repair.RoundControl().event.is_set())
+        self.assertNotIn('CANCELLED',json.dumps(result))
+        self.assertEqual(result['repair_requests']['T001']['evidence_key'],'fixture')
 
     def test_local_diagnosis_repair_handoff_preserves_prior_round(self):
         import run_graph,workflow

@@ -13,7 +13,7 @@ import shared_lemmas
 import proof_repair
 
 
-def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, execution=None, repair_control=None):
+def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, execution=None):
     """worker(sid, packet) -> {proof: tactic body, ...disclosed metadata}.
 
     All proof ports must already be frozen. Dependency edges are discharged
@@ -76,7 +76,6 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
         entry = None
         try:
             if execution:execution.check(sid)
-            if repair_control:repair_control.check()
             if sid in requests:
                 entry, job['lookup'] = store.lookup(requests[sid])
             if entry:
@@ -93,7 +92,6 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
                     ir.need(request.get('step')==sid and request.get('acceptance') is False,
                             'Malformed proof repair request')
                     job['status']='REPAIR_REQUESTED';job['repair_request']=request
-                    if repair_control:repair_control.request(sid,request)
                     return {},job
                 if result.get('stage',{}).get('status')=='REPAIR_WAIT':
                     raise proof_repair.RoundInterrupted('Worker retired for case-local serial repair')
@@ -138,7 +136,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
         from contextvars import copy_context
         pending = {pool.submit(copy_context().run, run, group):group for group in groups.values()}
         while pending:
-            if (execution and execution.cancelled()) or (repair_control and repair_control.event.is_set()):
+            if execution and execution.cancelled():
                 for future in pending:future.cancel()
             done,_ = concurrent.futures.wait(pending,timeout=.1,return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:

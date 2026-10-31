@@ -18,7 +18,6 @@ import sys
 import tempfile
 import threading
 import time
-import uuid
 import traceback
 
 import ir
@@ -32,7 +31,6 @@ from shared_lemmas import Store
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
 import run_pilot as carrier
 from runtime_config import model_profile
-from output_guard import ModelOutputLimit, ModelOutputStalled, ProviderTerminalWaitExceeded
 from native_client import OUTPUT_POLICY, PROVIDER_WAIT_POLICY
 from pilot_common import sha256, load_lock as runtime_lock
 
@@ -64,7 +62,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, repair_control=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.logs = Path(logs)
@@ -84,7 +82,6 @@ class Stage(carrier.Trial):
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
         self.instruction_arm = instruction_arm
-        self.repair_control=repair_control
         self.proof_progress=proof_repair.Progress() if mode=='proof' and instruction_arm=='yui' else None
         self.repair_request=None
         self.lean_writing_rules = None
@@ -177,17 +174,14 @@ class Stage(carrier.Trial):
         self.native_turn_generation = 0
         self.request_turns = {}
         self.last_response_success = None
-        self.last_http_response = None
         self.inbox = queue.Queue()
         self.started = None
         self.allowed_user_messages = set()
         self.proc = None
-        self.model_history, self.model_calls, self.tool_history = {}, {}, {}
-        self.prompt_cache_key = 'nl0-ir-'+str(uuid.uuid4())
+        self.model_calls, self.tool_history = {}, {}
         self.continuation_count = 0
         self.turn_results = []
         self.last_turn_event = self.active_turn_id = self.pending_turn_start_id = None
-        self.cancelled_requests = {}
         self.initial_user_message = None
         self.last_diagnostic = ''
 
@@ -313,7 +307,6 @@ class Stage(carrier.Trial):
         ir.write(self.logs/'proof-repair-request.json',report)
         ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(self.proof_progress.seen)})
         self.submission_closed=True;self.stage_close_reason='PROOF_REPAIR_ESCALATION'
-        if self.repair_control:self.repair_control.request(self.step,report)
         recorder=getattr(self,'execution',None)
         if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',
             repair_request=str(self.logs/'proof-repair-request.json'),proof_progress=self.proof_progress.metadata())
@@ -328,13 +321,11 @@ class Stage(carrier.Trial):
         if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
         return False
 
-    def check_argument_guard(self):
-        super().check_argument_guard()
+    def check_runtime_state(self):
+        super().check_runtime_state()
         if not getattr(self,'_stopping',False) and not getattr(self,'submission_closed',False):
             recorder=getattr(self,'execution',None)
             if recorder:recorder.check(self.execution_task)
-            control=getattr(self,'repair_control',None)
-            if control:control.check()
 
     def timeout_policy_metadata(self):
         snapshot=getattr(self,'native_timeout_snapshot',None)
@@ -397,12 +388,12 @@ class Stage(carrier.Trial):
                 if recorder:recorder.check(self.execution_task)
                 if limiter is None:
                     if recorder:self.timeout=recorder.remaining(self.timeout)
-                    self.check_argument_guard()
+                    self.check_runtime_state()
                     return self._execute()
                 with limiter:
                     self.queue_seconds = time.monotonic()-queued
                     if recorder:self.timeout=recorder.remaining(self.timeout)
-                    self.check_argument_guard()
+                    self.check_runtime_state()
                     return self._execute()
         except proof_repair.RoundInterrupted as error:
             result={'status':'REPAIR_WAIT','task_outcome':'PROOF_ROUND_RETIRED',
@@ -540,25 +531,6 @@ class Stage(carrier.Trial):
             result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
             try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
             except Exception as error:result['interrupt_error']=str(error)
-        except ProviderTerminalWaitExceeded as e:
-            result.update(status='UNFINISHED',task_outcome='PROVIDER_TERMINAL_WAIT_EXCEEDED',
-                stop_reason='PROTOCOL_WAIT_GUARD',attribution='UNVERIFIED',error=str(e),
-                provider_wait_evidence=e.evidence)
-            try:
-                self.interrupt_active_turn(reason='PROVIDER_TERMINAL_WAIT_EXCEEDED')
-                result['protocol_wait_stop_confirmed']=True
-            except Exception as error:
-                result['execution_fault']='Protocol-wait stop could not be confirmed: '+str(error)
-        except (ModelOutputStalled, ModelOutputLimit) as e:
-            outcome = 'MODEL_OUTPUT_STALLED' if isinstance(e, ModelOutputStalled) else 'MODEL_OUTPUT_LIMIT'
-            result.update(status='UNFINISHED', task_outcome=outcome,
-                          stop_reason='OUTPUT_SERIALIZATION_GUARD' if isinstance(e, ModelOutputStalled) else 'OUTPUT_TOKEN_LIMIT',
-                          error=str(e), model_output_evidence=e.evidence)
-            try:
-                self.interrupt_active_turn(reason=outcome)
-                result['model_output_stop_confirmed'] = True
-            except Exception as error:
-                result['execution_fault'] = 'Model-output stop could not be confirmed: '+str(error)
         except TimeoutError as e:
             result.update({'status':'UNFINISHED','stop_reason':'DEADLINE','error':str(e)})
             try:
