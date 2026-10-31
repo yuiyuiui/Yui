@@ -26,6 +26,7 @@ from pathlib import Path
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
 from runtime_config import model_profile
 import remote_retry
+from execution_state import CaseDeadlineExceeded, Cancelled
 
 REMOTE_RETRY_POLICY = remote_retry.POLICY
 
@@ -291,6 +292,7 @@ class Trial:
                     f'{i + 1}: {lines[i]}' for i in range(start - 1, min(len(lines), start - 1 + count)))[:18000]}
             else:
                 raise PermissionError('工具不在本次实验白名单内。')
+        except (CaseDeadlineExceeded, Cancelled):raise
         except Exception as e:
             result = {'error': str(e), 'error_type': type(e).__name__, 'accepted': False,
                       'infrastructure_error': name == 'search_mathlib' and isinstance(e, FileNotFoundError)}
@@ -332,7 +334,8 @@ class Trial:
                 if not self.active_turn_id or turn_id==self.active_turn_id:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
-                if (getattr(self,'submission_closed',False) and msg['params'].get('callId') not in self.tool_history
+                if ((getattr(self,'submission_closed',False) or getattr(self,'budget_exhausted',False))
+                        and msg['params'].get('callId') not in self.tool_history
                         or getattr(self, '_stopping', False) and getattr(self,'native_infrastructure_fault',None)):
                     # A completed call can race with the protective interrupt.
                     # Do not execute it after deciding to preserve an unfinished attempt.
@@ -350,7 +353,13 @@ class Trial:
                     append(self.logs/'controller.jsonl',{'event':'exact_tool_result_redelivered',
                         'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
                 else:
-                    result = self.dispatch(params['tool'], params['arguments'])
+                    try:result = self.dispatch(params['tool'], params['arguments'])
+                    except CaseDeadlineExceeded:
+                        self.budget_exhausted=True
+                        self.proc.stdin.write(json.dumps({'id':msg['id'], 'error':{
+                            'code':-32800,'message':'Explicit whole-case budget exhausted'}})+'\n')
+                        self.proc.stdin.flush()
+                        raise
                     self.completed_tool_calls=getattr(self,'completed_tool_calls',0)+1
                     if execution:execution.task(self.execution_task,completed_tool_calls=self.completed_tool_calls,
                         last_completed_tool=params['tool'],last_tool_completed_at_utc=now())
@@ -390,6 +399,8 @@ class Trial:
                 response = {'id': msg['id'], 'error': {'code': -32601, 'message': 'Not allowed by pilot harness'}}
                 self.proc.stdin.write(json.dumps(response) + '\n'); self.proc.stdin.flush()
             if predicate(msg): return msg
+        execution=getattr(self,'execution',None)
+        if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
         raise TimeoutError('本轮达到预先设置的时间限制。')
 
     def snapshot_tool_result(self, call_id, result):
@@ -454,8 +465,9 @@ class Trial:
             self.proc=subprocess.Popen(command,cwd=self.work/'input',env=env,stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,stderr=error_log,text=True,bufsize=1,start_new_session=True)
         from run_resources import register_child
-        register_child(self.work,self.proc,'model-carrier')
-        if getattr(self,'execution',None):self.execution.register_process(self.proc,'model-carrier',self.execution_task)
+        self.process_owner=register_child(self.work,self.proc,'model-carrier',private_group=True)
+        if getattr(self,'execution',None):
+            self.process_owner=self.execution.register_process(self.proc,'model-carrier',self.execution_task,private_group=True)
         def reader():
             try:
                 for line in self.proc.stdout:
@@ -486,6 +498,7 @@ class Trial:
         self.remote_retry_count=0
         incident_retries=0
         while True:
+            self.check_runtime_state()
             with self.request_lock:
                 self.native_turn_generation+=1
                 generation=self.native_turn_generation

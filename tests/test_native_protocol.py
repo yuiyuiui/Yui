@@ -212,6 +212,29 @@ class NativeProtocolTests(unittest.TestCase):
         self.stage.dispatch.assert_not_called()
         self.assertEqual(json.loads(self.stage.proc.stdin.getvalue())['error']['code'],-32800)
 
+    def test_budget_interrupt_rejects_new_late_tools_without_changing_coverage(self):
+        import time
+        self.stage.budget_exhausted=True;self.stage._stopping=True;self.stage.dispatch=Mock()
+        self.stage.inbox.put({'id':10,'method':'item/tool/call','params':self.params()})
+        self.stage.inbox.put({'method':'turn/completed','params':{'threadId':'thread',
+            'turn':{'id':'turn','status':'interrupted'}}})
+        self.stage.receive_until(lambda m:m.get('method')=='turn/completed',time.monotonic()+2)
+        self.stage.dispatch.assert_not_called()
+        self.assertFalse(self.stage.tool_history)
+        self.assertEqual(json.loads(self.stage.proc.stdin.getvalue())['error']['code'],-32800)
+
+    def test_budget_interrupt_can_redeliver_exact_prior_tool_result_without_reexecution(self):
+        import time
+        self.stage.budget_exhausted=True;self.stage._stopping=True;self.stage.dispatch=Mock()
+        delivered=self.stage.snapshot_tool_result('call',{'saved':'actual previous controller result'})
+        self.stage.inbox.put({'id':10,'method':'item/tool/call','params':self.params()})
+        self.stage.inbox.put({'method':'turn/completed','params':{'threadId':'thread',
+            'turn':{'id':'turn','status':'interrupted'}}})
+        self.stage.receive_until(lambda m:m.get('method')=='turn/completed',time.monotonic()+2)
+        self.stage.dispatch.assert_not_called()
+        response=json.loads(self.stage.proc.stdin.getvalue())
+        self.assertEqual(response['result']['contentItems'][0]['text'],delivered)
+
     def test_malformed_native_notification_cannot_silently_continue(self):
         with self.assertRaises(ValueError):native_client.observe(self.stage,{'method':'error','params':['bad']})
 

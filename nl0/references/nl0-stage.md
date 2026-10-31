@@ -62,7 +62,8 @@ and exact meaning of the checks are documented in the data contract. Programs
 validate explicit metadata and evidence binding; they cannot recognize every
 undeclared theorem or prove a natural-language argument.
 
-New spec/graph files use format v2 and audits use v3. Historical v1 files
+New spec/graph files use format v2 and mathematical-NL0 audits use v4.
+A detailed-NL0 audit v3 does not establish current format-4 acceptance. Historical v1 files
 require explicit `--legacy`; their receipts cannot establish current-standard
 acceptance. Do not silently migrate, overwrite, or relabel old cases. The
 archived case-2 authoring script no longer manufactures passing reviews.
@@ -87,8 +88,10 @@ example with an unperformed audit, not a new benchmark or certification.
 
 Bind audit records to the canonical graph/spec hashes and evidence file hashes.
 Changed claims, inputs, arguments, definitions, assumptions, or sources revoke
-the affected verdicts. Version 0.3 conservatively invalidates the whole audit
-receipt on any canonical change; fine-grained reuse is future work. Keep failed
+the affected verdicts. Reuse is limited to previously qualified unchanged items
+whose current content, dependencies, review scope and evidence bindings still
+verify. Changed or newly required items need actual review; missing or stale
+evidence cannot grant acceptance. Preserve the earlier findings and failed
 reports. Never add the missing conclusion as an H, source theorem, definition
 property, structure field, or typeclass merely to close the graph.
 

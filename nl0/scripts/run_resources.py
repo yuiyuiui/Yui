@@ -11,7 +11,7 @@ import tempfile
 import uuid
 import hashlib
 
-from execution_state import atomic, identity
+from execution_state import atomic, identity, capture_process
 
 MARKER = '.yui-workspace-owner.json'
 SCHEMA = 'yui-workspace-owner-1'
@@ -48,20 +48,17 @@ def register_workspace(work, logs):
     return row
 
 
-def register_child(work, process, kind):
+def register_child(work, process, kind, *, private_group=False):
     """Persist identity even when a stage has no case-level Recorder."""
     marker = Path(work).resolve()/MARKER
     if not marker.is_file():
         return
     row = json.loads(marker.read_text())
-    child = identity(process.pid)
-    if child is None:
-        if process.poll() is None:
-            raise RuntimeError('Cannot establish child process ownership')
-        return
+    child = capture_process(process, private_group=private_group)
     atomic(Path(row['logs'])/'resources'/('process-'+uuid.uuid4().hex+'.json'),
            {'schema_version': 'yui-owned-process-1', 'workspace_token': row['token'],
             'kind': kind, 'process': child})
+    return child
 
 
 def retention(work, logs):

@@ -45,6 +45,11 @@ their obstruction and may close only with the accepted final replacement.
 | Diagnosis within a retained proof session | test_live_proof_diagnosis.py, test_native_proof_diagnosis.py | All occupied slots may request review without deadlock; original native author resumes after its tool response. Only qualified substantive defects permit handoff; resource-only and uncertain reports keep the author. |
 | Assembly, kernel closure and final acceptance | test_assembly.py, test_audit_b.py, test_final_acceptance.py, test_postprocessing.py | Compile actual full files, close dependencies and trust; machine B inherits only exact reviewed semantics. B-final cannot cover invalid proof/closure. |
 | Exception decisions and final cleanup | test_translation_reset.py, test_workflow_handoffs.py, test_cleanup_tests.py | User-selected drift/recheck/reset/delivery is explicit; preserve original-goal status, exact ownership and scientific evidence. |
+| Whole-case deadline across real stages | test_controller_deadlines.py, test_controller_linked_budgets.py, test_controller_deadline_edges.py | Actual native interruption, global A, checked Lean work, two active proof workers plus a queued worker, real case pause/cancel, initialization/retry/native-check deadlines and external-cancel races preserve evidence without fresh work or worker-pause deadlocks. |
+| Historical execution health | test_controller_linked_budgets.py, test_controller_deadline_edges.py, test_translation_reset.py | A recovered provider fault remains attributable across healthy retained-role revisions and explicit translation reset; changed/missing evidence cannot establish healthy budget exhaustion. |
+| Real process families and operator cleanup | test_controller_cleanup.py, test_cleanup_tests.py | An exited leader cannot hide a live child; TERM-resistant children require follow-up. Reused identities, foreign groups, query failures and unconfirmed orphan groups cannot authorize signals or workspace deletion. |
+| B-final through actual case child and batch | test_controller_delivery.py, test_workflow_handoffs.py | Actual Lean fixture, qualified partial/full synthetic review, real incident-bound operator decision, case summary and batch all preserve incomplete coverage and original-goal failure. Recheck, deadline during user wait and changed findings have explicit controls. |
+| Qualified first-pass blockers | test_controller_classification.py | Actual interface/case callers classify substantive nonpass and whole-case expiry as workflow blockers while preserving real execution faults and external timeout distinctions. |
 
 Real-native test endpoints are deterministic terminal services on loopback.
 They receive requests directly from the genuine Codex executable and never
@@ -130,9 +135,45 @@ for an authorized continuation. Resource controls read the real configured
 Lean option and force a short wall timeout. The existing fault-injection suite
 continues to cover mid-response disconnects, retries and retained errors.
 
-The final repair tree passed **921 tests** in 786.436 seconds, with no skipped
+That repair checkpoint passed **921 tests** in 786.436 seconds, with no skipped
 tests. Two record-aliasing regressions were first reproduced as failures and
 then passed after the fixes. The complete suite was rerun on the final fixed
 tree without intervening source edits. Skill validation, environment checks
-and whitespace validation passed separately. See
+and whitespace validation passed separately. The current validation record also
+retains this historical checkpoint. See
 [controller-repair-validation.json](controller-repair-validation.json).
+
+## Shared controller hardening (2026-11-01)
+
+The linked delivery control starts four real Python case children under the
+actual batch controller. Each uses a real compiled Lean fixture and the actual
+B-final collector, operator decision and case aggregation. It covers incomplete
+review, complete nonpass, expiry while awaiting the user, and explicit recheck
+followed by delivery. Upstream proof/reviewer artifacts and semantic judgments
+are prepared synthetic fixtures; this is not a fresh full mathematical run.
+No complete review receipt is fabricated for partial delivery, and the batch
+does not count delivery of a different result as original-goal acceptance.
+
+The deadline controls use genuine native clients against deterministic loopback
+services, including global Audit A, two concurrent local Audit A workers,
+a checked Lean proof draft and concurrent proof workers. A separate actual case-controller path exercises the retained
+pause and explicit cancellation. Cold and queued stages, initialization,
+provider retry, interrupted Lean checks, failed interruption, evidence mutation,
+role reuse, reset and cancellation races have dedicated negative controls.
+These compose longer production paths while retaining explicit fixture
+boundaries; they do not claim that every possible interleaving was enumerated.
+
+The same process-family ownership checks govern automatic and operator cleanup.
+Tests deliberately retain unknown orphan groups until their test-owned teardown
+can safely remove them. No existing tests were deleted for this repair.
+Final discovery counts, timing, runtime bindings and the independent benchmark
+preparation checks are recorded in
+[controller-repair-validation.json](controller-repair-validation.json).
+
+Final fixed-tree discovery passed **958 tests** in **909.713 seconds**, with
+zero skipped tests. Runtime and test-source fingerprints were unchanged before
+and after the full run. This adds 37 regressions to the 921-test checkpoint and
+retains all existing tests. A final OS process/cwd inspection found no live case
+or delivery controllers and no native clients in Yui stage workspaces.
+The independent benchmark's 14 startup tests also passed; its installed-skill
+preflight remained metadata-only, with no model or proof job started.

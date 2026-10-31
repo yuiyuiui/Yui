@@ -64,5 +64,34 @@ class TranslationResetTests(unittest.TestCase):
             translation_reset.apply(self.root,self.authority,None,bind(self.record),set())
         self.assertTrue(self.record.is_file())
 
+    def test_reset_archives_health_and_reuses_paths_without_erasing_fault_attribution(self):
+        for health in ('NO_RECORDED_FAULT','FAULT'):
+            with self.subTest(health=health):
+                root=self.root/health;record=root/'nl0-to-lean/decision.json'
+                write(record,{'state':'USER_DECIDED','root':str(root),
+                    'owner_process':execution_state.identity(__import__('os').getpid()),
+                    'control':{'action':'reset-translation'}})
+                recorder=execution_state.Recorder(root,'synthetic-reset-health',concurrency.resolve(1))
+                stage=root/'nl0-to-lean/stage'
+                old={'status':'ACCEPTED','execution_health':health,
+                     'identity_and_input_boundary_verified':True}
+                if health=='FAULT':old['execution_fault']='Synthetic prior tool fault'
+                write(stage/'result.json',old);write(stage/'accepted.json',{'synthetic_proof':'must be deleted'})
+                recorder.record_stage('reused-role',stage,old)
+                try:
+                    translation_reset.apply(root,self.authority,recorder,bind(record),set())
+                    archived=list(recorder.state['stage_history'].values())
+                    self.assertTrue(Path(archived[0]['record']['path']).is_file())
+                    self.assertFalse((stage/'accepted.json').exists())
+                    self.assertEqual(archived[0]['summary']['execution_fault'],old.get('execution_fault'))
+                    fresh={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT',
+                           'identity_and_input_boundary_verified':True}
+                    write(stage/'result.json',fresh);recorder.record_stage('reused-role',stage,fresh)
+                    result=recorder.deadline_result(execution_state.CaseDeadlineExceeded('Synthetic next deadline'))
+                    self.assertEqual(result['task_outcome'],'UNFINISHED_WITH_EXECUTION_FAULT' if health=='FAULT' else 'MODEL_BUDGET_EXHAUSTED')
+                    self.assertEqual(len(result['stage_health_evidence']),2)
+                    self.assertNotIn('changed or disappeared',str(result))
+                finally:recorder.close('CANCELLED')
+
 
 if __name__=='__main__':unittest.main()

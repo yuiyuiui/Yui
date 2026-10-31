@@ -552,6 +552,7 @@ class ArtifactStage(pilot.Stage):
                             error='AUTHOR_CLOSING_CHECK_REQUIRED: complete notes are not readiness. Read each own packet under the shared Audit A criteria, resolve every known issue in the actual proof and record readiness=no_known_issue with exact-content-bound notes. Otherwise save unresolved/not_checked notes and continue local completion. No Audit A has run.')
                 if name in {'submit_artifact','submit_draft'}:
                     if result['stage_complete']:self.accepted = value
+        except (pilot.execution.CaseDeadlineExceeded, pilot.execution.Cancelled):raise
         except (ValueError, KeyError, TypeError, IndexError, PermissionError) as e:
             if isinstance(e, PermissionError) and e.errno is not None:
                 self.record_tool_fault(name,args,e,started)

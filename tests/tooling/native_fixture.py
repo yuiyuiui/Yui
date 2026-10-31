@@ -81,9 +81,12 @@ class NativeFixture:
         original_popen=subprocess.Popen
         def popen(command,*args,**kwargs):
             if 'app-server' in command:
-                text=(self.stage.work/'state/config.toml').read_text()
+                # Validate the actual launched client, including linked tests
+                # with multiple stages sharing this deterministic endpoint.
+                state=Path(kwargs['env']['CODEX_HOME'])
+                text=(state/'config.toml').read_text()
                 assert f'http://127.0.0.1:{self.server.server_port}' in text
-                assert not (self.stage.work/'state/auth.json').exists()
+                assert not (state/'auth.json').exists()
                 kwargs['env']['NO_PROXY']='127.0.0.1,localhost';kwargs['env']['no_proxy']='127.0.0.1,localhost'
             return original_popen(command,*args,**kwargs)
         self.stack.enter_context(patch.object(subprocess,'Popen',popen))

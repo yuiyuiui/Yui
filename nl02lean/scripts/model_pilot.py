@@ -468,6 +468,21 @@ class Stage(carrier.Trial):
             return result,None
         except execution.Cancelled as error:
             return self.cancel_before_start(error)
+        except execution.CaseDeadlineExceeded as error:
+            if not (self.logs/'result.json').is_file():
+                from run_resources import retention
+                result={'status':'UNFINISHED','stop_reason':'CASE_DEADLINE',
+                    'task_outcome':'UNFINISHED_ATTRIBUTION_UNVERIFIED','error':str(error),
+                    'execution_health':'UNVERIFIED','identity_and_input_boundary_verified':False,
+                    'model_work_started':False,'temporary_workspace_removed':False,
+                    'workspace_retention':retention(self.work,getattr(self,'workspace_owner_logs',self.logs))}
+                ir.write(self.logs/'result.json',result)
+                if recorder:
+                    recorder.retain_stage(self,'nl0' if self.mode.startswith(('nl0-','audit-a')) else 'lean')
+                    recorder.record_stage(self.execution_task,self.logs,result)
+                    recorder.task(self.execution_task,state='UNFINISHED',activity='CASE_DEADLINE')
+                    recorder.flush(force=True)
+            raise
         except Exception as error:
             try:self.pause_error(error,resumable=False)
             except execution.Cancelled as cancelled:return self.cancel_before_start(cancelled)
@@ -500,9 +515,9 @@ class Stage(carrier.Trial):
             if getattr(self,'execution',None):
                 if not self.execution.stop_process(self.proc):result['execution_fault']='Model process cleanup unconfirmed'
             else:
-                self.proc.terminate()
-                try: self.proc.wait(timeout=5)
-                except Exception: self.proc.kill();self.proc.wait()
+                owner=getattr(self,'process_owner',None) or execution.capture_process(self.proc,private_group=True)
+                if not execution.terminate_owned(self.proc,owner):result['execution_fault']='Model process group cleanup unconfirmed'
+            if result.get('execution_fault'):raise RuntimeError(result['execution_fault'])
             reader=getattr(self,'reader_thread',None)
             if reader:reader.join(timeout=1)
             for stream in (self.proc.stdin,self.proc.stdout):
@@ -563,6 +578,7 @@ class Stage(carrier.Trial):
                   'owner_reference_visible_to_worker':False,'started_at_utc':carrier.now()}
         result['acceptance_scope'] = (('NL0_STRUCTURE_ONLY' if self.artifact_kind=='nl0' else 'JSON_ARTIFACT_ONLY')
             if hasattr(self,'artifact_kind') else 'LEAN_LOCAL_OBLIGATION_OR_TYPED_INTERFACE')
+        case_deadline = None
         try:
             if self.proc is None:
                 self.start_process()
@@ -596,6 +612,15 @@ class Stage(carrier.Trial):
             result.update(status='CANCELLED',task_outcome='EXTERNAL_CANCELLED',stop_reason='EXTERNAL_CANCEL',error=str(e))
             try:self.interrupt_active_turn(reason='EXTERNAL_CANCEL')
             except Exception as error:result['interrupt_error']=str(error)
+        except execution.CaseDeadlineExceeded as e:
+            case_deadline=e;self.budget_exhausted=True
+            result.update(status='UNFINISHED',stop_reason='CASE_DEADLINE',error=str(e))
+            if self.pending_turn_start_id is not None or self.active_turn_id:
+                try:
+                    self.interrupt_active_turn(reason='CASE_DEADLINE')
+                    result['deadline_interrupt_completed']=True
+                except Exception as error:
+                    result['execution_fault']='Whole-case interruption unconfirmed: '+str(error)
         except TimeoutError as e:
             result.update({'status':'UNFINISHED','stop_reason':'DEADLINE','error':str(e)})
             try:
@@ -617,7 +642,7 @@ class Stage(carrier.Trial):
                 result.update(stop_reason='LOCAL_TOOL_EXECUTION_FAULT',
                               tool_execution_fault=self.tool_execution_fault)
         finally:
-            if result.get('status') not in {'ACCEPTED','BLOCKED','REPAIR_REQUESTED','REPAIR_WAIT','CANCELLED'}:
+            if case_deadline is None and result.get('status') not in {'ACCEPTED','BLOCKED','REPAIR_REQUESTED','REPAIR_WAIT','CANCELLED'}:
                 from fault_control import outcome_error
                 error=outcome_error(result)
                 try:self.pause_error(error,resumable=False)
@@ -628,7 +653,7 @@ class Stage(carrier.Trial):
                 result['local_protocol_fault']=self.local_protocol_fault
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
-                result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
+                if case_deadline is None:result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
                     {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'} else
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
@@ -658,7 +683,11 @@ class Stage(carrier.Trial):
                 try:
                     result['exposure']=__import__('native_client').audit(self.logs)
                     if result['exposure']['errors']:
-                        result['execution_health']='FAULT';result['execution_fault']='Native context readback failed'
+                        initialization_only=(case_deadline is not None and not self.native_turn_generation
+                            and set(result['exposure']['errors'])<={'no_native_work_dispatched','unbound_initial_prompt'})
+                        if initialization_only:
+                            if result['execution_health']!='FAULT':result['execution_health']='UNVERIFIED'
+                        else:result['execution_health']='FAULT';result['execution_fault']='Native context readback failed'
                 except (ValueError,KeyError,OSError) as error:
                     result['execution_health']='FAULT';result['execution_fault']='Native context readback error: '+str(error)
                 result['transport']='native-codex-stdio-v1'
@@ -673,6 +702,9 @@ class Stage(carrier.Trial):
             result.update(qualification(result))
             if result.get('task_outcome')=='MODEL_BUDGET_EXHAUSTED' and not result['identity_and_input_boundary_verified']:
                 result['task_outcome']='UNFINISHED_ATTRIBUTION_UNVERIFIED'
+            if case_deadline is not None:
+                from execution_health import budget_outcome
+                result['task_outcome']=budget_outcome([result])
             from run_resources import retention
             self.workspace_retention=retention(self.work,getattr(self,'workspace_owner_logs',self.logs))
             result.update(temporary_workspace_removed=False,workspace_retention=self.workspace_retention)
@@ -683,8 +715,9 @@ class Stage(carrier.Trial):
             ir.write(self.logs/'result.json',result)
             if self.accepted: ir.write(self.logs/'accepted.json',self.accepted)
             if getattr(self,'execution',None):
-                values={'activity':'STAGE_FINISHED','stage_result':{k:result.get(k) for k in
-                    ['status','task_outcome','execution_health','acceptance_scope']},'usage_ledger':str(self.logs/'usage.json')}
+                self.execution.record_stage(self.execution_task,self.logs,result)
+                values={'activity':'CASE_DEADLINE' if case_deadline is not None else 'STAGE_FINISHED',
+                        'usage_ledger':str(self.logs/'usage.json')}
                 if self.step is None:values.update(state='CANCELLED' if result['status']=='CANCELLED' else 'FINISHED',finished_at_utc=execution.now())
                 if getattr(self,'role_session',None):
                     values['role_state']='WAITING_FOR_FEEDBACK' if result['status']=='ACCEPTED' else result['status']
@@ -692,5 +725,6 @@ class Stage(carrier.Trial):
                         values.update(state='WAITING_REVIEW',activity='ASSIGNMENT_SUBMITTED',finished_at_utc=None)
                 self.execution.task(self.execution_task,**values);self.execution.flush(force=True)
             if result.get('status')=='CANCELLED':self.release_resources('USER_CANCELLED')
+        if case_deadline is not None:raise case_deadline
         return result,self.accepted
 

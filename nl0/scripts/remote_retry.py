@@ -31,7 +31,9 @@ def normalized(value):return re.sub('[^a-z0-9]','',value.lower())
 
 def transport_error(error):
     """Only recognized network exceptions are transient; disk/tool I/O is local."""
-    if isinstance(error,TimeoutError):code='request_timeout'
+    from execution_state import CaseDeadlineExceeded
+    if isinstance(error,CaseDeadlineExceeded):code='workflow_blocked'
+    elif isinstance(error,TimeoutError):code='request_timeout'
     elif isinstance(error,(http.client.IncompleteRead,http.client.RemoteDisconnected)):
         code='response_stream_disconnected'
     elif (isinstance(error,(ConnectionError,socket.gaierror,socket.herror,ssl.SSLError))

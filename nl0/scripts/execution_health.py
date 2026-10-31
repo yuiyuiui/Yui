@@ -22,6 +22,17 @@ def review_outcome(verdicts):
             'REVIEW_PASSED' if verdicts and all(v=='PASS' for v in verdicts) else 'REVIEW_INCOMPLETE')
 
 
+def budget_outcome(stages):
+    """A deadline and evidence qualification are independent observations."""
+    stages=list(stages)
+    if any(row.get('execution_health')=='FAULT' or row.get('execution_fault') for row in stages):
+        return 'UNFINISHED_WITH_EXECUTION_FAULT'
+    if stages and all(row.get('execution_health')=='NO_RECORDED_FAULT'
+                      and row.get('identity_and_input_boundary_verified') is True for row in stages):
+        return 'MODEL_BUDGET_EXHAUSTED'
+    return 'UNFINISHED_ATTRIBUTION_UNVERIFIED'
+
+
 def qualification(result):
     """Identity/input/health qualification is separate from usage completeness."""
     exposure=result.get('exposure', {})

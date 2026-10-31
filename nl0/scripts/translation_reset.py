@@ -42,7 +42,18 @@ def apply(root,authority,recorder,record,before_native):
     archive=root/'translation-resets'/uuid.uuid4().hex
     write(archive/'user-decision.json',decision)
     if recorder:
-        # Only ledgers and cost/state summaries survive this explicitly destructive
+        # Health metadata survives the authorized deletion; accepted mathematical
+        # drafts/proofs do not. Rekey paths so the new translation can reuse them.
+        history=recorder.state.get('stage_history',{})
+        for number,(old,entry) in enumerate(list(history.items())):
+            original=Path(entry['record']['path'])
+            if not any(original.is_relative_to(path) for path in paths):continue
+            if bind(original)!=entry['record']:raise ValueError('Stage health changed before explicit reset')
+            target=archive/'health'/f'{number:04d}.json';target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(original,target)
+            del history[old]
+            history[str(target)]={**entry,'original_record':entry['record'],'record':bind(target)}
+        # Only health metadata, ledgers and cost/state summaries survive this destructive
         # choice; mathematical translation artifacts and native source files do not.
         for task,row in recorder.state['tasks'].items():
             ledger=Path(row.get('usage_ledger','/nonexistent'))

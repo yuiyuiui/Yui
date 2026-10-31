@@ -57,32 +57,110 @@ def identity(pid):
 
 def same_process(record):
     current = identity(record['pid'])
-    return current is not None and all(current.get(k) == record.get(k) for k in ('pid', 'started', 'pgid'))
+    return current is not None and matches_identity(record, current)
+
+
+def matches_identity(record, current):
+    return (all(current.get(k) == record.get(k) for k in ('pid', 'pgid'))
+            and isinstance(record.get('started'), str) and bool(record['started'])
+            and isinstance(current.get('started'), str)
+            and ' '.join(current.get('started', '').split()) == ' '.join(record['started'].split()))
+
+
+def process_table():
+    """One bounded OS snapshot; a failed query is never an empty process set."""
+    result = subprocess.run(['ps', '-ax', '-o', 'pid=,pgid=,stat=,lstart='],
+                            capture_output=True, text=True, check=True, timeout=2)
+    rows = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 3)
+        if len(parts) != 4: raise ValueError('Incomplete OS process identity')
+        pid, pgid = map(int, parts[:2])
+        rows[pid] = {'pid':pid, 'pgid':pgid, 'stat':parts[2], 'started':parts[3]}
+    if os.getpid() not in rows: raise ValueError('Incomplete OS process snapshot')
+    return rows
+
+
+def remaining_processes(record, table):
+    """Return live members and whether current identities authorize their signals.
+
+    A private group's surviving known member anchors ownership after its leader
+    exits. An unrecognized orphan group is reported but never signalled. A new
+    leader with another start identity positively establishes numeric PGID reuse.
+    """
+    pgid = record.get('pgid')
+    if pgid is None: return [], bool(record.get('reaped_pid_only'))
+    if pgid != record['pid']:
+        row = table.get(record['pid'])
+        if (row and isinstance(record.get('started'),str) and record['started']
+                and ' '.join(row['started'].split())!=' '.join(record['started'].split())):
+            return [], True
+        return ([row], matches_identity(record, row)) if row and not row['stat'].startswith('Z') else ([], True)
+    leader = table.get(pgid)
+    if (leader and leader['pgid'] == pgid and isinstance(record.get('started'),str) and record['started']
+            and not matches_identity(record, leader)):
+        return [], True
+    members = [p for p in table.values() if p['pgid'] == pgid and not p['stat'].startswith('Z')]
+    known = [record, *record.get('group_members', [])]
+    authorized = not members or any(matches_identity(old, member) for old in known for member in members)
+    if authorized:
+        identities = {(p['pid'], p['started'], p['pgid']):p for p in record.get('group_members', [])}
+        identities.update({(p['pid'], p['started'], p['pgid']):{k:p[k] for k in ('pid','started','pgid')} for p in members})
+        record['group_members'] = list(identities.values())
+    return members, authorized
+
+
+def capture_process(process, *, private_group=False):
+    record = identity(process.pid)
+    if record is None:
+        if process.poll() is None:raise RuntimeError('Cannot establish child process ownership')
+        record={'pid':process.pid,'started':None,'pgid':process.pid if private_group else None}
+        # A reaped PID-only child owns no private group. Group-owning callers
+        # explicitly opt in so even a fast-exiting leader still requires inspection.
+        if not private_group:record['reaped_pid_only']=True
+    try:remaining_processes(record, process_table())
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        record['cleanup_uncertainty']=type(error).__name__+': '+str(error)
+    return record
+
+
+def cleanup_pending(record, table):
+    members, authorized = remaining_processes(record, table)
+    return bool(members) or not authorized
 
 
 def terminate_owned(process, record, grace=1):
-    """Terminate/reap only the still-matching process registered by this owner."""
-    if process.poll() is not None: return True
+    """Reap the parent and confirm its owned group, without signalling reused IDs."""
+    record.pop('cleanup_uncertainty', None)
     if record['pid'] == os.getpid(): return False
-    if not same_process(record):
+    if process.poll() is None and not same_process(record):
         # A child can enter its OS exit state between poll() and ps readback.
         # Waiting on this Popen handle cannot signal a reused or foreign PID.
         try: process.wait(timeout=grace)
         except subprocess.TimeoutExpired: return False
-        return process.poll() is not None
+        if process.poll() is None: return False
     try:
-        if record['pgid'] == record['pid']:
-            os.killpg(record['pgid'], signal.SIGTERM)
-        else: process.terminate()
-        try: process.wait(timeout=grace)
-        except subprocess.TimeoutExpired:
-            if not same_process(record): return process.poll() is not None
-            if record['pgid'] == record['pid']: os.killpg(record['pgid'], signal.SIGKILL)
-            else: process.kill()
-            process.wait(timeout=grace)
-        return process.poll() is not None
-    except (OSError, subprocess.TimeoutExpired):
-        return process.poll() is not None
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            members, authorized = remaining_processes(record, process_table())
+            if not authorized:
+                record['cleanup_uncertainty'] = 'Live group ownership could not be established'
+                return False
+            for member in members:
+                if member['pid'] == os.getpid(): return False
+                if same_process(member):
+                    try: os.kill(member['pid'], sig)
+                    except ProcessLookupError: pass
+            until = time.monotonic()+grace
+            while True:
+                process.poll()  # Reap the registered parent independently of its members.
+                members, authorized = remaining_processes(record, process_table())
+                if authorized and not members and process.poll() is not None: return True
+                if not authorized or time.monotonic() >= until: break
+                time.sleep(min(.05, max(0, until-time.monotonic())))
+        record['cleanup_uncertainty'] = 'Owned group termination was not confirmed'
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        record['cleanup_uncertainty'] = type(error).__name__+': '+str(error)
+    return False
 
 
 @contextlib.contextmanager
@@ -114,8 +192,15 @@ def request_cancel(directory, task=None):
 
 def inspect(directory):
     value = json.loads((Path(directory)/'execution-status.json').read_text())
+    try:
+        table = process_table()
+        residual = [p for p in value['processes'].values() if cleanup_pending(p, table)]
+        uncertainty = None
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        residual = list(value['processes'].values())
+        uncertainty = type(error).__name__+': '+str(error)
     value['inspection'] = {'at_utc': now(), 'controller_identity_matches': same_process(value['controller']),
-        'residual_owned_processes': [p for p in value['processes'].values() if p['state']=='ACTIVE' and same_process(p)]}
+        'residual_owned_processes': residual, 'process_inspection_error':uncertainty}
     if value['controller']['state'] == 'RUNNING' and not value['inspection']['controller_identity_matches']:
         value['inspection']['state'] = 'STALE_UNKNOWN_CLEANUP'
     elif value['controller']['state']=='RUNNING':
@@ -217,6 +302,38 @@ class Recorder:
                 if previous not in ledgers:ledgers.append(previous)
             row.update(values); self.dirty = True
 
+    def record_stage(self, task, logs, result):
+        """Retain each immutable stage's health independently of role/usage reuse."""
+        path = Path(logs).resolve()/'result.json'
+        binding = {'path':str(path), 'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+        summary = {k:result.get(k) for k in ('status','task_outcome','stop_reason','execution_health',
+            'identity_and_input_boundary_verified','execution_fault','acceptance_scope')}
+        with self.lock:
+            history = self.state.setdefault('stage_history', {})
+            entry = {'task':task, 'record':binding, 'summary':summary}
+            if str(path) in history and history[str(path)] != entry:
+                raise ValueError('Recorded stage health evidence changed')
+            history[str(path)] = entry
+            self.task(task, stage_result=summary)
+            self.dirty = True
+
+    def deadline_result(self, error):
+        from execution_health import budget_outcome
+        with self.lock:
+            history = deepcopy(list(self.state.get('stage_history', {}).values()))
+            recorded = {row['task'] for row in history}
+            stages = [row['summary'] for row in history]
+            stages += [deepcopy(row['stage_result']) for task,row in self.state['tasks'].items()
+                       if task not in recorded and row.get('stage_result')]
+        for entry in history:
+            binding = entry['record']
+            try: unchanged=hashlib.sha256(Path(binding['path']).read_bytes()).hexdigest()==binding['sha256']
+            except OSError: unchanged=False
+            if not unchanged:
+                entry['summary'].update(execution_health='FAULT', execution_fault='Bound stage result changed or disappeared')
+        return {'status':'UNFINISHED', 'stop_reason':'CASE_DEADLINE', 'error':str(error),
+                'task_outcome':budget_outcome(stages), 'stage_health_evidence':history}
+
     def activity(self, key, activity):
         if key is not None: self.task(key, activity=activity, last_activity_at_utc=now())
 
@@ -238,11 +355,8 @@ class Recorder:
             c['observed_peak_model_stages'] = max(c['observed_peak_model_stages'],c['active_model_stages'])
             self.dirty = True
 
-    def register_process(self, process, kind, task=None):
-        record = identity(process.pid)
-        if record is None:
-            if process.poll() is None:raise RuntimeError('Cannot establish child process ownership')
-            record={'pid':process.pid,'started':None,'pgid':None}
+    def register_process(self, process, kind, task=None, *, private_group=False):
+        record = capture_process(process, private_group=private_group)
         key = str(process.pid)
         with self.lock:
             self._handles[key] = process
@@ -260,6 +374,11 @@ class Recorder:
     def stop_process(self, process):
         with self.lock: record = dict(self.state['processes'][str(process.pid)])
         confirmed = terminate_owned(process, record)
+        with self.lock:
+            row = self.state['processes'][str(process.pid)]
+            row.update({k:record[k] for k in ('group_members','cleanup_uncertainty') if k in record})
+            if confirmed: row.pop('cleanup_uncertainty', None)
+            self.dirty = True
         self.process_finished(process)
         return confirmed
 
@@ -388,13 +507,23 @@ class Recorder:
         authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED'} else 'WORKFLOW_FINALIZED'
             if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
             else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'} else None)
-        if authorization is None and (self.retained_stages or any(p.poll() is None for p in self._handles.values())):
-            raise ValueError('Unfinished/error status cannot authorize retained workflow cleanup')
+        if authorization is None and (self.retained_stages or self._handles):
+            table = process_table()
+            pending = any(cleanup_pending(row, table) for row in self.state['processes'].values())
+            if self.retained_stages or pending:
+                raise ValueError('Unfinished/error status cannot authorize retained workflow cleanup')
         if authorization:self.release_retained('all',authorization)
         self.done.set();self.thread.join(timeout=2)
         residual=[]
+        try:table=process_table() if self._handles else {}
+        except (OSError,ValueError,subprocess.SubprocessError):table=None
         for key,process in list(self._handles.items()):
-            if process.poll() is None and not self.stop_process(process):residual.append(int(key))
+            row=self.state['processes'][key]
+            if table is None:
+                row['cleanup_uncertainty']='Final process snapshot failed';residual.append(int(key))
+            elif cleanup_pending(row,table) or process.poll() is None:
+                if not self.stop_process(process):residual.append(int(key))
+            else:row.pop('cleanup_uncertainty',None)
             self.process_finished(process)
         with self.lock:
             ledgers={row['usage_ledger'] for row in self.state['tasks'].values() if row.get('usage_ledger')}|set(self.state.get('archived_usage_ledgers',[]))

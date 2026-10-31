@@ -298,14 +298,17 @@ def finish_translation(case,destination,budget,progress):
                 'actual_record':ir.load(audit_review/'stage/accepted.json'),'located_blocker':error.result}
             ir.write(audit_review/'report.json',verdict)
         if not verdict['all_checks_passed']:
+            findings=bind(audit_review/'report.json')
             error=StageFailure('FINAL_FIDELITY_NOT_ACCEPTED','Final E/P fidelity was not accepted. Report the freeze defect to developers. No original-goal completion is recorded.',
                 phase='audit-b-final',evidence=audit_review/'report.json',details={'user_decision_required':True,'automatic_restart':False})
             progress(case,'PAUSED_ERROR',findings=str(audit_review/'report.json'))
             decision=Gate(audit_review/'decision',recorder=budget.execution,task='case-controller',stage='audit-b-final').pause(
-                outcome_error(error.result),resumable=False,checkpoint={'workflow':str(destination),'findings':bind(audit_review/'report.json')},
+                outcome_error(error.result),resumable=False,checkpoint={'workflow':str(destination),'findings':findings},
                 decisions=('deliver-actual','recheck','reset-translation'))
             selected=decision['control']['action'];record=bind(audit_review/'decision/error-state.json')
-            if final_acceptance.check(destination)!=gate:
+            try:findings_unchanged=bind(audit_review/'report.json')==findings
+            except OSError:findings_unchanged=False
+            if not findings_unchanged or final_acceptance.check(destination)!=gate:
                 raise StageFailure('FINAL_ARTIFACT_CHANGED','Final evidence changed while waiting for the user; preserve the checkpoint',phase='audit-b-final')
             if selected=='recheck':continue
             if selected=='reset-translation':
@@ -313,7 +316,9 @@ def finish_translation(case,destination,budget,progress):
                     phase='user-decision',details={'user_decision':record})
             result={'status':'DIFFERENT_RESULT_DELIVERED','original_goal_completed':False,'user_decision':record,
                 'proof':str(destination/'audit-b/Proof.lean'),
-                'audit_b':{'status':'FINAL_FIDELITY_NOT_ACCEPTED','receipt_path':str(audit_review/'review.json'),
+                'audit_b':{'status':'FINAL_FIDELITY_NOT_ACCEPTED','receipt_path':str(audit_review/'report.json'),
+                    'receipt_kind':'USER_DELIVERY_EVIDENCE',
+                    'review_coverage':verdict.get('review_coverage','COMPLETE'),
                     'findings':str(audit_review/'report.json'),'acceptance_basis':'USER_ACCEPTED_DIFFERENT_RESULT'},
                 'warning':'User accepted delivery of the actual compiled result; fidelity to the original target was not accepted. See the final review and actual Lean theorem.'}
             write(destination/'report.json',result);return result

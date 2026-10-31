@@ -27,7 +27,8 @@ VERSION = 'yui-fault-lifecycle-1'
 BLOCKERS = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT',
     'INPUT_CONFLICT','SOURCE_CHANGE_REQUIRES_USER','AUDIT_A_NONPASS','MATHEMATICAL_REVIEW_FAILED',
     'REVIEW_UNVERIFIED','REVIEW_INCOMPLETE','PROOF_REPAIR_STALLED','REPAIR_UNCHANGED','REPAIR_CYCLE',
-    'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','INTERNAL_INTERFACE_REPAIR_REQUIRED','PROOF_REVIEW_REQUIRED'}
+    'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','INTERNAL_INTERFACE_REPAIR_REQUIRED','PROOF_REVIEW_REQUIRED',
+    'INTERFACE_REVIEW_FAILED'}
 SECRET = re.compile(r'(Bearer\s+)[^\s\"\']+|\bsk-[A-Za-z0-9_-]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', re.I)
 
 
@@ -47,10 +48,16 @@ def run_root(logs):
 
 
 def outcome_error(result):
-    code='workflow_blocked' if result.get('status') in BLOCKERS or result.get('status')=='BLOCKED' else 'harness_bug'
+    deadline=result.get('status')=='UNFINISHED' and result.get('stop_reason')=='CASE_DEADLINE'
+    code='workflow_blocked' if deadline or result.get('status') in BLOCKERS or result.get('status')=='BLOCKED' else 'harness_bug'
     if result.get('execution_fault'):code='harness_bug'
     return {'code':code,'message':result.get('error') or result.get('task_outcome') or result.get('status'),
             'outcome':result}
+
+
+def case_deadline_error(error):
+    return (isinstance(error,dict) and isinstance(error.get('outcome'),dict)
+            and error['outcome'].get('stop_reason')=='CASE_DEADLINE')
 
 
 def capture_owner(root):
@@ -156,6 +163,8 @@ class Gate:
                 '\nThis is a fixed local Python alert; no model response is required.')
         if self.state.get('decisions'):
             text+='\nExplicit user choices:\n'+'\n'.join(shlex.join(cmd) for cmd in self.state['decisions'].values())
+        if case_deadline_error(self.state.get('error')):
+            text+='\nThe explicit whole-case budget is exhausted. Ordinary resume cannot extend it; preserve this checkpoint or explicitly cancel. Any continuation needs a separately authorized budget and supported checkpoint.'
         try:result = self.notify(self.owner(), text)
         except Exception as error:result = {'status':'PENDING', 'reason':redact(str(error))}
         self.state['notification'] = {**result, 'attempts':self.notification_attempts, 'at_utc':execution.now()}
@@ -259,7 +268,10 @@ def resume(root, incident):
     root=Path(root).resolve()
     if Path(row['root']).resolve()!=root or not Path(row['logs']).resolve().is_relative_to(root):
         raise ValueError('Error checkpoint escapes its explicitly selected run')
-    if not row.get('resumable'):raise ValueError('This checkpoint needs verified software repair; automatic phase replay is unsupported')
+    if not row.get('resumable'):
+        if case_deadline_error(row.get('error')):
+            raise ValueError('The whole-case budget is exhausted; ordinary resume cannot extend it')
+        raise ValueError('This checkpoint needs an explicit supported user action or verified repair; automatic phase replay is unsupported')
     if not row.get('owner_process') or not execution.same_process(row['owner_process']):
         raise ValueError('Paused owner process has exited or changed; do not silently start a new attempt')
     validate_context(root,row.get('job_binding'),row.get('requires_job_binding',False))

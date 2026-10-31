@@ -17,11 +17,37 @@ the network and model service are unavailable.
 | HTTP 400/404/413/422, unsupported request/context/output settings | `model_request_rejected` | Pause immediately |
 | Unrecognized native service error | `model_unknown` | Pause immediately; preserve the original native event |
 | Local controller/tool/provenance fault | `harness_bug` | Pause immediately; require verified repair |
-| A remaining mathematical/source obstacle without a supported automatic repair | `workflow_blocked` | Pause with its original GAP/nonpass; do not misattribute it to software or service failure |
+| A remaining mathematical/source obstacle, qualified first-pass interface nonpass, or explicit whole-case budget stop | `workflow_blocked` | Retain the original outcome and wait for an authorized action; no remote retry or implied software fault |
 
 Explicit quota/auth/rejection evidence takes priority over a generic capacity
 code. A mathematical nonpass is ordinary located repair, never a remote retry.
 The native Lean 180-second limit remains a separate candidate-check policy.
+
+## Explicit whole-case budget
+
+Whole-case and stage totals remain unlimited by default. An explicitly selected
+whole-case deadline is shared across authoring, Audit A, translation, queues,
+native checks and service retry waits. On expiry, workers stop new work, request
+the bounded interruption of any current native generation, save their actual
+results and release execution slots before the case controller pauses. They
+retain their owned carriers/workspaces; expiry grants no cleanup authority.
+Already-completed tool results may be redelivered by exact call ID, but new late
+tool calls are not executed while interruption is being confirmed.
+
+The retained case stop is `CASE_DEADLINE` under `workflow_blocked`. Qualified
+fault-free evidence supports `MODEL_BUDGET_EXHAUSTED`; recorded execution faults
+instead give `UNFINISHED_WITH_EXECUTION_FAULT`, and missing identity/health gives
+`UNFINISHED_ATTRIBUTION_UNVERIFIED`. Original faults and bound stage results
+remain available. Each role revision keeps its health evidence independently
+of usage accounting; a later healthy revision does not erase an earlier fault.
+An authorized translation reset archives health metadata and costs before
+removing translation artifacts. Archived judgments do not become new acceptance.
+
+Ordinary `resume-error` cannot extend an exhausted frozen budget. A continuation
+requires explicit budget authorization and a supported checkpoint. Explicit
+cancellation takes precedence when cancellation and expiry are observed together.
+An already-authorized delivery can finish recording its existing result after
+time spent awaiting the user; new review/reset work still checks the budget.
 
 ## Retry and pause
 
@@ -112,12 +138,31 @@ Resource termination/deletion is authorized only by:
    reruns translation. A stale incident, changed owner or unconfirmed cleanup
    blocks the action. Earlier failures are never relabeled PASS.
 
+Early B-final blocking retains incomplete coverage and actual findings. Explicit
+`deliver-actual` binds the existing findings report, user decision and compiled
+proof as `USER_DELIVERY_EVIDENCE`; it does not synthesize a complete `review.json`.
+The case's audit summary records these under `delivery`, while normal completed
+audits retain their `review` receipt. The batch controller recognizes
+`DIFFERENT_RESULT_DELIVERED` as an authorized end, with the original target still
+uncompleted and `all_cases_accepted` false for that result. Before acting on any
+of the three decisions, the controller rechecks the exact findings-report and
+final-proof bindings captured before the user wait. Changed or missing evidence
+blocks the action.
+
 Faults, retry exhaustion, a stage directory, a model's normal reply, a submitted
 draft, elapsed time or a child-process exit cannot grant this authorization.
 Parent controllers retain and report an abnormal child exit instead of declaring
 the task finished. Existing scientific outputs and error evidence are retained;
 automatic successful finalization removes only owned ephemeral resources.
 Deleting an entire selected scientific run remains an explicit cleanup action.
+
+Process cleanup reaps the registered parent and checks its private group's live
+members, including members that survive the leader. Signals require matching
+PID/start/PGID identities; a known surviving member may anchor the group's
+ownership after leader exit. An unknown orphan group or failed OS query keeps
+cleanup unconfirmed and preserves resources. Positive evidence of a new group
+leader with a different start identity excludes a numerically reused foreign
+group. Parent exit alone cannot yield `CONFIRMED_NO_OWNED_PROCESSES`.
 
 Stage resource retention and authorized release are separate owner receipts, so
 deferred cleanup does not rewrite hash-bound judgments/results. The existing

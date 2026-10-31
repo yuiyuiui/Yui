@@ -14,6 +14,7 @@ CORE=Path(__file__).resolve().parents[1]
 import cleanup as c
 import jobs
 import run_resources
+import execution_state
 from execution_state import identity
 from harness_support import PROFILES
 
@@ -91,6 +92,35 @@ class CleanupTests(unittest.TestCase):
         (self.output/'case-process.json').write_text(json.dumps({'schema_version':'yui-owned-process-1','process':row}))
         self.assertEqual(self.clean(apply=True,grace=0)['status'],'CLEANED')
         self.assertIsNone(unrelated.poll())
+
+    def test_orphan_group_without_member_identity_blocks_manual_deletion(self):
+        owner,row=self.start_owner()
+        child=identity(row['child'])
+        # Emulate historical records that knew only the leader, not its helper.
+        for path in (self.output/'resources').glob('process-*.json'):path.unlink()
+        owner.terminate();owner.wait(timeout=5)
+        try:
+            result=self.clean(apply=True,grace=0)
+            self.assertEqual(result['status'],'BLOCKED',result)
+            self.assertTrue(self.output.exists());self.assertTrue(Path(row['work']).exists())
+            self.assertTrue(execution_state.same_process(child))
+        finally:
+            if execution_state.same_process(child):os.kill(child['pid'],9)
+
+    def test_saved_group_members_allow_manual_cleanup_after_leader_exit(self):
+        owner,row=self.start_owner()
+        record=execution_state.capture_process(owner,private_group=True)
+        child=identity(row['child'])
+        (self.output/'case-process.json').write_text(json.dumps({'schema_version':'yui-owned-process-1','process':record}))
+        for path in (self.output/'resources').glob('process-*.json'):path.unlink()
+        owner.terminate();owner.wait(timeout=5)
+        try:
+            self.assertEqual(self.clean(apply=True,grace=.05)['status'],'CLEANED')
+            self.assertFalse(self.output.exists());self.assertFalse(Path(row['work']).exists())
+            table=c.process_table()
+            self.assertFalse(c.matching(child,table))
+        finally:
+            if execution_state.same_process(child):os.kill(child['pid'],9)
 
     def test_cleanup_lock_blocks_new_stage_and_unknown_lock_is_preserved(self):
         lock=self.output/'.cleanup.lock';lock.write_text('{}')

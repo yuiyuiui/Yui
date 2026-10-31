@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-from execution_state import identity, terminate_owned
+from execution_state import capture_process, terminate_owned
 from runtime_config import native_timeout, native_heartbeats
 
 
@@ -17,7 +17,7 @@ def run_probe(command, cwd):
     limit=native_timeout()
     process=subprocess.Popen(command,cwd=cwd,stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,text=True,start_new_session=True)
-    owner=identity(process.pid)
+    owner=capture_process(process,private_group=True)
     try:
         stdout,stderr=process.communicate(timeout=limit)
         return subprocess.CompletedProcess(command,process.returncode,stdout,stderr)
@@ -29,8 +29,8 @@ def run_probe(command, cwd):
             stderr+f'\nLean timeout: library query exceeded {limit:g} seconds. '
             'Retain this query and retry a smaller set of declarations.')
     finally:
-        if process.poll() is None and owner:
-            terminate_owned(process,owner)
+        if not terminate_owned(process,owner):
+            raise RuntimeError('Library-query process group cleanup could not be confirmed')
 
 
 def prepare_output(out, replace=False):

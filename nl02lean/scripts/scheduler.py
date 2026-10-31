@@ -153,6 +153,11 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
             'interface changed while workers were running')
     complete = set(proofs) == set(nodes)
     if execution and execution.cancelled():complete=False
+    case_deadline=None
+    if execution and not execution.cancelled():
+        try:execution.remaining()
+        except execution_state.CaseDeadlineExceeded as error:
+            case_deadline=error;complete=False
     requests={j['step']:j['repair_request'] for j in jobs if j.get('repair_request')}
     if requests:complete=False
     if execution:execution.update(phase='assembly' if complete else 'proof-diagnosis' if requests else 'proof-unfinished')
@@ -174,4 +179,5 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
         ir.write(out/'scheduler-report.json', report)
         ir.write(out/'proofs.json', {'contract_sha256': initial_contract,
                                    'plan_digest': initial_plan, 'proofs': proofs})
+    if case_deadline is not None:raise case_deadline
     return report

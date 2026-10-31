@@ -5,12 +5,13 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 from runtime_config import load_lock
-from execution_state import current, Cancelled, terminate_owned, identity
+from execution_state import current, Cancelled, terminate_owned, capture_process
 
 
 
@@ -97,9 +98,12 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
         cmd = ['/usr/bin/sandbox-exec', '-f', str(profile)] + cmd
     started = time.monotonic()
     recorder, task = current()
+    case_limited = False
     if recorder:
         recorder.check(task)
-        timeout = recorder.remaining(timeout)
+        remaining = recorder.remaining(timeout)
+        case_limited = recorder.deadline is not None and (timeout is None or remaining < timeout)
+        timeout = remaining
     from run_resources import MARKER, register_workspace, register_child
     if (recorder and not (work/MARKER).exists() and
         work.resolve().parent == Path(__import__('tempfile').gettempdir()).resolve()):
@@ -109,8 +113,8 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
     try:
         process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
-        owner = recorder.register_process(process,'lean',task) if recorder else identity(process.pid)
-        register_child(work, process, 'lean')
+        owner = recorder.register_process(process,'lean',task,private_group=True) if recorder else capture_process(process,private_group=True)
+        register_child(work, process, 'lean',private_group=True)
         while True:
             try:
                 stdout,stderr=process.communicate(timeout=.1)
@@ -123,6 +127,7 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
                     if not stopped: raise RuntimeError('Native process cleanup could not be confirmed')
                     stdout,stderr=process.communicate()
                     diagnostic = ('\nExternal cancellation' if cancelled else
+                        '\nThe explicit whole-case budget expired; preserve this interrupted native check.' if case_limited else
                         f'\nLean timeout: this native check exceeded {timeout:g} seconds. '
                         'The candidate was not accepted. Isolate a smaller typed application or proof '
                         'fragment, repair it and recheck the unchanged target. '
@@ -131,18 +136,20 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
                         'stderr':stderr+diagnostic,
                         'wall_seconds':time.monotonic()-started,'cancelled':cancelled}
                     if not cancelled:
-                        result.update(timed_out=True,error_kind='LEAN_TIMEOUT',
-                                      timeout_seconds=timeout,timeout_scope='native_call')
+                        result.update(timed_out=True,error_kind='CASE_DEADLINE' if case_limited else 'LEAN_TIMEOUT',
+                                      timeout_seconds=timeout,timeout_scope='whole_case' if case_limited else 'native_call')
                     break
         result['native_limits'] = {'timeout_seconds': timeout, 'max_heartbeats': heartbeats}
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
+        if recorder:recorder.check(task)
         return result
     finally:
         if process is not None:
-            if process.poll() is None:
-                if recorder: recorder.stop_process(process)
-                elif owner: terminate_owned(process,owner)
+            if owner:
+                stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+                if not stopped and sys.exc_info()[0] is None:
+                    raise RuntimeError('Native process group cleanup could not be confirmed')
             if recorder: recorder.process_finished(process)
 
 

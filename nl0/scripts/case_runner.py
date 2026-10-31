@@ -190,9 +190,14 @@ def translation_attempt(job, authority, budgets, progress):
                 result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
                     proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
                     prior_interface=prior_interface,diagnostics=diagnostics,prior_run=repair_prior_run,sessions=sessions)
-            write(root/'audit-b'/f'{attempt:04d}.json',{'status':result['audit_b']['status'],
-                'review':bind(result['audit_b']['receipt_path']),'workflow':str(directory/'workflow'),
-                'acceptance_basis':result['audit_b']['acceptance_basis']})
+            summary={'status':result['audit_b']['status'],'workflow':str(directory/'workflow'),
+                     'acceptance_basis':result['audit_b']['acceptance_basis']}
+            if result['status']=='DIFFERENT_RESULT_DELIVERED':
+                summary['delivery']={'findings':bind(result['audit_b']['findings']),
+                    'decision':result['user_decision'],'proof':bind(result['proof']),
+                    'review_coverage':result['audit_b']['review_coverage']}
+            else:summary['review']=bind(result['audit_b']['receipt_path'])
+            write(root/'audit-b'/f'{attempt:04d}.json',summary)
             if result['status']=='DIFFERENT_RESULT_DELIVERED':
                 warning=json.loads((root/'warn.json').read_text()) if (root/'warn.json').exists() else {}
                 warning.update(status='ORIGINAL_GOAL_NOT_COMPLETED',message=result['warning'],
@@ -239,7 +244,11 @@ def execute(job, root=None):
         def progress(case,phase,**extra):
             from runtime_config import model_profile
             profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_')) else 'translation-preparation')
-            recorder.check();recorder.update(phase=phase,stage_artifacts=extra,model_selection=profile,
+            # Delivery records an already-authorized artifact; it starts no new work.
+            if phase=='DIFFERENT_RESULT_DELIVERED':
+                if recorder.cancelled():raise execution.Cancelled('External cancellation requested during delivery')
+            else:recorder.check()
+            recorder.update(phase=phase,stage_artifacts=extra,model_selection=profile,
                 model={'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']});recorder.flush(force=True)
         try:
             with execution.activate(recorder),recorder.signals():
@@ -262,12 +271,7 @@ def execute(job, root=None):
         except execution.Cancelled as error:
             result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','error':str(error)}
         except execution.CaseDeadlineExceeded as error:
-            stages=[row['stage_result'] for row in recorder.state['tasks'].values() if row.get('stage_result')]
-            fault=any(row.get('execution_health')=='FAULT' for row in stages)
-            healthy=bool(stages) and all(row.get('execution_health')=='NO_RECORDED_FAULT'
-                and row.get('identity_and_input_boundary_verified') for row in stages)
-            result={'status':'UNFINISHED','stop_reason':'CASE_DEADLINE','error':str(error),
-                'task_outcome':'UNFINISHED_WITH_EXECUTION_FAULT' if fault else 'MODEL_BUDGET_EXHAUSTED' if healthy else 'UNFINISHED_ATTRIBUTION_UNVERIFIED'}
+            result=recorder.deadline_result(error)
         except StageFailure as error:result=error.result
         except Exception as error:
             result={'status':'EXECUTION_FAULT','error':type(error).__name__+': '+str(error),'traceback':traceback.format_exc(),

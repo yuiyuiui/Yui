@@ -87,7 +87,7 @@ def serve(jobs,*,case_concurrency=None):
                 if process.poll() is None:continue
                 result=root/'case-result.json'
                 value=json.loads(result.read_text()).get('result',{}) if result.is_file() else {}
-                if value.get('status') not in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED'}:
+                if value.get('status') not in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED'}:
                     from fault_control import Gate
                     from execution_state import Cancelled
                     try:

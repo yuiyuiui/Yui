@@ -61,7 +61,7 @@ New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
 Historical jobs without snapshots retain their original binding checks.
-Each native Lean call defaults to a five-minute wall limit. Yui proof workers
+Each native Lean call defaults to a 180-second wall limit. Yui proof workers
 automatically receive frozen ST020 repair advice after a verified native
 wall/heartbeat limit, through the same failed tool result. Keep the target and
 inputs unchanged, repair in the same worker, and recheck. General strategy-bank

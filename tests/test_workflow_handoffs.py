@@ -15,6 +15,27 @@ from execution_health import StageFailure
 
 
 class WorkflowHandoffTests(unittest.TestCase):
+    def test_b_final_changed_or_missing_findings_refuse_all_decisions_after_user_wait(self):
+        for action,mutation in ((a,m) for a in ('deliver-actual','recheck','reset-translation')
+                                for m in ('replace','remove')):
+            with self.subTest(action=action,mutation=mutation),tempfile.TemporaryDirectory() as raw:
+                out=Path(raw)/'workflow'
+                def prepare(audit,directory,**kwargs):
+                    write(Path(directory)/'report.json',{'all_checks_passed':False,'synthetic':'reviewed findings'})
+                def decide(gate,*args,**kwargs):
+                    write(gate.path,{'state':'USER_DECIDED','control':{'action':action}})
+                    if mutation=='remove':(gate.logs.parent/'report.json').unlink()
+                    else:write(gate.logs.parent/'report.json',{'all_checks_passed':False,'synthetic':'changed while awaiting user'})
+                    return {'control':{'action':action}}
+                with patch.object(final_acceptance,'check',return_value={'interface_consistent':False}), \
+                     patch.object(full_workflow.audit_b_review,'prepare',side_effect=prepare), \
+                     patch.object(full_workflow.audit_b_review,'run'), \
+                     patch.object(full_workflow.audit_b_review,'collect',return_value={'all_checks_passed':False}), \
+                     patch('fault_control.Gate.pause',decide):
+                    with self.assertRaises(StageFailure) as caught:
+                        full_workflow.finish_translation('synthetic',out,concurrency.serial_budget(),lambda *a,**kw:None)
+                self.assertEqual(caught.exception.result['status'],'FINAL_ARTIFACT_CHANGED')
+
     def test_unchanged_nl0_does_not_end_the_same_author_reviewer_loop(self):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);baseline=root/'baseline'

@@ -62,7 +62,7 @@ class Sessions:
                     'proc', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
                     'model_calls', 'tool_history', 'allowed_user_messages',
                     'network_proxy','handoff_results',
-                    'native_usage_total') if hasattr(stage, k)}
+                    'native_usage_total','process_owner') if hasattr(stage, k)}
                 owner_logs = getattr(stage, 'workspace_owner_logs', stage.logs)
                 if stage.mode=='proof' and template.mode=='proof':
                     import ir

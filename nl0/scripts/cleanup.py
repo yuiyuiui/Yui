@@ -23,7 +23,7 @@ import time
 
 CORE = Path(__file__).resolve().parents[2]
 REPO = CORE
-from execution_state import atomic, now, request_cancel
+from execution_state import atomic, now, request_cancel, remaining_processes
 from run_resources import MARKER, SCHEMA
 
 
@@ -143,6 +143,7 @@ def inventory(repo, outputs=None):
                                 workspaces[work.resolve()] = str(path)
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     errors.append(str(error))
+    records.extend(member for record in list(records) for member in record.get('group_members',[]))
     return {'roots': roots, 'records': records, 'workspaces': workspaces,
             'snapshots': snapshots, 'batches': batches, 'errors': errors}
 
@@ -180,6 +181,15 @@ def discover(inv, table, repo):
         added = {pid: row for pid, row in table.items() if row['ppid'] in owned and
                  pid not in owned and not row['stat'].startswith('Z')}
         changed = bool(added); owned.update(added)
+    for record in inv['records']:
+        if record.get('pid')!=record.get('pgid') or record.get('pgid') is None:continue
+        group={**record,'group_members':[r for r in inv['records'] if r.get('pgid')==record['pgid']]}
+        members,authorized=remaining_processes(group,table)
+        if members and not authorized:
+            message='Unconfirmed orphan process group; preserve its ownership evidence: '+str(record['pgid'])
+            if message not in inv['errors']:inv['errors'].append(message)
+        elif authorized:
+            owned.update({member['pid']:table[member['pid']] for member in members})
     return owned
 
 
