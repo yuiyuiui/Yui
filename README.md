@@ -1,6 +1,6 @@
 # Yui
 
-<p align="center"><img src="assets/yui.jpg" alt="Yui Hirasawa in a Santa outfit" width="320"></p>
+<p align="center"><img src="assets/yui-guitar.png" alt="Anime-style sunburst electric guitar" width="320"></p>
 
 Yui is a multi-agent harness designed to quickly make natural-language mathematical proofs rigorous. Its workflow has two parts.
 
@@ -110,6 +110,10 @@ For natural-language auditing alone, request **NL0 and Audit A only** and provid
 
 Workflow design was informed by Anthropic's [Building effective agents](https://www.anthropic.com/research/building-effective-agents).
 
-Logo image: Yui Hirasawa from *K-On!* ([image source](https://wallpapers.com/images/hd/yui-hirasawa-k-on-screenshot-dajaawuu7yky5h5d.jpg)).
+The logo and project name are inspired by Yui Hirasawa from *K-On!*.
 
-Original project content is available under the [MIT license](LICENSE). Third-party material, including the logo, is excluded; see [third-party notices](THIRD_PARTY_NOTICES.md).
+The [MIT license](LICENSE) applies to original Yui code, documentation, strategy descriptions and other original project content. It does not grant rights to third-party material.
+
+Lean, Mathlib, Codex and other external tools retain their own licenses and terms. They are not relicensed by Yui. Mathlib source excerpts and theorem-query output retain the applicable upstream attribution and license; see [Mathlib's license](https://github.com/leanprover-community/mathlib4/blob/master/LICENSE).
+
+Original Yui metadata and strategy advice do not grant additional rights to the external material they describe. A source citation or a successful proof check is not a redistribution license.
