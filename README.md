@@ -1,440 +1,109 @@
 # Yui
 
-Yui makes an existing mathematical proof explicit, auditable,
-and ready for Lean. Its single entry is the `rigorous-proof` skill:
+<p align="center"><img src="assets/yui.jpg" alt="Yui Hirasawa in a Santa outfit" width="320"></p>
 
-1. Write structured natural-language proof `NL0` and perform independent Audit A.
-2. Optionally translate the accepted proof through local Lean obligations,
-   assemble the checked proofs, and perform machine Audit B against the independently reviewed frozen interface.
+Yui is a multi-agent harness designed to quickly make natural-language mathematical proofs rigorous. Its workflow has two parts.
 
-Before freezing, an independent reviewer checks every external theorem and the
-complete target, including all hypotheses and relevant definitions, against their
-Lean expressions. Final machine Audit B inherits that semantic review only after
-checking the actual exported types, frozen definitions and complete proof closure.
-A valid proof with interface drift requires an exceptional independent B-final
-review and a visible warning; an invalid proof cannot take that exception.
-The pinned Mathlib environment
-is available freely. Literature theorems not proved in Lean remain explicit
-external premises. An LLM review is not a kernel proof of natural-language
-mathematics, and a successful compilation alone is not source-fidelity approval.
+## 1. How it works
 
+### Natural-language auditing
 
-`main` uses concise mathematical NL0 and Audit A. Routine background facts
-need mathematical conditions and justification; their exact Mathlib bindings
-are resolved during nl02lean. Independent pre-freeze E/P review, frozen
-interfaces, native limits, complete assembly/dependency checks and final machine
-Audit B remain required. This is the workflow previously developed as Yui V2.
+Yui organizes the original proof into a proof graph, **NL0**, with explicit external theorems and reviewed background mathematics. Each proof node has a prescribed format, inputs and outputs. Its argument is rewritten and audited for hidden dependencies, using only its available inputs and justified routine background facts. A fixed Mathlib version is used in the formalization stage; exact Mathlib bindings for routine background steps are resolved there.
 
-The `nl0-detail` branch preserves the earlier detailed NL0 workflow, including
-its pre-translation native-background verification. Both branches include the
-obsolete-inspector/observer cleanup. Choose a branch before installation:
+The completed NL0 is reviewed under **Audit A**. A pass produces an acceptance record and an NL0 proof considered rigorous within this natural-language auditing system. Audit A is model-based mathematical review, rather than a machine-checked proof.
 
-```sh
-git clone --branch main https://github.com/yuiyuiui/Yui.git
-# To select the detailed alternative in an existing clean checkout:
-git switch nl0-detail
-# To return to the default workflow:
-git switch main
-```
+### Conditional formalization
 
-Install the selected repository root as `$rigorous-proof`. A symlink-based
-installation follows the checked-out branch; use `main` for the default.
-Only one canonical skill registration is needed. There is no separate
-`rigorous-proof-v2` installation or output namespace in new jobs.
+Yui optimizes the NL0 proof structure, independently reviews and freezes the formal statements of the external theorems and target, and supplies the global information needed for formalization. This forms the intermediate layer.
 
-New mathematical-NL0 jobs use Audit A format 4. Historical detailed format-3
-receipts are not upgraded or relabeled: use their original bound runtime or
-the matching detailed branch when inspecting or continuing such evidence.
-The policy identifier `mathematical-background-v2-1` is retained as a schema
-identifier, not as a checkout path or an additional installed skill.
-There is no measured speed or completion guarantee.
+The resulting proof nodes are then formalized concurrently. Workers can use NL0, the intermediate layer's global information, the optional [Mathlib library](library/README.md) and the [Lean strategy bank](nl02lean/bank/rule.md) to help with their proofs.
 
-## Use
+Once all nodes are complete, the Python controller assembles the proof, runs Lean and performs **Audit B**. It checks proof closure and that the actual external premises, target and relevant definitions agree with the reviewed, frozen intermediate layer. The result is a conditional Lean proof whose literature theorems remain explicit assumptions.
 
-The repository root is the complete `rigorous-proof` skill: `SKILL.md` sits
-beside `config.json`, `nl0/`, `nl02lean/` and `toolchain/`. Install/copy this root
-directory together with those resources. There is no inner `rigorous-proof/`
-directory to extract, and the checkout or installation directory may be renamed.
-Then ask, for example:
+## 2. Efficiency and advantages
 
-- “Use rigorous-proof on this paper's existing proof, through NL0 and Audit A.”
-- “Use rigorous-proof on this proof, including Lean and Audit B.”
-- “Use rigorous-proof on these supplied proofs concurrently.”
-- “Continue from this accepted NL0 into Lean.”
+### Fast conditional formalization
 
-The invoking agent asks once for all missing settings, retaining already
-specified choices. A phase profile includes the model, reasoning effort and speed.
+Detailed tests and benchmark results are in [Yui-results](https://github.com/yuiyuiui/Yui-results). On a complete natural-language proof from a real research problem, the recorded end-to-end results were:
 
-| Requested track | Settings to supply or confirm |
-| --- | --- |
-| NL0 and Audit A only | NL0 phase profile and R-review worker count N |
-| Accepted NL0 to Lean and Audit B | Lean phase profile and local Lean proof-worker count N |
-| Complete workflow | Both phase profiles and one worker count N, used for R reviews and later Lean proofs in separate phases |
+| Method | Elapsed time | Observed tokens |
+| --- | ---: | ---: |
+| Yui | 4 h 9 min | 282,760,473 |
+| Pure model, including repair and acceptance review | 11 h 6 min | 248,548,201 |
 
-N must be an explicitly supplied or confirmed positive integer, including 1
-for serial local work. Initial/global authors, global review, preparation, assembly
-and final acceptance remain serial within each case. Local repair authors and
-reviewers share the N active local slots; waiting conversations use no slot.
-The harness then stages inputs, schedules independent
-roles, handles located local repairs and records actual results. It does not
-require the user to create task packets or dispatch reviewers manually.
+In this benchmark, Yui completed the task **2.67 times as fast**, using **1.14 times as many observed tokens**. Both were configured for **gpt-6.1-sol / high / Standard**. Yui allowed 20 local workers; pure-model construction used one author session per run. The figures include the recorded repairs and reviews, and usage accounting is partial.
 
-Results go beside each problem, under `rigorous-proof/<run-id>/`. The skill
-installation contains code and rules, never a global scientific output tree.
-Here `rigorous-proof/` is the generated output-folder name, not a required
-installation directory. Supply your own proof or paper outside the installed
-skill. Mathematical example runs and paper benchmarks are kept separately from
-this software checkout. Read each run's `case-result.json` and gate reports for
-its actual acceptance scope.
+### Fast natural-language assurance
 
-The [NL0 role protocol](nl0/references/review-execution.md) retains the same author
-and global reviewer through complete global assessments. Only an accepted global
-review opens parallel local review/repair pairs. Local authors edit only their
-own R bodies. A located global issue restores the global role from its saved
-handoff after active local assignments finish; new local dispatch waits.
-N limits combined active local author/reviewer work, not idle conversations.
+On the same input, NL0 writing and Audit A, including local repair, used:
 
-Translation retains one preprocessing author and a separate reviewer through
-optional shared extraction and interface construction. No extraction needs no
-incremental review. They close after accepted interface freeze. Ordinary Lean
-errors/timeouts return to the owning worker. A serial connection author can repair
-internal proofs, but cannot change frozen E/P or definitions determining their
-meaning. No fixed idle-turn count cancels siblings or unlocks the interface.
-Internal T-plan defects return to preprocessing after the current proof round's
-handoffs. All complete node declarations must pass strict machine checks;
-`#check` success alone is insufficient. An internal revision keeps the source,
-H/E/P, public definitions and pins unchanged, receives an independent delta
-review, and freezes a new version. Only currently rechecked own proofs can be
-reused. Protected public-contract/source defects pause for the user. See the generic
-[repair protocol](nl02lean/references/proof-repair.md).
+| Stage | Elapsed time | Observed tokens |
+| --- | ---: | ---: |
+| Yui: NL0 + Audit A | About 34 min | 12,402,106 |
 
-## Runtime
+This stage took about **1/19.6 of the elapsed time** and **0.05 times the tokens** of the pure model's complete Lean formalization above. It produces audited NL0; there is no measured pure-model NL0-only baseline here.
 
-The root directory contains the four mathematical responsibilities, their shared
-Python controllers, software tests, and one skill entry. The optional
-`library/` catalog and `tests/` software suite are not required for ordinary
-proof execution. Keep the runtime directories beside `SKILL.md` when installing.
-Each new job copies the declared executable, rules, templates, pins and selected
-optional catalog into its owned `runtime/`, with `runtime-manifest.json`. Queue
-and case launchers use that snapshot, so upgrading the installation does not
-invalidate a live workflow. Credentials, personal memories, tests and old
-scientific results are excluded. Keep this snapshot with the run evidence;
-changing a snapshot still invalidates its hashes. Historical unsnapshotted jobs
-keep their original runtime checks and are not silently rewritten.
-[Operator instructions](nl0/references/operation.md)
-cover commands, profile selection, local output, repair, status and cleanup.
-The commands below assume the repository or installed skill root is the working
-directory. From another directory, invoke `nl0/scripts/yui.py` using its actual
-installation path; bundled resources are resolved from the script location.
+If you do not want to spend as much effort on conditional formalization but are concerned about a proof's correctness, Yui's natural-language auditing system provides a quicker way to improve confidence in it.
+
+### Preserving external-theorem and target interfaces
+
+The benchmark showed that, for a long natural-language proof, a pure model can deliver substantially different external-theorem statements even when a strong model is explicitly asked to formalize the original external theorems with strict equivalence. In the author's experience, this has been a recurring problem, was more pronounced with GPT-5.6, and was not resolved simply by setting a goal. These are the author's observations, rather than a controlled comparison across models.
+
+Yui's approach is to review and freeze the formal external theorems and target during intermediate-layer construction, when the workload is smaller and the model can focus on those statements. Final machine checks compare the delivered proof against the frozen interfaces, so downstream drift is surfaced rather than silently accepted. Fidelity to the original natural-language statements still depends on the independent semantic review before freezing.
+
+## 3. Library and bank
+
+[library](library/README.md) stores entries, each linked to a theorem in a particular Mathlib version. If your formalization work focuses on a specific field, you can collect frequently used Mathlib theorems there after repeated conditional formalization runs with Yui, to speed up retrieval. We have not yet demonstrated that a larger library produces a substantial speedup.
+
+[bank](nl02lean/bank/rule.md) stores general strategies for writing Lean proofs and fixing errors. In the author's experience, some of these strategies have provided substantial speedups, but there is no guarantee that they will remain useful as models become stronger. After using Yui, users can try collecting the writing and repair strategies that the model spent time developing. So far, the author has curated only a small selection of broadly applicable strategies.
+
+## 4. Installation and requirements
+
+Install the complete repository as the **rigorous-proof** skill, keeping its runtime files beside `SKILL.md`:
 
 ```sh
-python3 -B nl0/scripts/yui.py doctor
-python3 -B nl0/scripts/yui.py selftest
+mkdir -p "$HOME/.agents/skills"
+git clone https://github.com/yuiyuiui/Yui.git "$HOME/.agents/skills/rigorous-proof"
 ```
 
-The current isolated carrier requires macOS `sandbox-exec`, Python, ripgrep,
-an authenticated compatible Codex installation and Lean 4.32.2 with Mathlib
-commit `905b95818eb32af7874a58b427f50c1711a5e96c`. Lean and Mathlib must be
-installed separately; they are not bundled with the skill. Configure
-`YUI_CODEX_BINARY`, `YUI_RG_BINARY` or `YUI_CODEX_HOME` when the other host tools
-or authentication home are outside their usual locations. Credentials are
-never committed. The current carrier supports Standard speed; unavailable
-models, reasoning levels or speeds fail explicitly, without fallback.
+If you already have Yui installed under this skill name, use that installation instead of creating a duplicate. Restart Codex if the skill is not detected.
 
-The selected Codex installation must include its matching local
-`codex-code-mode-host`. Yui locates this helper from that installation's package
-manifest (or beside a standalone executable), binds its hash and version along
-with the main executable, and verifies them before starting each role. The
-process sandbox permits these two executables; it does not enable arbitrary
-shell programs. Native Code Mode runs tool-calling JavaScript and sends approved
-Yui tool calls back to Python. It is part of Codex, not a Yui network relay.
-An actual helper startup failure pauses the affected role, stops its current
-generation and preserves its work instead of repeatedly sending “continue”.
+### Runtime
 
-### PDF text extraction
+The current runtime requires:
 
-Reading PDF inputs or downloaded PDF sources requires at least one existing
-text-extraction backend:
+- macOS, with its `sandbox-exec` isolation mechanism.
+- An authenticated, compatible Codex CLI with its matching Code Mode helper.
+- Python and ripgrep; reading PDFs also requires `pdftotext` or Python's `pypdf` package.
+- Lean **4.32.2** and the matching pinned Mathlib environment described in [the toolchain configuration](toolchain/lock.json), installed separately.
 
-- `pdftotext` on PATH (provided by Poppler); Yui tries this first.
-- The `pypdf` package installed in the Python interpreter running Yui, used
-  when `pdftotext` is absent.
-
-For example, create a virtual environment for the Python alternative:
+Set `YUI_LEAN_ROOT` and `YUI_MATHLIB_ROOT` if these tools are installed outside the default locations under your home directory. `YUI_CODEX_BINARY` can select a Codex executable outside the normal search locations. Check the installation with:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install pypdf
-.venv/bin/python -B nl0/scripts/yui.py doctor
+python3 -B "$HOME/.agents/skills/rigorous-proof/nl0/scripts/yui.py" doctor
 ```
 
-Use that same `.venv/bin/python` for subsequent Yui commands. Yui does not
-install extraction packages automatically. `doctor` checks the main runtime
-and toolchain; PDF extraction is checked when a PDF is actually read.
-Markdown, text and LaTeX inputs need neither PDF backend unless an external PDF
-must also be read. Scanned/image-only PDFs need OCR or a checked transcription
-before use; Yui has no automatic OCR step. Check extracted mathematical notation,
-especially subscripts and fractions, before freezing it as proof input.
+### Use
 
-### Lean and Mathlib locations
+Open your proof's folder in local Codex and ask, for example:
 
-Each native Lean check has a **3-minute wall limit** by default, configured as
-`timeouts.native_seconds: 180` in `config.json`. `lean.max_heartbeats: 20000000` supplies the separate calculation budget. A timed-out candidate is retained and returned to
-its worker for a smaller check and repair; it is never accepted or interpreted
-as a mathematical failure merely because time elapsed. In Yui proof workers,
-verified native wall/heartbeat exhaustion automatically includes the frozen
-ST020 diagnostic-and-repair strategy in that same tool result, without another
-model call. Ordinary errors, cancellation, provider faults and the direct arm
-do not trigger it. Whole-case/model-stage
-time and token budgets remain unlimited by default. The native limit applies
-even to checking paths without a model worker, including assembly and native
-inspection; these gates must still actually pass. A deliberate policy change
-must be recorded, especially when continuing an existing benchmark.
-
-The controller resolves these paths before model work starts. It does not ask
-the LLM to locate Mathlib, scan the computer for repositories, or download a
-missing installation. Path discovery is independent of the optional metadata
-catalog in [`library/`](library/README.md).
-
-| Dependency | Environment override | Default when no override is supplied |
-| --- | --- | --- |
-| Mathlib repository root, containing `Mathlib/` and `.lake/` | `YUI_MATHLIB_ROOT` | `~/formalization-tools/lean-mathlib-v4.32.2/mathlib` |
-| Lean installation root, containing `bin/lean` | `YUI_LEAN_ROOT` | `~/formalization-tools/lean-mathlib-v4.32.2/lean`, then `~/.elan/toolchains/leanprover--lean4---v4.32.2` if the first path is absent |
-
-Here `~` means the home directory of the user running Yui, not a fixed username.
-Existing symbolic links are resolved to their targets. An explicit override
-takes precedence: an invalid override fails instead of falling back to a
-default. Missing default installations also fail.
-
-For a compatible installation elsewhere, set the paths in the environment
-used to launch Yui:
-
-```sh
-export YUI_MATHLIB_ROOT="/absolute/path/to/mathlib4"
-export YUI_LEAN_ROOT="/absolute/path/to/lean-4.32.2"
-python3 -B nl0/scripts/yui.py doctor
+```text
+Use $rigorous-proof on proof.pdf through NL0/Audit A and Lean/Audit B.
+Use gpt-6.1-sol/high/Standard for both phases, with 20 local workers.
 ```
 
-The `doctor` command checks the environment and prints the resolved paths under
-`resolved_environment`. Location overrides do not override version requirements:
-[`toolchain/lock.json`](toolchain/lock.json) pins the Mathlib
-commit, dependency revisions, dependency manifest and Lean version. Startup
-checks reject incompatible versions or tracked source changes in Mathlib and
-its pinned dependencies. The resolved Mathlib location is then used both for
-source search/read tools and for Lean's compiled-library search paths.
-See [`runtime_config.py`](nl0/scripts/runtime_config.py) for path
-selection and checks, and [`pilot_common.py`](nl0/scripts/pilot_common.py)
-for the Lean environment.
+For natural-language auditing alone, request **NL0 and Audit A only** and provide the model profile and worker count. Results are saved beside the input under `rigorous-proof/<run-id>/`. See the [operator guide](nl0/references/operation.md) for detailed configuration and controls, and [Yui-results](https://github.com/yuiyuiui/Yui-results) for test and benchmark reproduction prompts.
 
-### What `toolchain/` contains
+## 5. Limitations and next steps
 
-[`toolchain/`](toolchain/) stores environment
-reproducibility records, not the Lean executable, Mathlib source or compiled
-library cache:
+1. **Fast unconditional formalization.** Quickly producing proofs based only on a fixed Mathlib version remains difficult and worthwhile. The author plans to work on this next.
 
-- [`lock.json`](toolchain/lock.json) pins the Lean version,
-  Mathlib commit, dependency revisions and dependency-manifest hash. Startup
-  checks compare the installed environment against these requirements and
-  reject tracked source changes. Local installation paths are resolved by
-  `nl0/scripts/runtime_config.py`, using the defaults and overrides above.
-  Historical model observations in this record do not select a run's model;
-  phase defaults and explicit job profiles do that.
-- [`migration.json`](toolchain/migration.json) records which
-  source repository/commit this harness was imported from and the original
-  source checks and execution boundary. It is historical provenance, not an
-  installer or an automatic toolchain-upgrade script.
+2. **Evaluating the division into proof nodes.** There is not yet a suitable evaluator for how a proof should be split. In observed runs, much of the parallel formalization time is spent on one particularly difficult node. Building a stable evaluator-optimizer for this division is a next step.
 
-Actual Lean/Mathlib installations remain outside Yui. Editing the lock does
-not install the corresponding versions; a version upgrade requires preparing
-and validating a matching environment separately.
+3. **Possible redundancy in NL0 and Audit A.** Strong models may not need all the information supplied by NL0. The older [nl0-detail branch](https://github.com/yuiyuiui/Yui/tree/nl0-detail) wrote a much more detailed NL0. In the author's development runs, substantially reducing the work spent on NL0 and Audit A was accompanied by a large reduction in intermediate-layer construction time, a small increase in node-formalization time, and a large decrease in total time. It may be possible to simplify NL0 and Audit A further. However, supplying less natural-language information could sharply increase the burden on weaker models. We do not yet have a good way to match model capability to the amount of natural-language detail it needs.
 
-### Execution and cleanup
+4. **A lightweight natural-language auditing system.** Much of the current NL0 work supplies information for formalization. A lighter system could audit complete natural-language proofs and also serve as a skill invoked periodically while a model is reasoning, checking local progress and reducing hallucinations.
 
-NL0, full and translation requests require an explicitly supplied or confirmed
-positive worker count N (`--max-concurrency N`). Missing counts and
-`auto` cannot silently select a default at the public entry. N controls local
-R-node reviews and local Lean proof work in separate phases. Independent-case
-concurrency is separate. Initial/global authors, global review, preparation, assembly
-and final acceptance are serial within one case. Local repair authors share the N
-active slots with their reviewers. There is no
-default time/token/call budget. Explicit cancellation is supported; the parent
-chat Stop button is not a verified cancellation of detached CLI processes.
+## 6. References
 
-Cleanup previews unless `--apply` is supplied. It targets only explicitly
-selected owned run directories, confirms process exit and preserves original
-inputs, the installed skill and the shared toolchain. See the operator instructions.
-
-For an old author-repair run stopped by the inherited probe-directory allocator
-defect, the verified runtime supports an explicitly authorized
-`resume OLD_RUN --repair-local-tool --prepare-only`. It preserves the released
-baseline, exact recorded repair obligations, prior evidence and costs; it rejects
-live processes, changed evidence and unsupported partial checkpoints. See
-[guarded local-tool recovery](nl0/references/operation.md#inherited-probe-directory-collisions).
-
-### Errors pause; they do not end the task
-
-Local Python classifies service/transport errors separately from task completion.
-Recognized transient capacity, connection, timeout and interrupted-stream errors
-retry every 60seconds, at most 30 times, keeping the same thread, drafts and
-profile. Authorization, balance, quota, rejected-request and local/unknown faults
-pause immediately. Retry exhaustion also enters `PAUSED_ERROR`.
-
-The controller retains the carrier and workspace, saves full redacted diagnostics,
-and uses the local `codex queue` CLI to notify the invoking owner task without
-needing an LLM. Owner routing is captured from `CODEX_THREAD_ID`; outside a task,
-set `YUI_OWNER_THREAD_ID` explicitly. Missing/failed delivery stays in a local
-pending outbox and never terminates the task. Inspect or explicitly resume:
-
-```sh
-python3 -B nl0/scripts/yui.py errors /absolute/path/to/RUN
-python3 -B nl0/scripts/yui.py resume-error /absolute/path/to/RUN --incident ID
-```
-
-Successful global, all-local, frozen-interface and final delivery handoffs close
-their specified completed roles after saving the bound outputs. Faults and abnormal
-child exits do not authorize cleanup. Explicit user cancellation or a selected
-final decision is a separate authorization. Completed scientific evidence remains.
-Unknown/local faults require verified repair and a supported checkpoint; no
-blind phase replay is allowed. See [fault categories, controls and exit rules](nl0/references/error-lifecycle.md).
-
-If B-final does not accept fidelity, local Python pauses and lists three explicit
-`final-decision` commands: deliver the actual result without claiming the original
-goal, request another detailed review, or reset only translation and run it again
-while retaining NL0/Audit A. A reset deletes translation artifacts and owned
-temporary resources; it preserves a user-decision record, prior cost totals and
-usage ledgers. None of these choices is selected automatically.
-
-### Foreground turn and ten-minute checks
-
-The invoking owner normally uses detached execution. After dispatch and process
-verification, it registers one host heartbeat covering the exact current runs,
-records the returned automation ID and ends the foreground turn. Each heartbeat
-performs one bounded check every ten minutes, then ends its turn. It reports
-meaningful changes; routine unchanged checks stay quiet unless the user asks
-for a report every time. No foreground sleep/poll loop is used.
-
-`config.json` records this under `owner_observation`. A detached launch returns
-a pending handoff with the observation command and scheduler prompt; it does
-not claim that a schedule exists. The host must register the heartbeat. A host
-without scheduling reports that limitation and returns manual commands instead
-of silently keeping an observer model running. After actual terminal results
-and verified process exits, the owner preserves the report and deletes the
-completed heartbeat. See [the owner protocol](nl0/references/owner-observation.md).
-
-## Optional personal Mathlib library
-
-After completing a rigorous-proof workflow, users may choose to add useful
-Mathlib theorems from its retained native-query receipts to the separate
-[`library/`](library/README.md). Over time, this can form a convenient theorem
-search catalog for their own fields, with reusable verified signature metadata.
-The repository provides only three demonstration entries, not a comprehensive
-Mathlib index or a source of preapproved mathematical answers.
-
-The catalog is optional: normal Mathlib search, source reading and native
-queries work without it. Yui looks in `library/` inside the installed skill root
-by default; `YUI_LIBRARY_ROOT` can select another catalog directory.
-Runs never update it automatically. See the [maintenance guide](library/README.md)
-for finding a run's source receipts, explicitly importing selected declarations,
-adding search tags, validating evidence and preserving version bindings.
-
-## Optional reusable Lean strategies
-
-After a rigorous-proof workflow, users may also choose to extract generalizable
-Lean implementation strategies from its work records and maintain
-[`nl02lean/bank/`](nl02lean/bank/rule.md).
-Follow its [`rule.md`](nl02lean/bank/rule.md): record prerequisites,
-failure conditions and verification, remove case-specific names and proof
-material, and retain only general procedures or broad-field strategies.
-The live bank supplies advice, not theorem permissions or accepted proofs.
-Its current entries are generalized guidance with no claimed performance
-validation. Maintenance remains optional and never automatic. Free-form strategy
-queries are disabled by default. Separately, normal Yui proof workflows freeze
-ST020 at queue entry and automatically deliver it after an actual native resource
-limit. The original diagnostic and card revision/hash are retained. Advice that
-is missing, modified or outside its declared Lean-version scope is reported as
-unavailable; the failed candidate remains unaccepted and normal local repair
-continues. No extra model call is needed for this conditional retrieval.
-
-## Repository and evidence
-
-| Path | Contents |
-| --- | --- |
-| `SKILL.md` | Skill entry and links to the two stages |
-| `config.json` | Default profiles and execution configuration |
-| `nl0/` | Stage one: NL0/Audit A rules (`references/`), programs (`scripts/`) and templates (`templates/`) |
-| `nl02lean/` | Stage two: Lean/Audit B rules, programs, templates and optional strategy bank |
-| `tests/` | One harness-wide software suite covering shared runtime, NL0, Lean and cross-stage behavior; see the [test guide](tests/README.md) |
-| `toolchain/` | Version lock and historical source-migration records; actual tools are installed separately |
-| `library/` | Optional user-maintained Mathlib catalog, three demonstrations and maintenance guide |
-
-The [`nl0-audit-a-2026-10-25`](NL0_AUDIT_A_FREEZE.json) file records
-a historical baseline, including its old paths and hashes. Current runs bind
-their actual installed rules and runtime separately. The current elementary
-profile keeps logic, finite calculations and core typed syntax; it no longer
-contains a domain vocabulary. Each problem declares its own objects and notation.
-Structural prechecks validate explicit records and references, while Audit A
-checks mathematical meaning, hidden hypotheses and theorem applications across
-all subjects. These changes do not relabel historical reviews or manufacture
-new mathematical results.
-
-No paper-scale benchmark or speed advantage is claimed. Future comparisons must
-include preparation, audits, repairs, all-agent tokens, actual concurrency and
-execution health, and distinguish original-proof direct baselines from
-fixed-NL0 continuation experiments.
-
-## Target selection and source qualifications
-
-For a clear intended theorem, the invoking agent extracts its complete target
-and proceeds without an extra user question. Multiple independent plausible
-targets require clarification. The [target-selection contract](nl0/references/target-selection.md)
-binds the selected statements to the supplied document before model dispatch.
-
-Missing external originals follow the [ordered source procedure](nl0/references/source-retrieval.md):
-arXiv full text first, Google full-text search, Google DOI discovery, then
-Sci-Hub lookup with the confirmed DOI. Already supplied adequate originals are
-reused. The author and global reviewer receive explicit engine selection and
-an optional normal local-Chrome readback tool for JavaScript/verification pages.
-This does not require controlling the user's visible in-app browser. It uses
-an existing Node/Playwright/Chrome installation, a fresh browser profile and
-ordinary site controls; the linked guide documents discovery and environment
-overrides. No browser package or paid service is installed automatically.
-Missing tools, unresolved verification, redirects and access failures are
-retained as actual receipts. Downloads preserve original bytes, version and
-hashes; the relevant theorem, definitions and hypotheses still require review.
-When the full primary text is unavailable but a complete explicit
-secondary statement exists, the [conditional-source route](nl0/references/conditional-sources.md)
-can continue with warn.json/warn.md. Such completion is WORKFLOW-CONDITIONAL,
-never ordinary full PASS; actual mathematical failures remain blocking.
-
-## Native Codex execution and software validation
-
-Yui's Python controller communicates with isolated background `codex app-server`
-processes over stdio. Codex owns direct model-service communication and login;
-Yui has no model-network relay. Python owns workflow decisions and approved
-file/Mathlib/Lean tools. The existing author/reviewer, freeze, repair and machine
-Audit B boundaries are unchanged.
-
-Native Codex built-in instructions and context management remain enabled;
-personal memory, unrelated plugins/project documents and arbitrary tools are
-isolated through the per-role configuration and workspaces. See
-[native isolation](nl0/references/isolation.md) and
-[measurement](nl0/references/measurement.md) for the exact evidence boundary.
-Configuration/input/tool readback does not certify raw provider HTTP payloads.
-Native cumulative token counters are differenced; missing actual tier or
-per-response coverage remains unknown.
-
-Run the full software suite with `python3 -B -m unittest discover -s tests -v`.
-It includes controller/gate regressions, actual local Lean checks and real Codex
-process tests against deterministic local test endpoints without real model
-inference or user notifications. Native fault tests include in-flight disconnect,
-a real sixty-second retry wait, thirty-retry exhaustion and retained-session
-resume/cancel. Fake provider endpoints exist only in tests, never as forwarding
-services in production. These checks are distinct from a new mathematical test
-round and do not establish that arbitrary proofs will complete successfully.
-
-The native protocol migration was validated with Codex CLI
-`0.165.0-alpha.1.2`. It uses supported dynamic-tool and exact thread/turn
-notifications, explicit Standard work settings, and a named direct provider to
-configure native request/stream retries. An exposed model/provider/effort/tier
-mismatch is rejected before dispatch; unavailable actual service metadata is
-still recorded as unknown.
+Workflow design was informed by Anthropic's [Building effective agents](https://www.anthropic.com/research/building-effective-agents).
