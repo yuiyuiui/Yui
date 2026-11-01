@@ -83,6 +83,8 @@ Set `YUI_LEAN_ROOT` and `YUI_MATHLIB_ROOT` if these tools are installed outside 
 python3 -B "$HOME/.agents/skills/rigorous-proof/nl0/scripts/yui.py" doctor
 ```
 
+For first-time Codex and pinned Lean/Mathlib installation, follow the [local setup guide](docs/setup.md).
+
 ### Use
 
 Open your proof's folder in local Codex and ask, for example:
@@ -107,3 +109,7 @@ For natural-language auditing alone, request **NL0 and Audit A only** and provid
 ## 6. References
 
 Workflow design was informed by Anthropic's [Building effective agents](https://www.anthropic.com/research/building-effective-agents).
+
+Logo image: Yui Hirasawa from *K-On!* ([image source](https://wallpapers.com/images/hd/yui-hirasawa-k-on-screenshot-dajaawuu7yky5h5d.jpg)).
+
+Original project content is available under the [MIT license](LICENSE). Third-party material, including the logo, is excluded; see [third-party notices](THIRD_PARTY_NOTICES.md).
