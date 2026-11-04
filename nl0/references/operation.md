@@ -36,18 +36,20 @@ A phase profile means model, reasoning effort and speed:
 
 | Requested track | Required user settings |
 | --- | --- |
-| NL0 and Audit A only (`nl0`) | NL0 phase profile and R-review worker count N |
-| Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile and per-case proof-worker count N |
-| Complete workflow (`full`) | NL0 phase profile, Lean phase profile and per-case proof-worker count N |
+| NL0 and Audit A only (`nl0`) | NL0 phase profile; optional worker cap N |
+| Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile; optional worker cap N |
+| Complete workflow (`full`) | NL0 phase profile and Lean phase profile; optional worker cap N |
 
-Ask for all missing settings together. An explicitly supplied value, or an
-explicit confirmation of a proposed value for this request, satisfies the
-requirement; do not ask again. N must be a positive integer, including 1 when
-the user wants serial proof work. Do not silently resolve an omitted count or
-`auto` to two. If the user delegates the choice, propose a concrete N and obtain
-confirmation before dispatch. Choosing `--use-config-profiles` does not choose
-or confirm N. For several cases, explain that N applies to each case, then
-retain a shared count unless different per-case settings were requested.
+Ask for all missing phase-profile settings together and retain supplied values.
+Do not ask for an omitted worker count: the default `auto` uses the current
+phase's full node count, R for local Audit A review/repair and T for local Lean
+proofs, including shared lemmas and representation conversions. Resolve R after
+global acceptance and T from the frozen Lean plan; recompute auto if a reviewed
+revision changes either graph. Before a graph exists, report the effective
+count as pending rather than guessing a number. There is no fixed fallback.
+An explicit N must be a positive integer, including 1 for serial local work,
+and caps each separate phase. For several cases, N applies independently to each
+case unless different per-case settings were requested.
 
 An `audit-b`-only continuation has no proof queue and needs only its Lean phase
 profile, not N. `execute` and supported `resume` reuse an existing job's frozen
@@ -55,7 +57,7 @@ settings; they do not recollect values or change a historical worker count.
 These configuration questions do not change the scheduling architecture:
 Initial/global NL0 authors, global Audit A, preparation, assembly and final acceptance
 remain serial. Local R reviewers and their repair authors share N active slots.
-Later Lean proofs use N slots in their separate phase; waiting roles use no slot.
+Later Lean proofs use their own phase-sized or explicitly capped lane; waiting roles use no slot.
 
 ## Entry commands
 
@@ -82,16 +84,16 @@ foreground turn. Detached dispatch returns an explicit pending monitoring
 handoff; it does not itself register a schedule. Do not wait through repeated
 foreground sleeps or status polls.
 
-For translation pass `--track translate --source /accepted/nl0-case`, the Lean
-profile and the confirmed `--max-concurrency N`. For audit-only pass
+For translation pass `--track translate --source /accepted/nl0-case` and the Lean
+profile. Optionally pass `--max-concurrency N` to cap local work. For audit-only pass
 `--track audit-b --audit /checked/native-audit-dir`.
 An audit-only continuation discloses inherited native evidence and does not
 claim a new proof, compilation or cold workflow result.
 
-The public `run`/`prepare` entry requires `--max-concurrency N` for NL0, full and
-translation tracks. It limits local R reviews and local Lean proof jobs per case
-in separate phases, not all model stages. Low-level controllers retain `auto` for compatibility with existing
-jobs; this is not a substitute for user confirmation at the public entry.
+The public `run`/`prepare` entry defaults to `--max-concurrency auto` for NL0,
+full and translation tracks. Auto resolves independently to the current R/T
+node count. An optional positive N limits both separate local phases, not all
+model stages. Existing frozen jobs retain their bound settings/runtime.
 `--case-concurrency K` separately limits independent cases;
 by default the explicitly requested cases may run concurrently. The author, global review, preparation, assembly and Audit B
 remain serial within each case. Python controllers occupy no model slot.

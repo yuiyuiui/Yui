@@ -233,7 +233,7 @@ class Recorder:
             'controller': {**owner, 'ppid': os.getppid(), 'state': 'RUNNING'}, 'phase': phase,
             'bindings': {}, 'model': {'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']}, 'model_selection':profile,
             'concurrency': {**configuration, 'active_model_stages':0,'observed_peak_model_stages':0,
-                'roles': {}, 'proof_limit_scope': 'Local R reviews and Lean proof jobs use the same N in separate phases'},
+                'roles': {}, 'proof_limit_scope': 'Auto uses the current R/T node count; explicit N caps each separate phase'},
             'tasks': {}, 'processes': {}, 'usage': {},
             'cancellation': {'requests':[], 'cleanup':'NOT_REQUESTED'}, 'result': {'status':'RUNNING'}}
         self.state['time_budget'] = {'scope':'whole_case_wall_clock','seconds':time_budget_seconds,
@@ -336,6 +336,16 @@ class Recorder:
 
     def activity(self, key, activity):
         if key is not None: self.task(key, activity=activity, last_activity_at_utc=now())
+
+    def model_configuration(self, role, configuration):
+        with self.lock:
+            c = self.state['concurrency']
+            row = c['roles'].setdefault(role, {'active': 0, 'observed_peak': 0})
+            row['configuration'] = dict(configuration)
+            if role in {'audit_r', 'proof'}:
+                c.update(configuration)
+                c['resolved_role'] = role
+            self.dirty = True
 
     def model_slot(self, delta, *, role='unspecified'):
         with self.lock:

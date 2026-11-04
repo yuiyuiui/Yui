@@ -114,10 +114,12 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 if own is None:raise StageFailure('LOCAL_REPAIR_INCOMPLETE','No selected own-node patch')
             return None
 
+        audit_budget.configure(len(data[4]))
         progress(job['case'],'AUDIT_A_LOCAL',workers=audit_budget.configuration['effective'])
-        with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
-            pending={rid:pool.submit(copy_context().run,local,rid) for rid in sorted(data[4])}
-            for rid,future in pending.items():outcomes[rid]=future.result()
+        if data[4]:
+            with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
+                pending={rid:pool.submit(copy_context().run,local,rid) for rid in sorted(data[4])}
+                for rid,future in pending.items():outcomes[rid]=future.result()
         # No new local work is started after a global issue; current assignments
         # reach their normal handoffs before the serial global author is restored.
         global_issues=[v for v in outcomes.values() if v and 'global' in v]

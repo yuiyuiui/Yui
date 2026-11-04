@@ -14,7 +14,8 @@ primary-source outcome) opens the local lane. Save the handoff and close both ro
 
 Then run per-node reviewer/repair-author pairs. A local author changes only its
 own R body under unchanged public inputs/output/definitions. The pair alternates
-within the same own conversations. N counts their combined active model work;
+within the same own conversations. By default N is the current R-node count;
+an explicit positive worker cap overrides it. N counts their combined active model work;
 idle conversations occupy no slot. A located shared-context issue stops new local
 dispatch. Current assignments reach normal handoffs, reviewed work is merged, and
 the global roles are restored from saved source/findings. Recheck changed global
@@ -25,7 +26,7 @@ reviewers; never share sibling judgments or proof bodies. Collect by stable
 job ID, independent of finish order. Retain completed results if a sibling
 fails. Actual source revisions get new packets and invalidate affected work.
 Interface work, assembly and Audit B stay serial. Local Lean proof work uses
-the same confirmed N in a separate later phase. `concurrency.CaseBudgets`
+the current T-node count by default, or the same explicit N cap, in a separate later phase. `concurrency.CaseBudgets`
 records all three lanes in one ledger and rejects phase overlap. Independent
 cases may overlap; their mutable stores and mathematical inputs do not.
 

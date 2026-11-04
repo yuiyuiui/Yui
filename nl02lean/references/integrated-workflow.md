@@ -171,8 +171,9 @@ python3 scripts/workflow.py run /absolute/new-workflow \
   --shared-store /absolute/project/shared-store --timeout-seconds 180
 ```
 
-The workflow's concurrency is fixed at freeze: `auto` uses a confirmed backend
-cap when available, otherwise the CLI's disclosed fallback two. A positive N is
+The workflow's proof concurrency is fixed at freeze: default `auto` uses the
+number of frozen T nodes, including shared lemmas and representation conversions.
+A positive N is
 user-controlled, constrained only by a known backend hard limit. Print requested,
 effective and reason; record observed peak, per-stage queue/start/end and total
 time. The proof budget covers proof jobs, retries and their optional diagnostics;

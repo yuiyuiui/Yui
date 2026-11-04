@@ -13,7 +13,7 @@ import shared_lemmas
 import proof_repair
 
 
-def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, execution=None):
+def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, execution=None):
     """worker(sid, packet) -> {proof: tactic body, ...disclosed metadata}.
 
     All proof ports must already be frozen. Dependency edges are discharged
@@ -21,8 +21,9 @@ def prove_graph(cpath, plan, worker, *, max_workers=2, store=None, out=None, exe
     """
     start = time.monotonic()
     slots = {}; slot_lock = threading.Lock()
-    ir.need(max_workers >= 1, 'worker bound must be positive')
     _, nodes, order = ir.validate(cpath, plan)
+    max_workers = len(nodes) if max_workers is None else max_workers
+    ir.need(type(max_workers) is int and max_workers >= 1, 'worker bound must be positive')
     typecheck = ir.check(cpath, plan, types_only=True)
     ir.need(typecheck['exit_code'] == 0, 'frozen interface/representation expressions failed Lean')
     initial_contract = ir.digest(cpath)

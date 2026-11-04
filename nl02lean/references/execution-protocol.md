@@ -16,11 +16,14 @@ Keep concurrent cases separate from `max_concurrency=auto|N` inside one case.
 The batch starts explicitly requested independent Python case owners, each with its
 own serial preparation/global-review budget, R-review budget, proof budget, output and mutable state. Three cases with N=2
 can overlap six proof workers. Python coordinators consume no model slot.
-Unknown CLI limits use the disclosed fallback two, not a claimed maximum.
+An omitted worker count or `auto` uses each phase's R/T node count; it never
+guesses an account limit or falls back to two.
 Share immutable rules/toolchains, not cross-case prompts, drafts or proof stores.
 Within each case, NL0 authoring, global Audit A, interface work and Audit B
-are serial. Frozen local R reviews use the confirmed N concurrently, followed
-later by up to N local Lean proofs. These phases cannot overlap in one case. All roles share one usage ledger.
+are serial. Frozen local R reviews default to R slots, followed later by T slots
+for local Lean proofs, including shared lemmas and representation conversions.
+An explicit positive N caps both separate phases. These phases cannot overlap
+in one case. All roles share one usage ledger.
 
 1. Retain source/Audit A and interface/plan freeze checks. All types must
    elaborate before model dispatch. Changes need a new accepted revision/run.

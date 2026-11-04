@@ -102,21 +102,44 @@ class JobEntryTests(unittest.TestCase):
         self.assertNotEqual(r.returncode,0);self.assertIn('Ask once',r.stdout)
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
 
-    def test_new_proof_runs_require_numeric_worker_confirmation_before_preparation(self):
+    def test_invalid_worker_limits_fail_before_preparation(self):
         parser=argparse.ArgumentParser()
         entrypoint.parsers(parser.add_subparsers(dest='command'))
         for command in ('prepare','run'):
-            for track in ('full','translate'):
-                for count in (None,'auto','0','-1','2.5'):
+            for track in ('nl0','full','translate'):
+                for count in ('0','-1','2.5','true','unknown'):
                     argv=[command,str(self.problem),'--track',track,'--use-config-profiles']
                     if count is not None:argv+=['--max-concurrency',count]
                     with self.subTest(command=command,track=track,count=count), \
                          patch.object(jobs,'prepare') as prepare, \
                          patch.object(entrypoint,'launch') as launch:
-                        with self.assertRaisesRegex(ValueError,'proof-worker count|concurrency'):
+                        with self.assertRaisesRegex(ValueError,'concurrency'):
                             entrypoint.dispatch(parser.parse_args(argv))
                         prepare.assert_not_called();launch.assert_not_called()
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
+
+    def test_omitted_or_auto_workers_prepare_all_tracks_without_confirmation(self):
+        from controller_common import bind
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        source=self.root/'accepted';source.mkdir()
+        for track in ('nl0','full','translate'):
+            for count in (None,'auto'):
+                argv=['prepare',str(self.problem),'--track',track,'--use-config-profiles',
+                      '--target','An explicit synthetic target.']
+                if count is not None:argv+=['--max-concurrency',count]
+                if track=='translate':argv+=['--source',str(source)]
+                with self.subTest(track=track,count=count),patch.object(
+                    case_runner.source_preparation,'read_source',return_value=([
+                        {'current_standard_receipt_valid':True},{},{'inputs':[{'sha256':bind(self.problem)['sha256']}]}],[])):
+                    result=entrypoint.dispatch(parser.parse_args(argv))
+                job=json.loads((Path(result['runs'][0])/'job.json').read_text())
+                self.assertEqual(job['max_concurrency'],'auto')
+                jobs.validate(job)
+                for name in ('audit_r_concurrency','proof_concurrency'):
+                    if result[name] is not None:
+                        self.assertEqual(result[name]['requested'],'auto')
+                        self.assertIsNone(result[name]['effective'])
 
     def test_nl0_public_entry_needs_its_profile_and_local_review_capacity(self):
         parser=argparse.ArgumentParser()
@@ -165,13 +188,28 @@ class JobEntryTests(unittest.TestCase):
         self.assertEqual(job['max_concurrency'],3)
         self.assertEqual(result['proof_concurrency']['effective'],3)
 
-    def test_public_cli_model_defaults_do_not_supply_missing_workers(self):
+    def test_public_cli_defaults_workers_to_auto_after_selecting_model_defaults(self):
         result=subprocess.run([sys.executable,'-B',str(CORE/'nl0/scripts/yui.py'),
-            'prepare',str(self.problem),'--track','full','--use-config-profiles'],
+            'prepare',str(self.problem),'--track','full','--use-config-profiles',
+            '--target','An explicit synthetic target.'],
             capture_output=True,text=True)
-        self.assertNotEqual(result.returncode,0)
-        self.assertIn('--max-concurrency N',json.loads(result.stdout)['error'])
-        self.assertFalse((self.problem.parent/'rigorous-proof').exists())
+        self.assertEqual(result.returncode,0,result.stderr+result.stdout)
+        prepared=json.loads(result.stdout)
+        job=json.loads((Path(prepared['runs'][0])/'job.json').read_text())
+        self.assertEqual(job['max_concurrency'],'auto')
+        self.assertIsNone(prepared['proof_concurrency']['effective'])
+        self.assertIsNone(prepared['audit_r_concurrency']['effective'])
+
+    def test_default_run_dispatches_auto_to_frozen_case_without_starting_a_model(self):
+        parser=argparse.ArgumentParser()
+        entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['run',str(self.problem),'--track','full','--use-config-profiles',
+            '--target','An explicit synthetic target.','--detach'])
+        with patch.object(entrypoint,'launch',return_value={'status':'SYNTHETIC_DISPATCH'}) as launch:
+            entrypoint.dispatch(args)
+        job=launch.call_args.args[0][0]
+        self.assertEqual(job['max_concurrency'],'auto')
+        jobs.validate(job)
 
     def test_backend_checks_selected_model_and_effort_without_fallback(self):
         job=self.job();home=self.root/'auth';home.mkdir()

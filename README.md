@@ -94,7 +94,7 @@ Use $rigorous-proof on proof.pdf through NL0/Audit A and Lean/Audit B.
 Use gpt-6.1-sol/high/Standard for both phases, with 20 local workers.
 ```
 
-For natural-language auditing alone, request **NL0 and Audit A only** and provide the model profile and worker count. Results are saved beside the input under `rigorous-proof/<run-id>/`. See the [operator guide](nl0/references/operation.md) for detailed configuration and controls, and [Yui-results](https://github.com/yuiyuiui/Yui-results) for test and benchmark reproduction prompts.
+For natural-language auditing alone, request **NL0 and Audit A only** and provide the model profile. When no worker count is specified, Yui uses one slot per R node for local Audit A review/repair, then one slot per T node for local Lean proofs, including shared lemmas and representation conversions. An explicit positive worker count caps each phase instead. Global authoring/review, preprocessing and postprocessing remain serial within a case; deduplication or checked reuse may reduce actual worker calls. Results are saved beside the input under `rigorous-proof/<run-id>/`. See the [operator guide](nl0/references/operation.md) for detailed configuration and controls, and [Yui-results](https://github.com/yuiyuiui/Yui-results) for test and benchmark reproduction prompts.
 
 ## 5. Limitations and next steps
 

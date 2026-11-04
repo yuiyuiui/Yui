@@ -42,7 +42,8 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     budget = budget or concurrency.Budget(concurrency.resolve(max_concurrency), role='proof')
     ir.need(budget.role != 'preparation_review', 'Proof execution requires its own proof budget')
     budget.role = 'proof'
-    configuration = budget.configuration
+    _, nodes, _ = ir.validate(Path(cpath).resolve(), ir.load(Path(ppath).resolve()))
+    configuration = budget.configure(len(nodes))
     print(__import__('json').dumps({'model_concurrency': configuration}, ensure_ascii=False), flush=True)
     lock = pilot.load_lock()
     for path, expected in [(Path(lock['codex']['binary_path']),lock['codex']['sha256']),
@@ -58,6 +59,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     if owns_recorder:
         recorder=execution_state.Recorder(out,ir.contract(cpath)['id'],configuration)
         budget.execution=recorder
+    recorder.model_configuration('proof', configuration)
     recorder.update(phase='proof',bindings={'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json')})
     try:
         with execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():

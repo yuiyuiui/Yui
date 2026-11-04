@@ -37,7 +37,8 @@ The auditor separately performs the execution protocol in Audit A: source
 verification, global review, fresh packet-only replay, actual judgments and
 recorded evidence. Authors do not generate those verdicts. The NL0 author and
 global Audit A are serial. After the global stage, independent frozen R packets
-are reviewed with the confirmed N workers. Separate cases can run concurrently.
+are reviewed with one slot per current R node by default, or the explicit N cap.
+Separate cases can run concurrently.
 
 ## Execute
 

@@ -358,7 +358,9 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
     verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
-    audit_budget=audit_budget or concurrency.Budget(concurrency.resolve(1),execution=budget.execution,role='audit_r')
+    audit_budget=audit_budget or concurrency.Budget(concurrency.resolve(),execution=budget.execution,role='audit_r')
+    if audit_budget.role != 'preparation_review':
+        audit_budget.configure(sum(not job['library'] for job in plan['jobs']))
     def execute(job):
         directory=out/job['id']
         inherited=plan.get('inherited',{})
@@ -423,13 +425,14 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
         local=[job for job in plan['jobs'] if not job['library'] and (only in {None,'local'} or only==job['id'])]
         if local and any(j['library'] for j in plan['jobs']) and not global_acceptance(out)['accepted']:
             local=[]
-        with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
-            pending=[(job,pool.submit(copy_context().run,execute,job)) for job in local]
-            for job,future in pending:
-                try:results.append(future.result())
-                except Exception as error:
-                    failures.append(error)
-                    results.append(failed(job,error))
+        if local:
+            with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
+                pending=[(job,pool.submit(copy_context().run,execute,job)) for job in local]
+                for job,future in pending:
+                    try:results.append(future.result())
+                    except Exception as error:
+                        failures.append(error)
+                        results.append(failed(job,error))
         verify_global_overview(out,plan)
     finally:
         report={'results':results,'concurrency':budget.report(),'r_concurrency':audit_budget.report(),

@@ -14,56 +14,90 @@ import threading
 import unittest
 from unittest.mock import patch
 
+from audit_a_fixtures import canonical_propositional_case
 import audit_a_campaign as campaign
 from clean_stage import ArtifactStage
+import concurrency
+import execution_state
+import fault_control
+import native_client
 from native_fixture import NativeFixture
 from review_contract import put
+import runtime_config
+import subprocess
 
 
 @unittest.skipUnless(shutil.which('codex'),'Codex executable required')
 class NativeReviewPipelineTests(unittest.TestCase):
     def exercise(self, global_verdict):
         with tempfile.TemporaryDirectory() as raw:
-            root=Path(raw);source=root/'source';source.mkdir()
-            for name in ('nl0.json','spec.json','problem.txt'):
-                shutil.copyfile(harness_support.FIXTURES/'closed-addition'/name,source/name)
+            root=Path(raw);source=canonical_propositional_case(root/'source')
             problem=root/'problem';problem.mkdir()
             (problem/'problem.md').write_text('Synthetic controller fixture only.')
             out=root/'campaign';plan=campaign.prepare(source,problem,out)
-            original=ArtifactStage._execute;seen=[];results=[]
+            original=ArtifactStage._execute;seen=[];results=[];stages={};guard=threading.Lock()
+            job_numbers={job['id']:i+1 for i,job in enumerate(plan['jobs'])}
+            local_count=sum(not job['library'] for job in plan['jobs'])
+            barrier=threading.Barrier(local_count,timeout=10)
+            before=(subprocess.Popen,fault_control.queue_notification,
+                    native_client.configuration,runtime_config.auth_home)
 
-            def execute(stage):
-                seen.append(stage.mode)
-                def respond(f,handler,number,payload):
-                    contract=stage.validator;artifact=deepcopy(contract.base)
-                    for pointer in contract.required:
-                        global_stage=stage.mode=='audit-a-global'
-                        location=('spec.json#/full_target' if pointer=='/target_review' else 'nl0.json#/inferences') if global_stage else '/inference/argument'
-                        verdict=global_verdict if pointer=='/target_review' else 'PASS'
-                        put(artifact,pointer,{'verdict':verdict,
-                            'notes':'SYNTHETIC software fixture judgment only.', 'locations':[location]})
-                    artifact['findings']=[]
-                    if stage.mode!='audit-a-global':
-                        artifact.update(verdict='PASS',notes='SYNTHETIC software fixture judgment only.')
-                    artifact['coverage']={p:'assessed' for p in contract.required}
-                    f.code(handler,number,'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
-                with NativeFixture(root/('native-'+str(len(seen))),responder=respond) as f:
-                    unused=f.stage;f.stage=stage;unused.release_resources('USER_CANCELLED')
-                    def target():
-                        try:f.outcomes.append(original(stage))
-                        except BaseException as error:f.exceptions.append(error)
-                    context=copy_context()
-                    f.worker=threading.Thread(target=lambda:context.run(target),daemon=True)
-                    f.worker.start();f.wait()
-                    result=f.outcomes[0]
+            def respond(f,handler,number,payload):
+                serialized=json.dumps(payload)
+                with guard:
+                    matches=[(key,stage) for key,stage in stages.items()
+                             if 'YUI_TEST_REVIEW_'+key in serialized]
+                self.assertEqual(len(matches),1)
+                key,stage=matches[0]
+                contract=stage.validator;artifact=deepcopy(contract.base)
+                for pointer in contract.required:
+                    global_stage=stage.mode=='audit-a-global'
+                    location=('spec.json#/full_target' if pointer=='/target_review' else 'nl0.json#/inferences') if global_stage else '/inference/argument'
+                    verdict=global_verdict if pointer=='/target_review' else 'PASS'
+                    put(artifact,pointer,{'verdict':verdict,
+                        'notes':'SYNTHETIC software fixture judgment only.', 'locations':[location]})
+                artifact['findings']=[]
+                if stage.mode!='audit-a-global':
+                    artifact.update(verdict='PASS',notes='SYNTHETIC software fixture judgment only.')
+                    # All three real native requests must overlap, rather than
+                    # merely occupying slots around serial fixture execution.
+                    barrier.wait()
+                artifact['coverage']={p:'assessed' for p in contract.required}
+                f.code(handler,job_numbers[key],'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
+
+            # One fixture owns the process-global test patches. Separate
+            # concurrent fixtures can restore each other's stale replacements.
+            with NativeFixture(root/'native',responder=respond) as f:
+                f.stage.release_resources('USER_CANCELLED')
+                budgets=concurrency.CaseBudgets(execution=f.recorder)
+                def execute(stage):
+                    key=stage.logs.parent.name
+                    with guard:
+                        seen.append(stage.mode);stages[key]=stage
+                        if key=='global':f.stage=stage
+                    stage.input_prompt+='\nSynthetic routing marker: YUI_TEST_REVIEW_'+key
+                    result=original(stage)
                     self.assertEqual(result[0]['status'],'ACCEPTED',result[0])
                     self.assertEqual(result[0]['exposure']['status'],'NATIVE-CODEX-CONTEXT-CHECK-PASSED')
-                    self.assertEqual(len(f.calls),1)
-                    self.assertFalse(f.notifications);self.assertFalse(f.failures)
-                    results.append(result[0]);return result
-
-            with patch.object(ArtifactStage,'_execute',execute):
-                campaign.run(out)
+                    with guard:results.append(result[0])
+                    return result
+                def target():
+                    try:
+                        with execution_state.activate(f.recorder):
+                            f.outcomes.append(campaign.run(out,budget=budgets.serial,audit_budget=budgets.audit))
+                    except BaseException as error:f.exceptions.append(error)
+                with patch.object(ArtifactStage,'_execute',execute):
+                    f.worker=threading.Thread(target=copy_context().run,args=(target,),daemon=True)
+                    f.worker.start();f.wait(seconds=45);f.worker.join(5)
+                self.assertFalse(f.worker.is_alive())
+                self.assertFalse(f.notifications);self.assertFalse(f.failures)
+                report=f.outcomes[0]
+                self.assertEqual(report['r_concurrency']['effective'],local_count)
+                self.assertEqual(report['r_concurrency']['observed_peak_model_stages'],
+                                 local_count if global_verdict=='PASS' else 0)
+                self.assertEqual(len(f.calls),len(plan['jobs']) if global_verdict=='PASS' else 1)
+            self.assertEqual(before,(subprocess.Popen,fault_control.queue_notification,
+                                    native_client.configuration,runtime_config.auth_home))
             self.assertEqual(seen[0],'audit-a-global')
             acceptance=campaign.global_acceptance(out)
             if global_verdict=='FAIL':

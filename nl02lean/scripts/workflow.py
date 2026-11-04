@@ -118,7 +118,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     check_source_boundary(data,c,ir.load(plan),review['paragraph_mapping'],review['source_outputs'])
     typed = ir.check(contract, ir.load(plan), types_only=True)
     ir.need(typed['exit_code'] == 0, 'interface types/representations fail Lean')
-    configuration = concurrency.resolve(max_concurrency)
+    configuration = concurrency.resolve(max_concurrency, node_count=len(nodes))
     out.mkdir(parents=True, exist_ok=False)
     copied, _ = run_graph.package(contract, plan, out)
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]

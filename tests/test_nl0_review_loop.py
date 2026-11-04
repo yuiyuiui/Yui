@@ -1,6 +1,6 @@
 """Actual controller/merge/receipt paths with scripted, explicitly synthetic actors."""
 import harness_support
-from audit_a_fixtures import synthetic_stage
+from audit_a_fixtures import synthetic_stage, canonical_propositional_case
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -31,13 +31,15 @@ class NL0ReviewLoopTests(unittest.TestCase):
         for path in self.workspaces:shutil.rmtree(path,ignore_errors=True)
         self.tmp.cleanup()
 
-    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False):
-        turns=threading.Barrier(2) if both_local_fail else None
+    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None):
+        source=source or harness_support.CORE/'tests/fixtures/closed-addition'
+        node_count=len(json.loads((source/'nl0.json').read_text())['inferences'])
+        turns=threading.Barrier(node_count) if both_local_fail else None
         def author(job,directory,budget,*,baseline=None,obligations=None):
             stage=ArtifactStage(directory/'stage','Synthetic global author assignment.',phase='nl0-authoring',budget=budget,library=False)
             self.workspaces.append(stage.work)
             source=directory/'stage/case'
-            loop.copy_source(baseline or harness_support.CORE/'tests/fixtures/closed-addition',source)
+            loop.copy_source(baseline or initial_source,source)
             if baseline:
                 graph=json.loads((source/'nl0.json').read_text())
                 graph['inferences'][0]['argument'][0]['text']+=' Global exposition repaired.'
@@ -83,7 +85,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                     artifact=stage.validator.blocker(finding)
                     result.update(status='BLOCKED',task_outcome='MATHEMATICAL_REVIEW_FAILED')
             if turns and (role.startswith('audit-a:') or role.startswith('nl0-author:')):
-                self.assertLessEqual(self.local.report()['active_model_stages'],2)
+                self.assertLessEqual(self.local.report()['active_model_stages'],node_count)
                 self.assertEqual(self.serial.report()['active_model_stages'],0)
                 turns.wait(timeout=8)
             stage.accepted=artifact;stage.submission_closed=True
@@ -92,6 +94,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
             write(stage.logs/'accepted.json',artifact);write(stage.logs/'result.json',result)
             return result,artifact
 
+        initial_source=source
         with patch.object(ArtifactStage,'_execute',execute):
             result=loop.run({'root':str(self.root),'case':'closed-addition','policy':'normal'},self.serial,self.local,
                 lambda *a,**k:None,author,case_runner.repair_obligations)
@@ -124,6 +127,22 @@ class NL0ReviewLoopTests(unittest.TestCase):
         for rid in ('R001','R002'):
             self.assertEqual(self.counts['nl0-author:'+rid],1)
             self.assertEqual(self.counts['audit-a:'+rid],2)
+
+    def test_auto_review_and_repair_use_all_three_r_nodes(self):
+        source=canonical_propositional_case(self.root/'three-node-source')
+        self.local=concurrency.Budget(concurrency.resolve(),role='audit_r')
+        self.exercise(source=source,both_local_fail=True)
+        self.assertEqual(self.local.configuration['effective'],3)
+        self.assertEqual(self.local.report()['observed_peak_model_stages'],3)
+        for rid in ('R001','R002','R003'):
+            self.assertEqual(self.counts['nl0-author:'+rid],1)
+            self.assertEqual(self.counts['audit-a:'+rid],2)
+
+    def test_auto_resizes_after_a_global_revision_removes_an_r_node(self):
+        self.local=concurrency.Budget(concurrency.resolve(),role='audit_r')
+        self.exercise(global_escalation=True,remove_blocked_node=True)
+        self.assertEqual(self.local.configuration['effective'],1)
+        self.assertEqual([c['effective'] for c in self.local.report()['configuration_history']],[None,2,1])
 
     def test_global_revision_can_remove_an_obsolete_blocked_node_and_finalize_current_graph(self):
         result=self.exercise(global_escalation=True,remove_blocked_node=True)

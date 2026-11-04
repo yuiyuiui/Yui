@@ -22,13 +22,14 @@ statement(s), including standing assumptions, as an explicit job input.
 
 The invoking agent owns request/configuration collection and dispatch. Follow
 [installed operation](nl0/references/operation.md) to identify explicit proof inputs,
-ask once for missing active-phase model/reasoning/speed settings and, for a
-NL0, full or translation request, an explicit per-case worker count N, then call
+ask once for missing active-phase model/reasoning/speed settings, then call
 `nl0/scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
-the user; do not call a separate intent-classification model. Do not silently
-choose a worker count from defaults or `auto`; obtain a positive integer or
-the user's explicit confirmation of a proposed number. N bounds local R-node
-reviews and, in a separate phase, local Lean proofs. NL0/Audit A and
+the user; do not call a separate intent-classification model. An omitted worker
+count or `auto` uses the current phase's node count: R nodes for local Audit A
+review/repair and T nodes for local Lean proofs, including shared lemmas and
+representation conversions. Resolve each count when that phase is ready; do not
+ask for a worker count or fall back to two. An explicit positive integer N caps
+both separate phases. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
 The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md):
@@ -177,7 +178,8 @@ Codex conversations, native subagents, Yui jobs, worker slots and controllers.
 Use the logical phase names **NL0 worker**, **preprocessing worker**,
 **formalization workers (N slots)** and **postprocessing worker**. A logical
 worker may contain several separate author/reviewer threads and program steps;
-N limits concurrent local R reviews and local Lean proof jobs in their separate phases.
+The local slot limit is the current R/T node count by default, or the user's
+explicit N in both separate phases.
 Report executor termination separately from mathematical acceptance.
 
 Read [isolation](nl0/references/isolation.md) and [measurement](nl0/references/measurement.md)
@@ -198,9 +200,10 @@ defaults only when explicitly selected. The current isolated native Codex carrie
 Standard speed and checks model/effort availability without fallback. Freeze
 and record each stage's selected profile;
 never silently substitute a stronger model or fallback.
-Resolve the confirmed concurrency before dispatch and record its basis; do not
-claim an unknown backend maximum. N limits local R-node reviews, then local
-Lean proof jobs in a later phase. NL0 authoring, global Audit A, preparation,
+Resolve automatic concurrency from each frozen phase's nodes before local
+dispatch and record its basis; do not claim an unknown backend maximum. Explicit
+N limits local R-node reviews, then local Lean proof jobs in a later phase.
+Recompute auto after a reviewed revision changes the phase graph. NL0 authoring, global Audit A, preparation,
 interface work, assembly and Audit B use one serial lane per case.
 Count root/controller, worker, review and retry calls. Cached/reasoning tokens
 are subsets of input/output totals, not extra tokens. Missing usage is unknown.

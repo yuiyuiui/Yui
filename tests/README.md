@@ -65,6 +65,29 @@ archives. They do not enable a legacy carrier in new runs. Obsolete live-relay
 implementation tests were removed; their relevant handoff/fault/ownership
 requirements are exercised through the native tests above.
 
+## Automatic concurrency from phase nodes
+
+An omitted worker count and explicit `auto` now use the current R-node count for
+local Audit A review/repair and the frozen T-node count for local Lean proofs.
+The controls below check actual overlap, not only a recorded configuration.
+
+| Boundary | Controls | Required behavior |
+| --- | --- | --- |
+| Public invocation | test_job_entry.py | Omitted/auto workers prepare every applicable track and dispatch a frozen auto job without confirmation; invalid limits fail before output; explicit N and model-profile requirements remain valid. |
+| Phase resolution and accounting | test_concurrency.py | Pending resolution has no fixed fallback; zero/one/large node counts, actual R=3/T=5 peaks, distinct role records, revision history, active-resize rejection and explicit caps. |
+| Audit A queues | test_phase_concurrency.py | Three actual concurrent review slots after the global barrier; serial explicit override, single-packet scope, global nonpass and an empty queue with no executor. |
+| Native Audit A and fixture isolation | test_native_review_pipeline.py, test_offline_guard.py | Three real native client requests overlap against one loopback fixture; global test replacements are restored before live-call/notification guard checks. |
+| Normal review/repair controller | test_nl0_review_loop.py | Three simultaneous reviewer/repair-author pairs share the phase limit; nested packet dispatch cannot reduce it to one; global removal recomputes R from two to one. |
+| Lean queues | test_phase_concurrency.py | Five real proof slots, including a shared lemma and representation bridge, followed by actual Lean assembly and fresh verification; direct scheduler defaults and explicit serial override. |
+| Frozen workflow | test_source_preparation.py | Freeze resolves from the actual T plan, seals that configuration and still rejects later mutation. |
+
+The existing phase-exclusion, diagnostic slot lending, shared-job deduplication,
+cache/native rechecks, cancellation and deadline controls remain in full discovery.
+Model replies and reviewer judgments are synthetic; no live model or production
+owner notification is used. Run the focused controls with
+`PYTHONPATH=tests python3 -B -m unittest -v test_concurrency test_job_entry test_parallel_audit test_nl0_review_loop test_phase_concurrency`,
+then run the complete discovery command at the top of this file.
+
 ## Native migration validation record (2026-10-31)
 
 Full discovery completed with 859 tests in V1 and 869 in V2. Subsequent affected-module regression completed with 179 tests per version, including the final native fault classification, usage and capability metadata changes. Two additional native-to-A collector integration tests per version passed afterward. Skill validation and diff checks are separate release checks. These numbers record this migration checkpoint; later additions may change discovery counts.

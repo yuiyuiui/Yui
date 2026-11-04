@@ -92,7 +92,8 @@ case results or personal proof skills to manufacture independent approval.
    source evidence. Review each D and selected E/M; the overview is data, not
    an assessment. Do not infer absence from a partial page.
 2. Complete global source/graph review before dispatching local R reviews.
-   Up to the explicitly confirmed N independent R reviewers work concurrently.
+   Independent R reviewers use the current R-node count as their default slot
+   limit, or the user's explicit positive N cap.
    Each receives only its own packet and mathematical-NL0 rules. Review full arguments,
    actual applications and definitions; input N statements are conditional.
 3. Prefer one complete artifact with an explicit coverage map. Use

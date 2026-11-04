@@ -7,6 +7,17 @@ import audit_a_campaign as a
 import audit_reuse as reuse
 
 
+def canonical_propositional_case(directory):
+    """Three R nodes with current language metadata; no review verdicts."""
+    from source_fixtures import case
+    import foundations
+    graph,spec,_=case(directory)
+    value=a.nl0.load(spec);foundations.bind_author(value['logic']);a.write(spec,value)
+    value=a.nl0.load(graph);value['spec_sha256']=reuse.sha(spec);a.write(graph,value)
+    a.nl0.validate(graph,spec)
+    return graph.parent
+
+
 def synthetic_stage(directory, *, global_verdict='PASS', local_verdict='PASS'):
     """Controller test data only; never an actual independent mathematical audit."""
     directory=Path(directory);stage=directory/'stage';stage.mkdir(exist_ok=True)

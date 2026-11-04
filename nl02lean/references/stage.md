@@ -89,8 +89,9 @@ graph-internal workers. A duplicate shared job within a graph has one producer; 
 conditional bodies may run at the same time. Record pending/running/completed
 jobs. An unfinished producer prevents final closure even if its consumers pass.
 Expose `--max-concurrency auto|N` and print the resolved backend/bound/reason
-before dispatch. Unknown CLI hard caps use the disclosed fallback of two, not
-a claimed maximum. Proof jobs share their case proof budget; translation
+before dispatch. Default `auto` uses the frozen T-node count, including shared
+lemmas and representation conversions; an explicit positive N caps the queue.
+Proof jobs share their case proof budget; translation
 preparation and Audit B use a separate serial budget and the same all-stage ledger.
 Earlier local Audit A R reviews have their own N-slot budget. Record
 proof-only utilization separately from review activity, queue time and intervals.

@@ -41,7 +41,9 @@ histories, remove review independence or create an additional model agent.
 | **Postprocessing worker** | Assemble actual local proofs and discharge internal dependencies; perform Lean builds; complete the Audit B source/formal mapping and permitted mathlib instantiations; validate frozen pre-proof semantic authority, using B-final only for proof-valid interface drift; validate the final receipt and preserve the report and process-exit evidence. It completes successfully only after full Audit B acceptance. |
 
 Within the NL0 worker, the author and global Audit A are serial; frozen R-node
-reviews then use the confirmed N independently. The ordinary full-workflow order is:
+reviews then use one slot per R node by default, or the explicit N cap.
+Formalization independently defaults to one slot per frozen T node, including
+shared lemmas and representation conversions. The ordinary full-workflow order is:
 
 ```text
 NL0 worker
@@ -120,10 +122,12 @@ This implementation fact must be rechecked if the carrier changes.
   across that tree, not three fresh slots for every descendant.
 - **Concurrent cases:** the number of mathematical cases running at once.
 - **Per-case proof concurrency:** `max_concurrency=auto|N` limits simultaneous
-  Lean proof jobs in that case, exposed as N formalization worker slots. The
+  Lean proof jobs in that case. Auto uses the frozen T-node count; an explicit
+  positive N supplies a cap. The
   Python controller occupies no proof slot.
   NL0 authoring, global Audit A and other preparation work use the case's
-  serial lane. Local R reviews use a separate N-slot lane before proof work;
+  serial lane. Local R reviews use a separate lane sized to their current R-node
+  count by default, or the same explicit N cap, before proof work;
   different model phases cannot overlap within one case.
 - **Observed concurrency:** the overlap actually measured, which can be below
   any configured bound. Three ready cases with five available proof slots each

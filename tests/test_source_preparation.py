@@ -172,7 +172,9 @@ class RevisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ir.Invalid,'source is not accepted'):
             workflow.freeze(self.g,self.s,cp,pp,rp,self.base/'bad-run')
         manifest=workflow.freeze(self.g,self.s,cp,pp,rp,self.base/'good-run',audit_a=self.audit)
-        self.assertEqual(manifest['concurrency']['effective'],2)
+        self.assertEqual(manifest['concurrency']['requested'],'auto')
+        self.assertEqual(manifest['concurrency']['effective'],len(ir.load(pp)['steps']))
+        self.assertEqual(manifest['concurrency']['effective'],3)
         self.assertEqual(workflow.bound(self.base/'good-run')['status'],'SOURCE_AND_IR_FROZEN')
         value=ir.load(cp);value['conclusion']['type']='True';ir.write(cp,value)
         with self.assertRaisesRegex(ir.Invalid,'stale bound artifact'):workflow.bound(self.base/'good-run')

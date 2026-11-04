@@ -9,12 +9,15 @@ import ir
 from execution_state import current
 
 
-def resolve(requested='auto', *, backend='isolated_codex_cli', known_limit=None, fallback=2):
+def resolve(requested='auto', *, node_count=None, backend='isolated_codex_cli', known_limit=None):
     ir.need(known_limit is None or (type(known_limit) is int and known_limit > 0), 'invalid known backend limit')
-    ir.need(type(fallback) is int and fallback > 0, 'invalid concurrency fallback')
+    ir.need(node_count is None or (type(node_count) is int and node_count >= 0), 'invalid phase node count')
     if requested == 'auto':
-        effective = known_limit if known_limit is not None else fallback
-        reason = 'confirmed backend hard limit' if known_limit is not None else 'backend hard limit unavailable; disclosed fallback, not a maximum'
+        effective = node_count
+        reason = 'awaiting current phase node count' if node_count is None else 'current phase node count'
+        if effective is not None and known_limit is not None and effective > known_limit:
+            effective = known_limit
+            reason += ' constrained by confirmed backend hard limit'
     else:
         ir.need(not isinstance(requested, bool), 'concurrency must be auto or a positive integer')
         try:
@@ -25,7 +28,7 @@ def resolve(requested='auto', *, backend='isolated_codex_cli', known_limit=None,
         effective = min(number, known_limit) if known_limit is not None else number
         reason = 'user request constrained by confirmed backend hard limit' if effective != number else 'explicit user request'
     return {'requested': requested, 'effective': effective, 'backend': backend,
-            'known_backend_limit': known_limit, 'reason': reason, 'fallback': fallback}
+            'known_backend_limit': known_limit, 'reason': reason, 'node_count': node_count}
 
 
 class Budget:
@@ -34,12 +37,29 @@ class Budget:
         self.configuration = dict(configuration)
         self.execution = execution
         self.role = role
-        self._slots = threading.BoundedSemaphore(configuration['effective'])
+        self._slots = (threading.BoundedSemaphore(configuration['effective'])
+                       if configuration['effective'] is not None else None)
         self._lock = threading.Lock()
         self._local = threading.local()
         self._start = time.monotonic()
         self._active = self._peak = 0
+        self._waiting = 0
         self._rows = []
+        self._configurations = [{**self.configuration, 'started_offset_seconds': 0.}]
+
+    def configure(self, node_count):
+        """Resolve auto at a phase boundary; preserve an explicit numeric limit."""
+        configuration = resolve(self.configuration['requested'], node_count=node_count,
+            backend=self.configuration['backend'], known_limit=self.configuration['known_backend_limit'])
+        with self._lock:
+            if configuration != self.configuration:
+                ir.need(self._active == self._waiting == 0, 'Cannot resize an active model lane')
+                self._slots = threading.BoundedSemaphore(configuration['effective'])
+                self.configuration = configuration
+                self._configurations.append({**configuration, 'started_offset_seconds': time.monotonic()-self._start})
+        if self.execution:
+            self.execution.model_configuration(self.role, configuration)
+        return configuration
 
     def __enter__(self):
         ir.need(not getattr(self._local, 'active', False), 'nested model-stage acquisition would deadlock')
@@ -47,24 +67,33 @@ class Budget:
         recorder, task = current()
         recorder = recorder or self.execution
         if recorder: recorder.activity(task,'WAITING_FOR_MODEL_SLOT')
-        while not self._slots.acquire(timeout=.1):
-            if recorder: recorder.check(task)
-        try:
-            if recorder: recorder.check(task)
-            if recorder: recorder.model_slot(1, role=self.role)
-        except BaseException:
-            self._slots.release(); raise
-        started = time.monotonic()
         with self._lock:
-            self._active += 1
-            self._peak = max(self._peak, self._active)
-            row = {'id': len(self._rows) + 1, 'queue_seconds': started - queued,
-                   'started_offset_seconds': started - self._start, 'finished_offset_seconds': None}
-            self._rows.append(row)
-        self._local.active = True
-        self._local.row = row
-        self._local.recorder = recorder
-        return self
+            ir.need(self._slots is not None and self.configuration['effective'] > 0,
+                    'Resolve a nonempty phase node count before model dispatch')
+            slots = self._slots
+            self._waiting += 1
+        try:
+            while not slots.acquire(timeout=.1):
+                if recorder: recorder.check(task)
+            try:
+                if recorder: recorder.check(task)
+                if recorder: recorder.model_slot(1, role=self.role)
+            except BaseException:
+                slots.release(); raise
+            started = time.monotonic()
+            with self._lock:
+                self._active += 1
+                self._peak = max(self._peak, self._active)
+                row = {'id': len(self._rows) + 1, 'queue_seconds': started - queued,
+                       'started_offset_seconds': started - self._start, 'finished_offset_seconds': None}
+                self._rows.append(row)
+            self._local.active = True
+            self._local.row = row
+            self._local.recorder = recorder
+            return self
+        finally:
+            with self._lock:
+                self._waiting -= 1
 
     def __exit__(self, kind, value, traceback):
         if not getattr(self._local, 'active', False):return
@@ -90,6 +119,7 @@ class Budget:
         with self._lock:
             return {**self.configuration, 'role': self.role, 'observed_peak_model_stages': self._peak,
                     'active_model_stages': self._active, 'model_stages': [dict(x) for x in self._rows],
+                    'configuration_history': [dict(x) for x in self._configurations],
                     'summed_queue_seconds': sum(x['queue_seconds'] for x in self._rows),
                     'elapsed_seconds': time.monotonic() - self._start,
                     'scope': 'One controller/run; no distributed subscription-wide cap discovery.'}
@@ -104,7 +134,7 @@ class CaseBudgets:
 
     def report(self):
         return {'preparation_review': self.serial.report(), 'audit_r': self.audit.report(), 'proof': self.proof.report(),
-                'proof_limit_applies_to': 'Same N for local R reviews and local Lean proofs in separate phases; owner occupies no slot',
+                'proof_limit_applies_to': 'Auto uses each phase node count; explicit N caps local R reviews and local Lean proofs in separate phases; owner occupies no slot',
                 'all_stage_accounting': 'One shared execution ledger includes all roles.'}
 
 

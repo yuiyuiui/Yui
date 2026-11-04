@@ -19,8 +19,8 @@ def parsers(commands):
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
         p.add_argument('--target',help='Complete requested statement or semicolon-separated theorem labels')
         p.add_argument('--target-file',type=Path,help='Source-bound, reviewed target-selection JSON')
-        p.add_argument('--max-concurrency',metavar='N',
-                       help='Confirmed N for local R reviews and local Lean proofs; required for nl0/full/translate')
+        p.add_argument('--max-concurrency',metavar='auto|N',default='auto',
+                       help='Per-case local review/proof limit; default auto uses the current R/T node count')
         p.add_argument('--case-concurrency',type=int)
         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
         p.add_argument('--time-budget-seconds',type=int)
@@ -75,16 +75,11 @@ def profiles(args):
 
 
 def proof_workers(args):
-    """Require explicit local-review/proof capacity for the active track."""
-    requested=args.max_concurrency
-    if args.track not in {'nl0','full','translate'}:
-        return 'auto' if requested is None else requested
-    if requested is None or requested=='auto':
-        raise ValueError('Ask once for an explicit positive worker count per case, '
-                         'or confirmation of a proposed number, then supply --max-concurrency N; '
-                         'model-profile defaults do not select this count')
+    """Keep auto deferred until the current phase's R/T nodes are known."""
+    requested='auto' if args.max_concurrency is None else args.max_concurrency
     import concurrency
-    return concurrency.resolve(requested)['effective']
+    configuration=concurrency.resolve(requested)
+    return 'auto' if requested=='auto' else configuration['effective']
 
 
 def preflight_profiles(job):

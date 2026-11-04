@@ -54,11 +54,13 @@ judgments remain real model/human work, not automatic semantic compilation.
 | Assembly | Apply every real local proof and discharge internal T dependencies | Actual Translation.P and a fresh verifier |
 | Audit B | Machine preservation of reviewed E/P meanings and complete native closure; exceptional B-final only for proof-valid drift | final_acceptance.py, audit_b.py, audit_probe.lean; inherited semantic receipt or warning-qualified exception |
 
-Local R reviews and later Lean proof jobs use the same confirmed N in separate
-phases, each with its own bounded lane. NL0 authoring, global Audit A,
+Local R reviews and later Lean proof jobs default to their respective current
+R/T node counts in separate phases, each with its own bounded lane. An explicit
+positive N caps both. NL0 authoring, global Audit A,
 preparation, interface work, assembly and Audit B use the serial lane. All
-roles contribute to the same case cost ledger. Lower-level frozen-port commands
-may resolve `auto` to a disclosed fallback; public invocation requires N.
+roles contribute to the same case cost ledger. Public and lower-level commands
+use the same automatic phase-sizing policy; no fixed fallback or worker-count
+confirmation is required.
 Record requested/effective values, basis, proof/review peaks and queue intervals.
 Independent cases own separate budgets/processes. Free executor slots claim
 pending jobs without waiting for the entire group. See
