@@ -1,5 +1,12 @@
 # Audit B: endpoint fidelity and checked Lean closure
 
+For the optional [basis route](../../nl0/references/basis.md), this same Audit B
+checks the conditional intermediate under the frozen basis interfaces. It is
+followed by b2lean's fresh inspection of the actual `YuiClosed.P`, with only
+original H and explicitly approved class 4 remaining. Its final receipt binds
+the compiled standalone source and full actual signature/dependency closure;
+this intermediate receipt must not be reported as unconditional completion.
+
 The stage-two policy is `endpoint-fidelity-2` (Audit B schema version 2).
 Its semantic objects are every original external theorem E and the complete
 final target P. P includes its parameters, quantifiers, hypotheses, domains and

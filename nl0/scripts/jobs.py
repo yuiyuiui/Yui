@@ -56,11 +56,13 @@ def stage_document(source, destination):
 
 def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
-            resume=None, resume_bindings=(), target=None):
+            resume=None, resume_bindings=(), target=None, formalization='conditional'):
     import concurrency
     from runtime_config import time_limit
     if track not in TRACKS or policy not in {'normal','first-pass'}:
         raise ValueError('Unknown track or execution policy')
+    from basis import validate_mode
+    validate_mode(formalization, track,resume=resume)
     if set(profiles) != {'nl0','lean'}:
         raise ValueError('Freeze both profile slots; unused slots are not dispatched')
     profiles = {key:validate_profile(row) for key,row in profiles.items()}
@@ -113,6 +115,8 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
             write(inputs/'target-selection.json',target)
             documents.append({'id':'target-selection.json','path':'target-selection.json',
                 'sha256':bind(inputs/'target-selection.json')['sha256'],'original':bind(problem),'extraction':'target-selection'})
+        if formalization=='unconditional' and not target:
+            raise ValueError('Unconditional formalization needs an explicit frozen target selection')
         if authority and documents[0]['sha256'] not in {row['sha256'] for row in data[2]['inputs']}:
             raise ValueError('Primary proof differs from the accepted NL0 inputs; do not translate a different problem under its receipt')
         write(inputs/'inputs.json',{'inputs':[{k:row[k] for k in ('id','path','sha256')} for row in documents]})
@@ -126,12 +130,17 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
              'time_budget_seconds':time_budget_seconds,'runtime':runtime,
              'runtime_snapshot':snapshot,'library_catalog':catalog_binding}
+        job['formalization']=formalization
         from runtime_config import load_lock
         job['native_components']=load_lock()['codex']
         if target:job['target_selection']=target
         if resume:
             job['resume']=resume
             job['authority_bindings'].extend(resume_bindings)
+            import basis
+            prior=json.loads((Path(resume['prior_run'])/'job.json').read_text())
+            if basis.mode(prior)!=formalization:raise ValueError('Recovery cannot change the formalization goal')
+            job['authority_bindings'].extend(basis.recovery_bindings(prior))
         write(root/'job.json',job)
         write(root/MARKER,{'version':VERSION,'run_id':run_id,'root':str(root),
                           'job':bind(root/'job.json'),'original_inputs':[row['original'] for row in documents]})
@@ -152,8 +161,11 @@ def validate(job, *, verify_runtime=True):
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
+    if 'formalization' in job:expected.add('formalization')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
+    from basis import validate_mode
+    validate_mode(job.get('formalization','conditional'),job['track'],resume=job.get('resume'))
     if 'native_components' in job:
         from native_runtime import verify
         verify(job['native_components'])
@@ -191,6 +203,11 @@ def validate(job, *, verify_runtime=True):
         else:
             from interrupted import validate_descriptor
         validate_descriptor(job)
+        import basis
+        prior=json.loads((Path(job['resume']['prior_run'])/'job.json').read_text())
+        if basis.mode(prior)!=basis.mode(job):raise ValueError('Recovery changed formalization goal')
+        if not all(r in job['authority_bindings'] for r in basis.recovery_bindings(prior)):
+            raise ValueError('Recovery omitted prepared basis bindings')
     if verify_runtime:
         if 'runtime_snapshot' in job:
             import runtime_snapshot

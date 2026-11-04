@@ -15,6 +15,8 @@ def parsers(commands):
         p=commands.add_parser(name,help='Organize arbitrary supplied proof(s); outputs stay beside each problem')
         p.add_argument('problems',nargs='+',type=Path)
         p.add_argument('--track',choices=sorted(jobs.TRACKS),required=True)
+        p.add_argument('--formalization',choices=['conditional','unconditional'],default='conditional',
+                       help='Lean goal; unconditional adds 2basis and final b2lean closure to track=full')
         p.add_argument('--material',action='append',type=Path,default=[])
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
         p.add_argument('--target',help='Complete requested statement or semicolon-separated theorem labels')
@@ -57,6 +59,9 @@ def parsers(commands):
     p=commands.add_parser('final-decision',help='Apply an explicit user choice at a retained B-final nonpass')
     p.add_argument('run',type=Path);p.add_argument('--incident',required=True)
     p.add_argument('--action',choices=['deliver-actual','recheck','reset-translation'],required=True)
+    p=commands.add_parser('basis-decision',help='Choose an exact retained class-4 basis action')
+    p.add_argument('run',type=Path);p.add_argument('--incident',required=True)
+    p.add_argument('--action',choices=['stop','continue','accept-conditional'],required=True)
 
 
 def profiles(args):
@@ -126,7 +131,7 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
-    if args.command=='final-decision':
+    if args.command in {'final-decision','basis-decision'}:
         import fault_control
         return fault_control.final_decision(args.run,args.incident,args.action)
     if args.command in {'errors','resume-error'}:
@@ -155,6 +160,9 @@ def dispatch(args):
         if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
     if args.command in {'prepare','run'}:
+        from basis import validate_mode
+        selected_mode=getattr(args,'formalization','conditional')
+        validate_mode(selected_mode,args.track)
         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
         import target_selection
@@ -169,11 +177,12 @@ def dispatch(args):
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
-                target=selections.get(str(problem))))
+                target=selections.get(str(problem)),formalization=selected_mode))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),
                  'concurrent_cases':args.case_concurrency or len(prepared)}
+        summary['formalization']=selected_mode
         summary['source_policy_notice']='Unavailable primary sources can produce only an explicitly conditional result with warn.json/warn.md, never an unqualified PASS.'
         summary['audit_r_concurrency']=__import__('concurrency').resolve(workers) if args.track in {'nl0','full'} else None
         if args.command=='prepare':return summary

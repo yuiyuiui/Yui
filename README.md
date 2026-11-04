@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/yui-guitar.png" alt="Anime-style sunburst electric guitar" width="320"></p>
 
-Yui is a multi-agent harness designed to quickly make natural-language mathematical proofs rigorous. Its workflow has two parts.
+Yui is a multi-agent harness designed to make natural-language mathematical proofs rigorous. Its core workflow has two parts, with an optional unconditional formalization route.
 
 ## 1. How it works
 
@@ -21,6 +21,20 @@ The resulting proof nodes are then formalized concurrently. Workers can use NL0,
 Once all nodes are complete, the Python controller assembles the proof, runs Lean and performs **Audit B**. It checks proof closure and that the actual external premises, target and relevant definitions agree with the reviewed, frozen intermediate layer. The result is a conditional Lean proof whose literature theorems remain explicit assumptions.
 
 ## 2. Efficiency and advantages
+
+### Optional unconditional formalization
+
+An explicit unconditional request uses
+`2basis → the same NL0/Audit A → the same nl02lean/Audit B → b2lean`.
+2basis rewrites the proof toward actual Mathlib/public Lean-library results and
+concrete internal derivations, preparing the used Lean proofs and version
+adapters. The one Audit A checks both the original target and rewritten proof.
+b2lean applies the prepared proofs, then compiles and inspects the actual final
+export with only the original hypotheses. Unresolved textbook dependencies need
+an explicit user choice; accepting them produces a conditional result.
+See [the basis workflow](nl0/references/basis.md) for stages, records and errors.
+This route is under development; existing benchmark numbers concern the
+conditional workflow, not unconditional performance.
 
 ### Fast conditional formalization
 
@@ -98,7 +112,7 @@ For natural-language auditing alone, request **NL0 and Audit A only** and provid
 
 ## 5. Limitations and next steps
 
-1. **Fast unconditional formalization.** Quickly producing proofs based only on a fixed Mathlib version remains difficult and worthwhile. The author plans to work on this next.
+1. **Unconditional formalization performance.** The optional basis/discharge route has software controls and native Lean regression fixtures. Its mathematical route selection, success rate and speed on substantial research proofs still require model-driven evaluation.
 
 2. **Evaluating the division into proof nodes.** There is not yet a suitable evaluator for how a proof should be split. In observed runs, much of the parallel formalization time is spent on one particularly difficult node. Building a stable evaluator-optimizer for this division is a next step.
 

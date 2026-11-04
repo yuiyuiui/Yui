@@ -21,13 +21,29 @@ def qualified_artifact(stage,artifact):
             'usage':{'complete':False},'exposure':exposure})]:ir.write(Path(stage)/name,value)
 
 
-def frozen_case(root):
+def frozen_case(root, *, prepare_source=None, transform_interface=None, bodies=None):
     import harness_support
     root=Path(root);source=root/'source'
     shutil.copytree(harness_support.CORE/'tests/fixtures/closed-addition',source)
     (source/'audit-a.json').unlink()
+    if prepare_source:prepare_source(source)
     campaign.prepare(source,source,root/'audit-a')
-    for job in ir.load(root/'audit-a/campaign.json')['jobs']:synthetic_stage(root/'audit-a'/job['id'])
+    for job in ir.load(root/'audit-a/campaign.json')['jobs']:
+        directory=root/'audit-a'/job['id'];_,raw=synthetic_stage(directory)
+        if job['id']=='global':
+            for p in ir.load(source/'nl0.json')['propositions']:
+                if p['kind']!='external':continue
+                row={'verdict':'PASS','notes':'SYNTHETIC source metadata control, not an actual source review.',
+                    'locations':['nl0.json#/propositions']}
+                raw['source_reviews'][p['id']]={**row,'citation_checks':{key:dict(row) for key in campaign.nl0.EXTERNAL_CHECKS}}
+        else:
+            packet=ir.load(directory/'packet.json')
+            applications={app['id']:app for app in packet['inference']['applications']}
+            if applications:
+                row={'verdict':'PASS','notes':'SYNTHETIC local application control.','locations':['/inference/applications']}
+                raw['external_applications']={key:{**row,'input':app['input'],'bindings_review':dict(row),
+                    'hypothesis_reviews':[],'conclusion_review':dict(row),'bridges':[]} for key,app in applications.items()}
+        ir.write(directory/'stage/accepted.json',raw)
     assert campaign.collect(root/'audit-a',None)['full_acceptance']
     author=root/'author';translation_author.prepare(source,source,author)
     validator=translation_author.InterfaceContract(author)
@@ -38,6 +54,7 @@ def frozen_case(root):
                  {'id':'T002','statement':'a + 0 = b','inputs':['T001'],'source_steps':['S002','S003'],'explanation':'Additive identity and symmetry.'}],
         'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'},
         'endpoint_correspondence':{'P':{'mode':'direct','explanation':'Natural-number equality with the original a=b hypothesis.'}}}
+    if transform_interface:transform_interface(payload)
     validator(payload);qualified_artifact(author/'stage',payload)
     reviewed=root/'interface-review';interface_review.prepare(author,reviewed)
     checks={key:{'verdict':'PASS','notes':'SYNTHETIC known propositional/natural-number fixture; no actual semantic model called.',
@@ -49,7 +66,7 @@ def frozen_case(root):
     proof=out/'proof-run';proof.mkdir()
     import run_graph
     cp,_=run_graph.package(Path(manifest['contract']),Path(manifest['plan']),proof)
-    bodies={'T001':'exact h_H001.symm','T002':'simpa only [Nat.add_zero] using h_T001.symm'}
+    bodies=bodies or {'T001':'exact h_H001.symm','T002':'simpa only [Nat.add_zero] using h_T001.symm'}
     ir.write(proof/'proofs.json',{'contract_sha256':ir.digest(cp),'plan_sha256':ir.digest(proof/'inputs/plan.json'),'proofs':bodies})
     ir.write(proof/'report.json',{'status':'FRAGMENT_ASSEMBLED','concurrency':{'requested':1},'runner_wall_seconds':0})
     return out

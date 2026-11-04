@@ -6,6 +6,21 @@ Yui repository. Keep case materials and outputs outside the installation.
 
 ## Request and configuration
 
+Formalization goal is separate from the stage track. Keep `conditional` as the
+default, including `--track full`. For an explicit complete/unconditional request
+use `--track full --formalization unconditional` and follow
+[basis preparation and discharge](basis.md). It reuses the existing NL0/Lean
+profiles and worker settings. Do not repeat configuration collection.
+Class-4 choices use `yui.py basis-decision RUN --incident ID --action
+stop|continue|accept-conditional`, only after the actual user selects an action.
+Show exact residuals and their retained source evidence. This choice is separate
+from B-final decisions and never silently downgrades an unconditional goal.
+Supported operational continuations preserve the original goal and prepared
+basis; they do not rerun 2basis or ask for residual approval again.
+For unconditional delivery include `b2lean/Proof.lean`, export `YuiClosed.P`,
+the final `check.json`/`report.json`, and any `b2lean/warn.json`/`warn.md`.
+The conditional intermediate receipt alone cannot close this goal.
+
 The invoking agent identifies the explicit proof files and requested track:
 `nl0` (NL0 + Audit A), `full`, `translate` (accepted NL0 onward), or `audit-b`
 (existing native build, fresh semantic review only). Ask about genuinely ambiguous

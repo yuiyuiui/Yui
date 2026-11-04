@@ -89,6 +89,9 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
     ir.need(usable(data[0]), 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
     c, nodes, _ = ir.validate(contract, ir.load(plan))
+    import basis
+    basis_context=basis.source_context(graph,spec)
+    basis.check_interface(basis_context,c)
     ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
     if data[0].get('background_note_count',0):
         supplement=data[0]['background_supplement']
@@ -141,6 +144,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
                 'freeze_seconds':time.monotonic()-started, 'types_check':typed,
                 'preparation_cost':review.get('preparation_cost', {'status':'UNMEASURED'}),
                 'status':'SOURCE_AND_IR_FROZEN'}
+    if basis_context:manifest['basis_context']=basis_context
     manifest['frozen_input_bindings'] = [source.binding(p) for p in (out/'inputs').rglob('*') if p.is_file()]
     ir.write(out/'manifest.json',manifest)
     ir.write(out/'freeze-seal.json', {'version': VERSION, 'manifest': source.binding(out/'manifest.json')})
@@ -157,6 +161,10 @@ def bound(directory):
     data,_ = source.read_source(**manifest['authority'])
     ir.need(usable(data[0]), 'source acceptance is no longer valid')
     ir.validate(Path(manifest['contract']), ir.load(manifest['plan']))
+    import basis
+    context=basis.source_context(manifest['authority']['graph'],manifest['authority']['spec'])
+    ir.need(context==manifest.get('basis_context'),'Frozen basis authority changed')
+    basis.check_interface(context,ir.contract(manifest['contract']))
     return manifest
 
 

@@ -16,6 +16,7 @@ import execution_state as execution
 from runtime_config import use_profiles
 import source_preparation
 import source_refactor
+import basis
 
 
 def source_key(source):
@@ -79,7 +80,7 @@ def repair_obligations(source, campaign):
 
 
 def author_stage(job, root, budget, *, baseline=None, obligations=None):
-    nl0_author.prepare(Path(job['root'])/'inputs',root,baseline=baseline,obligations=obligations)
+    nl0_author.prepare(basis.problem_inputs(job),root,baseline=baseline,obligations=obligations)
     stage=ArtifactStage(root/'stage',(root/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',
         case_id=job['case'],inputs=root/'inputs/inputs.json',timeout=f.stage_seconds(budget),budget=budget)
     if baseline:
@@ -131,7 +132,7 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
         key=source_key(source)
         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
         seen.add(key)
-        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=root/'inputs',reuse_from=prior,
+        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=basis.problem_inputs(job),reuse_from=prior,
                                audit_budget=audit_budget)
         if audited['full_acceptance'] or audited.get('conditional_acceptance'):
             return {'graph':str(source/'nl0.json'),'spec':str(source/'spec.json'),'audit_a':str(source/'audit-a.json')}
@@ -188,7 +189,7 @@ def translation_attempt(job, authority, budgets, progress):
                 checkpoint=None
             else:
                 result=f.translate(job['case'],source,current_interface,directory/'workflow',budgets.serial,progress,
-                    proof_budget=budgets.proof,problem=root/'inputs',authority=authority,
+                    proof_budget=budgets.proof,problem=basis.problem_inputs(job),authority=authority,
                     prior_interface=prior_interface,diagnostics=diagnostics,prior_run=repair_prior_run,sessions=sessions)
             summary={'status':result['audit_b']['status'],'workflow':str(directory/'workflow'),
                      'acceptance_basis':result['audit_b']['acceptance_basis']}
@@ -243,7 +244,7 @@ def execute(job, root=None):
         budgets=a.concurrency.CaseBudgets(job['max_concurrency'],execution=recorder);result={}
         def progress(case,phase,**extra):
             from runtime_config import model_profile
-            profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_')) else 'translation-preparation')
+            profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_','BASIS_AUTHOR','BASIS_CHECKED')) else 'translation-preparation')
             # Delivery records an already-authorized artifact; it starts no new work.
             if phase=='DIFFERENT_RESULT_DELIVERED':
                 if recorder.cancelled():raise execution.Cancelled('External cancellation requested during delivery')
@@ -257,6 +258,7 @@ def execute(job, root=None):
                     import audit_b_continuation
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)
                 else:
+                    if basis.mode(job)=='unconditional':basis.run(job,budgets.serial,progress)
                     authority=(nl0_work(job,recorder,budgets.serial,progress,audit_budget=budgets.audit) if job['track'] in {'nl0','full'} else
                                job['source_authority'])
                     selected_data=source_preparation.read_source(**authority)[0]
@@ -268,6 +270,13 @@ def execute(job, root=None):
                     result=({'status':'DRAFT-AUDIT-PASSED' if selected['current_standard_receipt_valid'] else 'DRAFT-AUDIT-CONDITIONAL',
                              'source':authority,'acceptance_scope':'NL0_AND_AUDIT_A_ONLY'}
                             if job['track']=='nl0' else translation_work(job,authority,budgets,progress))
+                    if basis.mode(job)=='unconditional' and result.get('status')!='DIFFERENT_RESULT_DELIVERED':
+                        import b2lean
+                        progress(job['case'],'BASIS_FINAL_CLOSURE',workflow=result.get('directory',result.get('workflow')))
+                        # The shared workflow report binds its final machine receipt.
+                        selected_workflow=Path(result['audit_b']['receipt_path']).parent.parent
+                        result=b2lean.finish(selected_workflow,root/'b2lean',
+                            context=ir_context(job),intermediate=result)
         except execution.Cancelled as error:
             result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','error':str(error)}
         except execution.CaseDeadlineExceeded as error:
@@ -280,7 +289,7 @@ def execute(job, root=None):
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
             allowed={'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL',
-                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED'}
+                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED','STOPPED_BY_USER'}
             if result.get('status') not in allowed:
                 from fault_control import Gate,outcome_error
                 saved=dict(result)
@@ -300,6 +309,10 @@ def execute(job, root=None):
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
                 completion={'acceptance_target_satisfied':passed or accepted_with_warning,'accepted_with_warning':accepted_with_warning,'workflow_completed':passed or conditional,
                             'follow_up_required':not passed},time_budget_seconds=job['time_budget_seconds'])
+            result['formalization_goal']=basis.mode(job)
+            if basis.mode(job)=='unconditional':
+                result['completion']['acceptance_target_satisfied']=bool(result.get('closure',{}).get('unconditional') and passed)
+                result['completion']['follow_up_required']=not result['completion']['acceptance_target_satisfied']
             if (root/'warn.json').is_file():result['warnings']=json.loads((root/'warn.json').read_text())
             while True:
                 try:
@@ -326,6 +339,10 @@ def execute(job, root=None):
                 try:recorder.flush(force=True)
                 except OSError:pass  # The user explicitly stopped an unwritable final report.
         return result
+
+
+def ir_context(job):
+    return json.loads((basis.problem_inputs(job)/basis.CONTEXT).read_text())
 
 
 if __name__=='__main__':

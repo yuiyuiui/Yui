@@ -1,13 +1,25 @@
 ---
 name: rigorous-proof
-description: Use Yui to make an existing proof self-contained as concise mathematical NL0 with independent Audit A, then optionally translate it through reviewed frozen interfaces into Lean with machine Audit B. Supports NL0-only, accepted-NL0 translation and full workflows; structural checks and compilation alone do not establish source fidelity.
+description: Use Yui to audit an existing proof as NL0/Audit A and optionally translate it through frozen interfaces into conditional Lean/Audit B. An explicit unconditional full track adds 2basis and checked b2lean dependency discharge. Structural checks and compilation alone do not establish source fidelity.
 ---
 
 # Yui: mathematical NL0 and Lean implementation
 
 Use the smallest requested track. Preserve the original problem, hypotheses,
-definitions and proof route. The two stages share one specification and explicit
+definitions and active proof route. The two stages share one specification and explicit
 invalidation rules; completing stage one does not require stage two.
+
+Conditional formalization remains the default, including `--track full`.
+For an explicit unconditional request, select `--track full --formalization
+unconditional` and follow [2basis and b2lean](nl0/references/basis.md).
+2basis may rewrite the original proof route before the one shared NL0/Audit A;
+the original target/H remain immutable. Audit A receives both original task and
+basis proof/replacements. Prepare used class 1/2 Lean proofs/adapters in 2basis;
+class 3 is internal mathematics, while remaining class 4 requires the user's
+exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean
+must check the actual closed export and transitive trust. Never present an
+approved conditional fallback or source-qualified result as unconditional.
+These optional stages reuse the two existing model profiles and controllers.
 
 The installed skill root is the directory containing this `SKILL.md`. Keep
 `config.json`, `nl0/`, `nl02lean/` and `toolchain/` beside it; no enclosing
@@ -140,6 +152,9 @@ Protected public-contract/source defects wait for the user.
    then `workflow.py` for source/IR freeze, proof work and final gates.
 3. **Full workflow.** Complete track one, then track two. A changed mathematical
    statement or new theorem returns to the affected NL0/Audit A boundary.
+   With the explicit unconditional goal, run 2basis first and b2lean last.
+   Report the requested goal and achieved scope separately, with the final
+   `YuiClosed.P` artifact and any residual class-4/source warnings.
 
 ## Mathematical invariants
 

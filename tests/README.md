@@ -1,10 +1,27 @@
 # Controller and workflow software tests
 
-Run `python3 -B -m unittest discover -s tests -v` from the skill repository.
+Run `python3 -B tests/run_tests.py` (or `yui.py selftest`) from the skill repository.
+The runner always cleans its owned temporary root and recorded child processes,
+including hidden files, native workspaces and compiled scratch output. Success,
+test failures, Python exceptions, SIGINT and SIGTERM share the cleanup path.
+Unconfirmed shutdown retains diagnostics and fails cleanup; unrelated processes,
+symlink targets and shared Lean/mathlib caches are preserved. SIGKILL cannot run
+an exit handler, so its marked root and process ledger remain for diagnosis.
+Direct `python3 -B -m unittest discover -s tests -v` remains supported, without
+the enclosing cleanup guarantee. Select individual modules with, for example,
+`python3 -B tests/run_tests.py discover -s tests -p test_basis.py -v`.
 Native tests require the compatible Codex executable; kernel tests require the
 configured pinned Lean/Mathlib environment. A skipped native test is not a
 native integration pass. The suite blocks accidental live model calls and real
 owner-task notifications through harness_support.py.
+
+Basis controls are in `test_basis.py`, `test_basis_author.py`, `test_basis_workflow.py`, `test_b2lean.py`
+and `test_test_cleanup.py`. They cover legacy/default requests, all four source
+classes, origin versus compatibility, source/target/port binding, exact user
+decisions, one shared review/proof route, operational continuation, real native
+proof/adapters, universes/typeclasses, residual assumptions, trust and tampering.
+Review/source/user-choice fixtures are explicitly synthetic software controls;
+passing them is not an independently audited research-proof benchmark.
 
 These are software tests. Synthetic reviewer judgments and deterministic
 provider replies do not certify a mathematical proof or a model's capability.

@@ -58,6 +58,8 @@ def evidence_paths(value, base):
 
 def read_source(graph, spec, audit_a=None, incremental=None, *, active=None):
     graph, spec = Path(graph).resolve(), Path(spec).resolve()
+    import basis
+    basis.source_context(graph,spec)
     ir.need(not (audit_a and incremental), 'choose ordinary or incremental Audit A, not both')
     if incremental:
         receipt_path = Path(incremental).resolve()

@@ -52,6 +52,8 @@ class NodePatch:
 
 def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None):
     root=Path(job['root']);sessions=Sessions();source=restored;issues=initial_issues;prior=list(prior);epoch=0
+    from basis import problem_inputs
+    problem=problem_inputs(job)
     while True:
         epoch+=1
         # A restored global role uses the saved accepted draft and actual local
@@ -63,7 +65,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                     source=author_stage(job,directory,budget,baseline=source,obligations=issues)
                 issues=None
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
-            campaign.prepare(source,root/'inputs',global_dir,reuse_from=prior)
+            campaign.prepare(source,problem,global_dir,reuse_from=prior)
             progress(job['case'],'AUDIT_A_GLOBAL',directory=str(global_dir))
             campaign.run(global_dir,budget=budget,audit_budget=audit_budget,only='global',sessions=sessions)
             gate=campaign.global_acceptance(global_dir)
@@ -79,7 +81,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             while not stop.is_set():
                 revision+=1
                 directory=root/'audit-a'/f'local-{epoch:04d}-{rid}-{revision:04d}'
-                prepared=campaign.prepare(own,root/'inputs',directory,reuse_from=prior)
+                prepared=campaign.prepare(own,problem,directory,reuse_from=prior)
                 if 'packet:'+rid in prepared['inherited']:
                     campaign.global_acceptance(directory)
                     return {'case':own,'campaign':directory,'rid':rid}
@@ -139,7 +141,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             source=merged
             continue
         final=root/'audit-a'/f'final-{epoch:04d}'
-        campaign.prepare(merged,root/'inputs',final,reuse_from=prior)
+        campaign.prepare(merged,problem,final,reuse_from=prior)
         # Every scope must be inherited from an actual current reviewed version.
         campaign.run(final,budget=budget,audit_budget=audit_budget,sessions=sessions)
         accepted=campaign.collect(final,None)

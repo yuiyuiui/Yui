@@ -307,6 +307,7 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False,
         materials=[row['original']['path'] for row in old['documents'][1:] if row.get('extraction')!='target-selection'],
         time_budget_seconds=remaining,resume=descriptor,
         resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'),
+        formalization=old.get('formalization','conditional'),
         **({'output':output} if access else {}))
     write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,

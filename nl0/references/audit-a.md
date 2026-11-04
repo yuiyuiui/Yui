@@ -13,7 +13,7 @@ The following grouped criteria replace V1's ten separate per-R report rows.
 
 | ID | Review group | Author evidence group | Requirement |
 | --- | --- | --- | --- |
-| `target` | package | original_context_note | Preserve the complete original theorem, every original H, quantifier, domain, normalization and supplied core proof route. A parameter or definition cannot hide a hypothesis or desired conclusion. |
+| `target` | package | original_context_note | Preserve the complete original theorem, every original H, quantifier, domain, normalization, parameter range, constant dependency and supplied active proof route. In explicit 2basis mode, the original task remains target/H authority and the basis proof is the authorized active route; review both, including replacements and new derivations. A parameter or definition cannot hide a hypothesis or desired conclusion. |
 | `definitions` | package | declaration_check | Define mathematical objects and notation sufficiently for their actual uses. Check types, dependencies, construction guards and legitimate local introductions. A definition grants no unproved property. |
 | `sources` | package | original_context_note | Check complete E statements, primary-source identity, context and conditions under the source policy. An explicitly selected native M retains its bound signature checks; authors need not introduce M nodes for ordinary mathematical background. Unavailable originals remain disclosed UNVERIFIED source assumptions. |
 | `structure` | package | original_context_note | Verify the actual AND dependency graph, unique producers, absence of cycles and faithful exported statements. Retain every original H and disclose unused H. Internal results are proved, never new roots. |

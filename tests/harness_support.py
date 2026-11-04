@@ -1,6 +1,7 @@
 """Shared test paths and synthetic profiles; never imported by the runtime."""
 from pathlib import Path
 import sys
+import test_resources  # Install only inside the explicitly owned cleanup runner.
 
 TESTS = Path(__file__).resolve().parent
 CORE = TESTS.parent

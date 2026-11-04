@@ -69,6 +69,8 @@ def context(data,scope,*,semantic_rules=None,structure_policy='whole_graph'):
     _,graph,spec,props,steps,defs,closure,_=data
     common={'version':VERSION,'semantic_rules':rules() if semantic_rules is None else semantic_rules,
             'approved_task':{k:spec[k] for k in ['case_id','full_target','conclusion','parameters','hypotheses','logic','pins']}}
+    active=[r['sha256'] for r in spec.get('inputs',[]) if Path(r['path']).name=='proof-context.json']
+    if active:common['active_proof_context']=active
     kind,_,key=scope.partition(':')
     if kind=='packet':
         packet=deepcopy(nl0.packet(data,key))

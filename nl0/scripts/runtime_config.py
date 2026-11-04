@@ -74,7 +74,7 @@ def model_profile(phase=None):
     config = json.loads(raw)
     name = str(phase or '').lower().replace('_', '-')
     translation = name in {'proof', 'plan', 'interface', 'assembly'} or name.startswith(
-        ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-'))
+        ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-', 'basis-final-'))
     key = 'nl0_to_lean' if translation else 'model'
     selected = _profiles.get()
     profile = validate_profile(selected['lean' if translation else 'nl0'] if selected else

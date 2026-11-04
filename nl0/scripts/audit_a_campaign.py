@@ -174,6 +174,14 @@ new conclusions, missing existence guards or source assumptions. Check every
 retained D and selected E/M, exact quantifiers and target dependency closure.
 An unused original H remains present. A source/graph judgment does not certify
 unreviewed R bodies; each local packet has its own independent assessment.
+When proof-context.json is supplied, original documents/selected target remain
+the target and H authority, while basis-proof.md is the authorized active proof
+route. Review both. Preserve assumptions, quantifiers, parameter ranges, domains,
+normalizations and constant dependencies; review the replacement map and new
+derivations. The original proof route may change in 2basis. Machine-checked basis
+metadata does not establish mathematical fidelity or justify missing arguments.
+Class 3 must be an internal proof, never an external premise. Use this same
+global/local Audit A; do not request a duplicate full natural-language audit.
 
 For an explicitly selected native M, check the supplied actual signature and
 pinned source. Ordinary mathematical background need not become an M node;
@@ -278,6 +286,8 @@ def verify_global_overview(out,plan):
 def prepare(case, problem, out, *, reuse_from=()):
     case, problem, out = [Path(p).resolve() for p in (case, problem, out)]
     data = nl0.validate(case/'nl0.json', case/'spec.json')
+    import basis
+    basis.source_context(case/'nl0.json',case/'spec.json')
     foundations.require_canonical(data[2]['logic'])
     hits=audit_reuse.select(data,reuse_from)
     out.mkdir(parents=True, exist_ok=False)

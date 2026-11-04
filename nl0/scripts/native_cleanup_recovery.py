@@ -67,6 +67,8 @@ def validate_descriptor(job):
     if job['resume']!=expected or job['track']!='translate':raise ValueError('Changed native cleanup recovery scope')
     for key in ('case','profiles','max_concurrency','policy','target_selection'):
         if job.get(key)!=old.get(key):raise ValueError('Recovery changed '+key)
+    if job.get('formalization','conditional')!=old.get('formalization','conditional'):
+        raise ValueError('Recovery changed formalization goal')
     if job['documents'][0]['sha256']!=old['documents'][0]['sha256']:
         raise ValueError('Recovery changed the original problem')
     if not {r['path'] for r in files}<={r['path'] for r in job['authority_bindings']}:
@@ -83,6 +85,6 @@ def prepare(previous):
     job=jobs.prepare(problem,track='translate',profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],materials=materials,
         source=Path(descriptor['source_authority']['graph']).parent,resume=descriptor,resume_bindings=bindings,
-        target=old.get('target_selection'))
+        target=old.get('target_selection'),formalization=old.get('formalization','conditional'))
     validate_descriptor(job)
     return job

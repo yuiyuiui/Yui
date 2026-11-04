@@ -187,9 +187,11 @@ class Gate:
             'resume_command':[sys.executable, '-B', str(entry), 'resume-error', str(self.root), '--incident', incident],
             'cancel_command':[sys.executable, '-B', str(entry), 'cancel', str(self.root)]}
         if decisions:
-            if resumable or set(decisions)!={'deliver-actual','recheck','reset-translation'}:
-                raise ValueError('Only the explicit B-final user decisions are supported')
-            self.state['decisions']={action:[sys.executable,'-B',str(entry),'final-decision',str(self.root),
+            basis_choices=set(decisions)=={'stop','continue','accept-conditional'} and self.stage=='basis-decision'
+            if resumable or not (basis_choices or set(decisions)=={'deliver-actual','recheck','reset-translation'}):
+                raise ValueError('Only explicit B-final or basis user decisions are supported')
+            command='basis-decision' if basis_choices else 'final-decision'
+            self.state['decisions']={action:[sys.executable,'-B',str(entry),command,str(self.root),
                 '--incident',incident,'--action',action] for action in decisions}
             self.state['resume_command']=[sys.executable,'-B',str(entry),'errors',str(self.root)]
         self.notification_attempts = 0
@@ -206,6 +208,9 @@ class Gate:
             except (OSError, ValueError):request = {}
             if request.get('incident')==incident and request.get('action') in decisions:
                 validate_context(self.root,self.job_binding,self.requires_job)
+                if self.stage=='basis-decision':
+                    from controller_common import verify_bindings
+                    verify_bindings([self.state['checkpoint']['basis']])
                 self.state.update(state='USER_DECIDED',control=request,decided_at_utc=execution.now())
                 self.persist()
                 if self.recorder is not None and self.task:
@@ -291,6 +296,9 @@ def final_decision(root,incident,action):
     if not logs.is_relative_to(root) or not execution.same_process(row.get('owner_process',{})):
         raise ValueError('Final decision owner has exited or changed')
     validate_context(root,row.get('job_binding'),row.get('requires_job_binding',False))
+    if row.get('stage')=='basis-decision':
+        from controller_common import verify_bindings
+        verify_bindings([row['checkpoint']['basis']])
     path=logs/'error-control'/(incident+'.json')
     if path.exists():raise ValueError('A decision was already requested for this incident')
     execution.atomic(path,{'incident':incident,'action':action,'requested_at_utc':execution.now(),'id':uuid.uuid4().hex})

@@ -38,7 +38,7 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
-    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','final-decision'}:
+    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','final-decision','basis-decision'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))
@@ -52,13 +52,14 @@ def main():
         print(json.dumps({'status': 'ENVIRONMENT-CHECKED', 'resolved_environment': verify()}, indent=2))
     elif args.command == 'selftest':
         directory = CORE / 'tests'
-        result = subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(directory), '-v'],
+        result = subprocess.run([sys.executable, '-B', str(directory/'run_tests.py'), 'discover', '-s', str(directory), '-v'],
                                 capture_output=True,text=True)
         if args.verbose or result.returncode:
             print(result.stdout,end='')
             print(result.stderr,end='')
         else:
-            summary=[s for s in result.stderr.splitlines() if s.startswith('Ran ') or s=='OK']
+            summary=[s for s in (result.stderr+'\n'+result.stdout).splitlines()
+                     if s.startswith(('Ran ','test cleanup:')) or s=='OK']
             print('tests: '+'; '.join(summary),flush=True)
         return result.returncode
     elif args.command == 'usage':

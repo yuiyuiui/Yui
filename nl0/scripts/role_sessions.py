@@ -10,7 +10,7 @@ from controller_common import bind, write
 import execution_state
 
 _active = ContextVar('yui_role_session', default=None)
-BOUNDARIES = {'GLOBAL_REVIEW_PASSED', 'LOCAL_REVIEWS_PASSED', 'INTERFACE_FROZEN', 'WORKFLOW_FINALIZED'}
+BOUNDARIES = {'GLOBAL_REVIEW_PASSED', 'LOCAL_REVIEWS_PASSED', 'INTERFACE_FROZEN', 'WORKFLOW_FINALIZED', 'BASIS_PREPARED'}
 
 
 def current():

@@ -146,6 +146,17 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
             for rid,r in inferences.items()}}
     write(inputs/'source-map.json',source_map)
     prompt=PROMPT
+    import basis
+    basis_context=basis.source_context(case/'nl0.json',case/'spec.json')
+    if basis_context:
+        write(inputs/'prepared-basis.json',basis.verify_context(basis_context))
+        prompt+='''\nThis accepted source follows 2basis. Read prepared-basis.json.
+Keep its lean_header as an exact prefix of your header, and use its exact closed
+Lean types for the provisional E ports. Their actual proofs/adapters have already
+been checked. Choose remaining target/representation/T details normally; class 3
+is internal mathematics for these workers. Do not add E assumptions or re-prove
+the prepared dependencies. b2lean will discharge 1/2 after ordinary Audit B.
+'''
     if prior_interface:
         shutil.copyfile(prior_interface,inputs/'prior-interface.json')
         write(inputs/'repair-diagnostics.json',diagnostics)
@@ -179,6 +190,8 @@ class InterfaceContract:
         if not usable(self.source_data[0]):
             raise ValueError('Interface authoring requires current accepted Audit A')
         self.source_bindings=authority.get('source_bindings') or [authority[k] for k in ('graph','spec','audit_a')]
+        import basis
+        self.basis_context=basis.source_context(case/'nl0.json',case/'spec.json')
 
     def save(self, value):
         expanded, edits = expand_interface(value, self.documents, self.drafts)
@@ -237,6 +250,8 @@ class InterfaceContract:
             contract['source'].update(background_supplement=supplement,
                 background_supplement_sha256=supplement['sha256'])
         write(directory/'contract.json',contract)
+        import basis
+        basis.check_interface(self.basis_context,contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,
                   json.loads(supplement_file.read_text()) if supplement_file.is_file() else None),

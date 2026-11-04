@@ -54,14 +54,14 @@ class ArtifactStage(pilot.Stage):
         self.artifact_kind = kind
         self.background_review = bool(self.acceptance_authority and kind == 'json' and 'packet.json' in self.task_inputs)
         self.background_notes = []
-        self.output_verbosity='high' if kind=='nl0' else 'low'
+        self.output_verbosity='high' if kind=='nl0' or phase=='basis-authoring' else 'low'
         self.library_probes=0
         self.continuation_prompt = ('Continue from your saved work and actual tool feedback. '
             'Take the next concrete step; submit when complete or report a genuine terminal obstacle.')
         if kind=='nl0':
             self.continuation_prompt=('Continue constructing the actual NL0 from your own draft and source evidence. '
                 'Ordinary unfinished work is not an obstacle report: make the next concrete source query, '
-                'draft or local edit. Preserve the original route. Report a terminal gap only for an actual '
+                'draft or local edit. Preserve the active proof route. Report a terminal gap only for an actual '
                 'unsupported mathematical implication with concrete mathematical grounds.')
         if kind not in {'json', 'nl0'}:
             raise ValueError('Unknown artifact contract')
@@ -81,7 +81,8 @@ class ArtifactStage(pilot.Stage):
                         'This controller handles subsequent stages; do not keep calling tools or seek a later-stage verdict here.')
         if arm == 'yui':
             self.system += (' This is a Yui workflow stage. Read the relevant declared Yui rules, '
-                            'preserve the supplied proof route and exact allowed assumptions, '
+                            + ('you may rewrite the proof route only in this 2basis stage; preserve the original target and exact allowed assumptions, '
+                               if phase=='basis-authoring' else 'preserve the supplied active proof route and exact allowed assumptions, ')+
                             'and distinguish mathematical review from structural checks.')
         if self.acceptance_authority:
             self.system += '\n\n'+self.acceptance_authority.instructions()
@@ -258,7 +259,7 @@ class ArtifactStage(pilot.Stage):
         if kind == 'nl0':
             import nl0
             self.input_prompt += ('\nWrite the complete proof, retaining all supplied calculations, '
-                'intermediate derivations and limiting arguments needed for the original target and core proof route. '
+                'intermediate derivations and limiting arguments needed for the original target and active core proof route. '
                 'An independent optional comment outside that route may be omitted; explain a material omission '
                 'in the existing context note. Do not omit a needed proof step as optional. Map its logical phases to explicit proof '
                 'units and fill their dependency/declaration accounts. Output detail is high for authoring. '
@@ -347,7 +348,9 @@ class ArtifactStage(pilot.Stage):
                 'the newest draft. A reminder is neither a source premise nor mathematical acceptance; '
                 'all unresolved issues and current proof checks remain required.')
         if arm == 'yui':
-            if phase.startswith('interface'):
+            if phase=='basis-authoring':
+                index=['nl0/references/basis.md']
+            elif phase.startswith('interface'):
                 index=['nl02lean/references/minimal-translation.md']
             elif phase.startswith('audit-b'):
                 index=['SKILL.md','nl02lean/references/audit-b.md','nl02lean/templates/audit-b.md']
