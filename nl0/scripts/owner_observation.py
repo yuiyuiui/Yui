@@ -50,7 +50,7 @@ def handoff(runs):
     command = [sys.executable, '-B', str(CORE/'nl0/scripts/yui.py'),
                'observe', *map(str, selected)]
     prompt = (
-        'Observe only the already-dispatched Yui runs below. Perform one bounded '
+        'For a permitted scheduled handoff, observe only the already-dispatched Yui runs below. Perform one bounded '
         'check per scheduled wake using the supplied command; do not sleep, poll '
         'in a loop, or redispatch the workflow. Preserve the exact run map and '
         'record the host automation ID in owner-only monitor metadata. '
@@ -78,7 +78,12 @@ def handoff(runs):
             'runs': list(map(str, selected)), 'observe_command': command,
             'host_tool': 'automation_update', 'host_kind': 'heartbeat',
             'prompt': prompt,
-            'next_action': 'Register or update one host heartbeat for all these runs; record its actual ID, then end the owner turn. If scheduling is unavailable, disclose that and return manual observation/cancel commands.'}
+            'next_action': (
+                'Follow the entry monitoring mode. For a finite run with timed reports on a host '
+                'that restricts job-specific automation, wait in the owning turn and observe once '
+                'per interval. For a permitted scheduled handoff, record the actual host ID '
+                'before ending the turn. If neither is available, return manual observe/cancel commands.'
+            )}
 
 
 def process_table():

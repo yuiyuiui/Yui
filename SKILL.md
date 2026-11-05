@@ -46,16 +46,15 @@ ask for a worker count or fall back to two. An explicit positive integer N caps
 both separate phases. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
-The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md):
-normally dispatch with `--detach`, verify the owned processes, and register one
-host heartbeat for a bounded check every ten minutes. Record the actual schedule
-ID, report that mathematical work is still pending, then end the current
-foreground turn. Never keep the owner active through sleep/poll loops. Each
-scheduled check ends its turn as well. `DISPATCHED` is not workflow completion.
-If host scheduling is unavailable, disclose that and return manual status/cancel
-commands; do not claim that a monitor was registered. Frozen author/proof/reviewer
-stages perform only their assigned roles and never schedule owner monitoring or
-redispatch the workflow.
+The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md).
+Dispatch with `--detach`, verify the process identities and report the initial
+phase. For a finite job with requested ten-minute reports, the owner can wait
+in its current turn, observe once per interval and post the requested status.
+Use this mode on hosts that prohibit per-job automation. An entry's actual
+owner receipt governs that run. Use a scheduled handoff only where permitted
+and record its real ID. When monitoring cannot be provided, disclose that
+and give the status/cancel commands. Frozen workers perform only their assigned
+roles. They never schedule observation or redispatch the workflow.
 
 For missing external originals, follow [ordered source retrieval](nl0/references/source-retrieval.md):
 arXiv, Google full-text search, Google DOI discovery, then confirmed-DOI Sci-Hub

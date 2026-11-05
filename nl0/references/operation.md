@@ -93,11 +93,11 @@ per-case sources, materials or profiles, `prepare` each separately, then use
 owned background case processes and returns their exact run paths; a parent
 chat Stop is not a verified cancellation of these processes.
 
-The invoking owner then follows [foreground handoff](owner-observation.md):
-register one host heartbeat every ten minutes, save its actual ID and end the
-foreground turn. Detached dispatch returns an explicit pending monitoring
-handoff; it does not itself register a schedule. Do not wait through repeated
-foreground sleeps or status polls.
+Follow the [owner monitoring procedure](owner-observation.md). Verify the
+detached process identities and use the monitoring mode recorded by the entry.
+For a single job on a host that restricts job-specific scheduling, wait in the
+owning turn and make one bounded observation per ten-minute interval. On a
+host with a permitted schedule, record its actual ID before ending the turn.
 
 For translation pass `--track translate --source /accepted/nl0-case` and the Lean
 profile. Optionally pass `--max-concurrency N` to cap local work. For audit-only pass

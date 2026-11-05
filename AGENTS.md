@@ -6,4 +6,4 @@ benchmark, create its foreground chat with `model="gpt-6.1-sol"` and
 (`service_tier="default"`). An explicit user selection overrides these defaults.
 
 Send only `Execute <absolute path to the entry README.md>.` to the new task.
-The entry owns worker dispatch, the ten-minute heartbeat and terminal cleanup.
+The entry owns worker dispatch, ten-minute status reports in its own chat and terminal cleanup.

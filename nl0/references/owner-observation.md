@@ -1,40 +1,35 @@
-# Foreground handoff and scheduled owner observation
+# Monitoring a detached run from its owning chat
 
 This protocol applies only to the invoking owner. Proof, author, preparation
 and review stages continue their assigned work in their isolated contexts.
 Ending an owner turn does not stop those processes, pause a goal or establish
 mathematical acceptance.
 
-## Dispatch, register, then end the foreground turn
+## Dispatch and verify ownership
 
-1. Finish target/configuration collection and dispatch with `--detach`.
-2. Verify the returned run paths and PID/start-time/PGID records. Retain usable
-   observation and cancellation commands. Do not start another mathematical run.
-3. Read the returned `owner_observation` handoff. Its initial registration is
-   `HOST_REGISTRATION_REQUIRED`; it is not an actual schedule. Use the host's
-   automation tool to create or update one heartbeat in this same chat, every
-   ten minutes, covering all cases in the invocation. Reuse an existing matching
-   monitor rather than creating duplicates. The handoff supplies the exact run
-   map, a bounded observation command and a durable observer-only prompt.
-4. Save the actual returned automation ID and exact current run map in
-   `OWNER_MONITOR_STATE.json` in the selected run; keep monitor metadata separate
-   from mathematical inputs, receipts and worker token accounting. Report that
-   work is running and monitoring is registered, then finish the foreground turn.
+1. Collect the target/configuration and dispatch with `--detach`. When an entry
+   wraps this command, follow its procedure for preparation and launch.
+2. Verify the run paths, PID, start time and process group. Retain observation
+   and cancellation commands. Report the initial phase separately from any
+   mathematical outcome.
+3. Use the monitoring mode recorded for these paths in `OWNER_MONITOR_STATE.json`.
+   For a finite run requiring timed reports on a host that restricts job-specific
+   automation, keep the invoking turn open. Wait ten minutes with an interruptible
+   wait, observe once and post the requested status. Repeat while the run is
+   live. Honor user interruptions; do not poll between checks. This mode records
+   `OWNER_CHAT_WAIT` and uses no automation ID.
+4. A permitted scheduled handoff can use the generic `owner_observation`
+   proposal returned by the runtime. Its initial `HOST_REGISTRATION_REQUIRED`
+   describes an unregistered proposal. Save a real host-issued ID and the exact
+   run map before ending the invoking turn. Scheduled turns perform one bounded
+   observation per wake. If neither timed observation nor a permitted schedule
+   is available, disclose the limit and return the actual status/cancel commands.
 
-Never replace a host heartbeat with repeated sleeps, status reads, long waits
-or an idle foreground agent loop. The Python controller cannot finish a chat
-turn or register a desktop schedule itself. A detached launch alone does not
-establish either action. If the host has no scheduling capability, say so,
-return the concrete manual commands and end the turn; do not silently install a
-cron job, background model observer or alternative scheduler.
+Keep owner metadata separate from the frozen mathematical inputs, receipts and
+worker usage. The scheduled proposal's defaults live in `config.json`. Entries
+can request an update at every interval through their own monitor settings.
 
-The default policy is explicit in `config.json` under `owner_observation`:
-`end_turn_after_handoff`, a 600-second interval, `host_heartbeat`, and
-`meaningful_changes_only` notifications. A manual synchronous terminal command
-can still wait for its program to finish without repeated model calls; the
-policy governs the invoking conversational owner.
-
-## One bounded check per scheduled wake
+## One bounded observation per interval
 
 Use the handoff's `yui.py observe RUN...` command. It reads owned status/result
 metadata and one OS process table, and returns only concise stages, counts,
@@ -56,7 +51,7 @@ heartbeats remain separate from these ten-minute owner checks.
 `PAUSED_ERROR` is nonterminal. The local Python error controller separately
 queues immediate fixed-text owner alerts and preserves its context/workspace.
 Read `paused_errors` and its outbox status; do not restart a paused run, declare
-it finished, or delete its heartbeat. Operator controls and the only allowed
+it finished, or close its monitor. Operator controls and the only allowed
 cleanup boundaries are in [error lifecycle](error-lifecycle.md).
 
 At each case termination, read its actual result and linked gate reports. A
@@ -64,10 +59,8 @@ recorded PASS is not new verification; validate existing bound artifacts using
 the Yui validators without starting another model or Lean run. Keep partial or
 unknown usage and every execution qualification visible.
 
-After all current cases are terminal, exact owned processes and groups have
-exited and no authorized recovery is pending, preserve the final report and
-delete the completed host heartbeat using its actual ID. End the scheduled turn.
-Do not keep waking an already-completed workflow.
-
-The host integration follows [scheduled tasks](https://learn.chatgpt.com/docs/automations).
-Use the host's current tool schema rather than editing scheduler files.
+After every tracked case is terminal, the owned process groups have exited and
+authorized recovery is complete, validate and save the final reports and run
+the entry's authorized cleanup. Mark the owner monitor complete and end the
+turn. For a run with a permitted host schedule, retire it using its recorded
+ID. Use the host tool for that operation.
