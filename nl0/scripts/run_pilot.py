@@ -334,7 +334,8 @@ class Trial:
                 if not self.active_turn_id or turn_id==self.active_turn_id:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
-                if ((getattr(self,'submission_closed',False) or getattr(self,'budget_exhausted',False))
+                if ((getattr(self,'submission_closed',False) or getattr(self,'budget_exhausted',False)
+                        or getattr(getattr(self,'review_guard',None),'blocked',None))
                         and msg['params'].get('callId') not in self.tool_history
                         or getattr(self, '_stopping', False) and getattr(self,'native_infrastructure_fault',None)):
                     # A completed call can race with the protective interrupt.
@@ -384,6 +385,10 @@ class Trial:
                     if self.active_turn_id:
                         self.handoff_interrupt = self.send('turn/interrupt', {
                             'threadId':self.thread_id,'turnId':self.active_turn_id})
+                elif (getattr(getattr(self,'review_guard',None),'blocked',None)
+                      and self.active_turn_id and not getattr(self,'handoff_interrupt',None)):
+                    self.handoff_interrupt = self.send('turn/interrupt', {
+                        'threadId':self.thread_id,'turnId':self.active_turn_id})
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
                     'contentItems': [{'type': 'inputText', 'text': delivered}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
@@ -497,6 +502,7 @@ class Trial:
         __import__('native_client').bind_inputs(self,user,continuation_prompt)
         self.remote_retry_count=0
         incident_retries=0
+        review_guard = getattr(self, 'review_guard', None)
         while True:
             self.check_runtime_state()
             with self.request_lock:
@@ -510,14 +516,23 @@ class Trial:
             self.active_turn_id = started.get('turn', {}).get('id')
             done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
                 and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
-                or getattr(self,'submission_closed',False), deadline)
+                or getattr(self,'submission_closed',False) or (review_guard and review_guard.blocked), deadline)
             if getattr(self,'submission_closed',False):
                 self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
                 event=self.last_turn_event or done
                 self.turn_results.append(event)
                 if getattr(self,'carrier_reader_fault',None):raise RuntimeError('Native reader failed during handoff')
                 return event
+            if review_guard and review_guard.blocked and done.get('method') != 'turn/completed':
+                self.interrupt_active_turn(reason='REVIEW_NO_PROGRESS')
+                done = self.last_turn_event
             self.turn_results.append(done)
+            if review_guard and review_guard.blocked:
+                self.pause_error(review_guard.blocked)
+                review_guard.reset()
+                message = continuation_prompt
+                self.allowed_user_messages.add(message)
+                continue
             turn = done.get('params', {}).get('turn', {})
             with self.request_lock:
                 success=self.last_response_success
@@ -560,6 +575,11 @@ class Trial:
                 return done
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError('本轮达到预先设置的时间限制。')
+            if review_guard:
+                review_guard.completed_turn()
+                if review_guard.blocked:
+                    self.pause_error(review_guard.blocked)
+                    review_guard.reset()
             self.continuation_count += 1
             if getattr(self,'execution',None):
                 self.execution.task(self.execution_task,continuations=self.continuation_count)
@@ -577,7 +597,8 @@ class Trial:
             checkpoint={'thread_id':getattr(self,'thread_id',None),'turn_id':getattr(self,'active_turn_id',None),
                 'workspace':str(getattr(self,'work','')),'profile':getattr(self,'model_selection',{}),
                 'preserve_tool_history':True,'restart_whole_workflow':False})
-        if resumable:self.refresh_after_error_pause()
+        if resumable and not (isinstance(error,dict) and error.get('reason')=='REVIEW_NO_PROGRESS'):
+            self.refresh_after_error_pause()
 
     def refresh_after_error_pause(self):
         """Codex owns authentication and connection renewal; keep this exact role."""

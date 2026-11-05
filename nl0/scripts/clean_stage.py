@@ -141,13 +141,15 @@ class ArtifactStage(pilot.Stage):
                 {'artifact':{'type':'object','additionalProperties':True}},['artifact']))
         from review_contract import ReviewContract, INSTRUCTIONS
         if isinstance(self.validator,ReviewContract):
+            from review_contract import ReviewProgressGuard
+            self.review_guard = ReviewProgressGuard(self.validator)
             # Source access uncertainty is a located assessed UNVERIFIED item,
             # not permission to abort all remaining citation/packet checks.
             self.tools=[t for t in self.tools if t['name']!='report_obstacle']
             self.input_prompt += INSTRUCTIONS+'\nRequired review items: '+json.dumps(list(self.validator.required))
             self.tools += [pilot.carrier.tool('record_review_item','Save an actual own-stage judgment and coverage; does not finish review.',
                 {'pointer':{'type':'string'},'coverage':{'type':'string','enum':['unread','read','assessed']},
-                 'judgment':{'type':['object','null'],'additionalProperties':True}},['pointer','coverage','judgment']),
+                 'judgment':self.validator.judgment_schema},['pointer','coverage','judgment']),
                 pilot.carrier.tool('read_review_progress','Read actual own-stage saved judgments and remaining work.',{},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
                     {'finding':{'type':'object','additionalProperties':True}},['finding'])]
@@ -413,7 +415,11 @@ class ArtifactStage(pilot.Stage):
     def dispatch(self, name, args):
         from library_catalog import use_library
         with use_library(self.logs/'harness-snapshot/library'):
-            return self._dispatch(name,args)
+            result = self._dispatch(name,args)
+        guard = getattr(self, 'review_guard', None)
+        if guard:
+            guard.observe(name, args, result)
+        return result
 
     def record_tool_fault(self, name, args, error, started):
         """Retain an actual execution failure before the carrier cleans up."""

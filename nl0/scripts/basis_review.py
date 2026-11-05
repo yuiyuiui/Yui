@@ -80,22 +80,53 @@ def item_keys(packet):
     return result
 
 
+JUDGMENT_FIELDS = {
+    'verdict': {'type':'string','enum':['PASS','FAIL','UNVERIFIED']},
+    'notes': {'type':'string'}, 'source': {'type':'string'}, 'application': {'type':'string'},
+    'locations': {'type':'array','items':{'type':'string'}},
+}
+
+
+def judgment_schema(objection):
+    properties = dict(JUDGMENT_FIELDS)
+    if objection:
+        properties['resolution'] = {'type':'string','description':'Required only for '+objection['basis_id']}
+    return {'type':['object','null'],'properties':properties,
+            'required':list(JUDGMENT_FIELDS),'additionalProperties':False}
+
+
+def validate_judgment(key, row, objection=None, packet=None):
+    path = '/items/' + key
+    if not isinstance(row, dict):
+        raise ValueError(f'{path}: expected a judgment object')
+    fields = set(JUDGMENT_FIELDS)
+    if objection and key == objection['basis_id']:
+        fields.add('resolution')
+    if set(row) != fields:
+        raise ValueError(f'{path}: missing={sorted(fields - row.keys())}, '
+                         f'unexpected={sorted(row.keys() - fields)}. Put statement and actual_type pointers in locations.')
+    if row['verdict'] not in ('PASS', 'FAIL', 'UNVERIFIED'):
+        raise ValueError(f'{path}/verdict: expected PASS, FAIL or UNVERIFIED')
+    for name in sorted(fields - {'verdict', 'locations'}):
+        if not isinstance(row[name], str) or not row[name].strip():
+            raise ValueError(f'{path}/{name}: expected nonempty text')
+    locations = row['locations']
+    if not isinstance(locations, list) or not all(isinstance(p, str) and p.startswith('/') for p in locations):
+        raise ValueError(f'{path}/locations: expected a list of absolute JSON pointers')
+    missing = {path+'/statement', path+'/actual_type'} - set(locations)
+    if missing:
+        raise ValueError(f'{path}/locations: include {sorted(missing)}')
+    if packet is not None:
+        from nl0 import closure
+        for location in locations:
+            closure.resolve(packet, location)
+
+
 def validate_rows(value, required, objection=None, packet=None):
     if not isinstance(value,dict) or set(value)!={'items'} or not isinstance(value['items'],dict) or set(value['items'])!=set(required):
         raise ValueError('Assess exactly the required basis dependencies')
     for key,row in value['items'].items():
-        fields={'verdict','notes','locations','source','application'}
-        if objection and key==objection['basis_id']:fields.add('resolution')
-        if (not isinstance(row,dict) or set(row)!=fields or row['verdict'] not in {'PASS','FAIL','UNVERIFIED'}
-                or any(not isinstance(row[k],str) or not row[k].strip() for k in fields-{'verdict','locations'})):
-            raise ValueError('Supply a located statement/type comparison, source and application for '+key)
-        locations=row['locations']
-        if (not isinstance(locations,list) or not all(isinstance(p,str) and p.startswith('/') for p in locations)
-                or not {f'/items/{key}/statement',f'/items/{key}/actual_type'}<=set(locations)):
-            raise ValueError('Locate both the statement and the actual proposition for '+key)
-        if packet:
-            from nl0 import closure
-            for location in locations:closure.resolve(packet,location)
+        validate_judgment(key, row, objection, packet)
     return {'scope':'Reviewed basis interfaces only', 'whole_proof_acceptance':False}
 
 
@@ -120,7 +151,8 @@ def complete_submission(stage, raw):
             continue  # A rejected earlier malformed wrapper supplies no judgments.
         if not isinstance(value,dict):continue
         coverage=value.get('coverage');items=value.get('items')
-        if isinstance(coverage,dict) and isinstance(items,dict):
+        saved = reply.get('accepted') is True or str(reply.get('error','')).startswith('REVIEW_INCOMPLETE:')
+        if saved and isinstance(coverage,dict) and isinstance(items,dict):
             for key,row in items.items():
                 pointer='/items/'+key
                 if pointer in covered and coverage.get(pointer)=='assessed' and row==expected[key]:
@@ -202,7 +234,9 @@ def assess(out, context, artifact, sessions, budget, history):
             views[name]={'source':row,'text_sha256':ir.digest(inputs/name)}
         write(inputs/PACKET,{**packet,'required':required});manifest(inputs)
         contract=ReviewContract(directory/'review-work',{'items':{}},['/items/'+k for k in required],
-            lambda value:validate_rows(value,required,packet['revision_objection'],packet),complete_assessment=True)
+            lambda value:validate_rows(value,required,packet['revision_objection'],packet),
+            row_validator=lambda pointer,row:validate_judgment(pointer.split('/')[-1],row,packet['revision_objection'],packet),
+            complete_assessment=True, judgment_schema=judgment_schema(packet['revision_objection']))
         stage=ArtifactStage(directory/'stage',PROMPT,phase='basis-semantic-review',validator=contract,
             inputs=inputs/'inputs.json',budget=budget,timeout=configured_timeout('stage'))
         with sessions.use(ROLE):stage.execute()

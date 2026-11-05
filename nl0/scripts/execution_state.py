@@ -498,7 +498,12 @@ class Recorder:
                     self.state['usage'].update(requests=None,requests_with_usage=None,in_flight_or_unreported_requests=None)
                 states=['PENDING','RUNNING','WAITING_REVIEW','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
-                self.state['proof_counts']={s:sum(t['state']==s and t.get('role')=='proof' for t in self.state['tasks'].values()) for s in states}
+                groups=self.state.get('proof_group_sizes')
+                proof_counts=dict.fromkeys(states,0)
+                for key,row in self.state['tasks'].items():
+                    if row.get('role')=='proof' and row['state'] in proof_counts:
+                        proof_counts[row['state']] += groups.get(key,0) if groups is not None else 1
+                self.state['proof_counts']=proof_counts
                 self.state['updated_at_utc']=now();self.state['elapsed_seconds']=mono-self.started
                 snapshot=deepcopy(self.state);self.last_write=mono;self.dirty=False
             try: atomic(self.path,snapshot)

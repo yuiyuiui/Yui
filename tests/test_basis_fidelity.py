@@ -55,6 +55,10 @@ class BasisFidelityTests(unittest.TestCase):
     def test_exact_rows_and_coverage_reject_missing_foreign_unassessed_and_empty_judgments(self):
         raw=ir.load(self.batch.parent/'stage/accepted.json')
         required=self.packet['required']
+        extra=deepcopy(raw)
+        extra['items']['B001']['statement_location']='/items/B001/statement'
+        with self.assertRaisesRegex(ValueError, r'B001.*statement_location.*locations'):
+            basis_review.validate_rows(extra, required, packet=self.packet)
         for transform in [lambda v:v['items'].pop('B002'),
                           lambda v:v['items'].update(B099=deepcopy(v['items']['B001'])),
                           lambda v:v['items']['B001'].update(locations=['/items/B002/statement']),
@@ -116,6 +120,27 @@ class BasisFidelityTests(unittest.TestCase):
         reports=[ir.load(x['path'])['assessments'] for x in (first,ref)]
         self.assertEqual(reports[0]['B001'],reports[1]['B001'])
         self.assertNotEqual(reports[0]['B002'],reports[1]['B002'])
+
+    def test_real_basis_review_rejects_bad_save_then_seals_the_corrected_review(self):
+        from basis_fixtures import reviewed_value
+        out=self.revision.parent/'corrected-rows'
+        path=out/'stage/accepted.json';write(path,self.value)
+        context={**self.context,'basis':bind(path)}
+        sessions=Sessions()
+        def review(stage):
+            bad=reviewed_value(stage);bad['items']['B002']['actual_type_location']='redundant'
+            for name,args in [('record_review_item',{'pointer':'/items/B002','coverage':'assessed',
+                               'judgment':bad['items']['B002']}),('check_draft',{'artifact':bad})]:
+                feedback=stage.dispatch(name,args)
+                self.assertIn('B002',feedback['error'])
+                self.assertIn('actual_type_location',feedback['error'])
+                self.assertEqual(stage.validator.progress()['remaining'],['/items/B001','/items/B002'])
+            return synthetic_review(stage,saved_via='record')
+        with patch.object(ArtifactStage,'_execute',review):
+            receipt,issues=basis_review.assess(out,context,self.value,sessions,None,{})
+        sessions.close_all('BASIS_PREPARED',[out/'review/report.json'])
+        self.assertEqual(issues,{})
+        self.assertEqual(basis_review.verify(receipt,context,self.value),{})
 
     def test_complete_saved_submissions_from_checks_or_individual_judgments_verify(self):
         for mode in ('check','record'):

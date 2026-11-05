@@ -150,16 +150,11 @@ class MappingContract:
 
 def diagnostics(candidate):
     """Put actual errors ahead of long printed signatures; preserve full files."""
-    import re
     excerpts=[]
     for name in ('assembly-compiler.json','compiler.json'):
         path=Path(candidate)/name
         if not path.exists():continue
-        compiler=ir.load(path);lines=compiler.get('stdout','').splitlines();selected=[]
-        positions=[i for i,line in enumerate(lines) if re.search(r':\d+:\d+: error',line)]
-        for i in positions[:8]:selected.extend(lines[max(0,i-1):i+20])
-        if not positions:selected=lines[-35:]
-        excerpts.append(name+':\n'+'\n'.join(selected)[:12000]+'\n'+compiler.get('stderr','')[:2000])
+        excerpts.append(name+':\n'+ir.compiler_feedback(ir.load(path),12000))
     return '\n'.join(excerpts)[:24000]
 
 

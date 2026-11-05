@@ -100,7 +100,11 @@ parameters: [{name,type,binder_kind?}], where binder_kind is explicit (default),
 implicit or instance. premise_types maps every H/E root and any retained M
 port to its Lean proposition. Mathlib references are not a permission list. source_outputs maps every N/P to a distinct step Tddd. steps:
 [{id,statement,inputs:[root/T IDs],source_steps:[S IDs],explanation}]. Each step
-is a closed conditional obligation; include useful independent subarguments or
+may name internal universe_params and input_instances (see stage.md). For a generic
+T output used elsewhere, use named levels such as Type u rather than Type* and
+declare the instances and actual applications in its consumers. This data is editable
+in an internal step repair; it does not require changing the public header.
+Each step is a closed conditional obligation; include useful independent subarguments or
 representation bridges when they reduce work. Every step must reach terminal;
 cover all source paragraphs. terminal's type equals conclusion_type. objects
 may be [] when special representation views are unnecessary. representation
@@ -194,16 +198,22 @@ class InterfaceContract:
         self.basis_context=basis.source_context(case/'nl0.json',case/'spec.json')
 
     def save(self, value):
+        from dependency_instances import check_fields
         expanded, edits = expand_interface(value, self.documents, self.drafts)
         if not isinstance(expanded, dict):
             raise ValueError('An interface draft must be a JSON object')
-        self.attempt += 1
-        directory = self.out/'candidates'/f'{self.attempt:04d}'
+        if isinstance(expanded.get('steps'),list):
+            for i,step in enumerate(expanded['steps']):
+                if isinstance(step,dict):
+                    check_fields(step,f"/steps/{i} ({step.get('id','unnamed')})")
+        number = self.attempt + 1
+        directory = self.out/'candidates'/f'{number:04d}'
         directory.mkdir(parents=True)
-        self.drafts[self.attempt] = deepcopy(expanded)
         write(directory/'artifact.json', expanded)
         if edits is not None:
             write(directory/'explicit-edits.json', edits)
+        self.attempt = number
+        self.drafts[number] = deepcopy(expanded)
         return expanded, directory
 
     def __call__(self,value):
@@ -268,7 +278,9 @@ class InterfaceContract:
         write(directory/'decomposition.json',decomposition)
         result=ir.check(directory/'contract.json',plan,types_only=True,out=directory/'types',timeout=current()[0].remaining() if current()[0] else None)
         if result['exit_code']!=0:
-            raise ValueError('Actual Lean type check failed:\n'+result['stdout'][:14000]+result['stderr'][:2000])
+            failed=', '.join(result.get('failed_input_uses',[]))
+            label=' for '+failed if failed else ''
+            raise ValueError('Actual Lean type check failed'+label+':\n'+ir.compiler_feedback(result))
         write(self.out/'accepted-interface-paths.json',{'contract':str(directory/'contract.json'),
             'plan':str(directory/'plan.json'),'author_output':str(self.out/'stage/accepted.json'),
             'paragraph_mapping':self.source['paragraph_mapping'],'source_outputs':value['source_outputs'],
@@ -315,24 +327,34 @@ class InterfaceStage(ArtifactStage):
         if name in {'save_interface_draft','read_interface_draft'} and not hasattr(self.validator,'drafts'):
             return {'accepted':False,'stage_complete':False,'error':'Interface authoring has not started; finish the current source-preparation assignment through submit_draft.'}
         if name=='save_interface_draft':
+            started=time.monotonic()
             try:
                 if self.accepted is not None:raise ValueError('Stage is already complete')
                 self.validator.save(args['artifact'])
                 result={'candidate':self.validator.attempt,'saved':True,'stage_complete':False,'semantic_acceptance':False}
-            except (ValueError,KeyError,TypeError,OSError) as error:result={'error':str(error),'accepted':False}
+            except (ValueError,KeyError,TypeError) as error:result={'error':str(error),'accepted':False}
+            except OSError as error:
+                self.record_tool_fault(name,args,error,started)
+                raise
             pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0})
             return result
         if name=='read_interface_draft':
+            started=time.monotonic()
             try:
                 if args['kind']=='index':result={'candidates':sorted(self.validator.drafts),'type_probes':list(range(1,self.type_probes+1))}
                 else:
                     number=args['candidate'];ir.need(type(number) is int and number>0,'Use a positive own-stage draft number')
                     if args['kind']=='candidate':row=self.validator.drafts[number]
-                    elif args['kind']=='probe':row=ir.load(self.logs/'type-probes'/f'{number:04d}'/'input.json')
+                    elif args['kind']=='probe':
+                        ir.need(number<=self.type_probes,'Select an existing own-stage type probe')
+                        row=ir.load(self.logs/'type-probes'/f'{number:04d}'/'input.json')
                     else:raise ValueError('Unknown own-stage draft kind')
                     value=nl0.closure.resolve(row,args['pointer']);ir.need(len(json.dumps(value,ensure_ascii=False))<=20000,'Choose a narrower JSON pointer')
                     result={'value':value,'scope':'Own actual current-stage draft only; not semantic acceptance'}
-            except (ValueError,KeyError,TypeError,OSError) as error:result={'error':str(error),'accepted':False}
+            except (ValueError,KeyError,TypeError) as error:result={'error':str(error),'accepted':False}
+            except OSError as error:
+                self.record_tool_fault(name,args,error,started)
+                raise
             pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0});return result
         if name!='check_lean_types':return super().dispatch(name,args)
         start=time.monotonic()

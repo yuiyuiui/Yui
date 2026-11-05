@@ -31,7 +31,7 @@ def obligation(cpath, plan, sid):
     ir.need('shared_lemma' in step, 'step has no reviewed shared export')
     packet = ir.local_packet(cpath, plan, sid)
     record = next(x for x in c['shared_obligations'] if x['id'] == step['shared_lemma'])
-    return {'pins': c['pins'], 'header': c['header'], 'parameters': c['parameters'],
+    return {'pins': c['pins'], 'header': packet['header'], 'parameters': c['parameters'],
             'inputs': packet['inputs'], 'target': step['statement'],
             'objects': packet.get('objects', []),
             'representations': packet.get('representations', []),
@@ -57,6 +57,9 @@ def signature_key(value):
                  'bridges': value['bridges'], 'route': value['route']}
     kinds=[p.get('binder_kind','explicit') for p in value['parameters']]
     if any(kind!='explicit' for kind in kinds):canonical['parameter_binders']=kinds
+    if any('uses' in p for p in value['inputs']):
+        canonical['input_instances'] = [{k:p[k] for k in ('id','binder','levels','uses') if k in p}
+                                        for p in value['inputs']]
     return hashed(canonical)
 
 

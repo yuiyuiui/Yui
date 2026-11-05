@@ -164,6 +164,7 @@ def snapshot(runs):
             'recorded_audit_b': (result.get('audit_b') or {}).get('status'),
             'counts': {k: v for k, v in counts.items() if type(v) is int},
             'proof_counts': {k: v for k, v in proof_counts.items() if type(v) is int},
+            'proof_total': state.get('proof_total') if type(state.get('proof_total')) is int else None,
             'controller_identity_matches': matches(controller, table) if controller else False,
             'live_owned_process_count': len(live), 'registered_groups_still_present': groups,
             'process_exit_verified': exited,
@@ -176,4 +177,4 @@ def snapshot(runs):
             'all_terminal': terminal, 'all_process_exits_verified': exited,
             'process_inspection_error': process_error,
             'next_check_seconds': None if terminal and exited else settings['interval_seconds'],
-            'scope': 'One read-only metadata snapshot. Recorded acceptance still needs the actual bound gate reports; this is not a mathematical review.'}
+            'scope': 'One read-only snapshot. Use proof_total and proof_counts for nodes in the current plan; counts also includes diagnosis and review tasks. After a terminal result, task counts are history. Acceptance requires the bound gate reports.'}

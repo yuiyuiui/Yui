@@ -12,7 +12,8 @@ def same_port(oldc,oldplan,cpath,plan,step):
     old=ir.contract(oldc);new=ir.contract(cpath)
     if old['id']!=new['id'] or old['pins']!=new['pins'] or old['source']['sha256']!=new['source']['sha256']:return False
     before=ir.local_packet(oldc,oldplan,step);after=ir.local_packet(cpath,plan,step)
-    return all(before[key]==after[key] for key in ['parameters','inputs','target','source_steps'])
+    return all(before.get(key)==after.get(key) for key in
+               ['internal_type_context','parameters','inputs','target','source_steps'])
 
 
 def reviewed_repair(oldc,oldplan,cpath,plan,step,receipt):
@@ -77,7 +78,9 @@ def candidate(previous, cpath, plan, step, *, reviewed_interface=None, basis_rev
         # local obligation, use context and rendered Lean program can supply a candidate.
         before.pop('contract_sha256');after.pop('contract_sha256')
         if changed or before!=after:return None
-    elif changed and not reviewed_repair(oldc,oldplan,cpath,plan,step,reviewed_interface):return None
+    else:
+        changed = changed or not same_port(oldc,oldplan,cpath,plan,step)
+        if changed and not reviewed_repair(oldc,oldplan,cpath,plan,step,reviewed_interface):return None
     return {'body':body,'previous_run':str(previous),'previous_proofs_sha256':ir.digest(evidence),
             'scope':('Same accepted source/port after independently reviewed interface repair; requires current native recheck'
                      if changed else 'Identical local Lean source and pins only; requires current native recheck')}

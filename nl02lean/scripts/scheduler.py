@@ -25,7 +25,8 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
     max_workers = len(nodes) if max_workers is None else max_workers
     ir.need(type(max_workers) is int and max_workers >= 1, 'worker bound must be positive')
     typecheck = ir.check(cpath, plan, types_only=True)
-    ir.need(typecheck['exit_code'] == 0, 'frozen interface/representation expressions failed Lean')
+    ir.need(typecheck['exit_code'] == 0, 'frozen interface/representation expressions failed Lean: '
+            + ', '.join(typecheck.get('failed_input_uses',[])))
     initial_contract = ir.digest(cpath)
     initial_plan = shared_lemmas.hashed(plan)
     initial_store = store.snapshot() if store else None
@@ -53,6 +54,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
                 role='proof',consumers=group,inputs=nodes[sid]['inputs'],
                 contract_sha256=initial_contract,plan_digest=initial_plan,
                 result_path=str(out/'jobs'/f'{sid}.json') if out else None)
+        execution.update(proof_total=len(nodes),proof_group_sizes={g[0]:len(g) for g in groups.values()})
         execution.flush(force=True)
 
     def run(group):

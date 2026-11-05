@@ -53,6 +53,7 @@ class OwnerObservationTests(unittest.TestCase):
     def test_nonproof_task_counts_are_not_hidden_by_zero_proof_counts(self):
         recorder=execution_state.Recorder(self.run,'synthetic-case',{})
         try:
+            recorder.update(proof_total=10)
             for state in ('RUNNING','WAITING_REVIEW','PAUSED_ERROR'):
                 recorder.task('review-'+state,role='audit',state=state)
             recorder.flush(force=True)
@@ -62,9 +63,11 @@ class OwnerObservationTests(unittest.TestCase):
             self.assertEqual(row['counts']['WAITING_REVIEW'],1)
             self.assertEqual(row['counts']['PAUSED_ERROR'],1)
             self.assertTrue(all(value==0 for value in row['proof_counts'].values()))
+            self.assertEqual(row['proof_total'],10)
         finally:recorder.close('CANCELLED')
 
     def test_detached_dispatch_persists_the_pending_owner_handoff(self):
+        self.assertIsNone(owner.snapshot([self.run])['cases'][0]['proof_total'])
         with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
                 patch.object(subprocess, 'Popen') as launch, \
                 patch('execution_state.identity', return_value=self.identity):
@@ -75,6 +78,23 @@ class OwnerObservationTests(unittest.TestCase):
         saved = json.loads((self.run/'launch.json').read_text())
         self.assertEqual(saved['owner_observation'], result['owner_observation'])
         self.assertEqual(saved['owner_observation']['registration'], 'HOST_REGISTRATION_REQUIRED')
+
+    def test_revised_plan_counts_shared_aliases_once_and_excludes_retired_workers_and_diagnosis(self):
+        recorder=execution_state.Recorder(self.run,'neutral-plan',{})
+        try:
+            recorder.task('T009',role='proof',state='FINISHED')
+            recorder.task('T001',role='proof',state='LOCAL_CHECKED')
+            recorder.task('T002',role='proof',state='RUNNING')
+            recorder.task('diagnosis',role='diagnosis',state='RUNNING')
+            recorder.update(proof_total=3,proof_group_sizes={'T001':2,'T002':1})
+            recorder.flush(force=True)
+            row=owner.snapshot([self.run])['cases'][0]
+            self.assertEqual(row['proof_total'],sum(row['proof_counts'].values()))
+            self.assertEqual(row['proof_counts']['LOCAL_CHECKED'],2)
+            self.assertEqual(row['proof_counts']['RUNNING'],1)
+            self.assertEqual(row['counts']['RUNNING'],2)
+        finally:
+            recorder.close('CANCELLED')
 
     def test_finalized_status_never_establishes_process_exit(self):
         self.state(final=True)

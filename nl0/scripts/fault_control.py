@@ -168,6 +168,11 @@ class Gate:
                  '\nAutomatic resume is unavailable; inspect the diagnostic and choose an authorized repair or user action.')+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
+        details=self.state.get('error',{})
+        if isinstance(details,dict) and details.get('reason')=='REVIEW_NO_PROGRESS' and 'last_validation' in details:
+            text += ('\nReview waiting for correction: '+details['message']+
+                     '\nLatest feedback: '+' '.join(details['last_validation']['message'].split())[:400]+
+                     '\nSaved judgments: '+details['progress'])
         if self.stage=='basis-decision' and self.state['checkpoint'].get('semantic_review'):
             checkpoint=self.state['checkpoint']
             text+='\nReviewed residual premises '+', '.join(checkpoint['residual_class4'])+' in '+checkpoint['basis']['path']

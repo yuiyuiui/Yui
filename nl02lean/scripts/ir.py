@@ -84,6 +84,14 @@ def checked_expression(name, expression, binders='', *, proposition=False):
     return f'def {name}{annotation} :=\n  ({term})\n'
 
 
+def compiler_feedback(native, limit=14000):
+    """Keep the actual errors in model feedback even when earlier warnings are long."""
+    lines = native.get('stdout','').splitlines()
+    errors = [i for i,line in enumerate(lines) if re.search(r':\d+:\d+: error',line)]
+    selected = [line for i in errors[:8] for line in lines[i:i+20]] if errors else lines[-35:]
+    return '\n'.join(selected)[:limit]+'\n'+native.get('stderr','')[:2000]
+
+
 def contract(path):
     path = Path(path).resolve()
     c = load(path)
@@ -169,12 +177,14 @@ def validate(cpath, plan):
     covered = set()
     shared = {s['id']: s for s in c.get('shared_obligations', [])}
     objects = {o['id']: o for o in c.get('objects', [])}
+    import dependency_instances
     for s in steps:
         need(re.fullmatch(r'T\d{3}', s['id']) is not None, 'invalid transition id')
         type_text(s['statement'])
         need(isinstance(s['inputs'], list) and len(set(s['inputs'])) == len(s['inputs']), 'duplicate inputs')
         need(set(s['inputs']) <= roots | by_id.keys(), 'unregistered input')
         need(s['id'] not in s['inputs'], 'self-dependency')
+        dependency_instances.validate(s, by_id)
         need(s['source_steps'] and set(s['source_steps']) <= source_ids, 'invalid NL correspondence')
         need(s['explanation'].strip(), 'missing transition mechanism')
         if 'background_notes' in s:
@@ -250,17 +260,24 @@ def premises(c):
 
 
 def local_packet(cpath, plan, sid):
+    import dependency_instances as di
     c, nodes, _ = validate(cpath, plan)
     need(sid in nodes, 'unknown transition')
-    types = {**premises(c), **{k: s['statement'] for k, s in nodes.items()}}
     step = nodes[sid]
+    header = c['header']
+    internal_context = ''
+    if step.get('universe_params') or step.get('input_instances'):
+        internal_context = di.type_header(c,nodes,step.get('input_instances',{}))+di.universe_line(step)
+        header = header.rstrip()+'\n'+internal_context
     packet = {'version': c['version'], 'contract_sha256': digest(cpath),
-            'header': c['header'], 'parameters': c['parameters'],
+            'header': header, 'parameters': c['parameters'],
             'representation': c['representation'],
-            'inputs': [{'id': k, 'binder': 'h_' + k, 'type': types[k]} for k in step['inputs']],
+            'inputs': di.ports(c,nodes,step),
             'target': step['statement'], 'explanation': step['explanation'],
             'source_steps': [s for s in c['source_steps'] if s['id'] in step['source_steps']],
             'boundary': 'Only listed inputs are project premises. The pinned Mathlib environment is freely available; no sibling proof is supplied.'}
+    if internal_context:
+        packet['internal_type_context'] = internal_context
     supplement=c['source'].get('background_supplement')
     selected=step.get('background_notes',[])
     notes={rid+'.'+note['id']:note for rid,rows in (supplement or {}).get('notes',{}).items() for note in rows}
@@ -275,9 +292,9 @@ def local_packet(cpath, plan, sid):
         packet['representations'] = step.get('representations', [])
         packet['bridges'] = step.get('bridges', [])
         exports = {s['id']: s for s in c.get('shared_obligations', [])}
-        packet['shared_inputs'] = [{'input': k, 'lemma_id': nodes[k]['shared_lemma'],
-            'type': types[k], 'review': exports[nodes[k]['shared_lemma']]['review']}
-            for k in step['inputs'] if k in nodes and 'shared_lemma' in nodes[k]]
+        packet['shared_inputs'] = [{'input': p['id'], 'lemma_id': nodes[p['id']]['shared_lemma'],
+            'type': p['type'], 'review': exports[nodes[p['id']]['shared_lemma']]['review']}
+            for p in packet['inputs'] if p['id'] in nodes and 'shared_lemma' in nodes[p['id']]]
         if 'shared_lemma' in step:
             packet['shared_export'] = exports[step['shared_lemma']]
     return packet
@@ -293,20 +310,39 @@ def proof_text(body):
 
 
 def render(cpath, plan, proofs=None, only=None, types_only=False):
+    import dependency_instances as di
     c, nodes, order = validate(cpath, plan)
-    types = {**premises(c), **{k: s['statement'] for k, s in nodes.items()}}
+    if types_only: di.require_instances(nodes)
     if only:
         need(only in nodes, 'unknown transition')
         order = [only]
     parser = AUXILIARY_PARSER if proofs and any(isinstance(p,dict) for p in proofs.values()) else ''
-    text = c['header'].rstrip() + '\n'+parser+'\nnamespace Translation\nset_option autoImplicit false\n\n'
+    typed = any(nodes[k].get('universe_params') or nodes[k].get('input_instances') for k in order)
+    aliases = {dep for k in order for dep in nodes[k].get('input_instances',{})}
+    if aliases and types_only:
+        parser += di.USE_PARSER
+    if types_only:
+        consumers = {}
+        for sid in order:
+            for dep in nodes[sid]['inputs']:
+                if dep in nodes: consumers.setdefault(dep,[]).append(sid)
+        aliases.update(consumers)
+        parser += di.level_check(nodes,consumers)
+    text = c['header'].rstrip()+'\n'+di.type_header(c,nodes,aliases)+parser+'\nnamespace Translation\nset_option autoImplicit false\n\n'
     context = binder_text(c)
     for sid in order:
         s = nodes[sid]
-        ins = ' '.join(f'(h_{k} : {types[k]})' for k in s['inputs'])
+        ports = di.ports(c,nodes,s)
+        ins = ' '.join(f"({p['binder']} : {p['type']})" for p in ports)
+        if s.get('universe_params'):
+            text += 'section\n'+di.universe_line(s)
         if types_only:
             text += checked_expression('__signature_'+sid, s['statement'],
                                        (context+' '+ins).strip(), proposition=True)
+            text += di.probes(c,s,ports,(context+' '+ins).strip())
+            if typed and not only:
+                # Disposable signatures for testing the real wiring without a proof or an axiom.
+                text += f"private theorem __preflight_{sid} {context} {ins} (__yui_preflight : False) :\n    {s['statement']} := False.elim __yui_preflight\n"
             for index, binding in enumerate(s.get('representations', [])):
                 obj = next(o for o in c['objects'] if o['id'] == binding['object'])
                 view = next(v for v in obj['views'] if v['id'] == binding['view'])
@@ -321,10 +357,16 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
                 text += local_helpers.declarations(helpers, (context+' '+ins).strip())
                 text += f'end Local_{sid}\nopen Local_{sid} in\n'
             text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(body)}\n\n"
+        if s.get('universe_params'):
+            text += 'end\n'
     if types_only and not only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
         text += checked_expression('__signature_P', c['conclusion']['type'],
                                    (context+' '+ins).strip(), proposition=True)
+        if typed: text += di.connectors(c,nodes,order,plan['terminal'],preflight=True)
+    elif typed and not only:
+        text += di.connectors(c,nodes,order,plan['terminal'],preflight=False)
+        text += '\n#check @P\n#print axioms P\n'
     elif not only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
         # The body may generalize universe parameters absent from its result.
@@ -355,6 +397,10 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
                        'lean_sha256': digest(file), 'scope': only or 'fragment'})
         if types_only:
             result['type_check_policy'] = 'strict-declaration-1'
+            if '-- YUI-USE ' in lean:
+                import dependency_instances
+                result['type_check_policy'] = 'strict-declaration-and-dependency-uses-1'
+                result['failed_input_uses'] = dependency_instances.failed_uses(lean,result['stdout']+result['stderr'])
         if result['exit_code'] != 0:
             result['status'] = 'LEAN-CHECK-FAILED'
         if result['exit_code'] == 0 and not types_only:
@@ -389,11 +435,11 @@ def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=Fals
     import local_helpers
     if not validated:local_helpers.validate(cpath,plan,step,list(helpers))
     local_helpers.references(statement+'\n'+proof,[r['name'] for r in helpers])
-    types={**premises(c),**{key:value['statement'] for key,value in nodes.items()}}
-    inputs=' '.join(f'(h_{key} : {types[key]})' for key in nodes[step]['inputs'])
+    packet = local_packet(cpath,plan,step)
+    inputs=' '.join(f"({p['binder']} : {p['type']})" for p in packet['inputs'])
     # Parse a complete term from a string literal. This permits ordinary letI
     # expressions without exposing a command-injection splice into Lean source.
-    source=c['header'].rstrip()+'\n'+AUXILIARY_PARSER+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
+    source=packet['header'].rstrip()+'\n'+AUXILIARY_PARSER+'\nnamespace YuiAuxiliary\nset_option autoImplicit false\n'
     source+=local_helpers.declarations(helpers,(binder_text(c)+' '+inputs).strip())
     source+=f'theorem checked {binder_text(c)} {inputs} : yui_aux_type% '+json.dumps(statement,ensure_ascii=False)+' := by\n'+body+'\n'
     source+='#check @checked\n#print axioms checked\nend YuiAuxiliary\n'

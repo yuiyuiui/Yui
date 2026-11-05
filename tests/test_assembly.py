@@ -87,7 +87,8 @@ class AssemblyTests(unittest.TestCase):
         cp,pp,bp,ip=fixture(self.base/'case','mathlib')
         out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
         tools=ir.load(out/'manifest.json')['tool_sha256']
-        for module in (assembly,lean_names):
+        import dependency_instances
+        for module in (assembly,lean_names,dependency_instances):
             path=Path(module.__file__).resolve()
             self.assertEqual(tools[str(path)],ir.digest(path))
 

@@ -118,3 +118,37 @@ Version-2 Audit B permits faithful equivalent encodings without a redundant
 literal Mathlib representation; actual cross-representation conversions still
 need checked proofs. Report end-to-end costs including audit work and failures.
 No general acceleration or completed Audit C follows from this stage alone.
+### Using a generic intermediate result
+
+Name a generic producer's declaration universes in its step, for example
+`"universe_params":["u","v"]` with `Type u` for the ambient type and `Type v`
+for its indexing type. Use fresh names not declared in the public header.
+Ordinary monomorphic steps keep the existing `inputs` form. A current preflight
+rejects anonymous `Type*`/`Sort*` in a T statement consumed by another step:
+copying that text into a local hypothesis would silently fix its universes.
+
+An internal consumer still lists the producer in `inputs`. Also specify the
+producer's universe levels **in declaration order** and the actual applications
+the proof needs. For instance, for a one-universe producer quantified over a
+metric space, this consumer has a use at the concrete space `Rn n`:
+
+```json
+{"input_instances":{"T005":[{"levels":["0"],"uses":[{"args":["Rn n"]}]}]}}
+```
+
+The local binder is `h_T005`. Additional instances of the same producer in
+this consumer are named `h_T005_2`, `h_T005_3`, etc. Each use may declare
+`parameters` with the usual name/type/binder_kind syntax, for objects introduced
+inside a proof. With `levels:["u","0"]`, a probe can use an arbitrary ambient
+`M : Type u` and a small index such as `Fin n`. In `args` a string is a Lean
+argument and a positive integer is a projection (e.g. 2 for `.2`). Optionally
+supply `expected` to check the resulting type, or `explicit:true` to use
+`@h_T005`. For an entire unapplied input use empty args with its expected type.
+
+Preflight compiles these actual calls and the dependency connections together
+before dispatch. Its synthetic signature witnesses take a private `False`
+assumption; they are discarded, never provided to a worker, and never exported.
+Assembly uses the actual proved upstream theorem at each selected instance.
+Internal repair may revise step-local universes and uses, and must preserve
+the source hypotheses, public definitions and target. A proof worker discovering
+a new incompatible use should report the producer, consumer and actual Lean error.

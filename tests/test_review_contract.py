@@ -38,6 +38,15 @@ class ReviewCompletionTests(unittest.TestCase):
             self.c({'from_saved_review':True,'summary':{'checks':{'b':self.row()},'findings':[]}})
         self.assertEqual(self.c.items['/checks/b']['coverage'],'unread')
 
+    def test_malformed_full_update_preserves_previous_judgments(self):
+        self.c.record('/checks/a','assessed',self.row())
+        checkpoint=self.c.progress()
+        invalid={'checks':{'a':self.row('FAIL'),'b':{}},
+                 'coverage':{'/checks/a':'assessed','/checks/b':'assessed'}}
+        with self.assertRaises(ValueError):
+            self.c(invalid)
+        self.assertEqual(self.c.progress(),checkpoint)
+
     def test_record_acknowledgment_does_not_repeat_prior_long_judgments(self):
         long_note=self.row();long_note['notes']='Preserved reviewer evidence. '*1000
         first=self.c.record('/checks/a','assessed',long_note)
