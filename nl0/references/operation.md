@@ -94,10 +94,11 @@ owned background case processes and returns their exact run paths; a parent
 chat Stop is not a verified cancellation of these processes.
 
 Follow the [owner monitoring procedure](owner-observation.md). Verify the
-detached process identities and use the monitoring mode recorded by the entry.
-For a single job on a host that restricts job-specific scheduling, wait in the
-owning turn and make one bounded observation per ten-minute interval. On a
-host with a permitted schedule, record its actual ID before ending the turn.
+detached process identities and prefer a host-permitted ten-minute scheduled
+wakeup. Record its actual ID before ending the owner turn. If scheduling is
+restricted, unavailable or unsuccessful, continue the same run with ten-minute
+waits in the owning turn and one bounded observation per interval. The entry
+records the selected mode for subsequent observation.
 
 For translation pass `--track translate --source /accepted/nl0-case` and the Lean
 profile. Optionally pass `--max-concurrency N` to cap local work. For audit-only pass

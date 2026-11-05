@@ -12,18 +12,20 @@ mathematical acceptance.
 2. Verify the run paths, PID, start time and process group. Retain observation
    and cancellation commands. Report the initial phase separately from any
    mathematical outcome.
-3. Use the monitoring mode recorded for these paths in `OWNER_MONITOR_STATE.json`.
-   For a finite run requiring timed reports on a host that restricts job-specific
-   automation, keep the invoking turn open. Wait ten minutes with an interruptible
-   wait, observe once and post the requested status. Repeat while the run is
-   live. Honor user interruptions; do not poll between checks. This mode records
-   `OWNER_CHAT_WAIT` and uses no automation ID.
-4. A permitted scheduled handoff can use the generic `owner_observation`
-   proposal returned by the runtime. Its initial `HOST_REGISTRATION_REQUIRED`
-   describes an unregistered proposal. Save a real host-issued ID and the exact
-   run map before ending the invoking turn. Scheduled turns perform one bounded
-   observation per wake. If neither timed observation nor a permitted schedule
-   is available, disclose the limit and return the actual status/cancel commands.
+3. Prefer a ten-minute scheduled wakeup when host rules permit it. Reuse a
+   verified matching schedule or make one registration attempt with the host
+   tool. Record the actual ID and current run paths before ending the owner
+   turn. The generic `HOST_REGISTRATION_REQUIRED` handoff is a proposal whose
+   registration must still be confirmed.
+4. If scheduling is restricted, unavailable, unsuccessful or unconfirmed,
+   report the reason once and continue the same run in the owning turn.
+   Use an interruptible ten-minute wait, observe once and report in the
+   requested language. Repeat while the run is live. This fallback records
+   `OWNER_CHAT_WAIT` and uses no automation ID. Honor user interruptions.
+5. Follow the entry's `OWNER_MONITOR_STATE.json` for ongoing observation.
+   An unavailable scheduler selects the in-chat fallback and must not prevent
+   an otherwise valid, authorized run from starting. Return concrete manual
+   status/cancel commands only if neither observation mode is available.
 
 Keep owner metadata separate from the frozen mathematical inputs, receipts and
 worker usage. The scheduled proposal's defaults live in `config.json`. Entries

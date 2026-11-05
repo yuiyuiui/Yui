@@ -79,10 +79,11 @@ def handoff(runs):
             'host_tool': 'automation_update', 'host_kind': 'heartbeat',
             'prompt': prompt,
             'next_action': (
-                'Follow the entry monitoring mode. For a finite run with timed reports on a host '
-                'that restricts job-specific automation, wait in the owning turn and observe once '
-                'per interval. For a permitted scheduled handoff, record the actual host ID '
-                'before ending the turn. If neither is available, return manual observe/cancel commands.'
+                'Follow the entry monitoring mode. Prefer a host-permitted scheduled wakeup '
+                'and record its actual ID before ending the owner turn. If scheduling is restricted, '
+                'unavailable or unsuccessful, continue the same run with ten-minute waits in the '
+                'owning turn and one observation per interval. A scheduling failure must not stop '
+                'the authorized run. If neither observation mode is available, return manual observe/cancel commands.'
             )}
 
 

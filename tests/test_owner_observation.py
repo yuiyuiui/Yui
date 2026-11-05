@@ -45,6 +45,8 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertEqual(result['registration'], 'HOST_REGISTRATION_REQUIRED')
         self.assertIsNone(result['automation_id'])
         self.assertEqual(result['foreground'], 'end_turn_after_handoff')
+        self.assertIn('Prefer a host-permitted scheduled wakeup', result['next_action'])
+        self.assertIn('unavailable or unsuccessful, continue the same run', result['next_action'])
         self.assertEqual(result['observe_command'][-2:], ['observe', str(self.run)])
         self.assertEqual(before, {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()})
 
