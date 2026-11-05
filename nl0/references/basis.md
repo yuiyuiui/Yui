@@ -76,8 +76,7 @@ object definitions, not axioms, theorem declarations or executable metaprogrammi
 
 Evidence is `{input:"declared-document-ID"}` or an actual retained own-stage
 `{path,sha256}`. Class 4 requires evidence. References bind actual bytes;
-source completeness and classification still belong to Audit A. Evidence is
-staged for the later author and reviewer.
+the basis reviewer checks source completeness and classification before release. The shared Audit A also reviews the actual later uses.
 
 Use `base_candidate:N` with JSON-pointer patches into the basis object, or
 `accept_candidate:N`. `base_input:"prior-basis.json"` continues user-requested
@@ -88,6 +87,28 @@ For long reductions, `save_basis_draft` saves partial work without running Lean;
 `read_basis_draft` reads only that author's actual saved candidates, with bounded
 JSON-pointer pagination. A context-reset checkpoint names the newest draft and
 last machine-checked candidate separately. Saving does not make a proof complete.
+
+## Early statement and use review
+
+Only a submitted, machine-checked basis enters the separate basis reviewer role.
+It compares classes 1, 2 and 4 together against the original sources, the
+rewritten use and the propositions printed by Lean. For class 4 it reads the
+value of the proposition definition. The comparison covers quantifier order,
+uniform constants, domains, assumptions, direction, definitions and adapters.
+Class 3 derivations go to the ordinary NL0 and Lean workers.
+
+The reviewer submits a located PASS, FAIL or UNVERIFIED for every assigned item.
+A normal-policy nonpass goes back to the same basis author with the prior
+artifact and findings. First-pass policy retains the first nonpass. Saving or
+checking drafts costs no reviewer call. Each submitted revision uses at most
+one review batch. An empty scope uses zero calls. Exact previous assessments
+can be reused within the case when their sources, rules, shared route and
+connected dependencies and uses still match. Unchanged rejected work retains
+its findings and pauses. The execution ledger includes both roles.
+
+The active context binds the selected basis, native check and semantic report.
+Downstream readback verifies their inputs and the reviewer's complete submission.
+Historical native-only contexts use their original runtime snapshots.
 
 ## Remaining class 4 and errors
 
@@ -102,12 +123,42 @@ python3 -B nl0/scripts/yui.py basis-decision RUN --incident ID --action accept-c
 
 Continue retains the author/prior artifact. Accept binds exact residual IDs and
 artifact, without approving future additions. Stop records an unfinished
-user-stopped outcome and releases owned roles. Stale/changed/dead-owner decisions
+user-stopped outcome and releases owned roles. The batch reads its incident and
+control after case exit and admits the next queued case. A case deadline also
+applies while the operator choice is pending. Stale/changed/dead-owner decisions
 are rejected. No silent conditional fallback.
 
 Transport faults, cancellation, budgets and native limits use existing handling.
 Unexpected faults retain evidence at PAUSED_ERROR, without authorizing cleanup
 of real runs. Test cleanup is a separate test-only boundary.
+
+## Explicit revision of a downstream basis defect
+
+If a global NL0 or interface role finds a conflict in a frozen B statement or
+Lean type, use `report_basis_defect`. Identify the exact field and value, quote
+the original source and the affected use, and explain the correction. A local
+proof worker can send a connection problem through its existing diagnosis
+route. The global reporting stage checks the citations against the documents it
+was given. A valid report pauses the case as `BASIS_REVISION_REQUIRED`.
+
+Inspect the finding before choosing a revision. To continue, cancel the paused
+case, wait for the case and its worker processes to exit, then run
+
+```sh
+python3 -B nl0/scripts/yui.py resume RUN --repair-basis --prepare-only
+python3 -B nl0/scripts/yui.py execute NEW_RUN
+```
+
+The new job starts from the previous basis and the located objection under the
+original target, profiles, policy, worker limit and deadline. The prior run keeps
+its evidence and costs. The revised basis must pass the native and correspondence
+checks, including a response to the objection for a retained formal item. New
+NL0, Audit A, interface, proof and final checks follow. If the old round had
+completed local Lean bodies, an identical local program and use context may
+supply a candidate after the new interface freeze. The proof queue checks it
+with the current kernel before skipping a worker. Audit A's whole-context
+binding invalidates the previous acceptance. Any new residual choice requires
+its own operator decision.
 
 ## Shared translation and final closure
 

@@ -28,7 +28,9 @@ An explicit unconditional request uses
 `2basis → the same NL0/Audit A → the same nl02lean/Audit B → b2lean`.
 2basis rewrites the proof toward actual Mathlib/public Lean-library results and
 concrete internal derivations, preparing the used Lean proofs and version
-adapters. The one Audit A checks both the original target and rewritten proof.
+adapters. Before release, a separate reviewer compares the prepared statements
+with their actual Lean propositions, sources and intended uses in one batch.
+The shared Audit A checks both the original target and rewritten proof.
 b2lean applies the prepared proofs, then compiles and inspects the actual final
 export with only the original hypotheses. Unresolved textbook dependencies need
 an explicit user choice; accepting them produces a conditional result.

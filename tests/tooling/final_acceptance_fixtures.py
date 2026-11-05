@@ -21,6 +21,16 @@ def qualified_artifact(stage,artifact):
             'usage':{'complete':False},'exposure':exposure})]:ir.write(Path(stage)/name,value)
 
 
+def addition_interface():
+    return {'header':'import Mathlib\n','parameters':[{'name':k,'type':'ℕ'} for k in ('a','b')],
+        'premise_types':{'H001':'a = b'},'conclusion_type':'a + 0 = b',
+        'representation':'The same natural numbers and equality.','objects':[],
+        'steps':[{'id':'T001','statement':'b = a','inputs':['H001'],'source_steps':['S001'],'explanation':'Equality symmetry.'},
+                 {'id':'T002','statement':'a + 0 = b','inputs':['T001'],'source_steps':['S002','S003'],'explanation':'Additive identity and symmetry.'}],
+        'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'},
+        'endpoint_correspondence':{'P':{'mode':'direct','explanation':'Natural-number equality with the original a=b hypothesis.'}}}
+
+
 def frozen_case(root, *, prepare_source=None, transform_interface=None, bodies=None):
     import harness_support
     root=Path(root);source=root/'source'
@@ -47,13 +57,7 @@ def frozen_case(root, *, prepare_source=None, transform_interface=None, bodies=N
     assert campaign.collect(root/'audit-a',None)['full_acceptance']
     author=root/'author';translation_author.prepare(source,source,author)
     validator=translation_author.InterfaceContract(author)
-    payload={'header':'import Mathlib\n','parameters':[{'name':k,'type':'ℕ'} for k in ('a','b')],
-        'premise_types':{'H001':'a = b'},'conclusion_type':'a + 0 = b',
-        'representation':'The same natural numbers and equality.','objects':[],
-        'steps':[{'id':'T001','statement':'b = a','inputs':['H001'],'source_steps':['S001'],'explanation':'Equality symmetry.'},
-                 {'id':'T002','statement':'a + 0 = b','inputs':['T001'],'source_steps':['S002','S003'],'explanation':'Additive identity and symmetry.'}],
-        'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'},
-        'endpoint_correspondence':{'P':{'mode':'direct','explanation':'Natural-number equality with the original a=b hypothesis.'}}}
+    payload=addition_interface()
     if transform_interface:transform_interface(payload)
     validator(payload);qualified_artifact(author/'stage',payload)
     reviewed=root/'interface-review';interface_review.prepare(author,reviewed)

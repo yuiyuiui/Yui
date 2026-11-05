@@ -5,7 +5,7 @@ import shutil
 import ir
 import proof_repair
 from controller_common import bind, manifest, write
-from execution_health import require_review_execution, record_qualification
+from execution_health import StageFailure, require_review_execution, record_qualification
 import threading
 
 _notice_lock=threading.Lock()
@@ -168,7 +168,16 @@ def run_prepared(out,step,*,budget,timeout=None,parent_task=None):
     stage=AssemblyStage(out/'stage',PROMPT+'\nYou are WB-connect diagnosing a connection/ownership issue under the immutable public contract. Internal T defects return to reviewed preprocessing; protected public-contract defects require the user.',phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
         library=True,timeout=timeout,budget=budget,validator=lambda value:validate(value,out))
     stage.parent_execution_task=parent_task
-    stage.execute()
+    try:stage.execute()
+    except StageFailure as error:
+        import basis_defect
+        if not parent_task or error.result['status']!=basis_defect.STATUS:raise
+        # Return through the live proof worker's regular handoff, after releasing its slot.
+        # The case controller revalidates this original report outside the worker pool.
+        result={'route':basis_defect.STATUS,'step':step,'evidence_key':ir.load(out/'bindings.json')['evidence_key'],
+                'diagnosis_report':str(out/'report.json'),'basis_defect':error.result['basis_defect']}
+        write(out/'report.json',result)
+        return result
     if parent_task and getattr(budget,'execution',None):budget.execution.check(parent_task)
     qualification=require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='proof-diagnosis')
     value=ir.load(out/'stage/accepted.json');validate(value,out)

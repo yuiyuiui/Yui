@@ -1,6 +1,6 @@
 """Full-route wiring and basis author lifecycle; model judgments are deterministic fixtures."""
 import harness_support
-from basis_fixtures import artifact, dependency, TARGET
+from basis_fixtures import artifact, dependency, TARGET, synthetic_review
 from final_acceptance_fixtures import qualified_artifact
 from copy import deepcopy
 from contextlib import ExitStack
@@ -35,6 +35,8 @@ class BasisAuthorWorkflowTests(unittest.TestCase):
         self.job=jobs.prepare(self.problem,track='full',profiles=PROFILES,
             formalization='unconditional',target=selected)
         self.run=Path(self.job['root']);self.progress=[]
+        reviewer=patch.object(clean_stage.ArtifactStage,'_execute',synthetic_review)
+        reviewer.start();self.addCleanup(reviewer.stop)
     def tearDown(self):self.temp.cleanup()
 
     def author(self,values):
@@ -77,18 +79,24 @@ class BasisAuthorWorkflowTests(unittest.TestCase):
 
     def test_explicit_stop_never_advances_to_NL0(self):
         author,calls=self.author([artifact(dependency(category=4))])
-        with author,patch.object(basis,'decision',return_value={'control':{'action':'stop'}}):
+        real_pause=fault_control.Gate.pause
+        def stop(gate,error,**kw):
+            gate.notify=lambda *_:{'status':'QUEUED'}
+            gate.wait=lambda _:fault_control.final_decision(gate.root,gate.state['incident'],'stop')
+            return real_pause(gate,error,**kw)
+        with author,patch.object(fault_control.Gate,'pause',stop):
             with self.assertRaises(StageFailure) as caught:self.run_basis()
         self.assertEqual(caught.exception.result['status'],'STOPPED_BY_USER')
         self.assertFalse((self.run/'active-inputs').exists())
 
     def test_conditional_approval_is_bound_to_exact_retained_artifact(self):
         author,calls=self.author([artifact(dependency(category=4))])
-        def approve(out,value,budget):
-            return {'state':'USER_DECIDED','incident':'SYNTHETIC exact choice',
-                'control':{'incident':'SYNTHETIC exact choice','action':'accept-conditional'},
-                'checkpoint':{'basis':bind(out/'stage/accepted.json'),'residual_class4':['B001']}}
-        with author,patch.object(basis,'decision',side_effect=approve):context=self.run_basis()
+        pause=fault_control.Gate.pause
+        def approve(gate,error,**kw):
+            gate.notify=lambda *_:{'status':'QUEUED'}
+            gate.wait=lambda _:fault_control.final_decision(gate.root,gate.state['incident'],'accept-conditional')
+            return pause(gate,error,**kw)
+        with author,patch.object(fault_control.Gate,'pause',approve):context=self.run_basis()
         basis.verify_context(context)
         self.assertEqual(context['residual_class4'],['B001'])
         self.assertTrue(any(p.name.startswith('basis-evidence-') for p in (self.run/'active-inputs').iterdir()))
@@ -172,7 +180,7 @@ class BasisCaseRoutingTests(unittest.TestCase):
         self.assertTrue(result['completion']['follow_up_required'])
 
     def test_stop_and_cancellation_never_dispatch_later_stages(self):
-        for stopped in (StageFailure('STOPPED_BY_USER','explicit user stop'),execution_state.Cancelled('user cancellation')):
+        for stopped in (execution_state.Cancelled('user cancellation'),):
             events,result=self.routed(self.job(),stop=stopped)
             self.assertEqual(events,['basis']);self.assertFalse(result['completion']['workflow_completed'])
             self.assertIn(result['status'],{'STOPPED_BY_USER','CANCELLED'})

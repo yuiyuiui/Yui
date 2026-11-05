@@ -176,6 +176,33 @@ class BasisDecisionTests(unittest.TestCase):
                 self.assertIn('basis-decision',state['decisions'][action])
                 self.assertFalse(state['cleanup_authorized'])
 
+    def test_concurrent_mutually_exclusive_decisions_publish_one_complete_control(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);path=root/'basis.json';write(path,artifact(dependency(category=4)))
+            gate=fault_control.Gate(root,stage='basis-decision',notify=Mock(return_value={'status':'QUEUED'}))
+            start=threading.Barrier(2,timeout=5);before_replace=threading.Barrier(2,timeout=5)
+            won=[]
+            def choose(_):
+                incident=gate.state['incident']
+                control=gate.logs/'error-control'/(incident+'.json')
+                original=fault_control.execution.atomic
+                def overlapping_write(path,value):
+                    if path==control:before_replace.wait()
+                    return original(path,value)
+                def attempt(action):
+                    start.wait()
+                    try:fault_control.final_decision(gate.root,incident,action)
+                    except ValueError:return None
+                    return action
+                with patch.object(fault_control.execution,'atomic',overlapping_write),ThreadPoolExecutor(max_workers=2) as pool:
+                    won.extend(a for a in pool.map(attempt,('stop','continue')) if a)
+            gate.wait=choose
+            decision=gate.pause({'status':'BASIS_USER_DECISION_REQUIRED'},resumable=False,
+                checkpoint={'basis':bind(path),'residual_class4':['B001']},decisions=('stop','continue','accept-conditional'))
+            self.assertEqual(won,[decision['control']['action']])
+
     def test_changed_artifact_and_dead_owner_cannot_be_approved(self):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);path=root/'basis.json';write(path,artifact(dependency(category=4)))

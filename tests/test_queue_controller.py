@@ -46,6 +46,28 @@ class QueueControllerTests(unittest.TestCase):
             final=json.loads((Path(job['root'])/'batch-result.json').read_text())
             self.assertFalse(final['all_cases_accepted']);self.assertTrue(final['children_exited'])
 
+    def test_malformed_or_unbound_stops_remain_case_process_errors_and_free_the_slot_after_cancel(self):
+        selected=[self.job(i) for i in range(5)]
+        payloads=['{', '[]', '{"result":[]}', '{"result":{"status":["STOPPED_BY_USER"]}}',
+                  '{"job":{"sha256":"foreign"},"result":{"status":"STOPPED_BY_USER"}}']
+        by_root={j['root']:payload for j,payload in zip(selected,payloads)}
+        incidents=[]
+        def launch(job_file,out):
+            script="import sys;from pathlib import Path;Path(sys.argv[1]).write_text(sys.argv[2]);sys.exit(3)"
+            return subprocess.Popen([sys.executable,'-B','-c',script,str(out/'case-result.json'),by_root[str(out)]],
+                                    start_new_session=True)
+        def cancel(gate,error,**kwargs):
+            incidents.append((gate.stage,error['exit_code']))
+            raise Cancelled('Explicit fixture cancel after inspection')
+        with patch.object(q,'launch_case',side_effect=launch),patch('fault_control.Gate.pause',cancel):
+            result=q.serve(selected,case_concurrency=1)
+        self.assertEqual(incidents,[('case-process-exited',3)]*len(selected))
+        for j in selected:
+            self.assertEqual(result[j['id']]['status'],'CANCELLED')
+            batch=json.loads((Path(j['root'])/'batch-result.json').read_text())
+            self.assertTrue(batch['children_exited'])
+            self.assertFalse(batch['all_cases_accepted'])
+
     def test_pending_cancellation_does_not_launch_or_cancel_another_case(self):
         selected=[self.job(i) for i in range(2)];q.cancel_batch([selected[0]['root']])
         def launch(job_file,out):

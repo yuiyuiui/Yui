@@ -165,6 +165,12 @@ Follow the retained global/local roles in review-execution.md. Return complete
 global findings to the same author before local dispatch; node-local repair uses
 its own separate author. Inherit only exact qualified scopes. Restore global roles
 for genuine public-context changes, draining active local work before repair.
+A failed global or local Audit A review is bound to the rejected material.
+Submitting that material again pauses with `REPAIR_UNCHANGED` or `REPAIR_CYCLE`
+and retains the original findings. A change to the relevant proof or evidence
+permits a fresh review. For a located objection to a protected basis field, see
+the explicit `resume RUN --repair-basis` procedure in [the basis workflow](basis.md).
+
 A pre-freeze interface defect returns to the same preprocessing author/reviewer.
 After freeze, E/P and their defining meanings cannot be rewritten by local or
 connection authors; a genuine frozen-contract defect waits for the user. Native implementation feedback remains inside its current author/proof

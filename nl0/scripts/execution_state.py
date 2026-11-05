@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from usage import normalize
 
@@ -210,7 +210,7 @@ def inspect(directory):
 
 
 class Recorder:
-    def __init__(self, root, case_id, configuration, *, phase='proof', time_budget_seconds=None):
+    def __init__(self, root, case_id, configuration, *, phase='proof', time_budget_seconds=None, absolute_deadline=None):
         self.retained_stages = []
         self.resource_cleanup_errors = []
         self.root = Path(root).resolve(); self.root.mkdir(parents=True, exist_ok=True)
@@ -220,7 +220,14 @@ class Recorder:
         self.done = threading.Event(); self.dirty = True
         self.started = time.monotonic(); self.last_write = 0.; self._heartbeat = 0.
         time_budget_seconds = __import__('runtime_config').time_limit(time_budget_seconds)
-        self.deadline = self.started+time_budget_seconds if time_budget_seconds is not None else None
+        started_utc=datetime.now(timezone.utc)
+        deadline_utc=started_utc+timedelta(seconds=time_budget_seconds) if time_budget_seconds is not None else None
+        if absolute_deadline is not None:
+            inherited=datetime.fromisoformat(absolute_deadline.replace('Z','+00:00'))
+            if deadline_utc is None or inherited.tzinfo is None:
+                raise ValueError('An inherited case deadline requires a bounded budget and UTC timestamp')
+            deadline_utc=min(deadline_utc,inherited)
+        self.deadline=self.started+(deadline_utc-started_utc).total_seconds() if deadline_utc else None
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
         self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}
         self._usage_totals = {}; self._usage_unknown = {}; self._native_usage = {}; self._native_seen = False
@@ -238,6 +245,7 @@ class Recorder:
             'cancellation': {'requests':[], 'cleanup':'NOT_REQUESTED'}, 'result': {'status':'RUNNING'}}
         self.state['time_budget'] = {'scope':'whole_case_wall_clock','seconds':time_budget_seconds,
                                     'expired':False}
+        if deadline_utc is not None:self.state['time_budget']['deadline_at_utc']=deadline_utc.isoformat()
         self.owner_lock = self.root/'.execution-owner.lock'
         fd = os.open(self.owner_lock, os.O_WRONLY|os.O_CREAT|os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as handle: json.dump({'run_id': self.state['run_id'], **owner}, handle)
@@ -513,8 +521,11 @@ class Recorder:
         if status=='DIFFERENT_RESULT_DELIVERED':
             from translation_reset import authorization
             authorization(result['outcome']['user_decision'],'deliver-actual')
+        if status=='STOPPED_BY_USER':
+            from case_outcomes import verify_basis_decision
+            verify_basis_decision(self.root,result['outcome']['user_decision'],'stop')
         self.retained_stages=[(s,g) for s,g in self.retained_stages if not getattr(s,'_resources_released',False)]
-        authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED'} else 'WORKFLOW_FINALIZED'
+        authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED','STOPPED_BY_USER'} else 'WORKFLOW_FINALIZED'
             if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
             else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'} else None)
         if authorization is None and (self.retained_stages or self._handles):

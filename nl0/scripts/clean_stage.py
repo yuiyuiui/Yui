@@ -207,6 +207,8 @@ class ArtifactStage(pilot.Stage):
                     'required':['id','dependency_and_local_assumption_check','source_application_check','declaration_check'],
                     'additionalProperties':False}}},
                 ['candidate','readiness','open_issues','original_context_note','output_notes','inference_notes']))
+        import basis_defect
+        basis_defect.enable(self)
         self.tool_names = {t['name'] for t in self.tools}
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
@@ -348,7 +350,7 @@ class ArtifactStage(pilot.Stage):
                 'the newest draft. A reminder is neither a source premise nor mathematical acceptance; '
                 'all unresolved issues and current proof checks remain required.')
         if arm == 'yui':
-            if phase=='basis-authoring':
+            if phase in {'basis-authoring','basis-semantic-review'}:
                 index=['nl0/references/basis.md']
             elif phase.startswith('interface'):
                 index=['nl02lean/references/minimal-translation.md']
@@ -401,6 +403,13 @@ class ArtifactStage(pilot.Stage):
                 'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in dict.fromkeys(sources)],
             *bindings]}
 
+    def execute(self):
+        result,artifact=super().execute()
+        if not getattr(self,'_role_dispatching',False) and result.get('task_outcome')=='BASIS_REVISION_REQUIRED':
+            import basis_defect
+            basis_defect.stop(self.logs)
+        return result,artifact
+
     def dispatch(self, name, args):
         from library_catalog import use_library
         with use_library(self.logs/'harness-snapshot/library'):
@@ -446,6 +455,11 @@ class ArtifactStage(pilot.Stage):
                         'path':reference['path'],'sha256':reference['sha256']}},
                         'primary_evidence':[],'qualification':reference['qualification'],
                         'warning':'The completed result will remain conditional until original-source checks pass.'}
+            elif name == 'report_basis_defect':
+                import basis_defect
+                from fault_control import run_root
+                self.accepted=basis_defect.locate(run_root(self.logs),self.logs,deepcopy(args))
+                result={'accepted':True,'stage_complete':True,'status':basis_defect.STATUS}
             elif name == 'report_obstacle':
                 value = (json.loads(args['obstacle_json'], object_pairs_hook=pilot.ir.unique)
                          if set(args)=={'obstacle_json'} else deepcopy(args))

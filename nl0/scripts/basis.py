@@ -10,14 +10,17 @@ import json
 from pathlib import Path
 import re
 import shutil
+import stat
 
 from controller_common import bind, manifest, write, verify_bindings, copy_problem_documents
 from execution_health import StageFailure, require_review_execution
 import ir
 import basis_native
+import basis_review
 
 VERSION = 'yui-basis-1'
 CONTEXT = 'proof-context.json'
+CONTEXT_VERSION = 'yui-basis-context-2'
 MODES = {'conditional', 'unconditional'}
 
 
@@ -129,6 +132,7 @@ def declarations(value):
         elif row['category']==4:
             source += ir.checked_expression('type_'+key, row['lean']['type'], proposition=True)
             roots.append('YuiBasis.type_'+key)
+            checks.append((key, 'YuiBasis.type_'+key, row['lean']['type']))
     source += '\nend YuiBasis\n'
     return source, checks, roots
 
@@ -140,18 +144,33 @@ def evidence_bindings(value, inputs, stage):
             if not isinstance(evidence,dict):raise ValueError('Invalid source evidence reference')
             if set(evidence)=={'input'}:
                 name = evidence['input']
-                if not isinstance(name,str) or Path(name).name!=name or name=='inputs.json':
+                if not isinstance(name,str) or Path(name).name!=name or name in {'inputs.json','prior-basis.json','repair-findings.json'}:
                     raise ValueError('Source input must be a declared document ID')
-                declared = {r['id'] for r in ir.load(Path(inputs)/'inputs.json')['inputs']}
-                if name not in declared:raise ValueError('Undeclared basis source input')
-                path = Path(inputs)/name
+                declared = {r['id']:r for r in ir.load(Path(inputs)/'inputs.json')['inputs']}
+                if name not in declared:raise ValueError(f"{row['id']}: undeclared basis source input: {name}")
+                path=Path(inputs)/name
+                binding=bind(path)
+                if path.is_symlink() or declared[name]['path']!=name or binding['sha256']!=declared[name]['sha256']:
+                    raise RuntimeError('Changed previously declared basis source: '+name)
             elif set(evidence)=={'path','sha256'}:
-                relative = Path(evidence['path']);path = Path(stage)/relative
+                name = evidence['path']
+                if not isinstance(name, str) or not name:
+                    raise ValueError(f"{row['id']}: expected a relative evidence filename")
+                relative = Path(name);path = Path(stage)/relative
                 if relative.is_absolute() or '..' in relative.parts or not path.resolve().is_relative_to(Path(stage).resolve()):
-                    raise ValueError('Basis evidence escaped its author stage')
-                if ir.digest(path)!=evidence['sha256']:raise ValueError('Changed basis source evidence')
+                    raise ValueError(f"{row['id']}: basis evidence escaped its author stage")
+                try:
+                    if not stat.S_ISREG(path.stat().st_mode):
+                        raise ValueError(f"{row['id']}: evidence is not a regular file: {name}")
+                    binding = bind(path)
+                except (FileNotFoundError, NotADirectoryError, IsADirectoryError) as error:
+                    raise ValueError(f"{row['id']}: evidence file not found: {name}") from error
+                if binding['sha256'] != evidence['sha256']:
+                    raise ValueError(f"{row['id']}: changed basis source evidence: {name}")
+                result.append(binding)
+                continue
             else:raise ValueError('Use {input:ID} or own-stage {path,sha256} evidence')
-            result.append(bind(path))
+            result.append(binding)
     return list({r['path']:r for r in result}.values())
 
 
@@ -189,6 +208,7 @@ class BasisContract:
     def __init__(self, out, target):
         self.out = Path(out);self.target = target;self.attempt = 0;self.drafts = {};self.selected = None
         self.last_checked = None
+        self.last_receipt = None
 
     def save(self, value):
         if not isinstance(value,dict):raise ValueError('Save a basis JSON object')
@@ -208,6 +228,19 @@ class BasisContract:
         return candidate,directory
 
     def __call__(self, value):
+        if (isinstance(value,dict) and set(value)=={'accept_candidate'} and
+                type(value['accept_candidate']) is int and value['accept_candidate']==self.last_checked):
+            # Explicit selection of the identical checked bytes needs no second Lean process.
+            try:
+                verify_bindings([self.last_receipt])
+                checked=ir.load(self.last_receipt['path'])
+                verify_bindings([checked['basis'],checked['native'],*checked['evidence']])
+                basis_native.verify(checked['native']['path'])
+            except (ValueError,KeyError) as error:
+                raise RuntimeError('Previously checked basis evidence changed') from error
+            self.selected=Path(self.last_receipt['path']).parent
+            value.clear();value.update(ir.load(checked['basis']['path']))
+            return {'candidate':self.last_checked,'status':'BASIS_MACHINE_CHECKED','mathematical_acceptance':False}
         candidate,directory = self.save(value)
         try:
             validate(candidate, self.target)
@@ -221,6 +254,7 @@ class BasisContract:
             self.last_checked = self.attempt
             write(directory/'checked.json',{'basis':bind(directory/'basis.json'),
                 'native':bind(directory/'native/check.json'),'evidence':evidence})
+            self.last_receipt=bind(directory/'checked.json')
         except (ValueError,KeyError,TypeError) as error:
             raise ValueError(f'Basis candidate {self.attempt} retained; repair with base_candidate. {error}') from error
         value.clear();value.update(candidate)
@@ -233,8 +267,11 @@ def decision(root, artifact, budget):
     residual = sorted(k for k,r in rows.items() if r['category']==4)
     if not residual:return None
     gate = Gate(Path(root)/'decision', recorder=getattr(budget,'execution',None), stage='basis-decision')
-    receipt = gate.pause({'status':'BASIS_USER_DECISION_REQUIRED','residual_class4':residual},
-        resumable=False, checkpoint={'basis':bind(Path(root)/'stage/accepted.json'),'residual_class4':residual},
+    review=bind(Path(root)/'review/report.json')
+    terms=[{'id':k,'port':rows[k]['port'],'statement':rows[k]['statement'],'lean_type':rows[k]['lean']['type'],
+            'reference':rows[k]['origin']['reference']} for k in residual]
+    receipt = gate.pause({'status':'BASIS_USER_DECISION_REQUIRED','residual_class4':residual,'reviewed_premises':terms},
+        resumable=False, checkpoint={'basis':bind(Path(root)/'stage/accepted.json'),'residual_class4':residual,'semantic_review':review},
         decisions=('stop','continue','accept-conditional'))
     return receipt
 
@@ -243,7 +280,14 @@ def run(job, budget, progress):
     from basis_author import BasisStage
     from role_sessions import Sessions
     root = Path(job['root']);sessions = Sessions();previous = None;revision = 0
-    if job.get('resume'):
+    history = {};findings = None
+    resume=job.get('resume') or {}
+    if resume.get('mode')=='basis-revision':
+        previous=Path(resume['basis']['path'])
+        late_finding=ir.load(resume['report']['path'])['finding']
+        findings={late_finding['basis_id']:late_finding}
+        progress(job['case'],'BASIS_REVISION_STARTED',prior_run=resume['prior_run'],defect=resume['report'])
+    elif resume:
         prior=ir.load(Path(job['resume']['prior_run'])/'job.json')
         ir.need(mode(prior)==mode(job),'Recovery changed the formalization goal')
         previous_inputs=problem_inputs(prior)
@@ -259,11 +303,15 @@ def run(job, budget, progress):
         prompt = PROMPT
         if previous:
             shutil.copyfile(previous, inputs/'prior-basis.json')
-            prompt += '\nThe user selected continue reducing class 4. Preserve the prior basis and accumulated work; eliminate the remaining dependencies without changing the original goal.'
+            if findings:
+                write(inputs/'repair-findings.json',findings)
+                prompt += '\nRepair the located basis defects in repair-findings.json. Start from prior-basis.json, preserve the original target, and recheck the revised formal propositions and their uses.'
+            else:
+                prompt += '\nThe user selected continue reducing class 4. Preserve the prior basis and accumulated work; eliminate the remaining dependencies without changing the original goal.'
         manifest(inputs);validator = BasisContract(out,target)
         progress(job['case'],'BASIS_AUTHORING',directory=str(out))
         stage = BasisStage(out/'stage',prompt,phase='basis-authoring',inputs=inputs/'inputs.json',
-            validator=validator,budget=budget,library=True)
+            validator=validator,budget=budget,library=True,timeout=__import__('runtime_config').configured_timeout('stage'))
         if previous and (previous.parent/'external-sources').is_dir():
             shutil.copytree(previous.parent/'external-sources',out/'stage/external-sources',dirs_exist_ok=True)
         with sessions.use('basis-author'):stage.execute()
@@ -271,19 +319,38 @@ def run(job, budget, progress):
         if validator.selected is None:raise StageFailure('BASIS_INCOMPLETE','No machine-checked basis selected',phase='basis-authoring')
         artifact = ir.load(out/'stage/accepted.json')
         ir.need(artifact==ir.load(validator.selected/'basis.json'),'Basis submission differs from checked candidate')
+        if resume.get('mode')=='basis-revision':
+            import basis_defect
+            basis_defect.require_revision(artifact,resume,late_finding)
         progress(job['case'],'BASIS_CHECKED',directory=str(out))
+        checked = ir.load(validator.selected/'checked.json')
+        context = {'version':CONTEXT_VERSION,'formalization':'unconditional','full_target':target,
+            'basis':bind(out/'stage/accepted.json'), 'native':checked['native'],
+            'original_inputs':[bind(root/'inputs'/r['path']) for r in ir.load(root/'inputs/inputs.json')['inputs']],
+            'evidence':checked['evidence'], 'approval':None,
+            'residual_class4':sorted(r['id'] for r in artifact['dependencies'] if r['category']==4)}
+        if resume.get('mode')=='basis-revision':context['revision_report']=resume['report']
+        progress(job['case'],'BASIS_SEMANTIC_REVIEW',directory=str(out/'review'))
+        context['semantic_review'],findings = basis_review.assess(out,context,artifact,sessions,budget,history)
+        if findings:
+            if job['policy']=='first-pass':
+                raise StageFailure('BASIS_SEMANTIC_NONPASS','First basis correspondence review did not pass',
+                    phase='basis-semantic-review',evidence=context['semantic_review']['path'],details={'findings':findings})
+            previous=out/'stage/accepted.json'
+            continue
+        progress(job['case'],'BASIS_REVIEWED',directory=str(out/'review'))
         chosen = decision(out,artifact,budget)
         action = chosen['control']['action'] if chosen else None
         if action=='stop':
+            from case_outcomes import verify_basis_decision
+            receipt = bind(out/'decision/error-incidents'/(chosen['incident']+'.json'))
+            verify_basis_decision(root,receipt,'stop')
             sessions.cancel_all()
-            raise StageFailure('STOPPED_BY_USER','User stopped at the unresolved basis boundary',phase='basis-decision')
+            raise StageFailure('STOPPED_BY_USER','User stopped at the unresolved basis boundary',
+                phase='basis-decision', evidence=receipt['path'], details={'user_decision':receipt})
         if action=='continue':previous=out/'stage/accepted.json';continue
-        checked = ir.load(validator.selected/'checked.json')
-        context = {'version':VERSION,'formalization':'unconditional','full_target':target,
-            'basis':bind(out/'stage/accepted.json'), 'native':checked['native'],
-            'original_inputs':[bind(root/'inputs'/r['path']) for r in ir.load(root/'inputs/inputs.json')['inputs']],
-            'evidence':checked['evidence'], 'approval':chosen,
-            'residual_class4':sorted(r['id'] for r in artifact['dependencies'] if r['category']==4)}
+        context['approval']=chosen
+        verify_context(context)
         active = root/'active-inputs';active.mkdir()
         copy_problem_documents(root/'inputs',active)
         from jobs import stage_document
@@ -292,12 +359,13 @@ def run(job, budget, progress):
         (active/'basis-proof.md').write_text(artifact['proof']);write(active/'basis-registry.json',artifact)
         write(active/CONTEXT, context);manifest(active)
         write(root/'basis-selection.json',{'context':bind(active/CONTEXT),'inputs':bind(active/'inputs.json')})
-        sessions.close_all('BASIS_PREPARED',[validator.selected/'checked.json'])
+        sessions.close_all('BASIS_PREPARED',[validator.selected/'checked.json',out/'review/report.json'])
         return context
 
 
 def verify_context(context):
-    ir.need(context.get('version')==VERSION and context.get('formalization')=='unconditional','Invalid active proof context')
+    ir.need(context.get('version')==CONTEXT_VERSION and context.get('formalization')=='unconditional',
+        'A new unconditional handoff requires the early basis semantic review; use the frozen runtime for historical receipts')
     verify_bindings([context['basis'],context['native'],*context['original_inputs'],*context['evidence']])
     native = basis_native.verify(context['native']['path'])
     artifact = ir.load(context['basis']['path']);rows,_ = validate(artifact,context['full_target'])
@@ -305,14 +373,21 @@ def verify_context(context):
     ir.need(ir.digest(Path(context['native']['path']).parent/'Proof.lean')==
         __import__('hashlib').sha256((artifact['lean_header']+declarations_).encode()).hexdigest(), 'Prepared basis proof changed')
     ir.need(native['checks']==[list(c) for c in checks] and native['roots']==roots,'Prepared basis inspection scope changed')
+    basis_review.verify(context['semantic_review'],context,artifact)
     residual = sorted(k for k,r in rows.items() if r['category']==4)
     ir.need(context['residual_class4']==residual,'Residual basis scope changed')
     approval = context['approval']
     if residual:
-        ir.need(approval and approval['state']=='USER_DECIDED' and approval['control']['action']=='accept-conditional'
-            and approval['control']['incident']==approval['incident']
-            and approval['checkpoint']['basis']==context['basis']
-            and approval['checkpoint']['residual_class4']==residual,'Residual class 4 lacks exact user approval')
+        from case_outcomes import verify_basis_decision
+        ir.need(isinstance(approval,dict) and approval.get('checkpoint')=={'basis':context['basis'],'residual_class4':residual,
+                'semantic_review':context['semantic_review']},
+            'Residual class 4 lacks exact user approval')
+        revision=Path(context['basis']['path']).parent.parent
+        incident=approval.get('incident')
+        ir.need(isinstance(incident,str) and re.fullmatch(r'[0-9a-f]{32}',incident),'Invalid basis approval incident')
+        receipt=bind(revision/'decision/error-incidents'/(incident+'.json'))
+        ir.need(approval==verify_basis_decision(revision.parent.parent,receipt,'accept-conditional'),
+                'Residual approval differs from the actual operator decision')
     else:ir.need(approval is None,'Unexpected residual approval')
     return artifact
 
@@ -322,6 +397,9 @@ def problem_inputs(job):
     if mode(job)!='unconditional':return root/'inputs'
     selection = ir.load(root/'basis-selection.json');verify_bindings(list(selection.values()))
     active = root/'active-inputs';context = ir.load(active/CONTEXT);verify_context(context)
+    resume=job.get('resume') or {}
+    if resume.get('mode')=='basis-revision':
+        ir.need(context.get('revision_report')==resume['report'],'Active basis lost its located revision obligation')
     ir.need(context['full_target']==job['target_selection']['full_target'],'Active basis changed the requested target')
     ir.need([r['sha256'] for r in context['original_inputs']]==[r['sha256'] for r in job['documents']],
         'Active basis was prepared for different original documents')
@@ -337,7 +415,7 @@ def recovery_bindings(job):
     native=basis_native.verify(context['native']['path'])
     files=[Path(job['root'])/'basis-selection.json',active/'inputs.json',
         *[active/r['path'] for r in ir.load(active/'inputs.json')['inputs']]]
-    return [*[bind(p) for p in files],context['basis'],context['native'],
+    return [*[bind(p) for p in files],context['basis'],context['native'],context['semantic_review'],
         *context['original_inputs'],*context['evidence'],*native['bindings']]
 
 

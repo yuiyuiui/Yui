@@ -200,6 +200,8 @@ def validate(job, *, verify_runtime=True):
     if 'resume' in job:
         if job['resume'].get('mode')=='native-proof-cleanup':
             from native_cleanup_recovery import validate_descriptor
+        elif job['resume'].get('mode')=='basis-revision':
+            from basis_defect import validate_descriptor
         else:
             from interrupted import validate_descriptor
         validate_descriptor(job)

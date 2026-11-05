@@ -23,6 +23,14 @@ proof/adapters, universes/typeclasses, residual assumptions, trust and tampering
 Review/source/user-choice fixtures are explicitly synthetic software controls;
 passing them is not an independently audited research-proof benchmark.
 
+The complete case/batch regressions in `test_basis_case_batch.py` run real child
+controllers, loopback native clients, Lean, Audit A collection, interface freeze,
+Audit B and final discharge. They cover all residual choices, early mismatch and
+same-role repair, stopping with a queued sibling, late explicit basis revision,
+first-pass measurement, cancellation and deadlines. `test_basis_fidelity.py`
+checks submission evidence, coverage and item-level reuse. The global/local
+negative review regressions are in `test_nl0_review_loop.py`.
+
 These are software tests. Synthetic reviewer judgments and deterministic
 provider replies do not certify a mathematical proof or a model's capability.
 The full mathematical test cases/results are maintained separately.

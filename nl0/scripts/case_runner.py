@@ -17,6 +17,7 @@ from runtime_config import use_profiles
 import source_preparation
 import source_refactor
 import basis
+import case_outcomes
 
 
 def source_key(source):
@@ -178,7 +179,9 @@ def translation_attempt(job, authority, budgets, progress):
                 previous=prepared/'stage/accepted.json';findings=Path(error.result['evidence'])
                 if not previous.is_file():raise
                 progress(job['case'],'SOURCE_EXTRACTION_REPAIR',findings=str(findings))
-    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0;repair_prior_run=None;internal_context=None
+    source=Path(authority['graph']).parent;prior_interface=None;diagnostics=None;attempt=0;internal_context=None
+    resume=job.get('resume') or {}
+    repair_prior_run=resume.get('prior_proof_run') if resume.get('mode')=='basis-revision' else None
     while True:
         attempt+=1;directory=root/'nl0-to-lean'/f'{attempt:04d}'
         current_interface=Path(checkpoint['interface']) if checkpoint else directory/'interface'
@@ -237,14 +240,16 @@ def translation_attempt(job, authority, budgets, progress):
 def execute(job, root=None):
     jobs.validate(job);root=Path(job['root'])
     if (root/'execution-status.json').exists():raise ValueError('Preserve this run; prepare a new explicit run')
+    resume=job.get('resume') or {}
     with use_profiles(job['profiles']):
         recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job['max_concurrency']),
             phase='nl0-authoring' if job['track'] in {'nl0','full'} else 'translation-preparation',
-            time_budget_seconds=job['time_budget_seconds'])
+            time_budget_seconds=job['time_budget_seconds'],
+            absolute_deadline=resume.get('deadline') if resume.get('mode')=='basis-revision' else None)
         budgets=a.concurrency.CaseBudgets(job['max_concurrency'],execution=recorder);result={}
         def progress(case,phase,**extra):
             from runtime_config import model_profile
-            profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_','BASIS_AUTHOR','BASIS_CHECKED')) else 'translation-preparation')
+            profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_','BASIS_AUTHOR','BASIS_CHECKED','BASIS_SEMANTIC_REVIEW','BASIS_REVIEWED','BASIS_REVISION_')) else 'translation-preparation')
             # Delivery records an already-authorized artifact; it starts no new work.
             if phase=='DIFFERENT_RESULT_DELIVERED':
                 if recorder.cancelled():raise execution.Cancelled('External cancellation requested during delivery')
@@ -288,9 +293,7 @@ def execute(job, root=None):
                 'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
-            allowed={'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL',
-                     'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED','STOPPED_BY_USER'}
-            if result.get('status') not in allowed:
+            if not case_outcomes.terminal(root,result):
                 from fault_control import Gate,outcome_error
                 saved=dict(result)
                 try:
@@ -303,8 +306,8 @@ def execute(job, root=None):
                                    if saved.get('status')=='PROOF_REVIEW_REQUIRED' else {})})
                 except execution.Cancelled:
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
-            passed=result.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'}
-            conditional=result.get('status') in {'DRAFT-AUDIT-CONDITIONAL','WORKFLOW-CONDITIONAL','AUDIT-B-CONDITIONAL'}
+            passed=result.get('status') in case_outcomes.PASSED
+            conditional=result.get('status') in case_outcomes.CONDITIONAL
             accepted_with_warning=bool(result.get('audit_b',{}).get('freeze_deviation') and not result['audit_b'].get('source_conditional',True))
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
                 completion={'acceptance_target_satisfied':passed or accepted_with_warning,'accepted_with_warning':accepted_with_warning,'workflow_completed':passed or conditional,

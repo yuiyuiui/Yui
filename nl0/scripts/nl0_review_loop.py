@@ -9,6 +9,7 @@ import threading
 
 import audit_a_campaign as campaign
 import audit_reuse
+from audit_rejections import RejectedReviews
 from clean_stage import ArtifactStage
 from controller_common import bind, manifest, write
 from execution_health import StageFailure, require_review_execution
@@ -54,6 +55,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
     root=Path(job['root']);sessions=Sessions();source=restored;issues=initial_issues;prior=list(prior);epoch=0
     from basis import problem_inputs
     problem=problem_inputs(job)
+    rejected=RejectedReviews(prior)
     while True:
         epoch+=1
         # A restored global role uses the saved accepted draft and actual local
@@ -64,12 +66,15 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 with sessions.use('nl0-author'):
                     source=author_stage(job,directory,budget,baseline=source,obligations=issues)
                 issues=None
+            blocker=rejected.blocker(source,'global')
+            if blocker:raise blocker
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
             campaign.prepare(source,problem,global_dir,reuse_from=prior)
             progress(job['case'],'AUDIT_A_GLOBAL',directory=str(global_dir))
             campaign.run(global_dir,budget=budget,audit_budget=audit_budget,only='global',sessions=sessions)
             gate=campaign.global_acceptance(global_dir)
             if gate['accepted']:break
+            rejected.record(global_dir,source,'global')
             issues=repair_obligations(source,global_dir);prior.append(global_dir)
             if not issues['issues']:raise StageFailure('REVIEW_INCOMPLETE','Global review has no complete located repair findings',evidence=global_dir/'global-acceptance.json')
         sessions.close(['nl0-author','audit-a-global'],'GLOBAL_REVIEW_PASSED',[global_dir/'global-acceptance.json'])
@@ -79,6 +84,10 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
         def local(rid):
             own=source;revision=0
             while not stop.is_set():
+                blocker=rejected.blocker(own,rid)
+                if blocker:
+                    stop.set()
+                    return {'blocked':blocker}
                 revision+=1
                 directory=root/'audit-a'/f'local-{epoch:04d}-{rid}-{revision:04d}'
                 prepared=campaign.prepare(own,problem,directory,reuse_from=prior)
@@ -94,6 +103,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 review=json.loads((stage/'accepted.json').read_text())
                 if review.get('verdict')=='PASS' and audit_reuse.all_pass(review):
                     return {'case':own,'campaign':directory,'rid':rid}
+                rejected.record(directory,own,rid)
                 if stop.is_set():return None
                 author=root/'nl0'/f'local-{epoch:04d}-{rid}-{revision:04d}'
                 inputs=author/'inputs';inputs.mkdir(parents=True)
@@ -116,15 +126,25 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 if own is None:raise StageFailure('LOCAL_REPAIR_INCOMPLETE','No selected own-node patch')
             return None
 
+        def run_local(rid):
+            try:return local(rid)
+            except BaseException:
+                stop.set()
+                raise
+
         audit_budget.configure(len(data[4]))
         progress(job['case'],'AUDIT_A_LOCAL',workers=audit_budget.configuration['effective'])
         if data[4]:
             with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
-                pending={rid:pool.submit(copy_context().run,local,rid) for rid in sorted(data[4])}
+                pending={rid:pool.submit(copy_context().run,run_local,rid) for rid in sorted(data[4])}
                 for rid,future in pending.items():outcomes[rid]=future.result()
         # No new local work is started after a global issue; current assignments
         # reach their normal handoffs before the serial global author is restored.
         global_issues=[v for v in outcomes.values() if v and 'global' in v]
+        if not global_issues:
+            for outcome in outcomes.values():
+                if outcome and 'blocked' in outcome:
+                    raise outcome['blocked']
         merged=root/'nl0'/f'merged-{epoch:04d}';copy_source(source,merged)
         graph=json.loads((source/'nl0.json').read_text())
         for rid,value in outcomes.items():

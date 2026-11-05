@@ -18,7 +18,8 @@ from controller_common import bind, write
 
 
 def inspector(checks, roots):
-    rows = [(key, 'decl:'+name, typ, lean_names.parts(name)) for key, name, typ in checks]
+    rows = [(key, ('value:' if name.startswith('YuiBasis.type_') else 'decl:')+name,
+             typ, lean_names.parts(name)) for key, name, typ in checks]
     array = '#['+', '.join('('+', '.join(
         '#['+', '.join(json.dumps(p) for p in value)+']' if isinstance(value, list)
         else json.dumps(value, ensure_ascii=False) for value in row)+')' for row in rows)+']'

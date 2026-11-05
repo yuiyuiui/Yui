@@ -31,13 +31,14 @@ def reviewed_repair(oldc,oldplan,cpath,plan,step,receipt):
     return True
 
 
-def candidate(previous, cpath, plan, step, *, reviewed_interface=None):
+def candidate(previous, cpath, plan, step, *, reviewed_interface=None, basis_revision=False):
     if previous is None:return None
     previous=Path(previous).resolve()
     oldc=previous/'inputs/contract.json';oldp=previous/'inputs/plan.json'
     report=ir.load(previous/'report.json')
     oldplan=ir.load(oldp);oldcontract=ir.contract(oldc);current=ir.contract(cpath)
-    if oldcontract['id']!=current['id'] or oldcontract['source']['sha256']!=current['source']['sha256']:return None
+    if oldcontract['id']!=current['id']:return None
+    if oldcontract['source']['sha256']!=current['source']['sha256'] and not basis_revision:return None
     if report['status']=='FRAGMENT_ASSEMBLED':
         proofs=ir.load(previous/'proofs.json')
         ir.need(report['contract_sha256']==proofs['contract_sha256']==ir.digest(oldc)
@@ -70,7 +71,13 @@ def candidate(previous, cpath, plan, step, *, reviewed_interface=None):
         newtext=ir.render(cpath,plan,{step:body},only=step)
     except ValueError:return None
     changed=oldtext!=newtext
-    if changed and not reviewed_repair(oldc,oldplan,cpath,plan,step,reviewed_interface):return None
+    if basis_revision:
+        before=ir.local_packet(oldc,oldplan,step);after=ir.local_packet(cpath,plan,step)
+        # Both contracts have independent current source correspondence. Only the same
+        # local obligation, use context and rendered Lean program can supply a candidate.
+        before.pop('contract_sha256');after.pop('contract_sha256')
+        if changed or before!=after:return None
+    elif changed and not reviewed_repair(oldc,oldplan,cpath,plan,step,reviewed_interface):return None
     return {'body':body,'previous_run':str(previous),'previous_proofs_sha256':ir.digest(evidence),
             'scope':('Same accepted source/port after independently reviewed interface repair; requires current native recheck'
                      if changed else 'Identical local Lean source and pins only; requires current native recheck')}

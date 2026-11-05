@@ -14,6 +14,7 @@ import audit_a_campaign as campaign
 import case_runner
 from clean_stage import ArtifactStage
 from controller_common import write
+from execution_health import StageFailure
 import concurrency
 import nl0_review_loop as loop
 from run_resources import retention
@@ -31,7 +32,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         for path in self.workspaces:shutil.rmtree(path,ignore_errors=True)
         self.tmp.cleanup()
 
-    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None):
+    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None,repeat=None):
         source=source or harness_support.CORE/'tests/fixtures/closed-addition'
         node_count=len(json.loads((source/'nl0.json').read_text())['inferences'])
         turns=threading.Barrier(node_count) if both_local_fail else None
@@ -40,9 +41,11 @@ class NL0ReviewLoopTests(unittest.TestCase):
             self.workspaces.append(stage.work)
             source=directory/'stage/case'
             loop.copy_source(baseline or initial_source,source)
-            if baseline:
+            if baseline and repeat != 'global':
                 graph=json.loads((source/'nl0.json').read_text())
                 graph['inferences'][0]['argument'][0]['text']+=' Global exposition repaired.'
+                if repeat == 'cycle' and self.counts.get('audit-a-global') == 2:
+                    graph=json.loads((initial_source/'nl0.json').read_text())
                 if remove_blocked_node:
                     graph['propositions']=[p for p in graph['propositions'] if p['id']!='N001']
                     graph['inferences']=[r for r in graph['inferences'] if r['id']=='R002']
@@ -67,13 +70,14 @@ class NL0ReviewLoopTests(unittest.TestCase):
                 if global_escalation and n==1:
                     artifact={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Synthetic shared context clarification.', 'locations':['/inference/argument']}
                 else:
-                    row=deepcopy(validator.original);row['argument'][0]['text']+=' Local explanation completed.'
+                    row=deepcopy(validator.original)
+                    if repeat != 'local':row['argument'][0]['text']+=' Local explanation completed.'
                     artifact={'inference':row}
                 validator(artifact)
                 exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[stage.model],'standard_tier_verified':True}
                 result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','exposure':exposure,'usage':{'complete':True}}
             else:
-                failed=(role=='audit-a-global' and global_failure and n==1)
+                failed=(role=='audit-a-global' and global_failure and (n==1 or repeat=='cycle' and n==2))
                 local_failed=(role.startswith('audit-a:') and n==1 and (both_local_fail or role=='audit-a:R001'))
                 result,artifact=synthetic_stage(stage.logs.parent,global_verdict='FAIL' if failed else 'PASS',local_verdict='FAIL' if local_failed else 'PASS')
                 if remove_blocked_node and role=='audit-a:R001' and n==1:
@@ -102,6 +106,42 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.assertTrue(data['current_standard_receipt_valid'])
         self.assertEqual(self.local.report()['active_model_stages'],0)
         return result
+
+    def test_warm_repair_envelope_is_ignored_but_changed_original_evidence_reopens_global_review(self):
+        from audit_rejections import review_key
+        from controller_common import bind
+        source=self.root/'key-source'
+        shutil.copytree(harness_support.FIXTURES/'closed-addition',source)
+        before=review_key(source,'global')
+        spec=json.loads((source/'spec.json').read_text());graph=json.loads((source/'nl0.json').read_text())
+        def save():
+            write(source/'spec.json',spec);graph['spec_sha256']=bind(source/'spec.json')['sha256']
+            write(source/'nl0.json',graph)
+        (source/'repair-obligations.json').write_text('Located earlier verdict.')
+        spec['inputs'].append({'path':'repair-obligations.json','sha256':bind(source/'repair-obligations.json')['sha256']})
+        save();self.assertEqual(review_key(source,'global'),before)
+        (source/'problem.txt').write_text((source/'problem.txt').read_text()+'\nClarifying original evidence.')
+        spec['inputs'][0]['sha256']=bind(source/'problem.txt')['sha256'];save()
+        self.assertNotEqual(review_key(source,'global'),before)
+
+    def test_rejected_global_source_cannot_be_resampled(self):
+        with self.assertRaises(StageFailure) as caught:
+            self.exercise(global_failure=True, repeat='global')
+        self.assertEqual(caught.exception.result['status'], 'REPAIR_UNCHANGED')
+        self.assertEqual(self.counts['audit-a-global'], 1)
+
+    def test_return_to_an_older_global_rejection_is_a_cycle(self):
+        with self.assertRaises(StageFailure) as caught:
+            self.exercise(global_failure=True, repeat='cycle')
+        self.assertEqual(caught.exception.result['status'], 'REPAIR_CYCLE')
+        self.assertEqual(self.counts['audit-a-global'], 2)
+
+    def test_local_rejection_does_not_hold_slots_or_dispatch_identical_packet(self):
+        with self.assertRaises(StageFailure) as caught:
+            self.exercise(repeat='local')
+        self.assertEqual(caught.exception.result['status'], 'REPAIR_UNCHANGED')
+        self.assertEqual(self.counts['audit-a:R001'], 1)
+        self.assertEqual(self.local.report()['active_model_stages'], 0)
 
     def test_global_revision_then_parallel_local_repair_merge(self):
         result=self.exercise(global_failure=True)

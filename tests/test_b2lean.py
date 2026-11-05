@@ -1,6 +1,6 @@
 """Actual Lean discharge and shared-flow regression with synthetic review judgments."""
 import harness_support
-from basis_fixtures import artifact, dependency, checked_context, TARGET
+from basis_fixtures import artifact, dependency, checked_context, TARGET, add_external_applications
 from final_acceptance_fixtures import frozen_case, build
 from copy import deepcopy
 from pathlib import Path
@@ -26,19 +26,7 @@ def attach(source, context):
     spec['inputs'] += [{'path':basis.CONTEXT,'sha256':ir.digest(source/basis.CONTEXT)}]
     write(source/'spec.json',spec)
     graph=ir.load(source/'nl0.json');graph['spec_sha256']=ir.digest(source/'spec.json')
-    for row in value['dependencies']:
-        if not row['port'] or not row['port'].startswith('E'):continue
-        evidence=[{'path':'problem.txt','sha256':ir.digest(source/'problem.txt')}]
-        contract={k:'SYNTHETIC metadata and source review control only.' for k in (
-            'author','title','version','identifier','locator','notation_map','errata','source_kind',
-            'origin','retrieved_at','source_statement','context','qualification','version_check')}
-        contract.update(statement=row['statement'],evidence=evidence,primary_evidence=evidence,hypotheses=[])
-        graph['propositions'].insert(0,{'id':row['port'],'kind':'external','statement':row['statement'],
-            'definitions':[],'binders':[],'objects':[],'source':contract})
-        r=graph['inferences'][-1];r['inputs'].append(row['port'])
-        r['argument'][0]['uses'].append(row['port'])
-        r['applications'].append({'id':'A'+row['id'][1:],'input':row['port'],'at':'S001',
-            'bindings':'Apply the universally quantified natural-number identity at a.','hypothesis_checks':[]})
+    add_external_applications(graph,value,[{'path':'problem.txt','sha256':ir.digest(source/'problem.txt')}])
     write(source/'nl0.json',graph)
     names=['problem.txt',basis.CONTEXT,'basis-proof.md','basis-registry.json']
     write(source/'inputs.json',{'inputs':[{'id':n,'path':n,'sha256':ir.digest(source/n)} for n in names]})

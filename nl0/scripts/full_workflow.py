@@ -192,6 +192,12 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
                  'scope':'No theorem accepted; active local assignments reached handoffs before serial connection diagnosis.'}
         summary_path=destination/'diagnoses'/f'{round_number:04d}'/'report.json';ir.write(summary_path,summary)
         diagnostic_reports.append(bind(summary_path))
+        for step,diagnosis in diagnoses.items():
+            if diagnosis['route']=='BASIS_REVISION_REQUIRED':
+                import basis_defect
+                report=current/'workers'/step/'diagnosis-requests'/diagnosis['evidence_key']/'review/stage/accepted.json'
+                ir.need(diagnosis['basis_defect']==bind(report),'Changed proof-worker basis defect handoff')
+                basis_defect.stop(report.parent)
         unresolved=[x for x in diagnoses.values() if x['route']=='SOURCE_REVIEW_REQUIRED']
         if unresolved:
             notices=[]

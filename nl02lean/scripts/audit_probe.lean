@@ -73,6 +73,9 @@ private def inspect (roots : Array Name) : MetaM Json := do
 private def actualType (selector : String) (parts : Array String) : TermElabM Expr := do
   if selector.startsWith "decl:" then
     return (← getConstInfo (nameOf parts)).type
+  if selector.startsWith "value:" then
+    let .defnInfo decl ← getConstInfo (nameOf parts) | throwError "Expected a defined proposition"
+    return decl.value
   if selector.startsWith "premise:" then
     let wanted := "h_" ++ (selector.drop 8).toString
     let root ← getConstInfo `AuditBExport.P

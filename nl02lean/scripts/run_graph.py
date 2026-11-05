@@ -81,6 +81,8 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
 
 
 def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None,sessions=None,diagnostic_interface=None):
+    import basis_defect
+    basis_revision=basis_defect.is_revision_program(out,prior_run)
     budget=worker_budget
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(pilot.__file__),Path(scheduler.__file__),
@@ -109,7 +111,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
         cached=None;checked=None
         if prior_run is not None:
             import proof_reuse
-            cached=proof_reuse.candidate(prior_run,cpath,plan,sid,reviewed_interface=reviewed_interface)
+            cached=proof_reuse.candidate(prior_run,cpath,plan,sid,reviewed_interface=reviewed_interface,basis_revision=basis_revision)
             if cached:
                 checked=ir.check(cpath,plan,{sid:cached['body']},only=sid,out=out/'reused'/sid)
                 ir.write(out/'reused'/sid/'origin.json',{k:v for k,v in cached.items() if k!='body'})
@@ -130,8 +132,9 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
             stage.diagnose_obstruction=diagnose
         if prior_run is not None:
             import proof_reuse
-            proof_reuse.restore_cleanup_drafts(stage,prior_run)
-            proof_reuse.restore_repair_drafts(stage,prior_run,reviewed_interface=reviewed_interface)
+            if not basis_revision:
+                proof_reuse.restore_cleanup_drafts(stage,prior_run)
+                proof_reuse.restore_repair_drafts(stage,prior_run,reviewed_interface=reviewed_interface)
             if arm=='yui' and cached and checked['exit_code']!=0:
                 advice=pilot.strategy_bank.native_timeout_feedback(checked,
                     stage.native_timeout_lean_version,stage.native_timeout_snapshot)

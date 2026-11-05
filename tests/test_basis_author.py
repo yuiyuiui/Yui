@@ -1,6 +1,6 @@
 """Bounded own-draft tools and retained native-fault evidence; no model calls."""
 import harness_support
-from basis_fixtures import artifact, TARGET
+from basis_fixtures import artifact, dependency, TARGET
 import json
 from pathlib import Path
 import shutil
@@ -25,6 +25,50 @@ class BasisDraftTests(unittest.TestCase):
             validator=self.validator,inputs=inputs/'inputs.json')
     def tearDown(self):
         self.stage.release_resources('USER_CANCELLED');self.temp.cleanup()
+
+    def test_missing_evidence_is_repairable_in_the_same_stage(self):
+        row=dependency()
+        row['origin']['evidence']=[{'path':'external-sources/misspelled.txt','sha256':'0'*64}]
+        result=self.stage.dispatch('submit_draft',{'artifact':artifact(row)})
+        self.assertEqual(result['feedback_kind'],'candidate_rejected')
+        self.assertIn('B001',result['error'])
+        self.assertIn('misspelled.txt',result['error'])
+        self.assertIsNone(self.stage.accepted)
+        fixed=self.stage.dispatch('submit_draft',{'artifact':{'base_candidate':1,'patches':[
+            {'op':'replace','path':'/dependencies/0/origin/evidence','value':[{'input':'problem.md'}]}]}})
+        self.assertTrue(fixed['stage_complete'])
+        self.assertEqual(self.validator.last_checked,2)
+
+    def test_selecting_the_checked_candidate_reuses_only_the_verified_native_receipt(self):
+        value=artifact(dependency())
+        with patch.object(basis_native,'check',wraps=basis_native.check) as compiler:
+            checked=self.stage.dispatch('check_draft',{'artifact':value})
+            self.assertFalse(checked['stage_complete'])
+            accepted=self.stage.dispatch('submit_draft',{'artifact':{'accept_candidate':1}})
+            self.assertTrue(accepted['stage_complete'])
+            self.assertEqual(compiler.call_count,1)
+        self.assertEqual(self.stage.accepted,value)
+        self.assertFalse((self.validator.out/'review').exists())
+        path=Path(self.validator.last_receipt['path'])
+        path.write_text('{}')
+        with self.assertRaises(RuntimeError):
+            self.validator({'accept_candidate':1})
+
+    def test_genuine_filesystem_fault_and_loss_of_a_declared_input_are_execution_errors(self):
+        value=artifact(dependency(category=4))
+        row=value['dependencies'][0]
+        row['origin']['evidence']=[{'path':'unreadable','sha256':'0'*64}]
+        candidate=self.stage.logs/'unreadable';candidate.write_text('locally retained content')
+        original=basis.bind
+        def denied(path):
+            if Path(path)==candidate:raise PermissionError(13,'Permission denied',str(path))
+            return original(path)
+        with patch.object(basis,'bind',denied),self.assertRaises(PermissionError):
+            self.stage.dispatch('submit_draft',{'artifact':value})
+        self.assertEqual(self.stage.tool_execution_fault['error_type'],'PermissionError')
+        row['origin']['evidence']=[{'input':'problem.md'}]
+        (self.validator.out/'inputs/problem.md').unlink()
+        with self.assertRaises(FileNotFoundError):self.stage.dispatch('submit_draft',{'artifact':value})
 
     def test_partial_draft_can_be_saved_and_read_without_native_or_mathematical_acceptance(self):
         self.assertEqual(self.stage.output_verbosity,'high')

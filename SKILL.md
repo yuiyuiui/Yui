@@ -15,7 +15,9 @@ unconditional` and follow [2basis and b2lean](nl0/references/basis.md).
 2basis may rewrite the original proof route before the one shared NL0/Audit A;
 the original target/H remain immutable. Audit A receives both original task and
 basis proof/replacements. Prepare used class 1/2 Lean proofs/adapters in 2basis;
-class 3 is internal mathematics, while remaining class 4 requires the user's
+a separate reviewer checks the submitted class 1/2/4 statements against their
+actual Lean propositions, sources and uses before release. Class 3 is internal
+mathematics, while remaining class 4 requires the user's
 exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean
 must check the actual closed export and transitive trust. Never present an
 approved conditional fallback or source-qualified result as unconditional.

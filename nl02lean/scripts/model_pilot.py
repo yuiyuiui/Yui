@@ -360,7 +360,7 @@ class Stage(carrier.Trial):
             self.diagnosis_cache[key]=diagnosis
         ir.write(out/'diagnosis.json',diagnosis)
         route=diagnosis['route']
-        handoff=route in {'SOURCE_REVIEW_REQUIRED','INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED'}
+        handoff=route in {'BASIS_REVISION_REQUIRED','SOURCE_REVIEW_REQUIRED','INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED'}
         if handoff:
             self.repair_request={**report,'diagnosis':diagnosis}
             ir.write(self.logs/'proof-repair-request.json',self.repair_request)
@@ -599,7 +599,7 @@ class Stage(carrier.Trial):
             if self.repair_request:
                 result.update(task_outcome='PROOF_DIAGNOSIS_REQUIRED',repair_request=self.repair_request,
                               stop_reason='PROOF_REPAIR_ESCALATION')
-            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}:
+            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT','BASIS_REVISION_REQUIRED'}:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
             if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE':
@@ -654,7 +654,7 @@ class Stage(carrier.Trial):
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
                 if case_deadline is None:result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
-                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'} else
+                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT','BASIS_REVISION_REQUIRED'} else
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error

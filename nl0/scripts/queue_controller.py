@@ -11,6 +11,7 @@ import threading
 import time
 
 from controller_common import write, bind, final_write
+import case_outcomes
 import jobs as job_contract
 from execution_state import identity, terminate_owned, request_cancel
 
@@ -86,14 +87,19 @@ def serve(jobs,*,case_concurrency=None):
                     if time.monotonic()-row['cancel_at']>35 and row['identity']:terminate_owned(process,row['identity'])
                 if process.poll() is None:continue
                 result=root/'case-result.json'
-                value=json.loads(result.read_text()).get('result',{}) if result.is_file() else {}
-                if value.get('status') not in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL','CANCELLED','DIFFERENT_RESULT_DELIVERED'}:
+                try:record=json.loads(result.read_text())
+                except (OSError,ValueError) as error:record={'read_error':str(error)}
+                value=record.get('result') if isinstance(record,dict) else None
+                bound_stop=(not isinstance(value,dict) or value.get('status')!='STOPPED_BY_USER'
+                            or record.get('job')==bind(root/'job.json'))
+                if not bound_stop or not case_outcomes.terminal(root,value):
                     from fault_control import Gate
                     from execution_state import Cancelled
                     try:
                         Gate(root/'logs/batch-errors',stage='case-process-exited').pause(
                             {'code':'harness_bug','message':'Case process exited without task completion or user cancellation',
-                             'exit_code':process.returncode,'retained_case_outcome':value},resumable=False)
+                             'exit_code':process.returncode,'retained_case_outcome':value,
+                             'read_error':record.get('read_error') if isinstance(record,dict) else 'Invalid result envelope'},resumable=False)
                     except Cancelled:
                         write(result,{'job':bind(root/'job.json'),'result':{'status':'CANCELLED',
                             'task_outcome':'EXTERNAL_CANCELLED','retained_case_outcome':value}})
@@ -125,7 +131,7 @@ def serve(jobs,*,case_concurrency=None):
             final_write(Path(job['root'])/'batch-result.json',{'children_exited':not unresolved,'unconfirmed_pids':unresolved,
                 'status':'CANCELLED' if stopping else 'BATCH_FINISHED',
                 'outcomes':outcomes,'all_cases_accepted':len(outcomes)==len(jobs) and all(
-                    r.get('status') in {'DRAFT-AUDIT-PASSED','WORKFLOW-PASSED','AUDIT-B-PASSED'} for r in outcomes.values()),
+                    r.get('status') in case_outcomes.PASSED for r in outcomes.values()),
                 'scope':'Executor completion does not imply mathematical acceptance'})
     return outcomes
 

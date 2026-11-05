@@ -39,6 +39,8 @@ def parsers(commands):
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
     p.add_argument('--output',type=Path,help='Fresh owned output for one explicit restored-access continuation')
     repairs=p.add_mutually_exclusive_group()
+    repairs.add_argument('--repair-basis',action='store_true',
+        help='Revise a verified downstream basis defect in a new run, under the original budget')
     repairs.add_argument('--repair-evidence',action='store_true',
         help='Resume a verified stopped evidence-index fault with complete retained reviews; no new review sampling')
     repairs.add_argument('--repair-local-tool',action='store_true',
@@ -146,6 +148,7 @@ def dispatch(args):
         return target_selection.inspect(args.problem)
     if args.command=='resume':
         import interrupted
+        import basis_defect
         import native_cleanup_recovery
         if getattr(args,'after_access_restored',False):
             if len(args.runs)!=1:raise ValueError('Select one exact run for manual restored-access recovery')
@@ -153,7 +156,8 @@ def dispatch(args):
         elif getattr(args,'output',None) is not None:
             raise ValueError('--output requires the explicit --after-access-restored route')
         else:
-            prepared=[native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
+            prepared=[basis_defect.prepare(path) if getattr(args,'repair_basis',False) else
+                  native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
                   interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
                   interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
                   interrupted.prepare(path) for path in args.runs]

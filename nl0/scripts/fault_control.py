@@ -28,7 +28,7 @@ BLOCKERS = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOUR
     'INPUT_CONFLICT','SOURCE_CHANGE_REQUIRES_USER','AUDIT_A_NONPASS','MATHEMATICAL_REVIEW_FAILED',
     'REVIEW_UNVERIFIED','REVIEW_INCOMPLETE','PROOF_REPAIR_STALLED','REPAIR_UNCHANGED','REPAIR_CYCLE',
     'FINAL_FIDELITY_NOT_ACCEPTED','FROZEN_INTERFACE_REQUIRES_USER','INTERNAL_INTERFACE_REPAIR_REQUIRED','PROOF_REVIEW_REQUIRED',
-    'INTERFACE_REVIEW_FAILED'}
+    'INTERFACE_REVIEW_FAILED','BASIS_SEMANTIC_NONPASS','BASIS_REVISION_REQUIRED'}
 SECRET = re.compile(r'(Bearer\s+)[^\s\"\']+|\bsk-[A-Za-z0-9_-]+|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', re.I)
 
 
@@ -76,6 +76,13 @@ def validate_context(root, binding, required=False):
             raise ValueError('The paused job binding changed; no profile/input replacement is allowed')
         import jobs
         jobs.validate(json.loads(job.read_text()))
+
+
+def verify_basis_choice(checkpoint):
+    from controller_common import verify_bindings
+    bindings=[checkpoint['basis']]
+    if 'semantic_review' in checkpoint:bindings.append(checkpoint['semantic_review'])
+    verify_bindings(bindings)
 
 
 def queue_notification(thread, message):
@@ -161,6 +168,10 @@ class Gate:
                  '\nAutomatic resume is unavailable; inspect the diagnostic and choose an authorized repair or user action.')+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
+        if self.stage=='basis-decision' and self.state['checkpoint'].get('semantic_review'):
+            checkpoint=self.state['checkpoint']
+            text+='\nReviewed residual premises '+', '.join(checkpoint['residual_class4'])+' in '+checkpoint['basis']['path']
+            text+='\nStatement/type/source review: '+checkpoint['semantic_review']['path']
         if self.state.get('decisions'):
             text+='\nExplicit user choices:\n'+'\n'.join(shlex.join(cmd) for cmd in self.state['decisions'].values())
         if case_deadline_error(self.state.get('error')):
@@ -203,14 +214,19 @@ class Gate:
         seen_controls=set()
         while True:
             self.check_cancel()
+            if self.stage=='basis-decision' and self.recorder is not None:
+                try:self.recorder.check()
+                except execution.CaseDeadlineExceeded:
+                    self.state.update(state='EXPIRED',expired_at_utc=execution.now())
+                    self.persist()
+                    raise
             control = self.logs/'error-control'/(incident+'.json')
             try:request = json.loads(control.read_text()) if control.is_file() else {}
             except (OSError, ValueError):request = {}
             if request.get('incident')==incident and request.get('action') in decisions:
                 validate_context(self.root,self.job_binding,self.requires_job)
                 if self.stage=='basis-decision':
-                    from controller_common import verify_bindings
-                    verify_bindings([self.state['checkpoint']['basis']])
+                    verify_basis_choice(self.state['checkpoint'])
                 self.state.update(state='USER_DECIDED',control=request,decided_at_utc=execution.now())
                 self.persist()
                 if self.recorder is not None and self.task:
@@ -297,11 +313,18 @@ def final_decision(root,incident,action):
         raise ValueError('Final decision owner has exited or changed')
     validate_context(root,row.get('job_binding'),row.get('requires_job_binding',False))
     if row.get('stage')=='basis-decision':
-        from controller_common import verify_bindings
-        verify_bindings([row['checkpoint']['basis']])
+        verify_basis_choice(row['checkpoint'])
     path=logs/'error-control'/(incident+'.json')
-    if path.exists():raise ValueError('A decision was already requested for this incident')
-    execution.atomic(path,{'incident':incident,'action':action,'requested_at_utc':execution.now(),'id':uuid.uuid4().hex})
+    path.parent.mkdir(parents=True,exist_ok=True)
+    request={'incident':incident,'action':action,'requested_at_utc':execution.now(),'id':uuid.uuid4().hex}
+    temporary=path.with_name('.decision-'+request['id']+'.tmp')
+    try:
+        temporary.write_text(json.dumps(request)+'\n')
+        # Publish complete bytes once. Simultaneous stop/continue must never replace a winner.
+        try:os.link(temporary,path)
+        except FileExistsError as error:
+            raise ValueError('A decision was already requested for this incident') from error
+    finally:temporary.unlink(missing_ok=True)
     return {'status':'USER_DECISION_REQUESTED','incident':incident,'action':action,'root':str(root)}
 
 
