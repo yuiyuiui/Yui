@@ -57,14 +57,27 @@ class Progress:
                 'last_progress_at_utc':self.last_progress_at,'last_check_at_utc':self.last_check_at}
 
 
+def obstruction_schema():
+    import artifact_protocol as p
+    fields={'explanation':{**p.TEXT,'maxLength':12000},
+        'locations':p.array({'type':'string','pattern':'^/'},minItems=1,maxItems=12),
+        'candidates':p.array(p.obj({'kind':{'enum':['proof','auxiliary']},
+            'candidate':{'type':'integer','minimum':1}}),maxItems=6),
+        'source_issue':source_issue_schema()}
+    return {'type':'object',**p.choice(
+        p.obj({**fields,'layer':p.literal('source')}),
+        p.obj({**fields,'layer':{'enum':['interface','unknown']}},
+              required=['layer','explanation','locations','candidates']))}
+
+
 def obstruction(stage, value, *, automatic=False):
     """Only local resolving locators and actual own checks can enter a report."""
     import audit_b
     import ir
-    required={'layer','explanation','locations','candidates'}
-    ir.need(isinstance(value,dict) and required <= set(value) <= required|{'source_issue'},
-            'Obstruction needs layer, explanation, locations and candidates')
-    ir.need(value['layer'] in {'local_proof','interface','source','unknown'},'Unknown alleged obstruction layer')
+    import artifact_protocol as p
+    if isinstance(value,dict) and value.get('layer')=='local_proof':
+        raise ir.Invalid('Ordinary proof-body errors stay with this author; repair locally and recheck')
+    p.validate(value,obstruction_schema(),error_type=ir.Invalid)
     ir.need(isinstance(value['explanation'],str) and 1<=len(value['explanation'].strip())<=12000,
             'Provide a bounded concrete obstruction explanation')
     ir.need(isinstance(value['locations'],list) and 1<=len(value['locations'])<=12,'Locate the actual current packet fields')
@@ -82,8 +95,6 @@ def obstruction(stage, value, *, automatic=False):
         row=stage.own_lean_drafts[kind][number]
         ir.need(isinstance(row.get('check'),dict),'No actual check evidence for this candidate')
         evidence.append({'kind':kind,'candidate':number,'sha256':digest(row)})
-    ir.need(value['layer']!='local_proof',
-            'Ordinary proof-body errors stay with this author; repair locally and recheck')
     if value['layer'] in {'interface','unknown'}:
         ir.need(evidence and any(stage.own_lean_drafts[x['kind']][x['candidate']]['check'].get('exit_code',0)!=0
                                  for x in value['candidates']),
@@ -111,16 +122,18 @@ def obstruction(stage, value, *, automatic=False):
     return report
 
 
+def source_issue_schema():
+    import artifact_protocol as p
+    text={**p.TEXT,'maxLength':12000}
+    return p.obj({'kind':{'enum':['FALSE_IMPLICATION','MISSING_JUSTIFICATION']},
+        **{key:text for key in ['source_quote','hypotheses','claim','defect','why_not_lean_difficulty']}})
+
+
 def validate_source_issue(value, packet):
     """Require a concrete mathematical allegation, never certify its truth."""
     import ir
-    fields={'kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty'}
-    ir.need(isinstance(value,dict) and set(value)==fields,
-            'A source issue needs kind, source_quote, hypotheses, claim, defect and why_not_lean_difficulty')
-    ir.need(value['kind'] in {'FALSE_IMPLICATION','MISSING_JUSTIFICATION'},'Unknown mathematical issue kind')
-    for key in fields-{'kind'}:
-        ir.need(isinstance(value[key],str) and 1<=len(value[key].strip())<=12000,
-                'Provide concrete mathematical source evidence: '+key)
+    import artifact_protocol as p
+    p.validate(value,source_issue_schema(),'/source_issue',error_type=ir.Invalid)
     source='\n'.join(str(s.get('text','')) for s in packet['source_steps'])
     ir.need(value['source_quote'] in source,'The source issue must quote the current NL step verbatim')
     return value

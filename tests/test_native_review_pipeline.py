@@ -29,14 +29,14 @@ import subprocess
 
 @unittest.skipUnless(shutil.which('codex'),'Codex executable required')
 class NativeReviewPipelineTests(unittest.TestCase):
-    def exercise(self, global_verdict):
+    def exercise(self, global_verdict, *, malformed_global=False):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);source=canonical_propositional_case(root/'source')
             problem=root/'problem';problem.mkdir()
             (problem/'problem.md').write_text('Synthetic controller fixture only.')
             out=root/'campaign';plan=campaign.prepare(source,problem,out)
             original=ArtifactStage._execute;seen=[];results=[];stages={};guard=threading.Lock()
-            job_numbers={job['id']:i+1 for i,job in enumerate(plan['jobs'])}
+            job_numbers={job['id']:i+1 for i,job in enumerate(plan['jobs'])};attempts={}
             local_count=sum(not job['library'] for job in plan['jobs'])
             barrier=threading.Barrier(local_count,timeout=10)
             before=(subprocess.Popen,fault_control.queue_notification,
@@ -49,6 +49,7 @@ class NativeReviewPipelineTests(unittest.TestCase):
                              if 'YUI_TEST_REVIEW_'+key in serialized]
                 self.assertEqual(len(matches),1)
                 key,stage=matches[0]
+                with guard:attempts[key]=attempts.get(key,0)+1
                 contract=stage.validator;artifact=deepcopy(contract.base)
                 for pointer in contract.required:
                     global_stage=stage.mode=='audit-a-global'
@@ -63,7 +64,9 @@ class NativeReviewPipelineTests(unittest.TestCase):
                     # merely occupying slots around serial fixture execution.
                     barrier.wait()
                 artifact['coverage']={p:'assessed' for p in contract.required}
-                f.code(handler,job_numbers[key],'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
+                if malformed_global and key=='global' and attempts[key]==1:
+                    artifact.update(verdict='PASS',notes='Misplaced top-level fields in a synthetic response.')
+                f.code(handler,job_numbers[key]*100+attempts[key],'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
 
             # One fixture owns the process-global test patches. Separate
             # concurrent fixtures can restore each other's stale replacements.
@@ -95,7 +98,12 @@ class NativeReviewPipelineTests(unittest.TestCase):
                 self.assertEqual(report['r_concurrency']['effective'],local_count)
                 self.assertEqual(report['r_concurrency']['observed_peak_model_stages'],
                                  local_count if global_verdict=='PASS' else 0)
-                self.assertEqual(len(f.calls),len(plan['jobs']) if global_verdict=='PASS' else 1)
+                self.assertEqual(len(f.calls),(len(plan['jobs']) if global_verdict=='PASS' else 1)+int(malformed_global))
+                if malformed_global:
+                    events=[json.loads(line) for line in (out/'global/stage/tools.jsonl').read_text().splitlines()]
+                    rejected=[e for e in events if e['result'].get('feedback_kind')=='candidate_rejected']
+                    self.assertEqual(len(rejected),1)
+                    self.assertIn("unexpected=['notes', 'verdict']",rejected[0]['result']['error'])
             self.assertEqual(before,(subprocess.Popen,fault_control.queue_notification,
                                     native_client.configuration,runtime_config.auth_home))
             self.assertEqual(seen[0],'audit-a-global')
@@ -119,3 +127,6 @@ class NativeReviewPipelineTests(unittest.TestCase):
 
     def test_native_global_and_local_submissions_reach_actual_bound_A_collection(self):
         self.exercise('PASS')
+
+    def test_native_format_correction_then_parallel_reviews_and_bound_collection(self):
+        self.exercise('PASS',malformed_global=True)

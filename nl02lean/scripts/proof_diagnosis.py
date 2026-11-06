@@ -4,6 +4,7 @@ import shutil
 
 import ir
 import proof_repair
+import artifact_protocol as protocol
 from controller_common import bind, manifest, write
 from execution_health import StageFailure, require_review_execution, record_qualification
 import threading
@@ -81,13 +82,21 @@ def prepare(proof_run,step,interface,out):
     (out/'prompt.txt').write_text(PROMPT)
 
 
+def artifact_schema():
+    from interface_review import comparison_schema
+    common={'explanation':{**protocol.TEXT,'maxLength':12000},
+        'repair_advice':{**protocol.TEXT,'maxLength':12000},
+        'locations':protocol.array(protocol.obj({'document':protocol.TEXT,'pointer':{'type':'string','pattern':'^/'}}),minItems=1,maxItems=20)}
+    return protocol.choice(*[protocol.obj({**common,'route':{'enum':routes},'comparison':comparison}) for routes,comparison in [
+        (['LOCAL_PROOF_REPAIR','UNRESOLVED'],{'type':'null'}),
+        (['INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED'],comparison_schema()),
+        (['SOURCE_REVIEW_REQUIRED'],proof_repair.source_issue_schema())]])
+
+
 def validate(value,out):
     import audit_b
     from interface_review import validate_comparison
-    ir.need(isinstance(value,dict) and set(value)=={'route','explanation','locations','repair_advice','comparison'},
-            'Return exactly the diagnosis schema')
-    ir.need(value['route'] in {'LOCAL_PROOF_REPAIR','INTERNAL_INTERFACE_REPAIR','INTERFACE_REPAIR_REQUIRED','SOURCE_REVIEW_REQUIRED','UNRESOLVED'},
-            'Unknown repair route')
+    protocol.validate(value,artifact_schema(),error_type=ir.Invalid)
     for key in ['explanation','repair_advice']:
         ir.need(isinstance(value[key],str) and 1<=len(value[key].strip())<=12000,'Provide bounded located diagnosis text')
     docs={p.name:ir.load(p) for p in (Path(out)/'inputs').glob('*.json') if p.name!='inputs.json'}
@@ -166,7 +175,7 @@ def notice_source(cpath,step,out,result):
 def run_prepared(out,step,*,budget,timeout=None,parent_task=None):
     from audit_b_mapping import AssemblyStage
     stage=AssemblyStage(out/'stage',PROMPT+'\nYou are WB-connect diagnosing a connection/ownership issue under the immutable public contract. Internal T defects return to reviewed preprocessing; protected public-contract defects require the user.',phase='interface-proof-diagnosis',inputs=out/'inputs/inputs.json',
-        library=True,timeout=timeout,budget=budget,validator=lambda value:validate(value,out))
+        library=True,timeout=timeout,budget=budget,validator=protocol.Contract(artifact_schema(),lambda value:validate(value,out)))
     stage.parent_execution_task=parent_task
     try:stage.execute()
     except StageFailure as error:

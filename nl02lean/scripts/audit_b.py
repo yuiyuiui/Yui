@@ -287,7 +287,19 @@ def bound_review_reuse(out):
     return origin
 
 
+def mapping_schema(c,inventory):
+    import artifact_protocol as p
+    ids=correspondence.endpoint_ids(inventory['propositions'])
+    return p.obj({'version':p.literal(VERSION),'policy':p.literal(correspondence.POLICY),
+        'source_inventory_sha256':p.TEXT,
+        'entries':p.obj({sid:p.obj({'selector':p.literal('decl:AuditBExport.P' if sid=='P' else 'premise:'+sid),
+                                  'expected_type':p.TEXT,'correspondence':correspondence.note_schema()}) for sid in ids}),
+        'library_terms':p.obj({row['id']:p.TEXT for row in c['premises'] if row['kind']=='mathlib'})})
+
+
 def validate_mapping(c,inventory,mapping):
+    import artifact_protocol as protocol
+    protocol.validate(mapping,mapping_schema(c,inventory),error_type=ir.Invalid)
     ids = set(correspondence.endpoint_ids(inventory['propositions']))
     ir.need(mapping.get('version')==VERSION and mapping.get('policy')==correspondence.POLICY,
             'unsupported Audit B policy; create a new endpoint audit')
@@ -308,8 +320,6 @@ def validate_mapping(c,inventory,mapping):
     required = {p['id'] for p in inventory['propositions'] if p['kind'] in {'hypothesis','external'}}
     ir.need(required <= roots,'missing original hypothesis/external source input')
     for sid,row in mapping['entries'].items():
-        ir.need(isinstance(row,dict) and set(row)=={'selector','expected_type','correspondence'},
-                'invalid endpoint correspondence fields: '+sid)
         wanted = 'decl:AuditBExport.P' if sid=='P' else 'premise:'+sid
         ir.need(row['selector']==wanted,'endpoint must select its actual exported statement: '+sid)
         ir.type_text(row['expected_type'])
@@ -319,8 +329,6 @@ def validate_mapping(c,inventory,mapping):
             'provide exactly the intermediate Mathlib-port discharge proofs')
     for body in terms.values():
         ir.proof_text(body)
-    ir.need(set(mapping)=={'version','policy','source_inventory_sha256','entries','library_terms'},
-            'obsolete or unexpected mapping fields; no library permission ledger is used')
 
 
 def export_source(c,mapping,level_metadata=None):

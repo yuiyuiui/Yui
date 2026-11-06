@@ -100,14 +100,17 @@ case results or personal proof skills to manufacture independent approval.
    record_review_item and read_review_progress only for useful checkpoints.
    record_background_note is optional; a complete artifact may include its
    actual notes directly. Batch reading several declared fragments is available.
-4. Each local report has inference, packet_sha256, verdict, notes, checks,
+4. The generated tool schema defines the current submission fields and selected
+   review IDs. Each local report has inference, packet_sha256, verdict, notes, checks,
    findings and optional background_notes. The checks map contains exactly
    statement_closure, dependency_closure, argument, applicability, packet_replay.
    Each row has verdict, notes and resolving packet locations. E applications
    additionally retain actual binding, per-hypothesis, conclusion and bridge
    assessments; this is mathematical applicability, not a Lean API inventory.
 5. Global reports have target_review, definition_reviews, source_reviews,
-   structure_review and findings. Each E adds citation_checks for
+   structure_review and findings. An incremental review includes only its
+   assigned scopes, as specified in its generated schema. Local report-level
+   verdict and notes fields are not global summary fields. Each E adds citation_checks for
    literature_identity, result_location, statement_fidelity,
    context_completeness, version_and_eligibility. Inaccessible primary text
    leaves blocked checks UNVERIFIED while remaining assessment continues.

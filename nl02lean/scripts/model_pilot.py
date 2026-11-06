@@ -129,6 +129,15 @@ class Stage(carrier.Trial):
         else:
             self.tools += [json_tool('check_transition','Compile a tactic body for the fixed target; no leading by, declarations, or placeholders.','proof'),
                            json_tool('submit_transition','Submit and check the final tactic body for the same target.','proof')]
+        if mode in {'interface','plan'}:
+            import artifact_protocol
+            schema=ir.interface_draft_schema() if mode=='interface' else ir.plan_schema()
+            field='interface_json' if mode=='interface' else 'plan_json'
+            for tool in self.tools:
+                parameter=tool.get('inputSchema',{}).get('properties',{}).get(field)
+                if parameter is not None:
+                    parameter.update(contentMediaType='application/json',contentSchema=schema)
+            self.system+=artifact_protocol.instructions(schema)
         if mode=='proof':
             self.tools += [carrier.tool('check_auxiliary','Compile one helper proposition and tactic body in exactly this local port context. This never accepts the final goal or adds a premise.',
                 {'statement':{'type':'string'},'proof':{'type':'string'}},['statement','proof']),
@@ -137,16 +146,8 @@ class Stage(carrier.Trial):
             if instruction_arm=='yui':
                 self.tools.append(carrier.tool('report_proof_obstruction',
                     'Request diagnosis while retaining this author. Reference current packet pointers and at most six actual own attempts. A source allegation requires source_issue with a verbatim source_quote and the mathematical defect. Ordinary errors, resource exhaustion or inability do not authorize ending the task.',
-                    {'layer':{'type':'string','enum':['local_proof','interface','source','unknown']},
-                     'explanation':{'type':'string'},'locations':{'type':'array','items':{'type':'string'}},
-                     'candidates':{'type':'array','items':{'type':'object','properties':{
-                         'kind':{'type':'string','enum':['proof','auxiliary']},'candidate':{'type':'integer'}},
-                         'required':['kind','candidate'],'additionalProperties':False}},
-                     'source_issue':{'type':'object','properties':{k:{'type':'string'} for k in
-                         ['kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty']},
-                         'required':['kind','source_quote','hypotheses','claim','defect','why_not_lean_difficulty'],
-                         'additionalProperties':False}},
-                    ['layer','explanation','locations','candidates']))
+                    {},[]))
+                self.tools[-1]['inputSchema']=__import__('proof_repair').obstruction_schema()
                 self.system+=(' If the fixed interface or source appears inconsistent, report_proof_obstruction '
                     'with located actual evidence instead of silently changing it or repeating a blocker. '
                     'Compiler/interface reports require a relevant failed own-context check; successful helpers or bare inability are insufficient. Rejected reports leave you active. Ordinary proof-body errors remain your local repair work. '

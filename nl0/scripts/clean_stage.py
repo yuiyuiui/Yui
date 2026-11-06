@@ -12,6 +12,8 @@ import time
 from runtime_config import CORE
 from acceptance import AcceptanceContract
 import own_state
+import artifact_protocol
+from payload_protocols import obstacle_schema
 from read_views import read_page, read_json, read_batch
 sys.path.insert(0, str(CORE / 'nl02lean/scripts'))
 import model_pilot as pilot
@@ -119,13 +121,12 @@ class ArtifactStage(pilot.Stage):
             self.tools.append(pilot.carrier.tool('read_yui', 'Read declared Yui rules/templates; no tests, historical runs or personal files.',
                 {'path': {'type': 'string'}, 'start': {'type': 'integer'}, 'end': {'type': 'integer'},
                  'column':{'type':'integer'}}, ['path', 'start', 'end']))
+        obstacle=obstacle_schema(kind)
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
                            'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. In NL0, use source retrieval and explicit conditional deferral for unavailable primary texts; MISSING_SOURCE_STATEMENT requires that no complete secondary statement can be obtained. Other stages may report SOURCE_UNAVAILABLE for an actual access obstacle. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
-                           {'status':{'type':'string','enum':['SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT']},
-                            **{key:{'type':'string'} for key in ['location','explanation','basis','partial_progress']}},
-                           ['status','location','explanation','basis','partial_progress'])]
+                           obstacle['properties'],obstacle['required'])]
         if kind=='nl0':
             for tool in self.tools:
                 if tool['name']=='report_obstacle':
@@ -138,7 +139,9 @@ class ArtifactStage(pilot.Stage):
             self.tools.append(pilot.carrier.tool(name,
                 'Preferred structured-object form of '+('check_artifact' if name=='check_draft' else 'submit_artifact')+
                 ': provide artifact as an actual JSON object, not an escaped JSON string. Same complete validation and acceptance scope.',
-                {'artifact':{'type':'object','additionalProperties':True}},['artifact']))
+                {'artifact':getattr(self.validator,'schema',None) or {'type':'object','additionalProperties':True}},['artifact']))
+        if getattr(self.validator,'schema',None):
+            self.input_prompt += artifact_protocol.instructions(self.validator.schema)
         from review_contract import ReviewContract, INSTRUCTIONS
         if isinstance(self.validator,ReviewContract):
             from review_contract import ReviewProgressGuard
@@ -152,19 +155,18 @@ class ArtifactStage(pilot.Stage):
                  'judgment':self.validator.judgment_schema},['pointer','coverage','judgment']),
                 pilot.carrier.tool('read_review_progress','Read actual own-stage saved judgments and remaining work.',{},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
-                    {'finding':{'type':'object','additionalProperties':True}},['finding'])]
+                    {'finding':self.validator.blocker_schema()},['finding'])]
+            if self.validator.shape:
+                next(t for t in self.tools if t['name']=='record_review_item')['inputSchema']=self.validator.shape.record_schema()
             if self.validator.complete_assessment:
                 self.tools=[t for t in self.tools if t['name']!='submit_review_blocker']
                 self.input_prompt+='\nComplete every assigned global check, even after an ordinary FAIL. Return all findings together; do not replay local R proof bodies here.'
         if self.background_review:
+            import background
+            note_schema=background.note_schema(native=False)
             self.tools += [pilot.carrier.tool('record_background_note',
                     'Optionally checkpoint YOUR positively checked routine mathematical or elementary fact, precise statement and actual available conditions. A complete review may submit these notes together. Exact Mathlib bindings belong to nl02lean. No new H, core missing argument or uncertain external source qualifies; this tool never generates PASS.',
-                    {'id':{'type':'string'},'kind':{'type':'string','enum':['elementary','mathematical']},
-                     'at':{'type':'string'},'fact':{'type':'string'},'justification':{'type':'string'},
-                     'grounds':{'type':'array','items':{'type':'object','properties':{
-                         'location':{'type':'string'},'reason':{'type':'string'}},'required':['location','reason'],'additionalProperties':False}},
-                     'hint':{'type':'string'}},
-                    ['id','kind','at','fact','grounds','justification'])]
+                    note_schema['properties'],note_schema['required'])]
             if isinstance(self.validator, ReviewContract):
                 self.validator.base['background_notes'] = []
             self.input_prompt += ('\nNL0 reviews routine background mathematically without native Mathlib probes. '
@@ -469,8 +471,9 @@ class ArtifactStage(pilot.Stage):
             elif name == 'report_obstacle':
                 value = (json.loads(args['obstacle_json'], object_pairs_hook=pilot.ir.unique)
                          if set(args)=={'obstacle_json'} else deepcopy(args))
-                if not isinstance(value,dict) or set(value) != {'status','location','explanation','basis','partial_progress'}:
-                    required={'status','location','explanation','basis','partial_progress'}
+                shape=obstacle_schema(self.artifact_kind)
+                if not isinstance(value,dict) or set(value) != set(shape['required']):
+                    required=set(shape['required'])
                     raise ValueError('OBSTACLE_FIELDS: required direct fields='+repr(sorted(required))+
                         '; missing='+repr(sorted(required-set(value)) if isinstance(value,dict) else sorted(required))+
                         '; unexpected='+repr(sorted(set(value)-required) if isinstance(value,dict) else [])+
@@ -481,13 +484,17 @@ class ArtifactStage(pilot.Stage):
                 if value['status']=='SOURCE_UNAVAILABLE' and self.artifact_kind=='nl0':
                     raise ValueError('PRIMARY_SOURCE_DEFERRED: use source search/read and defer_primary_source when a complete secondary statement exists. '
                         'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
-                if value['status'] not in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT'}:
-                    raise ValueError('Unknown obstacle status')
-                if any(not isinstance(value[k],str) or not value[k].strip() for k in ['location','explanation','basis','partial_progress']):
-                    raise ValueError('Every obstacle field needs a substantive explanation')
+                artifact_protocol.validate(value,shape)
                 self.accepted = value
                 result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
             elif name == 'record_review_item':
+                if self.validator.shape:
+                    try:artifact_protocol.validate(args,self.validator.shape.record_schema())
+                    except ValueError as error:
+                        pointer=args.get('pointer') if isinstance(args,dict) else None
+                        if isinstance(pointer,str) and pointer in self.validator.items:
+                            raise ValueError(f'{pointer}: {error}') from error
+                        raise
                 result=self.validator.record(args['pointer'],args['coverage'],args.get('judgment'))
             elif name == 'read_review_progress':
                 result=self.validator.progress()

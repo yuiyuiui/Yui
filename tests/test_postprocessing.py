@@ -89,13 +89,26 @@ class PostprocessingTests(unittest.TestCase):
 
     def test_rejected_mapping_is_saved_with_located_feedback(self):
         validator,value,frozen=self.prepared()
-        value['entries']['P']['correspondence']['explanation']=''
+        def duplicate():return json.loads(json.dumps(value))
+        explanation=duplicate();explanation['entries']['P']['correspondence']['explanation']=''
+        extra=duplicate();extra['unregistered_field']=True
+        term=duplicate();term['library_terms']['M001']=False
+        node=duplicate();node['proof_patches']={'T099':'exact True.intro'}
+        variants=[(explanation,'/entries/P/correspondence/explanation'),
+                  (extra,'unregistered_field'),(term,'/library_terms/M001'),(node,'T099')]
         with patch.object(mapping.workflow,'bound',return_value=frozen):
-            with self.assertRaisesRegex(ValueError,r'Candidate 1: P\.correspondence explanation is missing'):
-                validator(value)
-        self.assertEqual(mapping.ir.load(validator.out/'drafts/0001.json'),value)
-        self.assertIn('P.correspondence explanation is missing',mapping.ir.load(validator.out/'feedback/0001.json')['error'])
-        self.assertFalse((validator.out/'accepted-mapping-path.json').exists())
+            for number,(invalid,location) in enumerate(variants,1):
+                with self.subTest(location=location):
+                    before=json.loads(json.dumps(invalid))
+                    with self.assertRaisesRegex(ValueError,f'Candidate {number}:'):
+                        validator(invalid)
+                    self.assertEqual(invalid,before)
+                    self.assertEqual(mapping.ir.load(validator.out/'drafts'/f'{number:04d}.json'),before)
+                    self.assertIn(location,mapping.ir.load(validator.out/'feedback'/f'{number:04d}.json')['error'])
+                    self.assertFalse((validator.out/'accepted-mapping-path.json').exists())
+            result=validator(value)
+            self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED')
+            self.assertTrue((validator.out/'accepted-mapping-path.json').is_file())
 
 
 if __name__=='__main__':unittest.main()

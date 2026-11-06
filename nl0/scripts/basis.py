@@ -38,10 +38,28 @@ def text(value, label):
     if not isinstance(value, str) or not value.strip():raise ValueError('Missing '+label)
 
 
+def artifact_schema():
+    import artifact_protocol as p
+    evidence=p.choice(p.obj({'input':p.TEXT}),p.obj({'path':p.TEXT,'sha256':p.TEXT}))
+    branches=[]
+    for category,kind in [(1,'mathlib'),(2,'lean-library'),(3,'derivation'),(4,'textbook')]:
+        branches.append(p.obj({'id':{'type':'string','pattern':r'^B\d{3,}$'},'category':p.literal(category),
+            'statement':p.TEXT,'justification':p.TEXT,'uses':p.array(p.TEXT,uniqueItems=True),
+            'port':p.nullable({'type':'string','pattern':r'^[EM]\d{3}$'}),
+            'compatibility':{'enum':['native','adapted','internal','unresolved']},
+            'origin':p.obj({'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
+                'evidence':p.array(evidence,minItems=1 if category==4 else 0)}),
+            'lean':({'type':'null'} if category==3 else p.obj({'type':p.TEXT,
+                'proof':{'type':'null'} if category==4 else p.TEXT}))}))
+    dependency=p.choice(*branches)
+    return p.obj({'version':p.literal(VERSION),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
+        'dependencies':p.array(dependency),'replacements':p.array(p.obj({
+            'original_dependency':p.TEXT,'replacement':p.array(p.TEXT,minItems=1),'explanation':p.TEXT}))})
+
+
 def validate(value, target):
-    expected = {'version','full_target','proof','dependencies','replacements','lean_header'}
-    if not isinstance(value, dict) or set(value)!=expected or value['version']!=VERSION:
-        raise ValueError('Expected basis fields: '+', '.join(sorted(expected)))
+    import artifact_protocol as p
+    p.validate(value,artifact_schema())
     if value['full_target']!=target:raise ValueError('Basis must preserve the complete original selected target verbatim')
     text(value['proof'], 'basis proof')
     header = value['lean_header'];text(header, 'basis Lean header')
@@ -51,9 +69,7 @@ def validate(value, target):
         raise ValueError('Basis header may contain pinned Mathlib import and object definitions only')
     if not isinstance(value['dependencies'], list):raise ValueError('Basis dependencies must be a list')
     rows = {};ports = set()
-    fields = {'id','category','statement','origin','compatibility','uses','port','lean','justification'}
     for row in value['dependencies']:
-        if not isinstance(row, dict) or set(row)!=fields:raise ValueError('Invalid basis dependency fields')
         key = row['id']
         if not isinstance(key, str) or not re.fullmatch(r'B\d{3,}', key) or key in rows:
             raise ValueError('Invalid/duplicate basis ID')
@@ -61,8 +77,6 @@ def validate(value, target):
         if type(category) is not int or category not in {1,2,3,4}:raise ValueError('Unknown basis category')
         text(row['statement'], 'basis statement');text(row['justification'], 'dependency justification')
         origin = row['origin']
-        if not isinstance(origin, dict) or set(origin)!={'kind','reference','revision','evidence'}:
-            raise ValueError('Basis origin requires kind/reference/revision/evidence')
         if origin['kind']!={1:'mathlib',2:'lean-library',3:'derivation',4:'textbook'}[category]:
             raise ValueError('Basis category/origin mismatch')
         for name in ('reference','revision'):text(origin[name], 'source '+name)
@@ -80,7 +94,6 @@ def validate(value, target):
                 raise ValueError('Class 3 is an internal concrete derivation, never an E premise')
         else:
             lean = row['lean']
-            if not isinstance(lean,dict) or set(lean)!={'type','proof'}:raise ValueError('Provide exact closed Lean type/proof fields')
             ir.type_text(lean['type'])
             if category==4:
                 if compatibility!='unresolved' or lean['proof'] is not None or not port or not port.startswith('E'):
@@ -110,8 +123,6 @@ def validate(value, target):
     if not isinstance(replacements,list):raise ValueError('Replacement map must be a list')
     old = set()
     for row in replacements:
-        if not isinstance(row,dict) or set(row)!={'original_dependency','replacement','explanation'}:
-            raise ValueError('Invalid replacement map')
         text(row['original_dependency'], 'original dependency');text(row['explanation'], 'replacement explanation')
         if row['original_dependency'] in old:raise ValueError('Duplicate original dependency mapping')
         old.add(row['original_dependency'])
@@ -209,6 +220,8 @@ class BasisContract:
         self.out = Path(out);self.target = target;self.attempt = 0;self.drafts = {};self.selected = None
         self.last_checked = None
         self.last_receipt = None
+        from payload_protocols import editable
+        self.schema=editable(artifact_schema())
 
     def save(self, value):
         if not isinstance(value,dict):raise ValueError('Save a basis JSON object')

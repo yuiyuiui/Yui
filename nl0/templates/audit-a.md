@@ -7,6 +7,9 @@ for both author and auditor. Generate a pending audit-format-4 scaffold with:
 python3 -B nl0/scripts/nl0.py audit-template CASE/nl0.json --spec CASE/spec.json --out CASE/audit-a.json
 ```
 
+This scaffold is the collected audit receipt. For a stage submission, use that
+stage's generated tool schema, including its selected IDs and summary fields.
+
 The scaffold contains UNVERIFIED judgments, empty locations and unperformed
 replay. It is not a mathematical review. The independent global lane checks
 target/H, definitions, E/M sources and graph. Up to N fresh local R reviewers

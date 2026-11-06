@@ -26,6 +26,7 @@ import audit_reuse
 import foundations
 import background
 from review_contract import put
+import artifact_protocol as protocol
 
 
 from controller_common import write, bind, manifest
@@ -64,28 +65,31 @@ def global_location(directory, locator):
     return '\n'.join(lines[start-1:end])
 
 
+def finding_fields():
+    return {'explanation':protocol.TEXT,'locations':protocol.array(protocol.STRING,minItems=1),
+            'quotation':protocol.obj({'location':protocol.STRING,'text':protocol.TEXT})}
+
+
 def validate_finding(finding,directory,packet=None):
     """Check actual offending bytes, not the mathematical truth of an objection."""
+    protocol.validate(finding,protocol.obj(finding_fields(),extra=True),'/finding')
     check_review({'verdict':'FAIL','notes':finding['explanation'],'locations':finding['locations']},packet)
     if packet is None:
         for location in finding['locations']:global_location(directory,location)
     quote=finding.get('quotation')
-    if not isinstance(quote,dict) or set(quote)!={'location','text'} or not isinstance(quote['text'],str) or not quote['text'].strip():
-        raise ValueError('AUDIT-QUOTATION: a blocking finding needs quotation:{location:<exact pointer>,text:<actual offending text>}')
     if quote['location'] not in finding['locations']:raise ValueError('AUDIT-QUOTATION: quotation location must be one of the finding locations')
     value=nl0.closure.resolve(packet,quote['location']) if packet is not None else global_location(directory,quote['location'])
     text=value if isinstance(value,str) else json.dumps(value,ensure_ascii=False)
     if quote['text'] not in text:raise ValueError('AUDIT-QUOTATION: quoted text is absent from the exact supplied location')
 
 
+def judgment_schema(*, external=False):
+    extra={'citation_checks':protocol.obj({key:protocol.judgment() for key in nl0.EXTERNAL_CHECKS})} if external else {}
+    return protocol.judgment(extra=extra)
+
+
 def check_review(row, packet=None, *, external=False):
-    expected={'verdict','notes','locations'}|({'citation_checks'} if external else set())
-    if not isinstance(row,dict) or set(row)!=expected:
-        raise ValueError('Each actual check needs exactly verdict, notes and locations')
-    if row['verdict'] not in nl0.VERDICTS or not isinstance(row['notes'],str) or not row['notes'].strip():
-        raise ValueError('Supply an actual specific judgment')
-    if not isinstance(row['locations'],list) or not row['locations']:
-        raise ValueError('Locate the actual judgment in the supplied material')
+    protocol.validate(row,judgment_schema(external=external))
     for pointer in row['locations']:
         if not isinstance(pointer,str):raise ValueError('Locations must be strings')
         if packet is not None:nl0.closure.resolve(packet,pointer)
@@ -102,19 +106,45 @@ def blocking_finding(finding):
             str(finding.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'})
 
 
-def validate_review(value, directory, global_stage):
+def review_shape(directory, global_stage):
+    directory=Path(directory)
+    findings=protocol.array(protocol.finding_schema(finding_fields()))
     if global_stage:
         selection=directory/'review-selection.json'
         scopes=set(json.loads(selection.read_text())['required_scopes']) if selection.is_file() else None
-        expected={'definition_reviews','source_reviews','findings'}|({k for k,s in [('target_review','target'),('structure_review','structure')] if scopes is None or s in scopes})
-        if set(value)!=expected:
-            raise ValueError('Expected the complete global review record')
+        spec=json.loads((directory/'spec.json').read_text());graph=json.loads((directory/'nl0.json').read_text())
+        rows={k:judgment_schema() for k,s in [('target_review','target'),('structure_review','structure')]
+              if scopes is None or s in scopes}
+        groups={'definition_reviews':{d['id']:judgment_schema() for d in spec['definitions']
+                                      if scopes is None or 'definition:'+d['id'] in scopes},
+                'source_reviews':{p['id']:judgment_schema(external=p['kind']=='external') for p in graph['propositions']
+                                  if p['kind'] in {'mathlib','external'} and (scopes is None or 'source:'+p['id'] in scopes)}}
+        return protocol.ReviewShape(groups=groups,rows=rows,summary={'findings':findings})
+    packet=json.loads((directory/'packet.json').read_text())
+    groups={'checks':{key:judgment_schema() for key in nl0.CHECKS|nl0.closure.CLOSURE_CHECKS}}
+    external={p['id']:p for p in packet['inputs'] if p['kind']=='external'}
+    applications={app['id']:app for app in packet['inference']['applications'] if app['input'] in external}
+    if applications:
+        groups['external_applications']={key:protocol.obj({
+            **judgment_schema()['properties'],'input':protocol.literal(app['input']),
+            'bindings_review':judgment_schema(),'conclusion_review':judgment_schema(),
+            'hypothesis_reviews':protocol.array(judgment_schema(),
+                minItems=len(external[app['input']]['source_contract']['hypotheses']),
+                maxItems=len(external[app['input']]['source_contract']['hypotheses'])),
+            'bridges':protocol.array(protocol.STRING)}) for key,app in applications.items()}
+    return protocol.ReviewShape(groups=groups,summary={
+        'verdict':protocol.VERDICT,'notes':protocol.TEXT,'findings':findings},
+        identities={'inference':packet['inference']['id'],'packet_sha256':packet['packet_sha256']},
+        optional={'background_notes':protocol.array(background.note_schema())})
+
+
+def validate_review(value, directory, global_stage):
+    review_shape(directory,global_stage).validate(value)
+    if global_stage:
+        selection=directory/'review-selection.json'
+        scopes=set(json.loads(selection.read_text())['required_scopes']) if selection.is_file() else None
         spec=json.loads((directory/'spec.json').read_text());graph=json.loads((directory/'nl0.json').read_text())
         sources={p['id']:p for p in graph['propositions'] if p['kind'] in {'mathlib','external'}}
-        definitions={d['id'] for d in spec['definitions'] if scopes is None or 'definition:'+d['id'] in scopes}
-        source_ids={key for key in sources if scopes is None or 'source:'+key in scopes}
-        if set(value['definition_reviews'])!=definitions or set(value['source_reviews'])!=source_ids:
-            raise ValueError('Review exactly every D and E/M; no missing or extra IDs')
         rows=[value[k] for k in ['target_review','structure_review'] if k in value]+list(value['definition_reviews'].values())
         for row in rows:check_review(row)
         for key,row in value['source_reviews'].items():check_review(row,external=sources[key]['kind']=='external')
@@ -130,8 +160,6 @@ def validate_review(value, directory, global_stage):
         packet=json.loads((directory/'packet.json').read_text())
         external={p['id']:p for p in packet['inputs'] if p['kind']=='external'}
         applications={app['id']:app for app in packet['inference']['applications'] if app['input'] in external}
-        expected={'inference','packet_sha256','verdict','notes','checks','findings'}|({'external_applications'} if applications else set())
-        if set(value)-{'background_notes'}!=expected:raise ValueError('Expected the complete packet review record, including actual E applications when present')
         background.validate(value.get('background_notes', []), packet, directory/'stage')
         if value['inference']!=packet['inference']['id'] or value['packet_sha256']!=packet['packet_sha256']:
             raise ValueError('Review the exact supplied packet identity/hash')
@@ -195,11 +223,9 @@ checks; assess the complete secondary statement and remaining mathematical
 checks without inventing original text. Sources and local applications have
 separate owners. Do not duplicate per-consumer condition checks here.
 
-Return target_review, definition_reviews, source_reviews, structure_review,
-findings, with exactly the assigned D/E/M IDs. Each row has verdict, notes,
-locations. For E add citation_checks keyed literature_identity,result_location,
-statement_fidelity,context_completeness,version_and_eligibility, each a real
-located judgment. Prefer one complete artifact with coverage for every required
+Use the generated submission schema for the assigned checks and D/E/M IDs.
+Assess each external citation criterion with a real located judgment.
+Prefer one complete artifact with coverage for every required
 pointer; checkpoint rows only when useful. Batch reads are available. Short
 located PASS explanations are sufficient for straightforward items. FAIL or
 UNVERIFIED needs an actionable basis. Never fill unread work with PASS.
@@ -380,31 +406,15 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
             result=json.loads((directory/'stage/result.json').read_text())
             return {'id':job['id'],'result':result,'artifact_present':(directory/'stage/accepted.json').is_file(),
                     'reused_existing_stage':True}
-        if job['library']:
-            spec=json.loads((directory/'spec.json').read_text());graph=json.loads((directory/'nl0.json').read_text())
-            base={'definition_reviews':{},'source_reviews':{}}
-            required=['/target_review','/structure_review',
-                *['/definition_reviews/'+d['id'] for d in spec['definitions']],
-                *['/source_reviews/'+p['id'] for p in graph['propositions'] if p['kind'] in {'mathlib','external'}]]
-            if 'required_scopes' in job:
-                required=[{'target':'/target_review','structure':'/structure_review'}.get(scope,
-                    '/definition_reviews/'+scope.split(':')[-1] if scope.startswith('definition:') else '/source_reviews/'+scope.split(':')[-1]) for scope in job['required_scopes']]
-        else:
+        if not job['library']:
             packet=json.loads((directory/'packet.json').read_text())
-            base={'inference':packet['inference']['id'],'packet_sha256':packet['packet_sha256'],'checks':{}}
-            required=['/checks/'+key for key in nl0.CHECKS|nl0.closure.CLOSURE_CHECKS]
-            external={p['id'] for p in packet['inputs'] if p['kind']=='external'}
-            apps=[app['id'] for app in packet['inference']['applications'] if app['input'] in external]
-            if apps:
-                base['external_applications']={}
-                required+=['/external_applications/'+key for key in apps]
         def row_check(pointer,row):
             if pointer.startswith('/external_applications/'):
                 check_review({k:row[k] for k in ['verdict','notes','locations']},packet)
             else:
                 check_review(row,None if job['library'] else packet,
                     external=job['library'] and pointer.startswith('/source_reviews/E'))
-        contract=ReviewContract(directory/'review-work',base,required,
+        contract=ReviewContract.structured(directory/'review-work',review_shape(directory,job['library']),
             lambda value:validate_review(value,directory,job['library']),
             row_validator=row_check,
             finding_validator=lambda finding:validate_finding(finding,directory,None if job['library'] else packet),

@@ -76,7 +76,7 @@ class MathematicalNL0PolicyTests(unittest.TestCase):
 
     def test_math_note_cannot_assert_native_provenance_or_use_its_conclusion(self):
         note=copy.deepcopy(self.note);note['source']={'declaration':'guessed'}
-        with self.assertRaisesRegex(ValueError,'source bindings'):
+        with self.assertRaisesRegex(ValueError,'/background_notes/0.*BG001.*unexpected=.*source'):
             background.validate([note],self.packet,self.root)
         note=copy.deepcopy(self.note)
         note['grounds']=[{'location':'/output/statement','reason':'Assume the desired conclusion.'}]

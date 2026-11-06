@@ -20,9 +20,8 @@ def contract(root):
     packet={'items':{'B001':{'statement':'fixture','actual_type':'True'}}}
     def validate(value):
         return basis_review.validate_rows(value,['B001'],packet=packet)
-    return ReviewContract(root,{'items':{}},['/items/B001'],validate,
-        row_validator=lambda p,r:basis_review.validate_judgment('B001',r,packet=packet),
-        judgment_schema=basis_review.judgment_schema(None))
+    return ReviewContract.structured(root,basis_review.review_shape(['B001']),validate,
+        row_validator=lambda p,r:basis_review.validate_judgment('B001',r,packet=packet))
 
 
 def draft():

@@ -124,7 +124,7 @@ class LiveDiagnosisTests(unittest.TestCase):
     def test_bare_inability_cannot_become_source_error(self):
         s=self.stage();value=self.request(s);value['layer']='source';value['locations']=['/source_steps/0/text']
         response=s.dispatch('report_proof_obstruction',value)
-        self.assertIn('source issue needs',response['error']);self.assertIsNone(s.repair_request)
+        self.assertIn("missing=['source_issue']",response['error']);self.assertIsNone(s.repair_request)
 
     def test_live_snapshot_is_one_node_and_cannot_change_while_reviewed(self):
         s=self.stage();request=proof_repair.obstruction(s,self.request(s))

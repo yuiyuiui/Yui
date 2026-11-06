@@ -22,6 +22,7 @@ import workflow
 import concurrency
 from clean_stage import ArtifactStage
 from review_contract import ReviewContract
+import artifact_protocol as protocol
 from execution_health import require_review_execution, qualification, review_outcome
 
 
@@ -48,11 +49,8 @@ the accepted source argument, not silently research a new proof or introduce a s
 project hypothesis. Each typed obligation may be conditional, but assembly must
 discharge all internal hypotheses. A difficult yet faithful obligation is not
 an interface error simply because it may take time to prove.
-Return JSON with exactly checks and findings. checks has exactly
-source_route_and_coverage,parameters_and_allowed_inputs,
-representations_and_conversion_obligations,statements_and_local_plans.
-Each check has {verdict:PASS|FAIL|UNVERIFIED,notes:<actual specific reasoning>,
-locations:[{document:<JSON document ID>,pointer:<resolving JSON pointer>},...]}.
+Complete all named checks in the generated submission schema with your actual
+judgments, specific reasoning and resolving document/pointer locations.
 Locate each judgment in both source material (spec.json or nl0.json) and formal
 material (contract.json or plan.json); include other actual locations as useful.
 findings is a list of {verdict,explanation,locations} for concrete defects or
@@ -77,14 +75,18 @@ reviews until one passes; an evidence-backed disagreement is a disclosed dispute
 '''
 
 
+def comparison_schema():
+    def side(names):
+        return protocol.obj({'document':{'enum':names},'pointer':protocol.STRING,'quote':protocol.TEXT})
+    return protocol.obj({'source':side(['spec.json','nl0.json','background-supplement.json']),
+                         'formal':side(['contract.json','plan.json']),'difference':protocol.TEXT})
+
+
 def validate_comparison(comparison,docs):
-    if not isinstance(comparison,dict) or set(comparison)!={'source','formal','difference'} or not isinstance(comparison['difference'],str) or not comparison['difference'].strip():
-        raise ValueError('A mismatch needs paired quoted source/formal evidence and its specific difference')
+    protocol.validate(comparison,comparison_schema(),'/comparison')
     import audit_b
     for side,allowed in [('source',{'spec.json','nl0.json','background-supplement.json'}),('formal',{'contract.json','plan.json'})]:
         row=comparison[side]
-        if not isinstance(row,dict) or set(row)!={'document','pointer','quote'} or row['document'] not in allowed:
-            raise ValueError('Locate quoted evidence on its actual source/formal side')
         try:value=audit_b.resolve(docs[row['document']],row['pointer'])
         except (IndexError,KeyError,TypeError) as error:raise ValueError('Comparison pointer does not resolve') from error
         text=value if isinstance(value,str) else json.dumps(value,ensure_ascii=False,sort_keys=True)
@@ -193,13 +195,16 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
 
+def review_shape():
+    location=protocol.obj({'document':protocol.TEXT,'pointer':{'type':'string','pattern':'^/'}})
+    return protocol.ReviewShape(groups={'checks':{key:protocol.judgment(location) for key in workflow.INTERFACE_CHECKS}},
+        summary={'findings':protocol.array(protocol.finding_schema({'comparison':comparison_schema()}))})
+
+
 def validate(value,out):
-    if not isinstance(value,dict) or set(value)!={'checks','findings'}:raise ValueError('Return checks and findings')
-    if set(value['checks'])!=workflow.INTERFACE_CHECKS:raise ValueError('Review exactly all four interface checks')
+    review_shape().validate(value)
     docs={p.name:ir.load(p) for p in (Path(out)/'inputs').glob('*.json') if p.name!='inputs.json'}
     for row in value['checks'].values():
-        if set(row)!={'verdict','notes','locations'} or row['verdict'] not in {'PASS','FAIL','UNVERIFIED'} or not row['notes'].strip():
-            raise ValueError('Each check needs an actual verdict, specific notes and locations')
         located=set()
         for item in row['locations']:
             if set(item)!={'document','pointer'} or item['document'] not in docs:raise ValueError('Use a declared JSON document and pointer')
@@ -226,8 +231,7 @@ def validate(value,out):
 def run(out,timeout=None,budget=None):
     out=Path(out).resolve()
     docs={p.name:ir.load(p) for p in (out/'inputs').glob('*.json') if p.name!='inputs.json'}
-    contract=ReviewContract(out/'review-work',{'checks':{}},
-        ['/checks/'+key for key in workflow.INTERFACE_CHECKS],lambda value:validate(value,out),
+    contract=ReviewContract.structured(out/'review-work',review_shape(),lambda value:validate(value,out),
         finding_validator=lambda finding:validate_comparison(finding['comparison'],docs))
     phase='interface-dispute-review' if ir.load(out/'bindings.json').get('adjudication') else 'interface-semantic-review'
     stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase=phase,

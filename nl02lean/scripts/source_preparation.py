@@ -102,16 +102,33 @@ def inventory(graph, spec, audit_a=None, incremental=None):
             'warning': 'Fanout is graph metadata, not measured repeated Lean construction or a speedup.'}
 
 
+def patch_schema():
+    import artifact_protocol as p
+    from payload_protocols import OBJECT
+    strings=p.array(p.STRING)
+    consumer=p.obj({'inference':p.TEXT,'before_sha256':p.TEXT,'inputs':strings,
+        'replacements':p.array(OBJECT,minItems=1),'applications':p.array(OBJECT),
+        'cut':p.obj({'old_conclusion':p.TEXT,'shared_instantiation':p.TEXT,'supplied_conclusion':p.TEXT,
+                    'continuation':p.TEXT,'conditions':p.array(p.obj({'condition':p.TEXT,'justification':p.TEXT},extra=True))},extra=True)},
+        required=['inference','before_sha256','inputs','replacements','cut'])
+    candidate=p.obj({'id':p.TEXT,'proposition':OBJECT,'producer':OBJECT,
+        'derivation':p.obj({'inference':p.TEXT,'paragraphs':strings},extra=True),
+        'expected_avoided_work':p.TEXT,'consumers':p.array(consumer,minItems=2)})
+    return p.obj({'version':p.literal(VERSION),'baseline_graph_sha256':p.TEXT,'spec_sha256':p.TEXT,
+        'candidates':p.array(candidate),'discovery_and_author_cost_seconds':{'type':'number'}},
+        required=['version','baseline_graph_sha256','spec_sha256','candidates'])
+
+
 def apply_patch(graph, patch):
+    import artifact_protocol as protocol
+    protocol.validate(patch,patch_schema(),error_type=ir.Invalid)
     ir.need(patch['version'] == VERSION and isinstance(patch['candidates'], list), 'unsupported extraction patch')
-    ir.need(set(patch) <= {'version', 'baseline_graph_sha256', 'spec_sha256', 'candidates', 'discovery_and_author_cost_seconds'}, 'unknown patch fields')
     old = copy.deepcopy(graph)
     revised = copy.deepcopy(graph)
     props = {p['id']: p for p in old['propositions']}
     steps = {r['id']: r for r in old['inferences']}
     new_ids, changed, cut_packets = set(), set(), {}
     for candidate in patch['candidates']:
-        ir.need(set(candidate) == {'id','proposition','producer','derivation','expected_avoided_work','consumers'}, 'unknown/missing candidate fields')
         cid = candidate['id']
         ir.need(isinstance(cid, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*',cid) is not None
                 and cid not in new_ids, 'duplicate/missing or unsafe candidate id')
@@ -136,7 +153,6 @@ def apply_patch(graph, patch):
         revised['propositions'].append(copy.deepcopy(p))
         revised['inferences'].append(copy.deepcopy(producer))
         for consumer in consumers:
-            ir.need(set(consumer) <= {'inference','before_sha256','inputs','replacements','applications','cut'}, 'unknown consumer patch fields')
             rid = consumer['inference']
             ir.need(rid in steps and rid not in changed, 'unknown or overlapping consumer patches; merge before staging')
             changed.add(rid)

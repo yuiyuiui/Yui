@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from execution_state import atomic
+import artifact_protocol as protocol
 
 
 class ReviewProgressGuard:
@@ -68,7 +69,7 @@ class ReviewProgressGuard:
         saved = self.digest(self.contract.items)
         key = self.digest([value, saved, error])
         location, _, detail = error.partition(':')
-        family = location if location.startswith('/items/') and 'unexpected=' in detail else error
+        family = location if location.startswith('/') and 'unexpected=' in detail else error
         self.failures.append((key, (saved, family)))
         self.activity = True
         self.feedback = {'tool':name, 'message':error[:1500], 'candidate_sha256':key}
@@ -112,7 +113,7 @@ class ReviewContract:
     judgments remain inspectable; only new stages require this completion form.
     """
     def __init__(self, directory, base, required, validator, *, row_validator=None, finding_validator=None,
-                 complete_assessment=False, judgment_schema=None):
+                 complete_assessment=False, judgment_schema=None, shape=None):
         self.directory=Path(directory)
         self.directory.mkdir(parents=True,exist_ok=True)
         self.base=deepcopy(base)
@@ -120,6 +121,8 @@ class ReviewContract:
         if len(set(self.required))!=len(self.required) or any(not p.startswith('/') for p in self.required):
             raise ValueError('Review keys must be unique absolute pointers')
         self.validator=validator
+        self.shape=shape
+        self.schema=deepcopy(shape.schema) if shape else None
         self.row_validator=row_validator
         self.judgment_schema = judgment_schema or {'type':['object','null'],'additionalProperties':True}
         self.finding_validator=finding_validator
@@ -127,6 +130,10 @@ class ReviewContract:
         self.items={p:{'coverage':'unread','judgment':None} for p in self.required}
         self.sequence=0
         self._write()
+
+    @classmethod
+    def structured(cls, directory, shape, validator, **kwargs):
+        return cls(directory, shape.base, shape.required, validator, shape=shape, **kwargs)
 
     def _write(self):
         self.sequence+=1
@@ -146,6 +153,7 @@ class ReviewContract:
         if coverage=='assessed':
             if not isinstance(judgment,dict):
                 raise ValueError(f'{pointer}: an assessed item needs a judgment object')
+            if self.shape: protocol.validate(judgment, self.shape.rows[pointer], pointer)
             if self.row_validator: self.row_validator(pointer,judgment)
             if (judgment.get('verdict') not in ('PASS','FAIL','UNVERIFIED')
                     or not isinstance(judgment.get('notes'),str) or not judgment['notes'].strip()
@@ -182,6 +190,7 @@ class ReviewContract:
         return value
 
     def __call__(self, artifact):
+        if self.shape: protocol.validate(artifact, self.schema)
         candidate = self.items
         if artifact.get('from_saved_review') is True:
             value = self.saved_value(artifact)
@@ -201,6 +210,7 @@ class ReviewContract:
             self._commit({p:row for p,row in candidate.items()
                           if row['coverage']=='assessed' or self.items[p]['coverage']=='unread'})
             raise ValueError('REVIEW_INCOMPLETE: continue these items in this same stage/budget: '+', '.join(remaining))
+        if self.shape: self.shape.validate(value)
         checked=self.validator(value)
         self._commit(candidate)
         artifact.clear();artifact.update(value)
@@ -210,6 +220,7 @@ class ReviewContract:
     def blocker(self, finding):
         if self.complete_assessment:
             raise ValueError('Complete all assigned global checks and return the findings together; an ordinary finding cannot end global review early')
+        protocol.validate(finding,self.blocker_schema(),'/finding')
         if (not isinstance(finding,dict) or finding.get('verdict')!='FAIL'
                 or not finding.get('explanation') or not finding.get('locations')
                 or not any(r['coverage']=='assessed' and r['judgment']['verdict']=='FAIL' for r in self.items.values())):
@@ -217,6 +228,13 @@ class ReviewContract:
         if self.finding_validator:self.finding_validator(finding)
         return {'status':'REVIEW_BLOCKED_INCOMPLETE','coverage':self.progress(),
                 'findings':[deepcopy(finding)],'mathematical_acceptance':False}
+
+    def blocker_schema(self):
+        base=protocol.obj({'verdict':protocol.literal('FAIL'),'explanation':protocol.TEXT,
+                           'locations':protocol.array({},minItems=1)},extra=True)
+        if self.shape and 'findings' in self.shape.summary_schema['properties']:
+            return {'type':'object','allOf':[base,self.shape.summary_schema['properties']['findings']['items']]}
+        return base
 
 
 INSTRUCTIONS='''
@@ -227,9 +245,9 @@ UNVERIFIED judgment. An actually evaluated uncertainty can be assessed UNVERIFIE
 with its specific reason. An ordinary incomplete draft continues in this same
 stage and remaining budget. Prefer a complete artifact with all actual judgments and coverage in one submission.
 Use record_review_item for useful checkpoints; after a context reset inspect read_review_progress. To assemble saved actual rows submit
-{from_saved_review:true,summary:{...}}; summary supplies remaining required fields
-(including your actual overall verdict/notes where requested and findings),
-never saved judgment containers. No PASS is filled by the controller. A located
+{from_saved_review:true,summary:{...}}; use exactly the summary fields in the
+generated submission schema, never saved judgment containers or fields copied
+from another stage's format. No PASS is filled by the controller. A located
 real blocking defect may stop early through submit_review_blocker after saving
 its assessed FAIL item; untouched work stays explicitly incomplete. Do not
 restart the entire review just to transcribe already saved judgments.

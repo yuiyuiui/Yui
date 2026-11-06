@@ -7,10 +7,32 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import artifact_protocol as protocol
 from variant import BACKGROUND_POLICY, BACKGROUND_MODE
 
 POLICY = BACKGROUND_POLICY
 MODE = BACKGROUND_MODE
+
+
+def source_schema():
+    return protocol.obj({**{key:protocol.TEXT for key in
+        ['declaration','module','signature','source_path','source_sha256','mathlib_commit']},
+        'declaration_kind':{'enum':['theorem','proved_instance']},
+        'evidence':protocol.array(protocol.obj({'path':protocol.TEXT,'sha256':protocol.TEXT}),minItems=1)})
+
+
+def note_schema(*, native=True):
+    common={'id':{'type':'string','pattern':r'^BG\d{3,}$'},
+        'at':{'type':'string','pattern':r'^/inference/argument/\d+(?:/text)?$'},
+        'fact':protocol.TEXT,'justification':protocol.TEXT,
+        'grounds':protocol.array(protocol.obj({'location':protocol.TEXT,'reason':protocol.TEXT}),minItems=1),
+        'hint':protocol.STRING}
+    variants=[(['elementary','mathematical'],{})]
+    if native:variants.append((['mathlib'],{'source':source_schema()}))
+    shapes=[protocol.obj({**common,'kind':{'enum':kinds},**extra},
+        required=(set(common)-{'hint'})|{'kind'}|set(extra))
+        for kinds,extra in variants]
+    return protocol.choice(*shapes) if native else shapes[0]
 
 
 def digest(value):
@@ -37,10 +59,8 @@ def evidence(base, rows):
 
 def source_check(source, base, pins):
     """Check actual successful pinned probe bytes; applicability is reviewed separately."""
-    keys = {'declaration', 'module', 'signature', 'declaration_kind', 'source_path',
-            'source_sha256', 'mathlib_commit', 'evidence'}
-    need(isinstance(source, dict) and set(source) == keys, 'use the complete bound library source')
-    need(source['declaration_kind'] in {'theorem', 'proved_instance'}, 'not a proved library fact')
+    schema=source_schema();protocol.validate(source,schema,'/source')
+    keys=set(schema['properties'])
     need(source['mathlib_commit'] == pins['mathlib_commit'], 'wrong library pin')
     need(source['source_path'] == source['module'].replace('.', '/')+'.lean', 'source module mismatch')
     need(re.match(r'^@?'+re.escape(source['declaration'])+r'(?:\.\{|\s|:)', source['signature']), 'signature names another fact')
@@ -65,11 +85,9 @@ def source_check(source, base, pins):
 def validate(notes, packet, base):
     """Validate identities, scope pointers and source provenance, never mathematical truth."""
     import closure
-    need(isinstance(notes, list), 'notes must be a list')
+    protocol.validate(notes,protocol.array(note_schema()),'/background_notes')
     ids = set()
     for note in notes:
-        required = {'id', 'kind', 'at', 'fact', 'grounds', 'justification'}
-        need(isinstance(note, dict) and required <= set(note) <= required|{'source', 'hint'}, 'invalid note fields')
         need(isinstance(note['id'], str) and re.fullmatch(r'BG\d{3,}', note['id']) and note['id'] not in ids, 'invalid/duplicate local note ID')
         ids.add(note['id'])
         need(note['kind'] in {'elementary', 'mathematical', 'mathlib'}, 'use elementary, mathematically reviewed routine facts, or explicit pinned-library facts')

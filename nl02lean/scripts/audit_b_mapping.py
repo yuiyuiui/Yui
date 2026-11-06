@@ -91,7 +91,19 @@ class MappingContract:
         self.out=Path(out).resolve();self.attempt=0;self.checked={}
         for name in ('drafts','feedback'):(self.out/name).mkdir(parents=True,exist_ok=True)
 
+    @property
+    def schema(self):
+        import artifact_protocol as protocol
+        directory=Path(ir.load(self.out/'authority.json')['workflow'])
+        selected=workflow.proof_run(directory)
+        c=ir.contract(selected/'inputs/contract.json')
+        shape=audit_b.mapping_schema(c,ir.load(directory/'audit-b/source-inventory.json'))
+        steps=ir.load(selected/'inputs/plan.json')['steps']
+        shape['properties']['proof_patches']=protocol.obj({s['id']:protocol.TEXT for s in steps},required=[])
+        return shape
+
     def __call__(self,value):
+        import artifact_protocol as protocol
         authority=ir.load(self.out/'authority.json');directory=Path(authority['workflow'])
         frozen=workflow.bound(directory)
         selected=workflow.proof_run(directory)
@@ -99,9 +111,10 @@ class MappingContract:
         c=ir.contract(cpath);inventory=ir.load(directory/'audit-b/source-inventory.json')
         self.attempt+=1;candidate=self.out/'candidates'/str(self.attempt).zfill(4)
         write(self.out/'drafts'/f'{self.attempt:04d}.json',value)
-        patches=value.get('proof_patches',{})
-        value={k:v for k,v in value.items() if k!='proof_patches'}
         try:
+            protocol.validate(value,self.schema)
+            patches=value.get('proof_patches',{})
+            value={k:v for k,v in value.items() if k!='proof_patches'}
             ir.need(isinstance(patches,dict),'Internal proof patches must be an object')
             patches=dict(patches)
             bundle=ir.load(selected/'proofs.json')

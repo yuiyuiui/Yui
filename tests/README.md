@@ -35,6 +35,19 @@ These are software tests. Synthetic reviewer judgments and deterministic
 provider replies do not certify a mathematical proof or a model's capability.
 The full mathematical test cases/results are maintained separately.
 
+Submission protocol ownership and intentional draft-language boundaries are in
+[interface-contracts.md](../docs/interface-contracts.md). `test_artifact_protocol.py`
+checks the schema actually advertised to producers against saved/direct
+submissions and downstream readers, including located rejection and correction
+through the native client. A fixture that hand-builds only valid consumer data
+does not establish producer/consumer contract consistency.
+
+The 2026-11-06 interface-contract validation exercised all 1,134 tests in 111
+modules, then reran the affected suites after fixes. Final reruns passed 87
+tests with no skips and successful owned-resource cleanup. The exact scope,
+intermediate failures and replay evidence are recorded in
+[the validation record](../docs/interface-contracts.md#validation-record-2026-11-06).
+
 Strict-interface regressions use actual Lean to reject non-inferable hidden
 parameters in goals and inputs, accept explicit named arguments and legitimate
 inference, reject non-proposition obligations, and check unused public premises

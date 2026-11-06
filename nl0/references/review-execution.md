@@ -53,9 +53,11 @@ cases may overlap; their mutable stores and mathematical inputs do not.
 (`PASS`, `FAIL`, `UNVERIFIED`). New review stages disclose their required item
 pointers. Save actual rows using `record_review_item`, inspect them using
 `read_review_progress`, and finish through `submit_draft` with either complete
-coverage or `{from_saved_review:true, summary:{...}}`. Summary fields contain
-the reviewer's actual overall verdict/notes/findings where required; the
-controller never fills PASS.
+coverage or `{from_saved_review:true, summary:{...}}`. The tools publish a
+generated JSON Schema from the same stage definition used to validate and
+assemble the review. Use exactly its summary fields. For example, an Audit A
+global summary contains findings; the local report's verdict and notes do not
+belong there. The controller never supplies a missing judgment or fills PASS.
 
 A submission with unread work continues the same stage and remaining budget.
 An evaluated uncertainty may finish UNVERIFIED, with a specific reason. A local or interface reviewer may submit a real located blocker early through

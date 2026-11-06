@@ -101,10 +101,18 @@ class LocalHelperTests(unittest.TestCase):
         shutil.copytree(self.cp.parent,inputs)
         ir.write(inputs/'plan.json',self.plan)
         ir.write(run/'proofs.json',{'proofs':{'T001':self.proof}})
-        workflow=root/'workflow';ir.write(workflow/'audit-b/source-inventory.json',{})
+        c=ir.contract(self.cp)
+        workflow=root/'workflow';ir.write(workflow/'audit-b/source-inventory.json',{
+            'scope':'whole_structured_nl0','propositions':[
+                {'id':'H001','kind':'hypothesis'},{'id':'P','kind':'target'}]})
         out=root/'author';ir.write(out/'authority.json',{'workflow':str(workflow)})
         contract=audit_b_mapping.MappingContract(out)
-        value={'source_inventory_sha256':'deliberately stale',
+        value={'version':audit_b_mapping.audit_b.VERSION,
+               'policy':audit_b_mapping.audit_b.correspondence.POLICY,
+               'source_inventory_sha256':'deliberately stale',
+               'entries':{'P':{'selector':'decl:AuditBExport.P','expected_type':c['conclusion']['type'],
+                   'correspondence':{'mode':'direct','explanation':'Synthetic endpoint mapping for an immutable-input test.'}}},
+               'library_terms':{},
                'proof_patches':{'T001':self.body}}
         before=copy.deepcopy(value)
         with patch.object(audit_b_mapping.workflow,'bound',return_value={}), \

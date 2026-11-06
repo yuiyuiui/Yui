@@ -3,10 +3,27 @@ import json
 import re
 
 import ir
+import artifact_protocol as protocol
+from payload_protocols import parameter_schema
 
 
-STEP_FIELDS = {'id', 'statement', 'inputs', 'source_steps', 'explanation', 'background_notes',
-               'shared_lemma', 'representations', 'bridges', 'universe_params', 'input_instances'}
+def step_schema():
+    strings=protocol.array(protocol.STRING)
+    arguments=protocol.array(protocol.choice(protocol.TEXT,{'type':'integer','minimum':1}))
+    use=protocol.obj({'args':arguments,'parameters':protocol.array(parameter_schema()),
+                      'expected':protocol.TEXT,'explicit':{'type':'boolean'}},required=['args'])
+    instance=protocol.obj({'levels':strings,'uses':protocol.array(use,minItems=1)})
+    return protocol.obj({'id':protocol.TEXT,'statement':protocol.TEXT,'inputs':strings,
+        'source_steps':strings,'explanation':protocol.TEXT,'background_notes':strings,
+        'shared_lemma':protocol.TEXT,'universe_params':strings,
+        'input_instances':protocol.obj({},extra=protocol.array(instance,minItems=1)),
+        'representations':protocol.array(protocol.obj({'object':protocol.TEXT,'view':protocol.TEXT,'expression':protocol.TEXT})),
+        'bridges':protocol.array(protocol.obj({'input':protocol.TEXT,'object':protocol.TEXT,'from':protocol.TEXT,
+                                               'to':protocol.TEXT,'explanation':protocol.TEXT}))},
+        required=['id','statement','inputs','source_steps','explanation'])
+
+
+STEP_FIELDS = set(step_schema()['properties'])
 ANONYMOUS = re.compile(r'\b(?:Type|Sort)\s*\*')
 LEVEL = re.compile(r'[A-Za-z0-9_+() ]+')
 USE_PARSER = '''

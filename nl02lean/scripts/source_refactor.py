@@ -13,6 +13,7 @@ from execution_health import require_review_execution, StageFailure
 import audit_a_campaign as a
 import source_preparation as source
 import ir
+import artifact_protocol as protocol
 from shared_lemmas import hashed
 from runtime_config import model_profile, use_profiles
 
@@ -68,8 +69,9 @@ def run(authority, out, budget, *, sessions=None, prior_artifact=None, findings=
         chosen.update(unchanged=False,directory=staged)
         return result
     from translation_author import InterfaceStage
+    shape=protocol.choice(protocol.obj({'status':protocol.literal('NO_CHANGE'),'reason':protocol.TEXT}),source.patch_schema())
     stage=InterfaceStage(out/'stage',PROMPT,phase='translation-source-preparation',inputs=inputs/'inputs.json',
-                        validator=validate,budget=budget,library=True)
+                        validator=protocol.Contract(shape,validate),budget=budget,library=True)
     if sessions:
         with sessions.use('lean-global-author'):stage.execute()
     else:stage.execute()
@@ -171,10 +173,6 @@ def cut_reviews(case, plan, out, budget, *, sessions=None):
         required={'/before','/after','/contract','/old_derivation','/shared_statement',
                   '/producer_source_derivation','/input_statements_before','/input_statements_after','/global_context'}
         def validate(value):
-            if set(value)!={'verdict','notes','locations','checks'} or set(value['checks'])!=source.CUT_CHECKS:
-                raise ValueError('Review every substitution criterion and locate both sides')
-            if value['verdict'] not in a.nl0.VERDICTS or any(v not in a.nl0.VERDICTS for v in value['checks'].values()):
-                raise ValueError('Use actual PASS/FAIL/UNVERIFIED judgments')
             if not value['notes'].strip() or not required<=set(value['locations']):raise ValueError('Incomplete located cut review')
             for p in value['locations']:a.nl0.closure.resolve(ir.load(packet),p)
             if value['verdict']=='PASS' and any(v!='PASS' for v in value['checks'].values()):raise ValueError('Inconsistent cut PASS')
@@ -182,8 +180,11 @@ def cut_reviews(case, plan, out, budget, *, sessions=None):
         prompt=('Independently review this bounded substitution against the supplied before/after, original derivation and global context. '
             'Read source-refactoring.md. Return verdict, specific notes, locations and checks for exactly '+', '.join(sorted(source.CUT_CHECKS))+'. '
             'Judgments are PASS/FAIL/UNVERIFIED. Required locations: '+', '.join(sorted(required))+'. Do not repair or assume the proposed producer is valid.')
+        shape=protocol.obj({'verdict':protocol.VERDICT,'notes':protocol.TEXT,
+            'locations':protocol.array(protocol.STRING,minItems=1),
+            'checks':protocol.obj({key:protocol.VERDICT for key in source.CUT_CHECKS})})
         stage=ArtifactStage(directory/'stage',prompt,phase='translation-cut-review',
-            inputs=inputs/'inputs.json',validator=validate,budget=budget,library=True)
+            inputs=inputs/'inputs.json',validator=protocol.Contract(shape,validate),budget=budget,library=True)
         if sessions:
             with sessions.use('lean-global-reviewer'):stage.execute()
         else:stage.execute()

@@ -50,7 +50,7 @@ class ExternalCampaignTests(unittest.TestCase):
         source['verdict']='PASS'
         with self.assertRaisesRegex(ValueError,'conflicts'):a.validate_review(value,self.out/'global',True)
         source['verdict']='UNVERIFIED';source['citation_checks'].pop('literature_identity')
-        with self.assertRaisesRegex(ValueError,'criterion'):a.validate_review(value,self.out/'global',True)
+        with self.assertRaisesRegex(ValueError,'/source_reviews/E001/citation_checks:.*literature_identity'):a.validate_review(value,self.out/'global',True)
 
     def test_pdf_readback_uses_fallback_instead_of_treating_ascii_pdf_as_prose(self):
         import source_staging
@@ -87,7 +87,7 @@ class ExternalCampaignTests(unittest.TestCase):
                'external_applications':{'A001':app},'findings':[]}
         a.validate_review(value,self.out/'R001',False)
         app['hypothesis_reviews']=[]
-        with self.assertRaisesRegex(ValueError,'every source hypothesis'):a.validate_review(value,self.out/'R001',False)
+        with self.assertRaisesRegex(ValueError,'/external_applications/A001/hypothesis_reviews: minItems=1'):a.validate_review(value,self.out/'R001',False)
 
     def test_inaccessible_primary_cannot_receive_citation_passes_from_memory(self):
         path=self.out/'global/external-source-evidence.json';access=a.nl0.load(path)

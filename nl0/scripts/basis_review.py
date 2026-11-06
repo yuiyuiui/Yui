@@ -7,6 +7,7 @@ from audit_reuse import hashed
 from controller_common import bind, manifest, verify_bindings, write
 from execution_health import StageFailure, require_review_execution
 from review_contract import ReviewContract
+import artifact_protocol as protocol
 import ir
 
 VERSION = 'yui-basis-fidelity-1'
@@ -22,8 +23,8 @@ uniformity and constants, domains, binder/instance assumptions, implication dire
 definitions, and any adapter or specialization. Compare the original H and target to the rewritten application. For class 4 review the exact residual
 assumption and the complete textbook evidence; this does not prove the theorem. Class 3
 stays internal for Audit A and formalization. Review the required set in this one role.
-Submit {items:{B001:{verdict,notes,locations,source,application},...},coverage:{...}}.
-For each item use PASS, FAIL or UNVERIFIED. In notes explain the specific correspondence or
+Use the generated submission schema for the selected items and coverage.
+In notes explain the specific correspondence or
 mismatch. locations must include the exact pointers /items/B001/statement and
 /items/B001/actual_type for that item. In source identify the declaration/text and why it
 supports the claim, or precisely what is missing. If revision_objection names this item, include
@@ -102,35 +103,30 @@ def item_keys(packet):
 
 
 JUDGMENT_FIELDS = {
-    'verdict': {'type':'string','enum':['PASS','FAIL','UNVERIFIED']},
-    'notes': {'type':'string'}, 'source': {'type':'string'}, 'application': {'type':'string'},
+    'verdict': protocol.VERDICT,
+    'notes': protocol.TEXT, 'source': protocol.TEXT, 'application': protocol.TEXT,
     'locations': {'type':'array','items':{'type':'string'}},
 }
 
 
+def row_schema(key, objection=None):
+    properties=dict(JUDGMENT_FIELDS)
+    if objection and key==objection['basis_id']:properties['resolution']=protocol.TEXT
+    return protocol.obj(properties)
+
+
+def review_shape(required, objection=None):
+    return protocol.ReviewShape(groups={'items':{key:row_schema(key,objection) for key in required}})
+
+
 def judgment_schema(objection):
-    properties = dict(JUDGMENT_FIELDS)
-    if objection:
-        properties['resolution'] = {'type':'string','description':'Required only for '+objection['basis_id']}
-    return {'type':['object','null'],'properties':properties,
-            'required':list(JUDGMENT_FIELDS),'additionalProperties':False}
+    return protocol.nullable(protocol.choice(row_schema(None),row_schema(objection['basis_id'],objection))
+                             if objection else row_schema(None))
 
 
 def validate_judgment(key, row, objection=None, packet=None):
     path = '/items/' + key
-    if not isinstance(row, dict):
-        raise ValueError(f'{path}: expected a judgment object')
-    fields = set(JUDGMENT_FIELDS)
-    if objection and key == objection['basis_id']:
-        fields.add('resolution')
-    if set(row) != fields:
-        raise ValueError(f'{path}: missing={sorted(fields - row.keys())}, '
-                         f'unexpected={sorted(row.keys() - fields)}. Put statement and actual_type pointers in locations.')
-    if row['verdict'] not in ('PASS', 'FAIL', 'UNVERIFIED'):
-        raise ValueError(f'{path}/verdict: expected PASS, FAIL or UNVERIFIED')
-    for name in sorted(fields - {'verdict', 'locations'}):
-        if not isinstance(row[name], str) or not row[name].strip():
-            raise ValueError(f'{path}/{name}: expected nonempty text')
+    protocol.validate(row,row_schema(key,objection),path)
     locations = row['locations']
     if not isinstance(locations, list) or not all(isinstance(p, str) and p.startswith('/') for p in locations):
         raise ValueError(f'{path}/locations: expected a list of absolute JSON pointers')
@@ -144,8 +140,7 @@ def validate_judgment(key, row, objection=None, packet=None):
 
 
 def validate_rows(value, required, objection=None, packet=None):
-    if not isinstance(value,dict) or set(value)!={'items'} or not isinstance(value['items'],dict) or set(value['items'])!=set(required):
-        raise ValueError('Assess exactly the required basis dependencies')
+    review_shape(required,objection).validate(value)
     for key,row in value['items'].items():
         validate_judgment(key, row, objection, packet)
     return {'scope':'Reviewed basis interfaces only', 'whole_proof_acceptance':False}
@@ -254,10 +249,10 @@ def assess(out, context, artifact, sessions, budget, history):
             stage_document(Path(row['path']),inputs/name)
             views[name]={'source':row,'text_sha256':ir.digest(inputs/name)}
         write(inputs/PACKET,{**packet,'required':required});manifest(inputs)
-        contract=ReviewContract(directory/'review-work',{'items':{}},['/items/'+k for k in required],
+        contract=ReviewContract.structured(directory/'review-work',review_shape(required,packet['revision_objection']),
             lambda value:validate_rows(value,required,packet['revision_objection'],packet),
             row_validator=lambda pointer,row:validate_judgment(pointer.split('/')[-1],row,packet['revision_objection'],packet),
-            complete_assessment=True, judgment_schema=judgment_schema(packet['revision_objection']))
+            complete_assessment=True)
         stage=ArtifactStage(directory/'stage',PROMPT,phase='basis-semantic-review',validator=contract,
             inputs=inputs/'inputs.json',budget=budget,timeout=configured_timeout('stage'))
         with sessions.use(ROLE):stage.execute()

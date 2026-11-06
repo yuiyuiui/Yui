@@ -137,14 +137,18 @@ class ReviewControllerTests(unittest.TestCase):
 
     def test_a_failure_finding_cannot_be_hidden_by_all_pass_summary_fields(self):
         spec=json.loads((self.out/'global/spec.json').read_text())
+        graph=json.loads((self.out/'global/nl0.json').read_text())
+        location='nl0.json#/inferences/0/argument/0/text'
+        finding={'verdict':'FAIL','locations':[location],'explanation':'Synthetic blocking defect',
+                 'quotation':{'location':location,'text':graph['inferences'][0]['argument'][0]['text']}}
         value={'target_review':self.judgment(),'structure_review':self.judgment(),
                'definition_reviews':{d['id']:self.judgment() for d in spec['definitions']},
-               'source_reviews':{},'findings':[{'verdict':'FAIL','location':'graph','explanation':'Synthetic blocking defect'}]}
+               'source_reviews':{},'findings':[finding]}
         original=copy.deepcopy(value)
         with self.assertRaisesRegex(ValueError,'conflicts with all-PASS'):
             a.validate_review(value,self.out/'global',True)
         self.assertEqual(value,original)
-        value['findings']=[{'severity':'BLOCKING','location':'graph','explanation':'Synthetic blocking defect without a verdict field'}]
+        value['findings']=[{**{k:v for k,v in finding.items() if k!='verdict'},'severity':'BLOCKING'}]
         with self.assertRaisesRegex(ValueError,'conflicts with all-PASS'):
             a.validate_review(value,self.out/'global',True)
 
@@ -158,7 +162,7 @@ class ReviewControllerTests(unittest.TestCase):
         value['verdict']='FAIL';value['checks']['argument']['locations']=['/missing']
         with self.assertRaises(ValueError):a.validate_review(value,directory,False)
         value['packet_sha256']='different'
-        with self.assertRaisesRegex(ValueError,'identity/hash'):a.validate_review(value,directory,False)
+        with self.assertRaisesRegex(ValueError,'/packet_sha256: expected'):a.validate_review(value,directory,False)
 
     def test_global_blocking_findings_bind_actual_input_bytes(self):
         directory=self.out/'global';graph=json.loads((directory/'nl0.json').read_text())
@@ -382,7 +386,10 @@ class ReviewControllerTests(unittest.TestCase):
                           {'document':'contract.json','pointer':'/conclusion/type'}]}
         value={'checks':{name:copy.deepcopy(row) for name in i.workflow.INTERFACE_CHECKS},'findings':[]}
         i.validate(value,out)
-        value['findings']=[{'severity':'BLOCKING','explanation':'Synthetic inconsistent summary.'}]
+        value['findings']=[{'severity':'BLOCKING','explanation':'Synthetic inconsistent summary.',
+            'comparison':{'source':{'document':'spec.json','pointer':'/conclusion','quote':'Synthetic source only.'},
+                'formal':{'document':'contract.json','pointer':'/conclusion/type','quote':'True'},
+                'difference':'Synthetic mismatch for a controller test.'}}]
         with self.assertRaisesRegex(ValueError,'conflict'):i.validate(value,out)
         value['findings']=[]
         value['checks']['parameters_and_allowed_inputs']['locations']=[{'document':'spec.json','pointer':'/conclusion'}]

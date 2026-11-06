@@ -28,16 +28,19 @@ class NodePatch:
         self.source=Path(source);self.rid=rid;self.out=Path(out);self.selected=None;self.attempt=0
         self.graph=json.loads((self.source/'nl0.json').read_text())
         self.original=next(r for r in self.graph['inferences'] if r['id']==rid)
+        import artifact_protocol as p
+        self.schema=p.choice(p.obj({'inference':{'type':'object','additionalProperties':True}}),
+            p.obj({'status':p.literal('GLOBAL_REPAIR_REQUIRED'),'explanation':p.TEXT,
+                   'locations':p.array(p.STRING,minItems=1)}))
 
     def __call__(self,value):
+        import artifact_protocol as p
+        p.validate(value,self.schema)
         if value.get('status')=='GLOBAL_REPAIR_REQUIRED':
-            if set(value)!={'status','explanation','locations'} or not isinstance(value['explanation'],str) or not value['explanation'].strip() or not value['locations']:
-                raise ValueError('Global issue requires a concrete explanation and local packet locations')
             packet=nl0.packet(nl0.validate(self.source/'nl0.json',self.source/'spec.json'),self.rid)
             for pointer in value['locations']:nl0.closure.resolve(packet,pointer)
             self.selected='global'
             return {'scope':'Located global issue only; no mathematical acceptance'}
-        if set(value)!={'inference'}:raise ValueError('Submit {inference:<complete own R>} or a located GLOBAL_REPAIR_REQUIRED report')
         row=value['inference']
         if any(row.get(k)!=self.original[k] for k in ('id','inputs','output','definitions')):
             raise ValueError('Public node interface changed; report GLOBAL_REPAIR_REQUIRED instead')

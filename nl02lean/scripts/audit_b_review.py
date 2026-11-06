@@ -19,6 +19,7 @@ import concurrency
 import review_materials
 from clean_stage import ArtifactStage
 from review_contract import ReviewContract
+import artifact_protocol as protocol
 from execution_health import require_review_execution, review_outcome
 
 
@@ -96,14 +97,17 @@ def prepare(audit,out, *, interface_deviation=False):
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
 
+def review_shape(mechanical):
+    return protocol.ReviewShape(groups={
+        'nodes':{key:protocol.judgment() for key in mechanical['required_review_locations']},
+        'checks':{key:protocol.judgment() for key in audit_b.REVIEW_CHECKS}},
+        summary={'findings':protocol.array({'type':'object','additionalProperties':True})})
+
+
 def validate(value,out):
     out=Path(out);packet=ir.load(out/'inputs/review-packet.json');mechanical=machine_record(out)
-    if set(value)!={'nodes','checks','findings'}:raise ValueError('Return exactly nodes, checks and findings')
-    if set(value['nodes'])!=set(mechanical['required_review_locations']) or set(value['checks'])!=set(audit_b.REVIEW_CHECKS):
-        raise ValueError('Review every external/target endpoint and all four global checks')
+    review_shape(mechanical).validate(value)
     for key,row in {**value['nodes'],**value['checks']}.items():
-        if set(row)!={'verdict','notes','locations'} or row['verdict'] not in {'PASS','FAIL','UNVERIFIED'} or not row['notes'].strip():
-            raise ValueError('Each row needs a real verdict, specific notes and locations')
         expected=mechanical['required_review_locations'].get(key,review_materials.locations(packet))
         if not set(expected)<=set(row['locations']):raise ValueError('Missing paired actual source/kernel locations: '+key)
         for pointer in row['locations']:audit_b.resolve(packet,pointer)
@@ -122,9 +126,8 @@ def machine_record(out):
 def run(out,timeout=None,budget=None):
     out=Path(out).resolve()
     mechanical=machine_record(out)
-    required=['/nodes/'+key for key in mechanical['required_review_locations']]+['/checks/'+key for key in audit_b.REVIEW_CHECKS]
     packet=ir.load(out/'inputs/review-packet.json')
-    contract=ReviewContract(out/'review-work',{'nodes':{},'checks':{}},required,lambda value:validate(value,out),
+    contract=ReviewContract.structured(out/'review-work',review_shape(mechanical),lambda value:validate(value,out),
         finding_validator=lambda finding:[audit_b.resolve(packet,p) for p in finding['locations']])
     stage=ArtifactStage(out/'stage',(out/'prompt.txt').read_text(),phase='audit-b-semantic-review',
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,

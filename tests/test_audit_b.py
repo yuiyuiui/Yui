@@ -119,7 +119,7 @@ class AuditBTests(unittest.TestCase):
         inventory=ir.load(self.copy/'source-inventory.json')
         mapping=ir.load(self.copy/'mapping.json')
         mapping['entries']['P']['correspondence']['explanation']=''
-        with self.assertRaisesRegex(ir.Invalid,'explanation is missing'):
+        with self.assertRaisesRegex(ir.Invalid,'/entries/P/correspondence/explanation:'):
             audit.validate_mapping(c,inventory,mapping)
         path=synthetic_receipt(self.copy);record=ir.load(path)
         record['nodes']['P']['locations'].remove('/endpoints/P/correspondence')
@@ -138,18 +138,18 @@ class AuditBTests(unittest.TestCase):
     def test_missing_source_mapping_rejected(self):
         c=ir.contract(self.base/'identity/case/contract.json');inventory=ir.load(self.copy/'source-inventory.json')
         mapping=ir.load(self.copy/'mapping.json');del mapping['entries']['P']
-        with self.assertRaisesRegex(ir.Invalid,'missing/extra'): audit.validate_mapping(c,inventory,mapping)
+        with self.assertRaisesRegex(ir.Invalid,r'/entries:.*missing=.*P'): audit.validate_mapping(c,inventory,mapping)
 
     def test_mismatched_root_source_kind_rejected(self):
         c=ir.contract(self.base/'identity/case/contract.json');inventory=ir.load(self.copy/'source-inventory.json')
         inventory['propositions'][0]['kind']='external'
-        with self.assertRaisesRegex(ir.Invalid,'missing/extra|root assumption'):
+        with self.assertRaisesRegex(ir.Invalid,"/entries: missing=\\['H001'\\]"):
             audit.validate_mapping(c,inventory,ir.load(self.copy/'mapping.json'))
 
     def test_different_or_decoy_root_rejected(self):
         c=ir.contract(self.base/'identity/case/contract.json');inventory=ir.load(self.copy/'source-inventory.json')
         mapping=ir.load(self.copy/'mapping.json');mapping['entries']['P']['selector']='decl:True.intro'
-        with self.assertRaisesRegex(ir.Invalid,'actual assembled root'): audit.validate_mapping(c,inventory,mapping)
+        with self.assertRaisesRegex(ir.Invalid,r'/entries/P/selector:.*AuditBExport.P'): audit.validate_mapping(c,inventory,mapping)
 
     def test_missing_paired_semantic_locations_rejected(self):
         path=synthetic_receipt(self.copy);record=ir.load(path);record['nodes']['P']['locations']=['/inventory']
@@ -176,10 +176,10 @@ class AuditBTests(unittest.TestCase):
         c=ir.contract(self.base/'identity/case/contract.json')
         inventory=ir.load(self.copy/'source-inventory.json')
         mapping=ir.load(self.copy/'mapping.json');mapping['version']=1
-        with self.assertRaisesRegex(ir.Invalid,'unsupported Audit B policy'):
+        with self.assertRaisesRegex(ir.Invalid,'/version: expected'):
             audit.validate_mapping(c,inventory,mapping)
         mapping['version']=audit.VERSION;mapping['calculation_links']={}
-        with self.assertRaisesRegex(ir.Invalid,'obsolete or unexpected'):
+        with self.assertRaisesRegex(ir.Invalid,'unexpected=.*calculation_links'):
             audit.validate_mapping(c,inventory,mapping)
 
     def test_equivalence_explanation_does_not_override_independent_rejection(self):

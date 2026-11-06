@@ -117,7 +117,7 @@ class FinalAcceptanceTests(unittest.TestCase):
         bad={**mapping,'proof_patches':{'T099':'exact True.intro'}}
         from copy import deepcopy
         original=deepcopy(bad)
-        with self.assertRaisesRegex(ValueError,'cannot create a missing node'):validator(bad)
+        with self.assertRaisesRegex(ValueError,'/proof_patches:.*unexpected=.*T099'):validator(bad)
         self.assertEqual(bad,original,'Rejected tool arguments must remain intact for provenance')
         with self.assertRaises(ValueError):validator({**mapping,'header':'import Mathlib\ndef changed := True\n'})
         fixed={**mapping,'proof_patches':{'T002':'simpa only [Nat.add_zero] using h_T001.symm'}}

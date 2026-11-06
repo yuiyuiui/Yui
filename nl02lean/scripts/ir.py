@@ -161,7 +161,16 @@ def contract(path):
     return c
 
 
+def plan_schema():
+    import artifact_protocol as p
+    from dependency_instances import step_schema
+    return p.obj({'version':{'type':'integer'},'contract_sha256':p.TEXT,'representation_notes':p.TEXT,
+                  'steps':p.array(step_schema()),'terminal':p.TEXT},extra=True)
+
+
 def validate(cpath, plan):
+    import artifact_protocol as protocol
+    protocol.validate(plan,plan_schema(),error_type=Invalid)
     c = contract(cpath)
     need(plan['version'] == c['version'], 'unsupported IR version')
     need(plan['contract_sha256'] == digest(cpath), 'stale interface contract')
@@ -467,12 +476,22 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
         shutil.rmtree(work)
 
 
+def interface_draft_schema():
+    import artifact_protocol as p
+    from payload_protocols import parameter_schema
+    return p.obj({'parameters':p.array(parameter_schema()),
+                  'premises':p.array(p.obj({'id':p.TEXT,'type':p.TEXT},extra=True)),
+                  'conclusion_type':p.TEXT,'representation_notes':p.TEXT},extra=True)
+
+
 def check_interface(cpath, draft, timeout=None):
     """Development oracle: compare proposed ports with owner-reviewed ports.
 
     This is not a semantic natural-language equivalence checker. Its frozen
     expected contract is withheld from the measured frontend worker.
     """
+    import artifact_protocol as protocol
+    protocol.validate(draft,interface_draft_schema(),error_type=Invalid)
     c = contract(cpath)
     need([p['name'] for p in draft['parameters']] == [p['name'] for p in c['parameters']],
          'keep the specified parameter names and order')

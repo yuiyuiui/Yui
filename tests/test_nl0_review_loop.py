@@ -196,7 +196,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         validator=loop.NodePatch(source,'R001',self.root/'author')
         row=deepcopy(validator.original);row['inputs']=[]
         with self.assertRaisesRegex(ValueError,'Public node interface changed'):validator({'inference':row})
-        with self.assertRaisesRegex(ValueError,'Submit'):validator({'inference':validator.original,'other_node':{}})
+        with self.assertRaisesRegex(ValueError,'unexpected=.*other_node'):validator({'inference':validator.original,'other_node':{}})
         self.assertIsNone(validator.selected)
 
 

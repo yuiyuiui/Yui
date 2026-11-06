@@ -57,7 +57,7 @@ class BasisFidelityTests(unittest.TestCase):
         required=self.packet['required']
         extra=deepcopy(raw)
         extra['items']['B001']['statement_location']='/items/B001/statement'
-        with self.assertRaisesRegex(ValueError, r'B001.*statement_location.*locations'):
+        with self.assertRaisesRegex(ValueError, r'/items/B001:.*unexpected=.*statement_location'):
             basis_review.validate_rows(extra, required, packet=self.packet)
         for transform in [lambda v:v['items'].pop('B002'),
                           lambda v:v['items'].update(B099=deepcopy(v['items']['B001'])),

@@ -179,12 +179,30 @@ the prepared dependencies. b2lean will discharge 1/2 after ordinary Audit B.
         'basis':'Inspect existing source consumers before interface work. No cross-inference repeated derivation is selected in this test preparation; no NL0 rewrite or inherited audit is claimed.'})
 
 
+def artifact_schema(source):
+    import artifact_protocol as p
+    from payload_protocols import parameter_schema, OBJECT
+    from dependency_instances import step_schema
+    roots={r['id']:p.TEXT for r in source['roots']}
+    required=[r['id'] for r in source['roots'] if r['kind']!='mathlib']
+    endpoints=[r['id'] for r in source['roots'] if r['kind']=='external']+['P']
+    fields={'header':p.TEXT,'parameters':p.array(parameter_schema()),'premise_types':p.obj(roots,required=required),
+        'conclusion_type':p.TEXT,'representation':p.TEXT,'objects':p.array(OBJECT),
+        'steps':p.array(step_schema(),minItems=1),'terminal':p.TEXT,
+        'source_outputs':p.obj({key:p.TEXT for key in source['source_outputs']}),
+        'endpoint_correspondence':p.obj({key:correspondence.note_schema() for key in endpoints}),
+        'shared_obligations':p.array(OBJECT)}
+    return p.obj(fields,required=set(fields)-{'shared_obligations'})
+
+
 class InterfaceContract:
     def __init__(self,out):
         self.out=Path(out).resolve();self.attempt=0
         self.spec=json.loads((self.out/'inputs/spec.json').read_text())
         self.graph=json.loads((self.out/'inputs/nl0.json').read_text())
         self.source=json.loads((self.out/'inputs/source-map.json').read_text())
+        from payload_protocols import editable
+        self.schema=editable(artifact_schema(self.source))
         self.documents={p.name:p.read_text() for p in (self.out/'inputs').iterdir() if p.is_file() and p.name!='inputs.json'}
         self.drafts={}
         authority=json.loads((self.out/'authority.json').read_text());case=Path(authority['case'])
@@ -225,8 +243,8 @@ class InterfaceContract:
             raise ValueError(f'Candidate {self.attempt} saved; repair it with base_candidate. {error}') from error
 
     def check(self,value,directory):
-        expected={'header','parameters','premise_types','conclusion_type','representation','objects','steps','terminal','source_outputs','endpoint_correspondence'}
-        if not expected<=set(value) or not set(value)<=expected|{'shared_obligations'}:raise ValueError('Expected '+', '.join(sorted(expected))+'; optional shared_obligations')
+        import artifact_protocol as protocol
+        protocol.validate(value,artifact_schema(self.source))
         if 'internal-repair-context.json' in self.documents:
             from internal_interface_repair import protect_candidate
             protect_candidate(value, json.loads(self.documents['prior-interface.json']))
@@ -235,14 +253,8 @@ class InterfaceContract:
             raise ValueError('Header must start with import Mathlib followed by a newline')
         if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',header):
             raise ValueError('Candidate header may define mathematical objects, not proof/result declarations or executable commands')
-        required={p['id'] for p in self.source['roots'] if p['kind']!='mathlib'}
-        available={p['id'] for p in self.source['roots']}
-        if not required <= set(value['premise_types']) <= available:
-            raise ValueError('Provide all original H/E roots; original M ports are optional')
         correspondence.validate_notes(value['endpoint_correspondence'],
             [p['id'] for p in self.source['roots'] if p['kind']=='external']+['P'])
-        if set(value['source_outputs'])!=set(self.source['source_outputs']):
-            raise ValueError('Map exactly every source N/P to its primary typed T')
         shutil.copyfile(self.out/'inputs/nl0.json',directory/'nl0.json')
         contract={'version':2,'id':self.spec['case_id'].replace('-','_'),
             'source':{'path':'nl0.json','sha256':ir.digest(directory/'nl0.json'),
@@ -292,6 +304,13 @@ class InterfaceContract:
                 'scope':'Source-boundary and types checked; normal entry still requires independent pre-freeze semantics, actual proofs and final machine acceptance.'}
 
 
+def type_probe_schema():
+    import artifact_protocol as p
+    from payload_protocols import parameter_schema
+    return p.obj({'header':p.TEXT,'parameters':p.array(parameter_schema()),
+                  'types':p.array(p.TEXT,minItems=1)})
+
+
 class InterfaceStage(ArtifactStage):
     """A scratch expression compiler, with the same filesystem/network sandbox."""
     def __init__(self,*args,**kwargs):
@@ -312,10 +331,10 @@ class InterfaceStage(ArtifactStage):
             {'artifact':{'type':'object','additionalProperties':True}},['artifact']))
         self.tools.append(pilot.carrier.tool('read_interface_draft','Read only own current-stage typed candidates or partial type probes; index lists them. No other stage files are accessible.',
             {'kind':{'type':'string','enum':['index','candidate','probe']},'candidate':{'type':'integer'},'pointer':{'type':'string'}},['kind','candidate','pointer']))
+        probe=type_probe_schema()
         self.tools.append(pilot.carrier.tool('check_lean_types',
             'Compile a partial mathematical definition header and selected Lean type or ordinary API term expressions with explicit parameters. Never accepts a final interface or adds a proved premise.',
-            {'header':{'type':'string'},'parameters':{'type':'array','items':{'type':'object'}},
-             'types':{'type':'array','items':{'type':'string'}}},['header','parameters','types']))
+            probe['properties'],probe['required']))
         self.tool_names={t['name'] for t in self.tools}
         self.native_tools=list(self.tools)
         if self.mode=='translation-source-preparation':
@@ -360,6 +379,8 @@ class InterfaceStage(ArtifactStage):
         start=time.monotonic()
         try:
             if self.accepted is not None:raise ValueError('Stage is already complete')
+            import artifact_protocol as protocol
+            protocol.validate(args,type_probe_schema())
             header=args['header'];parameters=args['parameters'];types=args['types']
             if not isinstance(header,str) or not header.startswith('import Mathlib\n'):raise ValueError('Start the header with import Mathlib and newline')
             if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',header):
@@ -367,7 +388,7 @@ class InterfaceStage(ArtifactStage):
             if not isinstance(parameters,list) or not isinstance(types,list) or not types:raise ValueError('Supply parameters and at least one type')
             names=[]
             for p in parameters:
-                if not set(p)<={'name','type','binder_kind'} or not {'name','type'}<=set(p) or not ir.IDENTIFIER.fullmatch(p['name']):raise ValueError('Use a valid typed parameter')
+                if not ir.IDENTIFIER.fullmatch(p['name']):raise ValueError('Use a valid typed parameter')
                 ir.type_text(p['type']);names.append(p['name'])
             if len(set(names))!=len(names):raise ValueError('Duplicate parameter name')
             binders=' '.join(ir.parameter_text(p) for p in parameters)

@@ -255,9 +255,9 @@ def bind_source_uses(value, uses):
         if len(matches)!=1:raise ValueError('SOURCE_USE: expected exactly one '+label+' '+repr(identifier))
         return matches[0]
     for call in uses:
-        required={'inference','at','input','bindings','hypothesis_checks'}
-        if not isinstance(call,dict) or not required<=set(call) or set(call)-required-{'id'}:
-            raise ValueError('SOURCE_USE: supply inference, at, input, bindings, hypothesis_checks and optional actual-use id')
+        from artifact_protocol import validate
+        from payload_protocols import source_use_schema
+        validate(call,source_use_schema(),'/source_uses')
         r=find(graph.get('inferences',[]),call['inference'],'inference')
         s=find(r.get('argument',[]),call['at'],'paragraph')
         p=find(graph.get('propositions',[]),call['input'],'source')
@@ -278,8 +278,18 @@ def bind_source_uses(value, uses):
         if not identical:r['applications'].append(app)
 
 
+def submission_schema():
+    from payload_protocols import editable, OBJECT
+    from artifact_protocol import obj
+    # The author language is normalized and checked by NL0Contract._validate.
+    # These objects are deliberately drafts, not already-normalized NL0 files.
+    return editable(obj({'spec':OBJECT,'graph':OBJECT}),source_uses=True)
+
+
 def expand_submission(value, documents, drafts=None):
     """Expand explicit JSON data edits; never execute text or infer missing mathematics."""
+    from artifact_protocol import validate
+    validate(value,submission_schema())
     if set(value) == {'spec', 'graph'}:
         return deepcopy(value), None
     if set(value)=={'base_candidate','source_uses'}:
@@ -327,9 +337,8 @@ def expand_submission(value, documents, drafts=None):
         if not isinstance(change, dict) or change.get('op') not in {'add', 'remove', 'replace', 'test', 'replace_text', 'replace_lines'}:
             raise ValueError('Supported edit operations: add, remove, replace, test, replace_text, replace_lines')
         op, pointer = change['op'], change.get('path')
-        expected = ({'op', 'path', 'start_line', 'end_line', 'text', 'text_sha256'} if op == 'replace_lines' else
-                    {'op', 'path', 'old', 'new'} if op == 'replace_text' else
-                    {'op', 'path'} | ({'value'} if op != 'remove' else set()))
+        from payload_protocols import edit_schema
+        expected=set(next(branch['properties'] for branch in edit_schema()['anyOf'] if branch['properties']['op']['const']==op))
         if set(change) != expected or not isinstance(pointer, str) or not pointer.startswith('/'):
             raise ValueError(f'EDIT_FIELDS: /patches/{edit_index}, op={op!r}, path={pointer!r}; '
                 f'missing={sorted(expected-set(change))}; unexpected={sorted(set(change)-expected)}; '
@@ -500,6 +509,7 @@ class NL0Contract:
         self.author_check=AuthorCheck(self)
         self.last_valid_candidate = None
         self.last_check = None
+        self.schema=submission_schema()
         for identifier, text in documents.items():
             if not re.fullmatch(r'[A-Za-z0-9_.-]+', identifier) or identifier in {'.','..'}:
                 raise ValueError('Task document ID is not a safe local filename')
