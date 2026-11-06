@@ -259,7 +259,10 @@ def execute(job, root=None):
         try:
             with execution.activate(recorder),recorder.signals():
                 jobs.validate(job)
-                if job['track']=='audit-b':
+                if resume.get('mode')=='basis-final-closure':
+                    import basis_closure_recovery
+                    result=basis_closure_recovery.run(job,progress)
+                elif job['track']=='audit-b':
                     import audit_b_continuation
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)
                 else:

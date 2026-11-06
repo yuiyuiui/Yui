@@ -47,6 +47,8 @@ def parsers(commands):
         help='Continue a verified inherited probe-directory collision from its saved pre-draft author-repair boundary')
     repairs.add_argument('--repair-native-cleanup',action='store_true',
         help='Continue an exited frozen proof queue stopped only by native-process cleanup faults')
+    repairs.add_argument('--repair-basis-closure',action='store_true',
+        help='After cancellation and verified exit, repeat only failed final basis closure from accepted artifacts')
     repairs.add_argument('--after-access-restored',action='store_true',
         help='Explicitly recover a verified provider HTTP403 after a fresh authenticated non-inference access check')
     for name in ('status','observe','cancel','cleanup'):
@@ -150,6 +152,7 @@ def dispatch(args):
         import interrupted
         import basis_defect
         import native_cleanup_recovery
+        import basis_closure_recovery
         if getattr(args,'after_access_restored',False):
             if len(args.runs)!=1:raise ValueError('Select one exact run for manual restored-access recovery')
             prepared=[interrupted.prepare(args.runs[0],after_access_restored=True,output=args.output)]
@@ -157,6 +160,7 @@ def dispatch(args):
             raise ValueError('--output requires the explicit --after-access-restored route')
         else:
             prepared=[basis_defect.prepare(path) if getattr(args,'repair_basis',False) else
+                  basis_closure_recovery.prepare(path) if getattr(args,'repair_basis_closure',False) else
                   native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
                   interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
                   interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else

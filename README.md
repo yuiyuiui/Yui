@@ -133,3 +133,33 @@ The [MIT license](LICENSE) applies to original Yui code, documentation, strategy
 Lean, Mathlib, Codex and other external tools retain their own licenses and terms. They are not relicensed by Yui. Mathlib source excerpts and theorem-query output retain the applicable upstream attribution and license; see [Mathlib's license](https://github.com/leanprover-community/mathlib4/blob/master/LICENSE).
 
 Original Yui metadata and strategy advice do not grant additional rights to the external material they describe. A source citation or a successful proof check is not a redistribution license.
+
+### Final closure and recovery
+
+Final basis discharge inspects the actual Lean declaration. It preserves levels
+in the remaining parameters, hypotheses, approved residual assumptions and
+conclusion, and instantiates only dependency-private levels at zero. Named
+public levels, including composite `max`/`imax` levels, remain named; inferred
+`Type*` levels are constrained by the actual arguments. The final standalone
+proof still requires native compilation, full-signature comparison and
+transitive axiom inspection. The v2 closure receipt uses this renderer; v1
+receipts are revalidated with their original renderer.
+
+After a verified software repair, an explicitly cancelled, exited, unlimited
+normal-policy unconditional run whose only remaining failure is
+`BASIS_FINAL_CLOSURE_FAILED` can reuse its accepted basis and Audit B:
+
+```sh
+python3 -B nl0/scripts/yui.py resume OLD_RUN --repair-basis-closure --prepare-only
+python3 -B nl0/scripts/yui.py execute NEW_RUN --detach
+```
+
+Preparation checks the original documents, target, prepared proofs, frozen
+interface, accepted Audit B and prior failure. It rejects live owners, pending
+incidents and changed evidence. Execution uses a fresh immutable runtime and
+only reruns the final native closure; no author or reviewer is called. It
+preserves the old run and its costs, records recovery provenance, and rechecks
+the authority before publishing. Source qualifications and approved residual
+assumptions remain conditional. Each fresh run can execute only once; an
+existing output is never overwritten. Use ordinary cancellation and owned
+cleanup for the new run.

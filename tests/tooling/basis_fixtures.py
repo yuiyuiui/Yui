@@ -28,7 +28,7 @@ def artifact(*rows):
         'dependencies':list(rows),'replacements':[],'lean_header':'import Mathlib\n'}
 
 
-def checked_context(root, value, *, approved=False):
+def checked_context(root, value, *, approved=False, documents=None):
     root=Path(root)
     if approved:
         import jobs
@@ -40,7 +40,13 @@ def checked_context(root, value, *, approved=False):
             target=target_selection.resolve(problem,requested=TARGET))
         root=Path(job['root'])/'2basis/0001'
     inputs=root/'inputs';inputs.mkdir(parents=True)
-    (inputs/'problem.md').write_text(TARGET+'\nSYNTHETIC source fixture, not a publication.\n')
+    if documents:
+        import shutil
+        originals=[bind(Path(documents)/r['path']) for r in ir.load(Path(documents)/'inputs.json')['inputs']]
+        for row in originals:shutil.copyfile(row['path'],inputs/Path(row['path']).name)
+    else:
+        (inputs/'problem.md').write_text(TARGET+'\nSYNTHETIC source fixture, not a publication.\n')
+        originals=[bind(inputs/'problem.md')]
     manifest(inputs);write(root/'stage/accepted.json',value)
     declarations,checks,roots=basis.declarations(value)
     native=basis_native.check(value['lean_header']+declarations,checks,roots,root/'native')
@@ -48,7 +54,7 @@ def checked_context(root, value, *, approved=False):
     residual=sorted(r['id'] for r in value['dependencies'] if r['category']==4)
     context={'version':basis.CONTEXT_VERSION,'formalization':'unconditional','full_target':value['full_target'],
         'basis':bind(root/'stage/accepted.json'),'native':bind(root/'native/check.json'),
-        'original_inputs':[bind(inputs/'problem.md')],
+        'original_inputs':originals,
         'evidence':basis.evidence_bindings(value,inputs,root),'approval':None,'residual_class4':residual}
     from clean_stage import ArtifactStage
     from role_sessions import Sessions

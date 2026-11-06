@@ -33,11 +33,31 @@ the proof or approve residual assumptions for the user. Report all located findi
 RULE = hashed([VERSION, PROMPT, ir.digest(Path(__file__).resolve().parents[1]/'references/basis.md')])
 
 
+def native_basis_dependencies(name, declarations, basis_names):
+    """Resolve real B declarations through compiler-generated local helpers.
+
+    A helper such as YuiBasis.B001._simp_1 is not a registry ID. Follow its
+    checked native dependencies until an exact registered declaration is met.
+    Imported library constants need no project dependency expansion.
+    """
+    found=set();seen={name};pending=list(declarations[name]['direct_constants'])
+    while pending:
+        current=pending.pop()
+        if current in seen:continue
+        seen.add(current)
+        if current in basis_names:
+            found.add(basis_names[current])
+        elif current in declarations and not declarations[current]['imported']:
+            pending.extend(declarations[current]['direct_constants'])
+    return sorted(found)
+
+
 def material(artifact, native, originals, evidence, revision_report=None):
     """Same projection for the initial reviewer and a later receipt readback."""
     inspected = ir.load(Path(native['path']).parent/'elaborated.json')
     types = {r['id']:r['actual_type'] for r in inspected['comparisons']}
     declarations = {r['name']:r for r in inspected['dependencies']['declarations']}
+    basis_names={'YuiBasis.'+r['id']:r['id'] for r in artifact['dependencies'] if r['category'] in {1,2}}
     items = {}
     source_docs = {Path(r['path']).name:r['sha256'] for r in originals}
     external = {r['sha256']:'basis-source-'+r['sha256']+'.txt' for r in evidence}
@@ -47,8 +67,7 @@ def material(artifact, native, originals, evidence, revision_report=None):
             item['actual_type'] = types[row['id']]
             name = ('YuiBasis.type_' if row['category']==4 else 'YuiBasis.')+row['id']
             item['signature'] = declarations[name]['signature'] if row['category']!=4 else None
-            item['native_dependencies'] = sorted(n.split('.')[-1] for n in declarations[name]['direct_constants']
-                                                 if n.startswith('YuiBasis.B'))
+            item['native_dependencies'] = native_basis_dependencies(name,declarations,basis_names)
         item['documents'] = [ref['input'] if 'input' in ref else external[ref['sha256']]
                              for ref in row['origin']['evidence']]
         items[row['id']] = item
@@ -64,6 +83,8 @@ def item_keys(packet):
     common = {k:v for k,v in packet.items() if k not in {'items','required'}}
     items = packet['items']
     links = {k:set(row['uses']) | set(row.get('native_dependencies',[])) for k,row in items.items()}
+    unknown=set().union(*links.values())-items.keys() if links else set()
+    if unknown:raise ValueError('Unknown basis dependency IDs: '+', '.join(sorted(unknown)))
     # A changed consumer can change the application being assessed.
     for key,related in list(links.items()):
         for other in list(related):

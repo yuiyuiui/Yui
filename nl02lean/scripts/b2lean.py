@@ -6,6 +6,7 @@ or fabricates a new theorem interface. Final native inspection is mandatory.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import time
 
 import audit_b
@@ -18,7 +19,7 @@ from controller_common import bind, write, verify_bindings
 from execution_health import StageFailure
 
 
-def render(contract, context, conditional_source, levels):
+def render(contract, context, conditional_source, levels, *, legacy=False):
     artifact=basis.verify_context(context);basis.check_interface(context,contract)
     by_port={r['port']:r for r in artifact['dependencies'] if r['port']}
     retained=[p for p in contract['premises'] if p['kind']!='mathlib'
@@ -26,11 +27,6 @@ def render(contract, context, conditional_source, levels):
     expected=audit_b.full_type(contract,contract['conclusion']['type'],retained)
     parameters=ir.binder_text(contract)
     hypotheses=' '.join(f"(h_{p['id']} : {p['type']})" for p in retained)
-    # AuditBExport.P uses the levels occurring in its retained H/E/P signature.
-    # Its declaration generalizes exactly those, in the original relative order.
-    used=set(levels['export_used_parameters'])
-    universe=['_' for name in levels['parameters'] if name in used]
-    universe_suffix='.{'+', '.join(universe)+'}' if universe else ''
     arguments=[p['name'] for p in contract['parameters']]
     for premise in contract['premises']:
         if premise['kind']=='mathlib':continue  # Already discharged by ordinary assembly.
@@ -39,12 +35,25 @@ def render(contract, context, conditional_source, levels):
     declarations,_,_=basis.declarations(artifact)
     source=conditional_source+'\n'+declarations
     source+='\nnamespace YuiClosed\nset_option autoImplicit false\n'
+    if legacy:
+        # Historical receipts bind the original renderer, including its inferred
+        # levels. Never reinterpret their checked source using the new helper.
+        used=set(levels['export_used_parameters'])
+        universe=['_' for name in levels['parameters'] if name in used]
+        suffix='.{'+', '.join(universe)+'}' if universe else ''
+        application='@AuditBExport.P'+suffix+' '+' '.join(arguments)
+    else:
+        omitted=['h_'+p['id'] for p in contract['premises'] if p['kind']=='external'
+            and by_port[p['id']]['category'] in {1,2}]
+        helper=Path(__file__).with_name('basis_export.lean').read_text()
+        source+=helper.replace('__DISCHARGED_BINDERS__', '#['+', '.join(map(json.dumps,omitted))+']')+'\n'
+        application='yui_basis_export%('+', '.join(arguments)+')'
     source+=f"set_option Elab.async false in\ntheorem P {parameters} {hypotheses} : {contract['conclusion']['type']} := by\n"
-    source+='  exact @AuditBExport.P'+universe_suffix+' '+' '.join(arguments)+'\n\nend YuiClosed\n'
+    source+='  exact '+application+'\n\nend YuiClosed\n'
     return source, expected, [p['id'] for p in retained]
 
 
-def finish(directory, out, *, context, intermediate):
+def finish(directory, out, *, context, intermediate, before_publish=None):
     started=time.monotonic()
     directory,out=Path(directory).resolve(),Path(out).resolve()
     frozen=workflow.bound(directory)
@@ -63,9 +72,10 @@ def finish(directory, out, *, context, intermediate):
     # Recheck both authorities after the native call, before publishing success.
     workflow.bound(directory);basis.verify_context(context)
     final_acceptance.validate_receipt(intermediate['audit_b']['receipt_path'])
+    if before_publish is not None:before_publish()
     residual=context['residual_class4']
     unconditional=not residual and not receipt['source_conditional']
-    result={**intermediate,'version':'yui-b2lean-1','status':'WORKFLOW-PASSED' if unconditional else 'WORKFLOW-CONDITIONAL',
+    result={**intermediate,'version':'yui-b2lean-2','status':'WORKFLOW-PASSED' if unconditional else 'WORKFLOW-CONDITIONAL',
         'formalization_goal':'unconditional','achieved_scope':'UNCONDITIONAL_LEAN' if unconditional else
             'CONDITIONAL_LEAN' if residual else 'CLOSED_LEAN_SOURCE_QUALIFIED',
         'proof':str(out/'Proof.lean'),'basis_discharge_seconds':time.monotonic()-started,
@@ -91,7 +101,7 @@ def finish(directory, out, *, context, intermediate):
 def validate_receipt(out):
     """Read-only revalidation of a delivered closed proof and its authority."""
     out=Path(out);report=ir.load(out/'report.json');verify_bindings(report['bindings'])
-    ir.need(report.get('version')=='yui-b2lean-1','Unknown final basis receipt')
+    ir.need(report.get('version') in {'yui-b2lean-1','yui-b2lean-2'},'Unknown final basis receipt')
     verify_bindings([report['closure']['native'],report['closure']['proof']])
     checked=basis_native.verify(report['closure']['native']['path'])
     frozen=workflow.bound(report['conditional_workflow']);context=frozen['basis_context']
@@ -99,7 +109,8 @@ def validate_receipt(out):
     receipt=final_acceptance.validate_receipt(report['audit_b']['receipt_path'])
     source,expected,retained=render(ir.contract(frozen['contract']),context,
         (Path(report['conditional_workflow'])/'audit-b/Proof.lean').read_text(),
-        ir.load(Path(report['conditional_workflow'])/'audit-b/assembly.json')['universe_parameters'])
+        ir.load(Path(report['conditional_workflow'])/'audit-b/assembly.json')['universe_parameters'],
+        legacy=report['version']=='yui-b2lean-1')
     ir.need((out/'Proof.lean').read_text()==source and checked['checks']==[['P','YuiClosed.P',expected]],'Closed export changed')
     complete=not context['residual_class4'] and not receipt['source_conditional']
     scope='UNCONDITIONAL_LEAN' if complete else 'CONDITIONAL_LEAN' if context['residual_class4'] else 'CLOSED_LEAN_SOURCE_QUALIFIED'

@@ -107,6 +107,13 @@ preserves the exact source/A/interface, rechecks completed local bodies and
 restores only the failed worker's own bound drafts; never use it to resample a
 mathematical nonpass or replace live work.
 
+After verified software repair, the explicit `--repair-basis-closure` route
+repeats only final native closure from accepted basis and Audit B artifacts.
+It requires an unlimited normal unconditional job, explicit cancellation and
+verified process exits, and unchanged bound evidence. It writes a fresh owned
+run, calls no model, and preserves all residual assumptions and source
+qualifications. See [final closure recovery](README.md#final-closure-and-recovery).
+
 Normal translation requires a separate independent semantic interface review
 before freezing and proof dispatch. Normal final Audit B is machine-only: verify
 that actual E/P, their defining environment and complete proof dependencies still

@@ -77,6 +77,16 @@ class BasisDischargeTests(unittest.TestCase):
             self.assertEqual(result['achieved_scope'],'CLOSED_LEAN_SOURCE_QUALIFIED')
             self.assertTrue((out/'warn.md').exists());b2lean.validate_receipt(out)
 
+    def test_legacy_renderer_receipt_remains_valid_without_reinterpretation(self):
+        original=b2lean.render
+        out=self.root/'legacy-renderer'
+        with patch.object(b2lean,'render',side_effect=lambda *a,**kw:original(*a,**kw,legacy=True)):
+            result=b2lean.finish(self.workflow,out,context=self.context,intermediate=self.intermediate)
+        result['version']='yui-b2lean-1';write(out/'report.json',result)
+        self.assertEqual(b2lean.validate_receipt(out)['version'],'yui-b2lean-1')
+        result['version']='yui-b2lean-2';write(out/'report.json',result)
+        with self.assertRaisesRegex(ValueError,'Closed export changed'):b2lean.validate_receipt(out)
+
     def test_final_compiler_failure_retains_failed_scope_and_never_publishes_acceptance(self):
         from execution_health import StageFailure
         out=self.root/'failed-close'
