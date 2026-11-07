@@ -17,8 +17,28 @@ import lean_names
 from controller_common import bind, write
 
 
+TYPE_PREFIX = 'YuiBasis.type_'
+
+
+def proposition_probe(row):
+    """Compare a frozen proposition with the value of its Prop-valued definition."""
+    key, statement = row['id'], row['lean']['type']
+    source = ir.checked_expression('type_' + key, statement, proposition=True)
+    return source, (key, TYPE_PREFIX + key, statement)
+
+
+def type_probes(header, rows):
+    source = header + '\nnamespace YuiBasis\nset_option autoImplicit false\n'
+    checks = []
+    for row in rows:
+        declaration, check = proposition_probe(row)
+        source += declaration
+        checks.append(check)
+    return source + '\nend YuiBasis\n', checks
+
+
 def inspector(checks, roots):
-    rows = [(key, ('value:' if name.startswith('YuiBasis.type_') else 'decl:')+name,
+    rows = [(key, ('value:' if name.startswith(TYPE_PREFIX) else 'decl:')+name,
              typ, lean_names.parts(name)) for key, name, typ in checks]
     array = '#['+', '.join('('+', '.join(
         '#['+', '.join(json.dumps(p) for p in value)+']' if isinstance(value, list)

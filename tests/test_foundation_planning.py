@@ -11,6 +11,7 @@ from unittest.mock import patch
 import artifact_protocol
 import basis
 import basis_graph
+import basis_native
 import basis_planning
 import basis_preapproval
 import concurrency
@@ -84,6 +85,26 @@ class FrozenRoute(unittest.TestCase):
             c=basis.BasisContract(Path(raw),TARGET,version=basis_graph.VERSION)
             with self.assertRaisesRegex(ValueError,'submit yui-basis-2'):c(artifact())
             self.assertIsNone(c.selected)
+
+    def test_preflight_checks_the_proposition_value_and_rejects_changed_types(self):
+        with tempfile.TemporaryDirectory() as raw:
+            stage = SimpleNamespace(logs=Path(raw))
+            candidate = mixed()
+            basis_planning.check_types(stage, candidate)
+            receipts = list(stage.logs.glob('selected-types/*/selected.json'))
+            self.assertEqual(len(receipts), 1)
+            saved = ir.load(ir.load(receipts[0])['path'])
+            self.assertTrue(saved['passed'], saved['errors'])
+            with patch.object(basis_native, 'check', side_effect=AssertionError('unexpected rerun')):
+                basis_planning.check_types(stage, candidate)
+            rows = [candidate['dependencies'][0]]
+            source, checks = basis_native.type_probes(candidate['lean_header'], rows)
+            key, name, _ = checks[0]
+            mismatch = basis_native.check(source, [(key, name, 'False')], [name], stage.logs/'wrong')
+            self.assertIn('ACTUAL_SIGNATURE_MISMATCH', mismatch['errors'])
+            rows[0]['lean']['type'] = 'Nat'
+            with self.assertRaisesRegex(ValueError, 'LEAN_COMPILE_FAILED'):
+                basis_planning.check_types(stage, candidate)
 
     def test_native_unlisted_dependency_is_rejected_after_successful_kernel_check(self):
         with tempfile.TemporaryDirectory() as raw:

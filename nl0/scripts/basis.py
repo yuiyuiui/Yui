@@ -160,9 +160,10 @@ def declarations(value):
             source += f"set_option Elab.async false in\ntheorem {key} : {row['lean']['type']} := by\n{ir.proof_text(row['lean']['proof'])}\n"
             checks.append((key, 'YuiBasis.'+key, row['lean']['type']));roots.append('YuiBasis.'+key)
         elif row['category']==4:
-            source += ir.checked_expression('type_'+key, row['lean']['type'], proposition=True)
-            roots.append('YuiBasis.type_'+key)
-            checks.append((key, 'YuiBasis.type_'+key, row['lean']['type']))
+            declaration, check = basis_native.proposition_probe(row)
+            source += declaration
+            roots.append(check[1])
+            checks.append(check)
     source += '\nend YuiBasis\n'
     return source, checks, roots
 

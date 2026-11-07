@@ -38,13 +38,7 @@ def approve(stage,candidate):
     if not residual:return
     if not completed.is_file():
         attempt=directory
-        source=selected['lean_header']+'\nnamespace YuiBasis\nset_option autoImplicit false\n'
-        checks=[]
-        for row in residual:
-            name='type_'+row['id']
-            source+=ir.checked_expression(name,row['lean']['type'],proposition=True)
-            checks.append((row['id'],'YuiBasis.'+name,row['lean']['type']))
-        source+='\nend YuiBasis\n'
+        source, checks = basis_native.type_probes(selected['lean_header'], residual)
         write(attempt/'stage/accepted.json',selected)
         write(attempt/'planning-author.json',{'thread_id':stage.thread_id,
             'manifest':bind(stage.logs/'execution-manifest.json'),

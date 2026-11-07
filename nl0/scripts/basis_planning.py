@@ -93,12 +93,7 @@ def investigate(stage, args):
 def check_types(stage,candidate):
     import basis_native
     rows=candidate['dependencies']
-    source=candidate['lean_header']+'\nnamespace YuiBasisTypes\nset_option autoImplicit false\n'
-    checks=[]
-    for row in rows:
-        source+=ir.checked_expression(row['id'],row['lean']['type'],proposition=True)
-        checks.append((row['id'],'YuiBasisTypes.'+row['id'],row['lean']['type']))
-    source+='\nend YuiBasisTypes\n'
+    source, checks = basis_native.type_probes(candidate['lean_header'], rows)
     directory=stage.logs/'selected-types'/local_helpers.digest([source,checks])
     directory.mkdir(parents=True,exist_ok=True)
     saved=directory/'selected.json'
@@ -107,7 +102,11 @@ def check_types(stage,candidate):
     attempt=Path(tempfile.mkdtemp(prefix='candidate-',dir=directory))/'native'
     result=basis_native.check(source,checks,[r[1] for r in checks],attempt)
     if not result['passed']:
-        raise ValueError('Repair the selected foundation types before launching proofs: '+ir.compiler_feedback(ir.load(attempt/'compiler.json')))
+        details = ', '.join(result['errors'])
+        native = ir.load(attempt/'compiler.json')
+        if native.get('exit_code') != 0:
+            details += '\n' + ir.compiler_feedback(native)
+        raise ValueError('Repair the selected foundation types before launching proofs: ' + details)
     write(saved,bind(attempt/'check.json'))
 
 
