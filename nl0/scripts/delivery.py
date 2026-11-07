@@ -193,13 +193,57 @@ def verify_lean_evidence(directory,endpoint,record,expected):
     if retained!=endpoint['retained']:
         raise ValueError('Export changed an original or retained premise')
     solution=nl0.sha(directory/'formalization/Solution.lean')
-    if record['exit']=='b2lean':
+    if (evidence/'discharge.json').is_file():
         native=nl0.load(evidence/'discharge.json')
         proofs=[row['sha256'] for row in native['bindings'] if Path(row['path']).name=='Proof.lean']
         if not native['passed'] or proofs!=[solution] or native['checks']!=[['P',endpoint['export'],expected]]:
             raise ValueError('The solution differs from its actual checked discharge')
     elif machine['artifacts']['Proof.lean']!=solution:
         raise ValueError('The solution differs from its actual checked Audit B export')
+
+
+def verify_route(directory, record, scope, qualified):
+    """Read back the public exit from the evidence that survived cleanup."""
+    from controller_common import CORE
+    from workflow_execution import block_module
+    from frozen_graph import BASIS, DIRECT
+    goal=record['requested_goal']
+    entry='2basis' if goal=='unconditional' else 'nl0'
+    if goal not in {'audit','conditional','unconditional'} or record['entry']!=entry:
+        raise ValueError('Published entry differs from the requested goal')
+    natural=directory/'nl0'
+    if record['audit_a'] and nl0.load(natural/'global.json')['owner']!=(BASIS if entry=='2basis' else DIRECT):
+        raise ValueError('Published entry differs from the frozen graph producer')
+    discharged=(natural/'lean-evidence/discharge.json').is_file()
+    alternate=(natural/'alternative/Actual.lean').is_file() and (natural/'alternative/findings.json').is_file()
+    has_solution=(directory/'formalization/Solution.lean').is_file()
+    exit_name='b2lean' if discharged else 'nl02lean' if has_solution or alternate else 'nl0' if record['audit_a'] else entry
+    if record['exit']!=exit_name or alternate!=(scope=='DIFFERENT_RESULT'):
+        raise ValueError('Published exit differs from the retained stage evidence')
+    if scope in {'NL0','NL0_SOURCE_QUALIFIED'} and (scope=='NL0_SOURCE_QUALIFIED')!=qualified:
+        raise ValueError('Published audit scope differs from its source review')
+    if scope in LEAN:
+        if (discharged!=(goal=='unconditional') or
+                record['audit_b']!=('AUDIT-B-CONDITIONAL' if qualified else 'AUDIT-B-PASSED')):
+            raise ValueError('Published Lean route differs from its Audit B or discharge evidence')
+        if discharged:
+            complete=not record['remaining_extra_premises'] and not qualified
+            if record['case_status']!=('WORKFLOW-PASSED' if complete else 'WORKFLOW-CONDITIONAL'):
+                raise ValueError('Case status differs from its final discharge and source review')
+    elif record['audit_b'] or discharged:
+        raise ValueError('Unexpected Lean acceptance on the published route')
+    if (scope=='STOPPED' and goal!='unconditional') or (alternate and goal=='audit'):
+        raise ValueError('The declared entry cannot reach this operator decision')
+    if scope=='INTERRUPTED':
+        from case_outcomes import PASSED, CONDITIONAL
+        if record['case_status'] in PASSED|CONDITIONAL|{'STOPPED_BY_USER','DIFFERENT_RESULT_DELIVERED'}:
+            raise ValueError('An interrupted delivery claims a completed case')
+    else:
+        rules=block_module(CORE/'workflow','routing')
+        closed=discharged and not record['remaining_extra_premises']
+        _,expected=rules.classify(goal,record['case_status'],closed=closed,qualified=qualified)
+        if scope!=expected:
+            raise ValueError('Published scope differs from the accepted case outcome')
 
 
 def verify(directory, *, anchor=None):
@@ -243,6 +287,7 @@ def verify(directory, *, anchor=None):
         decision=nl0.load(directory/'nl0/basis-decision.json')
         if decision['decision']!='stop' or not decision['unresolved'] or [row['id'] for row in decision['unresolved']]!=record['unresolved_foundations']:
             raise ValueError('Stopped run lacks the actual reviewed residuals and operator decision')
+    qualified=False
     if record['audit_a']:
         base=directory/'nl0'
         if not (base/'global.json').is_file() or not (base/'review-evidence/execution').is_dir():
@@ -256,10 +301,12 @@ def verify(directory, *, anchor=None):
         if (actual['audit_status']!=record['audit_a'] or not (actual['current_standard_receipt_valid']
                 or actual.get('current_conditional_receipt_valid'))):
             raise ValueError('Actual Audit A receipt differs from published result')
-        if scope in {'NL0','UNCONDITIONAL_LEAN'} and not actual['current_standard_receipt_valid']:
+        qualified=not actual['current_standard_receipt_valid']
+        if scope in {'NL0','UNCONDITIONAL_LEAN'} and qualified:
             raise ValueError('Unqualified result requires a full source review')
     elif scope in LEAN | {'NL0','NL0_SOURCE_QUALIFIED'}:
         raise ValueError('Missing required Audit A receipt')
+    verify_route(directory,record,scope,qualified)
     return {'status':'VERIFIED','scope':scope,'files':len(inventory),'run_id':record['run_id']}
 
 

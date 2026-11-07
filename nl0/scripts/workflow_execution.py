@@ -1,5 +1,6 @@
 """Execute the versioned route captured when this public Yui case was prepared."""
 from contextvars import ContextVar
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import json
 import sys
@@ -8,6 +9,13 @@ import basis
 from controller_common import bind
 
 active = ContextVar("yui_public_workflow", default=None)
+
+
+def block_module(project, name):
+    spec=spec_from_file_location('yui_public_'+name,project/'blocks'/(name+'.py'))
+    module=module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(job,recorder,budgets,progress):
@@ -26,11 +34,7 @@ def run(job,recorder,budgets,progress):
         try: from wfcore.engine import start
         except ModuleNotFoundError as missing:
             raise RuntimeError('Install workflow/requirements.txt for this interpreter or in Yui/.venv') from missing
-    from importlib.util import module_from_spec, spec_from_file_location
-    spec=spec_from_file_location('yui_native_case',project/'blocks/native_case.py')
-    native=module_from_spec(spec)
-    spec.loader.exec_module(native)
-    session=native.Case(job,recorder,budgets,progress)
+    session=block_module(project,'native_case').Case(job,recorder,budgets,progress)
     token=active.set(session)
     try:
         root=Path(job['root'])

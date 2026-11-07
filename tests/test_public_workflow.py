@@ -115,6 +115,20 @@ class PublicEntryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'inventory'):delivery.verify(user)
                 releases[0].write_bytes(saved)
                 self.assertEqual(delivery.verify(user)['scope'],scope)
+                saved_report=(user/'run.json').read_bytes()
+                wrong_exit='nl02lean' if rec['exit']=='b2lean' else 'b2lean'
+                wrong_goal='conditional' if goal=='unconditional' else 'unconditional'
+                for changes in ({'exit':wrong_exit},{'case_status':'QUEUED'},
+                                {'requested_goal':wrong_goal,'entry':'2basis' if wrong_goal=='unconditional' else 'nl0'},
+                                {'audit_b':'AUDIT-B-CONDITIONAL'}):
+                    with self.subTest(scope=scope,changes=changes),self.assertRaises(ValueError):
+                        (user/'run.json').write_text(json.dumps({**rec,**changes}))
+                        delivery.verify(user)
+                if scope=='NL0':
+                    changed={**rec,'actual_result':'NL0_SOURCE_QUALIFIED','case_status':'DRAFT-AUDIT-CONDITIONAL'}
+                    (user/'run.json').write_text(json.dumps(changed))
+                    with self.assertRaisesRegex(ValueError,'source review'):delivery.verify(user)
+                (user/'run.json').write_bytes(saved_report)
                 binary=os.environ.get('YUI_TEST_COMPARATOR')
                 if binary and scope in delivery.LEAN:
                     self.assertEqual(delivery.compare(user,binary)['status'],'COMPARATOR_PASSED')
