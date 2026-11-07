@@ -64,6 +64,8 @@ class BasisCaseBatchTests(unittest.TestCase):
                 event=ir.load(result['user_decision']['path'])
                 self.assertEqual(event['checkpoint']['semantic_review'],bind(run/'2basis/0001/review/report.json'))
                 self.assertEqual([r['port'] for r in event['error']['reviewed_premises']],['E001'])
+                self.assertEqual(ir.load(run/'delivery/run.json')['unresolved_foundations'],['B001'])
+                self.assertEqual(ir.load(run/'delivery/nl0/basis-decision.json')['unresolved'][0]['port'],'E001')
                 self.assertFalse(case_outcomes.terminal(run,{'status':'STOPPED_BY_USER'}))
             (first,outcome),(other,_)=cases
             self.assertFalse(case_outcomes.terminal(other,outcome))
@@ -116,6 +118,29 @@ class BasisCaseBatchTests(unittest.TestCase):
             self.assertEqual(len(list(root.glob('nl0-to-lean/**/private-proofs/*/checked.json'))),2)
             import b2lean
             b2lean.validate_receipt(root/'b2lean')
+
+    def test_frozen_graph_defect_revises_its_basis_owner_and_rechecks_the_new_graph(self):
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['global-revision'])
+            self.assertEqual(result['status'],'WORKFLOW-PASSED')
+            context=ir.load(root/'basis-selection.json')['context']['path']
+            self.assertEqual(Path(context).parent,root/'2basis/0002/active-inputs')
+            self.assertEqual(len(list(root.glob('global-graphs/*/stage/accepted.json'))),2)
+            rejected=ir.load(root/'2basis/0002/rejected-global.json')
+            first=ir.load(rejected['path'])['global_graph']
+            final=ir.load(root/'delivery/nl0/global.json')['graph']
+            statement=lambda g:next(p['statement'] for p in g['propositions'] if p['id']=='N001')
+            self.assertEqual(statement(first),'Both numbers vanish.')
+            self.assertEqual(statement(final),'b=a.')
+            self.assertTrue(ir.load(root/'delivery/run.json')['audit_a'])
+
+    def test_unrepaired_frozen_graph_stops_without_resampling_the_same_review(self):
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['stalled-graph'])
+            self.assertEqual(result['retained_error']['status'],'BASIS_GRAPH_REVISION_UNRESOLVED')
+            self.assertEqual(len(list(root.glob('2basis/*/stage/result.json'))),2)
+            self.assertEqual(len(list(root.glob('audit-a/*/global/stage/result.json'))),1)
+            self.assertFalse((root/'delivery/formalization/Solution.lean').exists())
 
     def test_preparation_decision_precedes_paid_proofs_and_is_reused(self):
         for mode in ('planned-conditional','planned-stop','planned-continue'):

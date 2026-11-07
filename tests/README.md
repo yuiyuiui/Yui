@@ -1,6 +1,6 @@
 # Controller and workflow software tests
 
-Run `python3 -B tests/run_tests.py` (or `yui.py selftest`) from the skill repository.
+Use the local interpreter with `workflow/requirements.txt` installed. Run `.venv/bin/python -B tests/run_tests.py` (or `yui.py selftest`) from the skill repository. The public workflow suite runs the CLI through a scripted native provider, actual Lean, the optional audited checkpoint, explicit cleanup and independent readback. Set `YUI_TEST_COMPARATOR` to a compatible upstream executable to compare all three Lean exports and two incorrect candidate proofs after cleanup. The Comparator host dependencies and sandbox follow the upstream platform requirements. For maintenance also run the registered workflow-builder's `audit workflow --require-baseline`.
 The runner always cleans its owned temporary root and recorded child processes,
 including hidden files, native workspaces and compiled scratch output. Success,
 test failures, Python exceptions, SIGINT and SIGTERM share the cleanup path.

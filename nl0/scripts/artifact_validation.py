@@ -694,6 +694,6 @@ class NL0Contract:
         self.valid_drafts[self.attempt]=deepcopy(expanded)
         self.last_check={'candidate':self.attempt,'status':'STRUCTURE_PASSED','mathematical_acceptance':False}
         write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
-        return {'status': 'GLOBAL-GRAPH-FROZEN' if self.global_only else 'NL0-STRUCTURALLY-VALID', 'summary': summary,
+        return {'status': 'GLOBAL-GRAPH-STRUCTURALLY-VALID' if self.global_only else 'NL0-STRUCTURALLY-VALID', 'summary': summary,
                 'mathematical_acceptance': False,
                 'note': 'Actual source fidelity, proof replay and Audit A remain required.'}

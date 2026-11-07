@@ -26,9 +26,11 @@ def run(job,recorder,budgets,progress):
         try: from wfcore.engine import start
         except ModuleNotFoundError as missing:
             raise RuntimeError('Install workflow/requirements.txt for this interpreter or in Yui/.venv') from missing
-    sys.path.insert(0,str(project/'blocks'))
-    from native_case import Case
-    session=Case(job,recorder,budgets,progress)
+    from importlib.util import module_from_spec, spec_from_file_location
+    spec=spec_from_file_location('yui_native_case',project/'blocks/native_case.py')
+    native=module_from_spec(spec)
+    spec.loader.exec_module(native)
+    session=native.Case(job,recorder,budgets,progress)
     token=active.set(session)
     try:
         root=Path(job['root'])

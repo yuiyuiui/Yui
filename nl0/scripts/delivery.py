@@ -69,6 +69,10 @@ def export_nl0(authority, directory):
         if result.get('temporary_workspace_removed') is False:
             logs=Path(result['workspace_retention']['logs'])
             copy_input(logs/'resources/release.json',dest/'release.json')
+            # One persistent native role may submit several reviews. Its release
+            # identifies the original owner result, while this review binds its own.
+            if nl0.sha(logs/'result.json')!=nl0.sha(result_path):
+                copy_input(logs/'result.json',dest/'workspace-owner-result.json')
         for pause in result.get('error_pauses',[]):
             path=Path(pause['path'])
             if nl0.sha(path)!=pause['sha256']:
@@ -86,15 +90,19 @@ def challenge_source(contract,retained,name):
     return challenge,expected
 
 
+def comparator_config(name):
+    import audit_b
+    return {'challenge_module':'Challenge','solution_module':'Solution','theorem_names':[name],
+            'permitted_axioms':sorted(audit_b.AXIOMS),'enable_nanoda':False}
+
+
 def lean_project(directory, contract, retained, name, solution):
     from runtime_config import load_lock
-    import audit_b
     lock=load_lock()
     challenge,expected=challenge_source(contract,retained,name)
     (directory/'Challenge.lean').write_text(challenge)
     copy_input(Path(solution),directory/'Solution.lean')
-    write(directory/'config.json',{'challenge_module':'Challenge','solution_module':'Solution','theorem_names':[name],
-        'permitted_axioms':sorted(audit_b.AXIOMS),'enable_nanoda':False})
+    write(directory/'config.json',comparator_config(name))
     (directory/'lean-toolchain').write_text(lock['lean']['toolchain']+'\n')
     lib=lock['mathlib']
     (directory/'lakefile.toml').write_text('name = "YuiDelivery"\n\n[[require]]\nname = "mathlib"\n'
@@ -142,6 +150,13 @@ def export_lean(result,scope,source,directory):
     frozen_endpoint.update(retained=retained,export=export,
                            source_contract_sha256=nl0.sha(frozen['contract']),
                            semantic_review_sha256=receipt['gate']['semantic_review']['sha256'])
+    evidence=directory.parent/'nl0/lean-evidence'
+    evidence.mkdir()
+    for name,path in [('contract',frozen['contract']),('semantic-review',receipt['gate']['semantic_review']['path']),
+                      ('mechanical',receipt['gate']['mechanical']['path'])]:
+        copy_input(Path(path),evidence/(name+'.json'))
+    if result.get('closure'):
+        copy_input(Path(closed['closure']['native']['path']),evidence/'discharge.json')
     write(directory.parent/'nl0/lean-endpoints.json',frozen_endpoint)
     expected=lean_project(directory,contract,retained,export,proof)
     native_types={r['id']:r['actual_type'] for r in nl0.load(native/'audit-b/elaborated.json')['comparisons']}
@@ -157,6 +172,34 @@ def export_lean(result,scope,source,directory):
             entries.append({'id':sid,'original':statements[sid],'lean':audit_b.full_type(contract,premise['type'],retained[:index]),
                             'formal_premise':premise['type'],'correspondence':notes[sid]['correspondence']['explanation']})
     return entries,receipt['status']
+
+
+def verify_lean_evidence(directory,endpoint,record,expected):
+    import workflow
+    evidence=directory/'nl0/lean-evidence'
+    contract=nl0.load(evidence/'contract.json')
+    review=nl0.load(evidence/'semantic-review.json')
+    machine=nl0.load(evidence/'mechanical.json')
+    contract_hash=nl0.sha(evidence/'contract.json')
+    if (review['contract_sha256']!=contract_hash or endpoint['source_contract_sha256']!=contract_hash
+            or machine['frozen_contract_sha256']!=contract_hash or not machine['passed'] or machine['compiler_exit_code']!=0
+            or review['source_graph_sha256']!=nl0.sha(directory/'nl0/nl0.json')
+            or nl0.sha(evidence/'semantic-review.json')!=endpoint['semantic_review_sha256']
+            or set(review['checks'])!=workflow.INTERFACE_CHECKS or not all(v['verdict']=='PASS' for v in review['checks'].values())):
+        raise ValueError('The packaged interface review and machine results do not verify this NL0 and contract')
+    if any(endpoint[k]!=contract[k] for k in ('parameters','header','conclusion')):
+        raise ValueError('Comparator endpoint differs from the reviewed contract')
+    retained=[p for p in contract['premises'] if p['kind']=='hypothesis' or p['id'] in record['remaining_extra_premises']]
+    if retained!=endpoint['retained']:
+        raise ValueError('Export changed an original or retained premise')
+    solution=nl0.sha(directory/'formalization/Solution.lean')
+    if record['exit']=='b2lean':
+        native=nl0.load(evidence/'discharge.json')
+        proofs=[row['sha256'] for row in native['bindings'] if Path(row['path']).name=='Proof.lean']
+        if not native['passed'] or proofs!=[solution] or native['checks']!=[['P',endpoint['export'],expected]]:
+            raise ValueError('The solution differs from its actual checked discharge')
+    elif machine['artifacts']['Proof.lean']!=solution:
+        raise ValueError('The solution differs from its actual checked Audit B export')
 
 
 def verify(directory, *, anchor=None):
@@ -181,9 +224,12 @@ def verify(directory, *, anchor=None):
         if {p.name for p in (directory/'formalization').iterdir()}!={'Challenge.lean','Solution.lean','lakefile.toml','config.json','lean-toolchain','lake-manifest.json'}:
             raise ValueError('Incomplete Comparator package')
         endpoint=nl0.load(directory/'nl0/lean-endpoints.json')
+        if nl0.load(directory/'formalization/config.json')!=comparator_config(endpoint['export']):
+            raise ValueError('Comparator must check the published theorem and allowed axioms')
         challenge,expected=challenge_source(endpoint,endpoint['retained'],endpoint['export'])
         if (directory/'formalization/Challenge.lean').read_text()!=challenge or not entries or entries[0]['lean']!=expected:
             raise ValueError('Comparator challenge no longer expresses the independently frozen target')
+        verify_lean_evidence(directory,endpoint,record,expected)
         if [e['id'] for e in entries]!=['P',*record['remaining_extra_premises']]:
             raise ValueError('Final theorem correspondence differs from the retained premises')
         retained=[p['id'] for p in endpoint['retained'] if p['kind']=='external']
@@ -193,6 +239,10 @@ def verify(directory, *, anchor=None):
             raise ValueError('Unconditional delivery contains an additional premise')
     elif entries or list((directory/'formalization').iterdir()):
         raise ValueError('Unexpected Lean output in a non-formalized delivery')
+    if scope=='STOPPED':
+        decision=nl0.load(directory/'nl0/basis-decision.json')
+        if decision['decision']!='stop' or not decision['unresolved'] or [row['id'] for row in decision['unresolved']]!=record['unresolved_foundations']:
+            raise ValueError('Stopped run lacks the actual reviewed residuals and operator decision')
     if record['audit_a']:
         base=directory/'nl0'
         if not (base/'global.json').is_file() or not (base/'review-evidence/execution').is_dir():
@@ -263,12 +313,26 @@ def publish(job,result,scope,recorder):
             dest.mkdir()
             copy_input(Path(result['proof']),dest/'Actual.lean')
             copy_input(Path(result['audit_b']['findings']),dest/'findings.json')
+        unresolved=[]
+        if scope=='STOPPED':
+            import case_outcomes
+            decision=case_outcomes.verify_basis_decision(root,result['user_decision'],'stop')
+            registry=nl0.load(decision['checkpoint']['basis']['path'])
+            unresolved=[{'id':d['id'],'port':d['port'],'statement':d['statement'],'origin':d['origin']['reference']}
+                        for d in registry['dependencies'] if d['category']==4]
+            write(natural/'basis-decision.json',{'decision':'stop','incident':decision['incident'],
+                'full_target':registry['full_target'],'unresolved':unresolved,
+                'basis_sha256':decision['checkpoint']['basis']['sha256'],
+                'review_sha256':decision['checkpoint']['semantic_review']['sha256']})
         extra=[row['id'] for row in entries if row['id']!='P']
         write(stage/STATEMENTS,{'entries':entries})
         recorder.flush(force=True)
         observed=recorder.state['usage']
+        end=getattr(recorder,'ended',None) or datetime.now(timezone.utc)
         elapsed=time.monotonic()-recorder.started
-        end=datetime.now(timezone.utc)
+        started=recorder.state.get('started_at_utc')
+        if started:
+            elapsed=(end-datetime.fromisoformat(started)).total_seconds()
         entry='2basis' if job.get('formalization')=='unconditional' else 'nl0'
         exit_name='b2lean' if result.get('closure') else 'nl02lean' if result.get('audit_b') else 'nl0' if audit_a else entry
         timings=root/'handoffs/blocks.json'
@@ -279,8 +343,9 @@ def publish(job,result,scope,recorder):
         record={'version':'yui-delivery-1','blocks':blocks,'outcome_sha256':outcome_digest,
                 'last_phase':recorder.state.get('phase'),'elapsed_scope':'case start through delivery checks','run_id':job['run_id'],'requested_goal':'audit' if job['track']=='nl0' else job['formalization'],
                 'actual_result':scope,'case_status':result['status'],'entry':entry,'exit':exit_name,
+                'unresolved_foundations':[row['id'] for row in unresolved],
                 'remaining_extra_premises':extra,'audit_a':audit_a,'audit_b':audit_b,'execution_fault':result.get('execution_fault'),
-                'started_utc':(end-timedelta(seconds=elapsed)).isoformat(),'ended_utc':end.isoformat(),'elapsed_seconds':elapsed,
+                'started_utc':started or (end-timedelta(seconds=elapsed)).isoformat(),'ended_utc':end.isoformat(),'elapsed_seconds':elapsed,
                 'usage':{'status':observed.get('status','UNKNOWN'),'observed':observed.get('confirmed_tokens'),
                          'total':observed.get('confirmed_tokens') if observed.get('status')=='COMPLETE' else None},
                 'stages':phase_metrics.summarize(root)['stages'],'files':files(stage)}
@@ -320,7 +385,8 @@ def partial(job):
     if result.get('status') in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL','WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','STOPPED_BY_USER','DIFFERENT_RESULT_DELIVERED'}:
         raise ValueError('A terminal delivery is missing; preserve the accepted evidence')
     elapsed=state.get('elapsed_seconds',0)
-    recorder=SimpleNamespace(state=state,started=time.monotonic()-elapsed,flush=lambda **_:None)
+    ended=datetime.fromisoformat(state['updated_at_utc']) if state.get('updated_at_utc') else None
+    recorder=SimpleNamespace(state=state,started=time.monotonic()-elapsed,ended=ended,flush=lambda **_:None)
     retained=result.get('retained_error',{})
     result={**result,'status':result.get('status','INTERRUPTED'),'execution_fault':retained.get('error') or result.get('error')}
     return publish(job,result,'INTERRUPTED',recorder)[0]

@@ -80,7 +80,6 @@ class NodePatch:
 def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None):
     root=Path(job['root']);sessions=Sessions();source=restored;issues=initial_issues;prior=list(prior);epoch=0
     from basis import problem_inputs
-    problem=problem_inputs(job)
     rejected=RejectedReviews(prior)
     while True:
         epoch+=1
@@ -95,6 +94,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             blocker=rejected.blocker(source,'global')
             if blocker:raise blocker
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
+            problem=problem_inputs(job)
             campaign.prepare(source,problem,global_dir,reuse_from=prior)
             progress(job['case'],'AUDIT_A_GLOBAL',directory=str(global_dir))
             campaign.run(global_dir,budget=budget,audit_budget=audit_budget,only='global',sessions=sessions)

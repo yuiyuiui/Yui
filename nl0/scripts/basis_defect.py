@@ -34,7 +34,8 @@ def enable(stage):
         return
     # Keep packet-only reviewers and local provers inside their existing disclosure boundary.
     # Global roles may inspect the selected mathematical inputs but never the basis role history.
-    active=root/'active-inputs'
+    import basis
+    active=basis.problem_inputs(job)
     docs=ir.load(active/'inputs.json')['inputs']
     for row in docs:
         name=row['id']

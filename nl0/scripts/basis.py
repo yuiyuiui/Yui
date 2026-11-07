@@ -332,15 +332,26 @@ def decision(root, artifact, budget, *, planning=False):
     return receipt
 
 
-def run(job, budget, progress):
+def run(job, budget, progress, *, graph_findings=None):
     from basis_author import BasisStage
     from role_sessions import Sessions
     root = Path(job['root']);sessions = Sessions();previous = None;revision = 0
     history = {};findings = None
     resume=job.get('resume') or {}
     if resume.get('mode')=='basis-revision':
-        previous=Path(resume['basis']['path'])
         late_finding=ir.load(resume['report']['path'])['finding']
+    if graph_findings is not None:
+        current=ir.load(problem_inputs(job)/CONTEXT)
+        previous=Path(current['basis']['path'])
+        rejected=[current['basis']]
+        for path in sorted((root/'2basis').glob('*/rejected-global.json')):
+            rejected.append(ir.load(path))
+        verify_bindings(rejected)
+        rejected_graphs=[basis_graph.projection(ir.load(row['path'])['global_graph']) for row in rejected]
+        findings=graph_findings
+        revision=max(int(p.name) for p in (root/'2basis').iterdir() if p.name.isdigit())
+    elif resume.get('mode')=='basis-revision':
+        previous=Path(resume['basis']['path'])
         findings={late_finding['basis_id']:late_finding}
         progress(job['case'],'BASIS_REVISION_STARTED',prior_run=resume['prior_run'],defect=resume['report'])
     elif resume:
@@ -358,6 +369,7 @@ def run(job, budget, progress):
     while True:
         revision += 1;out = root/'2basis'/f'{revision:04d}';inputs = out/'inputs';inputs.mkdir(parents=True)
         copy_problem_documents(root/'inputs', inputs)
+        if graph_findings is not None:write(out/'rejected-global.json',current['basis'])
         prompt = PROMPT
         if previous:
             copy_input(previous, inputs/'prior-basis.json')
@@ -392,6 +404,9 @@ def run(job, budget, progress):
         if validator.selected is None:raise StageFailure('BASIS_INCOMPLETE','No machine-checked basis selected',phase='basis-authoring')
         artifact = ir.load(out/'stage/accepted.json')
         ir.need(artifact==ir.load(validator.selected/'basis.json'),'Basis submission differs from checked candidate')
+        if graph_findings is not None and basis_graph.projection(artifact['global_graph']) in rejected_graphs:
+            raise StageFailure('BASIS_GRAPH_REVISION_UNRESOLVED','The basis owner returned the same rejected propositions and edges',
+                               phase='basis-authoring',evidence=out/'stage/accepted.json')
         if resume.get('mode')=='basis-revision':
             import basis_defect
             basis_defect.require_revision(artifact,resume,late_finding)
@@ -425,7 +440,8 @@ def run(job, budget, progress):
         if action=='continue':previous=out/'stage/accepted.json';continue
         context['approval']=chosen
         verify_context(context)
-        active = root/'active-inputs';active.mkdir()
+        active = out/'active-inputs' if graph_findings is not None else root/'active-inputs'
+        active.mkdir()
         copy_problem_documents(root/'inputs',active)
         from jobs import stage_document
         for number, evidence in enumerate(context['evidence']):
@@ -478,7 +494,11 @@ def problem_inputs(job):
     root = Path(job['root'])
     if mode(job)!='unconditional':return root/'inputs'
     selection = ir.load(root/'basis-selection.json');verify_bindings(list(selection.values()))
-    active = root/'active-inputs';context = ir.load(active/CONTEXT);verify_context(context)
+    active=Path(selection['context']['path']).parent
+    if active!=root/'active-inputs' and (active.name!='active-inputs' or active.parent.parent!=root/'2basis'
+            or not active.parent.name.isdigit() or active.resolve()!=active):
+        raise ValueError('Basis selection escaped its owned revision')
+    context=ir.load(active/CONTEXT);verify_context(context)
     resume=job.get('resume') or {}
     if resume.get('mode')=='basis-revision':
         ir.need(context.get('revision_report')==resume['report'],'Active basis lost its located revision obligation')

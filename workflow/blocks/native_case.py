@@ -127,6 +127,13 @@ class Case:
                 return routes.outcome(port,{'scope':scope,'extra_premises':extra,
                     'inventory':ctx.put_file(json.dumps(inventory,sort_keys=True).encode())})
             raise ValueError('Missing Yui handler '+name)
+        except StageFailure as error:
+            if name=='audit' and error.result['status']=='STOPPED_BY_USER':
+                from case_outcomes import verify_basis_decision
+                verify_basis_decision(self.root,error.result['user_decision'],'stop')
+                return routes.outcome('finish',routes.final_data(data,self.save('stopped',error.result)))
+            self.failure=error
+            raise
         except Exception as error:
             self.failure=error
             raise

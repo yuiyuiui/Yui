@@ -354,7 +354,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
     if current:
         closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
     if global_only:
-        return {"status":"GLOBAL-GRAPH-FROZEN", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
+        return {"status":"GLOBAL-GRAPH-STRUCTURALLY-VALID", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
     result = {"status": "STRUCTURE-PASSED" if current else "LEGACY-STRUCTURE-PASSED", "case_id": spec["case_id"],
               "contract_version": spec["format_version"], "current_standard_receipt_valid": False,

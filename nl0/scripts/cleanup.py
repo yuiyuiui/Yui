@@ -261,9 +261,14 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
         if apply:
             for root in sorted(roots):locks.enter_context(cleanup_lock(root))
         anchors={}
+        def verified_anchor(root,job):
+            if delivery.verify(root/'delivery')['scope']=='INTERRUPTED':
+                return delivery.partial(job)
+            return delivery.cleanup_anchor(root)
         for root in roots:
-            if json.loads((root/'job.json').read_text()).get('workflow_protocol') and (root/'delivery').exists():
-                anchors[root]=delivery.cleanup_anchor(root)
+            job=json.loads((root/'job.json').read_text())
+            if job.get('workflow_protocol') and (root/'delivery').exists():
+                anchors[root]=verified_anchor(root,job)
         inv = inventory(repo, outputs)
         table = process_table(); owned = discover(inv, table, repo)
         report = {'mode': 'APPLY' if apply else 'PREVIEW', 'at_utc': now(),
@@ -324,7 +329,7 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
         for root in roots:
             job=json.loads((root/'job.json').read_text())
             if job.get('workflow_protocol') and (root/'delivery').exists():
-                anchors[root]=delivery.cleanup_anchor(root)
+                anchors[root]=verified_anchor(root,job)
             elif job.get('workflow_protocol') and (root/'execution-status.json').is_file():
                 anchors[root]=delivery.partial(job)
         for work in inv['workspaces']:

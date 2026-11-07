@@ -155,12 +155,16 @@ def global_stage(job, budget, *, owner, previous=None, findings=None):
         prompt+=' Repair the located global findings in the supplied prior version. Preserve the original target and H.'
     stage=ArtifactStage(attempt/'stage',prompt,phase=owner,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget))
-    stage.execute()
+    from role_sessions import Sessions
+    owner_sessions=Sessions()
+    with owner_sessions.use(owner):
+        stage.execute()
     accepted(attempt)
     canonical={'spec':nl0.load(stage.logs/'case/spec.json'),'graph':nl0.load(stage.logs/'case/nl0.json')}
     if canonical!=nl0.load(stage.logs/'accepted.json'):
         raise ValueError('Global submit differs from the accepted graph')
     receipt=freeze_receipt(stage.logs/'case',owner)
+    owner_sessions.close_all('GLOBAL_GRAPH_FROZEN',[Path(receipt['path'])])
     if previous:
         before, after=read_frozen(previous),read_frozen(receipt)
         if any(before['spec'][key]!=after['spec'][key] for key in ('full_target','conclusion','parameters','hypotheses')):
@@ -173,6 +177,20 @@ def select(job, receipt):
     read_frozen(receipt)
     write(Path(job['root'])/'global-selection.json', receipt)
 
+def issue_owner(issue, global_owner):
+    """Distinguish frozen proof edges/statements from graph metadata and local arguments."""
+    fields=issue.get('location','').strip('/').split('/')
+    if fields[0]=='spec':return 'global'
+    if fields[:2]==['graph','propositions']:
+        protected=len(fields)<=3 or fields[3] in {'id','statement'}
+    elif fields[:2]==['graph','inferences']:
+        protected=(len(fields)<=2 or (len(fields)==3 and issue.get('criterion')=='structure')
+                   or (len(fields)>3 and fields[3] in {'id','inputs','output'}))
+        if not protected and (len(fields)<=3 or fields[3]!='definitions'):return 'local'
+    else:return 'local'
+    return 'basis' if protected and global_owner==BASIS else 'global'
+
+
 def local_stage(job, directory, budget, *, baseline=None, obligations=None):
     import basis
     import nl0_author
@@ -182,12 +200,13 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None):
     previous=nl0.load(root/'global-selection.json')
     owner=nl0.load(previous['path'])['owner']
     issues=(obligations or {}).get('issues',[])
-    def global_issue(issue):
-        path=issue.get('location','')
-        return (path.startswith(('/spec/','/graph/propositions')) or path=='/graph/inferences'
-                or (path.startswith('/graph/inferences/') and
-                    (path.rsplit('/',1)[-1] in GLOBAL_FIELDS or issue.get('criterion')=='structure')))
-    if any(global_issue(issue) for issue in issues):
+    owners={issue_owner(issue,owner) for issue in issues}
+    if 'basis' in owners:
+        from workflow_execution import active
+        session=active.get()
+        if session is None:raise ValueError('A basis graph revision requires its owning case')
+        basis.run(job,budget,session.progress,graph_findings=obligations)
+    if owners & {'basis','global'}:
         previous=global_stage(job,budget,owner=owner,previous=previous,findings=obligations)
         select(job,previous)
     frozen=read_frozen(previous)

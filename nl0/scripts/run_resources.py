@@ -85,6 +85,10 @@ def safe_stage_workspace(result, *, archived=None):
     try:
         release_file, result_file = ((logs/'resources/release.json', logs/'result.json')
                                      if archived is None else (archived[0]/'release.json', archived[1]))
+        if archived is not None and (archived[0]/'workspace-owner-result.json').is_file():
+            result_file=archived[0]/'workspace-owner-result.json'
+            owner_result=json.loads(result_file.read_text())
+            if owner_result.get('workspace_retention')!=row or owner_result.get('stage_log_path')!=str(logs):return False
         released=json.loads(release_file.read_text())
         return (released['workspace_retention']==row and released['cleanup_confirmed'] is True
                 and released['authorization'] in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}

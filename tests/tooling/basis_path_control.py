@@ -57,7 +57,9 @@ def author_code(stage):
     code=call('check_draft',artifact=draft)
     for row in graph['inferences']:
         code+=call('read_author_packet',candidate=1,inference=row['id'])
-    code+=call('record_author_checks',candidate=1,readiness='no_known_issue',open_issues=[],
+    repaired=json.loads(stage.task_inputs.get('repair-obligations.json','{"issues":[]}'))
+    resolutions=[{'id':i['id'],'location':i['location'],'note':'The revised N001 is the symmetric equality.'} for i in repaired['issues']]
+    code+=call('record_author_checks',candidate=1,readiness='no_known_issue',open_issues=[],resolutions=resolutions,
         original_context_note=NOTE,output_notes=[{'id':row['id'],'note':NOTE} for row in graph['propositions']
                                                 if row['kind'] in {'internal','target'}],
         inference_notes=[{'id':row['id'],'dependency_and_local_assumption_check':NOTE,
@@ -74,6 +76,10 @@ def review_value(stage):
                               {'document':'contract.json','pointer':'/conclusion/type'}]
         elif stage.mode=='audit-a-global':
             row['locations']=['spec.json#/full_target' if pointer=='/target_review' else 'nl0.json#/inferences']
+            if pointer=='/structure_review' and mode in {'global-revision','stalled-graph'}:
+                props=json.loads(stage.task_inputs['nl0.json'])['propositions']
+                bad=next((i for i,p in enumerate(props) if p['statement']=='Both numbers vanish.'),None)
+                if bad is not None:row.update(verdict='FAIL',notes='Equality does not imply both numbers vanish.',locations=[f'nl0.json#/propositions/{bad}/statement'])
             if pointer.startswith('/source_reviews/'):
                 row['citation_checks']={k:deepcopy(row) for k in audit_a_campaign.nl0.EXTERNAL_CHECKS}
         else:
@@ -114,7 +120,10 @@ def scripted(stage):
                     {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
                     for r in value['dependencies']])
             return frontier+call('submit_draft',artifact=value)
-        return call('submit_draft',artifact=active_artifact(artifact(row)))
+        value=active_artifact(artifact(row))
+        if mode=='stalled-graph' or (mode=='global-revision' and revision=='0001'):
+            next(p for p in value['global_graph']['propositions'] if p['id']=='N001')['statement']='Both numbers vanish.'
+        return call('submit_draft',artifact=value)
     if stage.mode=='basis-frontier':
         item=json.loads(stage.task_inputs['frontier-item.json'])
         return call('submit_draft',artifact={'route':'derivation','statement':item['statement'],'argument':NOTE,
@@ -140,7 +149,8 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
-        registry=run/'active-inputs/basis-registry.json'
+        from basis import problem_inputs
+        registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
         for row in rows:
             if not row['port']:continue
@@ -210,7 +220,7 @@ if __name__ == '__main__':
             else:
                 status=error.get('outcome',{}).get('status') if isinstance(error,dict) else None
                 expected={'late':'BASIS_REVISION_REQUIRED','late-proof':'BASIS_REVISION_REQUIRED','first-pass':'BASIS_SEMANTIC_NONPASS',
-                          'deadline-decision':'UNFINISHED'}
+                          'deadline-decision':'UNFINISHED','stalled-graph':'BASIS_GRAPH_REVISION_UNRESOLVED'}
                 if status!=expected.get(mode) or mode not in expected:
                     unexpected.append((gate.stage,str(error)[:3000]))
                 def cancel(_):
@@ -223,7 +233,7 @@ if __name__ == '__main__':
         with patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
              patch.object(execution_state.Recorder,'register_process',registered):
             result=case_runner.execute(job)
-    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review'}:
+    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph'}:
         print('Fixture failures:',unexpected,fixture.failures,'result:',result,flush=True)
         raise SystemExit(2)
     raise SystemExit(0 if result['completion']['workflow_completed'] else 1)
