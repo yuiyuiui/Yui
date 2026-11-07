@@ -10,8 +10,8 @@ In the optional [unconditional route](../../nl0/references/basis.md), accepted
 NL0 already presents the 2basis proof. Its original target/H authority remains
 unchanged. Read the bound prepared basis; preserve its header prefix and exact
 provisional E types. All interface reviews, source factoring, T proofs, repairs
-and Audit B use this same workflow. Class 3 is internal proof. After conditional
-Audit B, b2lean applies prepared 1/2 proofs and performs a fresh final machine
+and Audit B use this same workflow. Class 3 has a checked basis proof. After conditional
+Audit B, b2lean applies prepared 1/2/3 proofs and performs a fresh final machine
 signature/trust check. No additional full NL review is introduced here.
 
 ## 1. Inspect before extracting

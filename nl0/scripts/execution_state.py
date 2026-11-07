@@ -280,7 +280,14 @@ class Recorder:
 
     def cancelled(self, task=None):
         self.poll_control()
-        return self._cancel_all.is_set() or task in self._cancel_tasks
+        if self._cancel_all.is_set():return True
+        with self.lock:
+            seen=set()
+            while task is not None and task not in seen:
+                if task in self._cancel_tasks:return True
+                seen.add(task)
+                task=self.state['tasks'].get(task,{}).get('parent_task')
+        return False
 
     def check(self, task=None):
         if self.cancelled(task): raise Cancelled('External cancellation requested for this run/task')

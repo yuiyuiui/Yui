@@ -54,7 +54,7 @@ def expand_interface(value,documents,drafts):
 
 
 PROMPT='''Translate the accepted NL0 into a small, usable Lean interface and local
-proof plan. Start with source-map.json and the problem/specification; read
+proof plan. Check workload and shared consumers before freezing. Split independent formal obligations at natural interfaces; keep dependent witnesses and their scope together. Start with source-map.json and the problem/specification; read
 individual NL0 definitions or paragraphs when needed. Yui translation rules
 are available on demand. Do not read every rule or background note at startup.
 The controller retains all accepted paragraphs and attaches each step's own
@@ -157,9 +157,8 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
         prompt+='''\nThis accepted source follows 2basis. Read prepared-basis.json.
 Keep its lean_header as an exact prefix of your header, and use its exact closed
 Lean types for the provisional E ports. Their actual proofs/adapters have already
-been checked. Choose remaining target/representation/T details normally; class 3
-is internal mathematics for these workers. Do not add E assumptions or re-prove
-the prepared dependencies. b2lean will discharge 1/2 after ordinary Audit B.
+been checked. Choose remaining target/representation/T details normally; prepared class 3 ports supply already checked derivations. Do not add E assumptions or re-prove
+the prepared dependencies. b2lean discharges all prepared ports after ordinary Audit B.
 '''
     if prior_interface:
         shutil.copyfile(prior_interface,inputs/'prior-interface.json')

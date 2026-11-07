@@ -1,4 +1,5 @@
 """Read-only source transport failures are explicit, not source-verification passes."""
+import io
 import harness_support
 import importlib.util
 import json
@@ -54,7 +55,7 @@ class SourceAccessTests(unittest.TestCase):
             response.geturl.return_value='https://example.org';response.status=200
             for body,status in [(b'<p>Verify you are human</p>','HUMAN_ACCESS_REQUIRED'),
                                 (b'<a href="/httpservice/retry/enablejs">Enable JavaScript</a>','BROWSER_REQUIRED')]:
-                response.read.return_value=body
+                response.read.side_effect=io.BytesIO(body).read
                 result=access.read(tmp,'https://example.org')
                 self.assertEqual(result['status'],status);self.assertNotIn('content',result)
 
@@ -74,7 +75,7 @@ class SourceAccessTests(unittest.TestCase):
                      patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder,\
                      patch('source_browser.capture',side_effect=capture):
                     response=builder.return_value.open.return_value.__enter__.return_value
-                    response.read.return_value=raw;response.geturl.return_value=url;response.status=200
+                    response.read.side_effect=io.BytesIO(raw).read;response.geturl.return_value=url;response.status=200
                     result=access.read(tmp,url,browser=browser)
                     self.assertEqual(result['status'],'READABLE')
                     self.assertEqual(result['document_kind'],'PDF');self.assertIn(sentence,result['content'])
@@ -84,7 +85,7 @@ class SourceAccessTests(unittest.TestCase):
     def test_readable_source_reuses_bound_bytes_and_rejects_cache_tampering(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
             response=builder.return_value.open.return_value.__enter__.return_value
-            response.read.return_value=b'<p>Complete primary text.</p>'
+            response.read.side_effect=io.BytesIO(b'<p>Complete primary text.</p>').read
             response.geturl.return_value='https://example.org';response.status=200
             first=access.read(tmp,'https://example.org',limit=8)
             second=access.read(tmp,'https://example.org',offset=8,limit=8)
@@ -112,7 +113,7 @@ class SourceAccessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
             response=builder.return_value.open.return_value.__enter__.return_value
             response.status=200;response.geturl.return_value='https://arxiv.org/abs/1234.5678v2'
-            response.read.return_value=b'<a href="/pdf/1234.5678v2">PDF</a>'
+            response.read.side_effect=io.BytesIO(b'<a href="/pdf/1234.5678v2">PDF</a>').read
             result=access.search(tmp,'1234.5678v2')
             self.assertEqual(result['engine'],'arxiv')
             self.assertEqual(result['candidates'],['https://arxiv.org/pdf/1234.5678v2'])
@@ -123,7 +124,7 @@ class SourceAccessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
             response=builder.return_value.open.return_value.__enter__.return_value
             response.status=200;response.geturl.return_value='https://sci-hub.box/10.1234/example'
-            response.read.return_value=b'<meta name="citation_pdf_url" content="/storage/original.pdf"><p>doi:10.1234/example.</p>'
+            response.read.side_effect=io.BytesIO(b'<meta name="citation_pdf_url" content="/storage/original.pdf"><p>doi:10.1234/example.</p>').read
             result=access.search(tmp,'https://doi.org/10.1234/example',engine='scihub')
             self.assertEqual(result['candidates'],['https://sci-hub.box/storage/original.pdf'])
             self.assertEqual(result['doi_candidates'],['10.1234/example'])
@@ -168,7 +169,7 @@ class SourceAccessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
             response=builder.return_value.open.return_value.__enter__.return_value
             response.status=200;response.geturl.return_value='https://www.google.com/sorry/index'
-            response.read.return_value='<p>我们的系统检测到异常流量</p>'.encode()
+            response.read.side_effect=io.BytesIO('<p>我们的系统检测到异常流量</p>'.encode()).read
             result=access.read(tmp,'https://www.google.com/search?q=paper')
             self.assertEqual(result['status'],'HUMAN_ACCESS_REQUIRED');self.assertNotIn('content',result)
 
@@ -193,7 +194,7 @@ class SourceAccessTests(unittest.TestCase):
             try:
                 with patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
                     response=builder.return_value.open.return_value.__enter__.return_value
-                    response.read.return_value=b'<p>Complete source statement.</p>'
+                    response.read.side_effect=io.BytesIO(b'<p>Complete source statement.</p>').read
                     response.geturl.return_value='https://example.org';response.status=200
                     result=stage.dispatch('read_external_source',{'url':'https://example.org'})
                 self.assertEqual(result['status'],'READABLE')
@@ -214,7 +215,7 @@ class SourceAccessTests(unittest.TestCase):
     def test_corrupt_pdf_retains_download_and_records_failed_extraction(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(access,'public_url'),patch.object(access.urllib.request,'build_opener') as builder:
             response=builder.return_value.open.return_value.__enter__.return_value
-            response.read.return_value=b'%PDF-1.7\ninvalid';response.geturl.return_value='https://example.org/paper.pdf';response.status=200
+            response.read.side_effect=io.BytesIO(b'%PDF-1.7\ninvalid').read;response.geturl.return_value='https://example.org/paper.pdf';response.status=200
             with patch('target_selection.text',side_effect=ValueError('broken document')):
                 result=access.read(tmp,'https://example.org/paper.pdf')
             self.assertEqual(result['status'],'UNAVAILABLE')

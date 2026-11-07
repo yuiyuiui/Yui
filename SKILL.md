@@ -14,10 +14,9 @@ For an explicit unconditional request, select `--track full --formalization
 unconditional` and follow [2basis and b2lean](nl0/references/basis.md).
 2basis may rewrite the original proof route before the one shared NL0/Audit A;
 the original target/H remain immutable. Audit A receives both original task and
-basis proof/replacements. Prepare used class 1/2 Lean proofs/adapters in 2basis;
-a separate reviewer checks the submitted class 1/2/4 statements against their
-actual Lean propositions, sources and uses before release. Class 3 is internal
-mathematics, while remaining class 4 requires the user's
+basis proof and replacements. Prepare used class 1/2/3 Lean proofs in 2basis.
+An independent reviewer compares the printed Lean propositions with the source and
+all intended uses. Remaining class 4 requires the user's
 exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean
 must check the actual closed export and transitive trust. Never present an
 approved conditional fallback or source-qualified result as unconditional.
@@ -75,7 +74,7 @@ New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
 Historical jobs without snapshots retain their original binding checks.
-Each native Lean call defaults to a 180-second wall limit. Yui proof workers
+Each native Lean call defaults to a 360-second wall limit. Yui proof workers
 automatically receive frozen ST020 repair advice after a verified native
 wall/heartbeat limit, through the same failed tool result. Keep the target and
 inputs unchanged, repair in the same worker, and recheck. General strategy-bank

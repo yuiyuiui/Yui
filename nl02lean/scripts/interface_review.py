@@ -18,6 +18,7 @@ from audit_a_campaign import blocking_finding
 sys.path.insert(0,str(CORE/'nl0/scripts'))
 sys.path.insert(0,str(CORE/'nl02lean/scripts'))
 import ir
+from staging_storage import copy_input
 import workflow
 import concurrency
 from clean_stage import ArtifactStage
@@ -49,6 +50,7 @@ the accepted source argument, not silently research a new proof or introduce a s
 project hypothesis. Each typed obligation may be conditional, but assembly must
 discharge all internal hypotheses. A difficult yet faithful obligation is not
 an interface error simply because it may take time to prove.
+Read workload.json when judging statements_and_local_plans. Examine long chains and bundled independent arguments. Identify an actionable smaller cut if it preserves all direct inputs and the original output; keep a coherent argument together when a split adds no useful parallel work.
 Complete all named checks in the generated submission schema with your actual
 judgments, specific reasoning and resolving document/pointer locations.
 Locate each judgment in both source material (spec.json or nl0.json) and formal
@@ -99,7 +101,7 @@ def copy_review_inputs(author,inputs):
     """Disclose canonical task data, not the author's repair history/verdicts."""
     permitted={'spec.json','nl0.json','source-map.json','background-supplement.json','problem.md','source-context.md','frozen-target.md'}
     for src in (Path(author)/'inputs').iterdir():
-        if src.is_file() and src.name in permitted:shutil.copyfile(src,Path(inputs)/src.name)
+        if src.is_file() and src.name in permitted:copy_input(src,Path(inputs)/src.name)
 
 
 def verify_candidate_artifact(actual,c,p,outputs):
@@ -152,6 +154,7 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
     c=ir.load(contract);p=ir.load(plan)
     verify_candidate_artifact(actual,c,p,paths['source_outputs'])
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
+    write(inputs/'workload.json',ir.decomposition(contract,ir.load(plan)))
     for src,name in [(contract,'contract.json'),(plan,'plan.json')]:shutil.copyfile(src,inputs/name)
     copy_review_inputs(author,inputs)
     adjudication=None

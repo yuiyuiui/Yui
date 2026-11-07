@@ -53,7 +53,7 @@ output ownership. User cancellation remains an explicit terminal outcome. No ada
 Omitted or null `time_budget_seconds` means unlimited whole-case execution.
 Configuration also leaves stage time limits and the total token budget null. The
 runtime does not cap model-call count or stop a healthy task because tool-result
-idle time exceeded a threshold. Each native Lean call has a separate 180-second
+idle time exceeded a threshold. Each native Lean call has a separate 360-second
 wall limit from `config.json` (`timeouts.native_seconds`), uses the configured 20,000,000
 heartbeat budget and has no artificial per-process heap quota. A shorter
 explicit caller or remaining case/stage deadline takes precedence. A native

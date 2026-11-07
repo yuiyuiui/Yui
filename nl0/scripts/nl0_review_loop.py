@@ -18,9 +18,32 @@ import nl0
 
 
 def copy_source(source, destination):
-    shutil.copytree(source,destination)
-    for name in ('audit-a.json','audit-a.pending.json'):
-        (destination/name).unlink(missing_ok=True)
+    from staging_storage import copy_input
+    source,destination=Path(source).resolve(),Path(destination)
+    spec=json.loads((source/'spec.json').read_text())
+    graph=json.loads((source/'nl0.json').read_text())
+    files={}
+    def declared(value):
+        if isinstance(value,dict):
+            if set(value)=={'path','sha256'}:
+                key=value['path']
+                if key in files and files[key]!=value['sha256']:raise ValueError('Conflicting input binding '+key)
+                files[key]=value['sha256']
+            else:
+                for child in value.values():declared(child)
+        elif isinstance(value,list):
+            for child in value:declared(child)
+    declared(spec);declared(graph)
+    for name in ('spec.json','nl0.json'):files[name]=nl0.sha(source/name)
+    paths=[]
+    for name,digest in files.items():
+        path=nl0.local_path(source,name)
+        if not path.is_file() or nl0.sha(path)!=digest:raise ValueError('Changed declared proof input '+name)
+        paths.append((path,destination/name))
+    destination.mkdir(parents=True,exist_ok=False)
+    for path,target in paths:
+        target.parent.mkdir(parents=True,exist_ok=True)
+        copy_input(path,target)
 
 
 class NodePatch:

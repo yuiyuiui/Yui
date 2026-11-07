@@ -22,6 +22,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from staging_storage import copy_input
 
 from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
 from runtime_config import model_profile
@@ -151,9 +152,9 @@ class Trial:
         for p in self.taskdir.iterdir():
             if self.strict and p.name not in {'task.md', 'Premises.lean', 'Target.lean.txt'}:
                 continue
-            shutil.copyfile(p, self.work / 'input' / p.name)
+            copy_input(p, self.work / 'input' / p.name)
         (self.logs / 'input').mkdir()
-        for p in (self.work / 'input').iterdir(): shutil.copyfile(p, self.logs / 'input' / p.name)
+        for p in (self.work / 'input').iterdir(): copy_input(p, self.logs / 'input' / p.name)
         if self.strict:
             # Archive manager metadata for verification, without exposing it
             # through the model/compiler's own runtime input directory.

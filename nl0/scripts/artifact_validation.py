@@ -571,9 +571,10 @@ class NL0Contract:
             registry=basis.verify_context(context)
             if spec['full_target']!=context['full_target']:
                 raise ValueError('Basis NL0 changed the original target')
+            basis.basis_graph.verify_handoff(registry,graph)
             expected={r['port']:r['statement'] for r in registry['dependencies'] if r['port'] and r['port'].startswith('E')}
             actual={p['id']:p['statement'] for p in graph['propositions'] if p['kind']=='external'}
-            if actual!=expected:raise ValueError('Basis NL0 must retain exactly prepared E statements; class 3 is internal')
+            if actual!=expected:raise ValueError('Basis NL0 changed the frozen E statements')
         # The author selects a declaration and writes its mathematical meaning.
         # Exact Lean printer output and evidence hashes come from actual probes,
         # rather than an error-prone model transcription of thousands of bytes.

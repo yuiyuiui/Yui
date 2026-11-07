@@ -23,9 +23,29 @@ def dependency(key='B001', category=1, *, port=None, compatibility=None, typ='�
 
 
 def artifact(*rows):
-    return {'version':basis.VERSION,'full_target':TARGET,
+    return {'version':basis.LEGACY_VERSION,'full_target':TARGET,
         'proof':'From a=b and the additive identity a+0=a, obtain a+0=b.',
         'dependencies':list(rows),'replacements':[],'lean_header':'import Mathlib\n'}
+
+
+def active_artifact(value):
+    """Fresh v2 producer; artifact() remains an intentional retained-v1 fixture."""
+    import basis_graph
+    from copy import deepcopy
+    v=deepcopy(value);v['version']=basis_graph.VERSION
+    for row in v['dependencies']:
+        if row['category']==2 and not row['origin']['evidence']:
+            row['origin']['evidence']=[{'input':'problem.md'}]
+        if row['category']==3:
+            row['port']='E'+row['id'][1:]
+            row['lean']={'type':'∀ n : ℕ, n + 0 = n','proof':'exact YuiBasis.'+row['uses'][0]}
+    graph=ir.load(Path(__file__).resolve().parents[1]/'fixtures/closed-addition/nl0.json')
+    add_external_applications(graph,v,[])
+    v['global_graph']={'propositions':[{k:r[k] for k in ('id','statement')} for r in graph['propositions']],
+        'inferences':[{**{k:r[k] for k in ('id','inputs','output')},'basis':[
+            b['id'] for b in v['dependencies'] if b['port'] in r['inputs'] or
+            (b['port'] is None and b['category']==1 and r['output']=='P')]} for r in graph['inferences']]}
+    return v
 
 
 def checked_context(root, value, *, approved=False, documents=None):

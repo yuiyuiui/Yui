@@ -82,6 +82,12 @@ def transport_sandbox_profile(work: Path) -> str:
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
              output: Path | None = None, timeout: float | None = None) -> dict:
+    from staging_storage import reserve, NATIVE_RESERVE
+    with reserve(work,NATIVE_RESERVE):
+        return _run_lean(file,work,extra=extra,sandbox=sandbox,output=output,timeout=timeout)
+
+
+def _run_lean(file, work, *, extra, sandbox, output, timeout):
     config = __import__('runtime_config')
     timeout = config.native_timeout(timeout)
     heartbeats = config.native_heartbeats()

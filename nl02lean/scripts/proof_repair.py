@@ -32,6 +32,7 @@ class Progress:
     def __init__(self):
         self.seen=set();self.checks=set();self.revision=0;self.last_turn_revision=0
         self.idle_turns=0;self.last_progress_at=None;self.last_check_at=None
+        self.helpers_since_target=set();self.target_checks=set()
 
     def observe(self, tool, args, result, at):
         # A fresh failed check is useful evidence. Repeating the same candidate,
@@ -40,6 +41,12 @@ class Progress:
         family='transition' if tool in {'check_transition','submit_transition'} else tool
         if family in {'transition','check_auxiliary'}:
             key=digest([family,args]);self.checks.add(key);self.last_check_at=at
+            if family=='transition' and 'exit_code' in result:
+                self.target_checks.add(key);self.helpers_since_target.clear()
+            elif result.get('auxiliary_valid'):
+                self.helpers_since_target.add(key)
+                if len(self.helpers_since_target)>=4:
+                    result['target_progress_advice']='Check the original transition against the current helpers now. If independent missing claims remain, use prove_independent_helpers. Report a public boundary defect through report_proof_obstruction only with located evidence.'
         elif tool in {'search_mathlib','read_mathlib','read_background_note','find_strategies'}:
             key=digest([family,args])
         else:return
@@ -53,7 +60,8 @@ class Progress:
 
     def metadata(self):
         return {'policy':POLICY['version'],'distinct_actions':len(self.seen),
-                'distinct_check_candidates':len(self.checks),'completed_idle_turns':self.idle_turns,
+                'distinct_check_candidates':len(self.checks),'distinct_target_checks':len(self.target_checks),
+                'helpers_since_target':len(self.helpers_since_target),'completed_idle_turns':self.idle_turns,
                 'last_progress_at_utc':self.last_progress_at,'last_check_at_utc':self.last_check_at}
 
 

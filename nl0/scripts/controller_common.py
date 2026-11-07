@@ -1,5 +1,6 @@
 """Portable controller paths and explicit input bindings; no mathematical judgments."""
 from pathlib import Path
+from staging_storage import copy_input
 import hashlib
 import json
 import sys
@@ -76,4 +77,4 @@ def copy_problem_documents(problem, destination):
                 or bind(source)['sha256']!=row['sha256']):
             raise ValueError('Invalid explicit problem input binding')
         if (destination/row['id']).exists():raise ValueError('Problem document collides with derived inputs')
-        shutil.copyfile(source,destination/row['id'])
+        copy_input(source,destination/row['id'])

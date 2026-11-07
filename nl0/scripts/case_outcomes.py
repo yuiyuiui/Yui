@@ -14,7 +14,7 @@ def verify_basis_decision(root, receipt, action):
     root = Path(root).resolve()
     path = Path(receipt['path']).resolve()
     relative = path.relative_to(root).as_posix()
-    match = re.fullmatch(r'2basis/([0-9]{4,})/decision/error-incidents/([a-f0-9]{32})\.json', relative)
+    match = re.fullmatch(r'2basis/([0-9]{4,})/(?:plans/[a-f0-9]{64}/)?decision/error-incidents/([a-f0-9]{32})\.json', relative)
     if not match or bind(path) != receipt:
         raise ValueError('Changed or foreign basis decision receipt')
     decision = path.parent.parent

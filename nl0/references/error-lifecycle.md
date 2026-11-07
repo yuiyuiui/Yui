@@ -21,7 +21,7 @@ the network and model service are unavailable.
 
 Explicit quota/auth/rejection evidence takes priority over a generic capacity
 code. A mathematical nonpass is ordinary located repair, never a remote retry.
-The native Lean 180-second limit remains a separate candidate-check policy.
+The native Lean 360-second limit remains a separate candidate-check policy.
 
 ## Explicit whole-case budget
 

@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import ir
+from staging_storage import copy_input
 import source_preparation
 import background
 import background_inputs
@@ -148,7 +149,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
-             HERE/'scripts/local_helpers.py', HERE/'scripts/dependency_instances.py',
+             HERE/'scripts/local_helpers.py', HERE/'scripts/helper_modules.py', HERE/'scripts/dependency_instances.py',
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',
@@ -157,7 +158,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     bound = []
     for i,p in enumerate(dict.fromkeys(originals)):
         destination = inputs/f'{i:03d}-{p.name}'
-        shutil.copyfile(p,destination)
+        copy_input(p,destination)
         bound.append({'path':str(p),'sha256':ir.digest(p),'snapshot':str(destination.relative_to(out))})
     snapshots = out/'tool-snapshot';snapshots.mkdir()
     for p in tools: shutil.copyfile(p,snapshots/p.name)

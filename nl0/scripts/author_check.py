@@ -133,6 +133,7 @@ class AuthorCheck:
         packet={'candidate':number,'content_sha256':key,'parameters':deepcopy(spec['parameters']),
             'logic':foundations.packet_logic(spec['logic']),
             'acceptance_contract':self.acceptance.metadata(),
+            'workload':__import__('graph_workload').local(step),
             'definitions':[deepcopy(defs[x]) for x in sorted(selected)],
             'inputs':[port(p) for p in ports[:-1]],'output':port(ports[-1]),'inference':deepcopy(step),
             'warning':'Same-author inspection under the shared verified-background policy: direct inputs, definitions and fixed logic are supplied; eligible routine background may receive audit notes. No ancestor/other producer body or extra H is available. Inspect important source types separately. This read produces no judgment.'}

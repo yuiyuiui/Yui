@@ -86,6 +86,34 @@ class Redirect(urllib.request.HTTPRedirectHandler):
 
 
 def fetch(directory,url,*,browser=False):
+    from staging_storage import reserve
+    from execution_state import current
+    recorder,_=current()
+    with reserve(directory,2*LIMIT):
+        if recorder and Path(directory).resolve().is_relative_to(recorder.root.resolve()):
+            import source_cache
+            return source_cache.fetch(directory,url,browser,recorder.root/'.source-cache',_fetch)
+        return _fetch(directory,url,browser=browser)
+
+
+def read_bytes(response,directory):
+    from staging_storage import available, FREE_FLOOR, StoragePressure
+    import errno
+    declared=response.headers.get('Content-Length')
+    length=int(declared) if isinstance(declared,str) else None
+    if length is not None and not 0<=length<=LIMIT:raise ValueError('Source exceeds size limit')
+    data=bytearray()
+    while True:
+        if available(directory)<FREE_FLOOR:raise StoragePressure(errno.ENOSPC,'Disk reserve exhausted during download')
+        chunk=response.read(min(1024**2,LIMIT+1-len(data)))
+        if not chunk:break
+        data.extend(chunk)
+        if len(data)>LIMIT:raise ValueError('Source exceeds size limit')
+    if length is not None and len(data)!=length:raise ValueError('Incomplete source download')
+    return bytes(data)
+
+
+def _fetch(directory,url,*,browser):
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     record={'version':VERSION,'origin':'controller_browser' if browser else 'controller_https','url':url,
             'retrieved_at':datetime.now(timezone.utc).isoformat(),'status':'UNAVAILABLE'}
@@ -101,11 +129,11 @@ def fetch(directory,url,*,browser=False):
         else:
             request=urllib.request.Request(url,headers={'User-Agent':'Yui-Source-Reader/1.0'})
             with urllib.request.build_opener(Redirect(),PublicHTTPS()).open(request,timeout=30) as response:
-                raw=response.read(LIMIT+1)
+                raw=read_bytes(response,directory)
                 record.update(final_url=response.geturl(),http_status=response.status)
         if len(raw)>LIMIT:raise ValueError('Source exceeds the 32 MiB retrieval limit')
         pdf=raw.startswith(b'%PDF-')
-        document=path.with_suffix('.pdf' if pdf else '.html');document.write_bytes(raw)
+        document=path.with_suffix('.pdf' if pdf else '.html');__import__('staging_storage').write_bytes(document,raw)
         record['document']=bind(document);record['document_kind']='PDF' if pdf else 'HTML'
         if browser:Path(captured['document']['path']).unlink()
         parser=Text()
@@ -126,11 +154,12 @@ def fetch(directory,url,*,browser=False):
         if record.get('status') not in UNAVAILABLE_STATUSES-{'UNAVAILABLE'}:record['status']=status
         record['links']=source_links(record.get('final_url',url),captured.get('links',[])+parser.links)
         record['doi_candidates']=dois(text+'\n'+'\n'.join(record['links']))
-        extracted=path.with_suffix('.txt');extracted.write_text(text)
+        extracted=path.with_suffix('.txt');__import__('staging_storage').write_bytes(extracted,text.encode())
         record['text']=bind(extracted)
     except urllib.error.HTTPError as error:
         record.update(status='HTTP_ERROR',http_status=error.code,reason=str(error))
     except (OSError,ValueError,ImportError,urllib.error.URLError,subprocess.TimeoutExpired) as error:
+        if getattr(error,'errno',None)==__import__('errno').ENOSPC:raise
         record.update(status=('BROWSER_UNAVAILABLE' if isinstance(error,(FileNotFoundError,ImportError)) else 'BROWSER_ERROR')
                       if browser else 'UNAVAILABLE',reason=type(error).__name__+': '+str(error))
     write(path,record)

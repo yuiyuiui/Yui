@@ -17,7 +17,7 @@ class UnlimitedExecutionTests(unittest.TestCase):
         config = json.loads((runtime_config.CORE / 'config.json').read_text())
         for scope in ('case', 'stage'):
             self.assertIsNone(runtime_config.configured_timeout(scope))
-        self.assertEqual(runtime_config.configured_timeout('native'), 180)
+        self.assertEqual(runtime_config.configured_timeout('native'), 360)
         self.assertIsNone(config['token_budget'])
 
     def test_limit_representation_rejects_ambiguous_values(self):
@@ -28,8 +28,8 @@ class UnlimitedExecutionTests(unittest.TestCase):
                 runtime_config.time_limit(value)
 
     def test_native_limit_clamps_explicit_requests_without_changing_workflow_limits(self):
-        self.assertEqual(runtime_config.native_timeout(),180)
-        self.assertEqual(runtime_config.native_timeout(900),180)
+        self.assertEqual(runtime_config.native_timeout(),360)
+        self.assertEqual(runtime_config.native_timeout(900),360)
         self.assertEqual(runtime_config.native_timeout(20),20)
         with patch.object(runtime_config,'configured_timeout',return_value=None):
             self.assertIsNone(runtime_config.native_timeout())

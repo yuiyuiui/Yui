@@ -36,13 +36,22 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    obligation; success of a helper alone does not accept the target.
 
 5. **Repair after a bounded check.** Native checks have a separate per-call wall
-   limit, normally 180 seconds, and use the controller-owned 20,000,000 heartbeat budget.
+   limit, normally 360 seconds, and use the controller-owned 20,000,000 heartbeat budget.
    A timeout or heartbeat diagnostic leaves the goal unaccepted and returns
    control to the same worker. Inspect the retained candidate and diagnostic,
    then check a smaller typed application, conversion or proof fragment before
    integrating it. Do not repeat the unchanged expensive candidate or disable
    limits to avoid diagnosis. Preserve the target, allowed inputs and proof
    requirements; a timeout alone establishes no mathematical gap.
+
+A proof worker can send independent private statements and their routes together
+through `prove_independent_helpers`. Its enclosing parameters and direct ports stay
+fixed. Check the original transition after accumulating helpers. Inspect its native
+diagnostic before deciding whether another local lemma or a reviewed public
+interface revision is needed. On supported headers a warm auxiliary check imports
+compiled declarations and elaborates only the new helper. Unsupported file scopes
+use the complete source. Final submission, assembly and Audit B always recheck
+source in their normal environment.
 
 The runtime enforces the per-call wall limit independently of these writing
 rules. Whole-case and model-stage execution remain unlimited by default.

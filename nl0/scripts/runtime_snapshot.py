@@ -1,5 +1,6 @@
 """Owned executable snapshots; installation updates never rewrite active jobs."""
 from pathlib import Path
+from staging_storage import copy_input
 import json
 import shutil
 
@@ -22,7 +23,7 @@ def capture(run,rows,*,core=CORE):
         else:raise ValueError('Executable input is outside the declared skill/catalog')
         if relative in seen:raise ValueError('Runtime snapshot path collision')
         seen.add(relative);target=destination/relative;target.parent.mkdir(parents=True,exist_ok=True)
-        shutil.copyfile(original,target)
+        copy_input(original,target)
         if bind(target)['sha256']!=row['sha256']:raise ValueError('Runtime snapshot copy changed')
         files.append({'relative_path':str(relative),'sha256':row['sha256'],'original':row})
     # A selected external catalog replaces the installation's optional catalog.

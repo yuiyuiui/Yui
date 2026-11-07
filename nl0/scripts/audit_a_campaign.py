@@ -208,7 +208,7 @@ route. Review both. Preserve assumptions, quantifiers, parameter ranges, domains
 normalizations and constant dependencies; review the replacement map and new
 derivations. The original proof route may change in 2basis. Machine-checked basis
 metadata does not establish mathematical fidelity or justify missing arguments.
-Class 3 must be an internal proof, never an external premise. Use this same
+Check class 3 against its prepared derivation and each frozen consumer. Use this same
 global/local Audit A; do not request a duplicate full natural-language audit.
 
 For an explicitly selected native M, check the supplied actual signature and

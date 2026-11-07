@@ -28,7 +28,7 @@ machine acceptance only when the actual final artifact still matches it.
 ## Local proof work
 
 Each node has its own retained author. Ordinary compiler/API/tactic feedback stays
-with that author. A 180-second native timeout or heartbeat failure retains the
+with that author. A 360-second native timeout or heartbeat failure retains the
 candidate and supplies frozen ST020 advice in the failed tool result. Isolate the
 expensive application, repair and recheck the unchanged target. There is no total
 case, token, call, repair-round or turn allowance by default.

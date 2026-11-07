@@ -37,9 +37,8 @@ class Budget:
         self.configuration = dict(configuration)
         self.execution = execution
         self.role = role
-        self._slots = (threading.BoundedSemaphore(configuration['effective'])
-                       if configuration['effective'] is not None else None)
-        self._lock = threading.Lock()
+        self._lock = threading.Condition()
+        self._private_width = 0
         self._local = threading.local()
         self._start = time.monotonic()
         self._active = self._peak = 0
@@ -54,7 +53,6 @@ class Budget:
         with self._lock:
             if configuration != self.configuration:
                 ir.need(self._active == self._waiting == 0, 'Cannot resize an active model lane')
-                self._slots = threading.BoundedSemaphore(configuration['effective'])
                 self.configuration = configuration
                 self._configurations.append({**configuration, 'started_offset_seconds': time.monotonic()-self._start})
         if self.execution:
@@ -68,42 +66,63 @@ class Budget:
         recorder = recorder or self.execution
         if recorder: recorder.activity(task,'WAITING_FOR_MODEL_SLOT')
         with self._lock:
-            ir.need(self._slots is not None and self.configuration['effective'] > 0,
+            ir.need(self.configuration['effective'] and self.configuration['effective']>0,
                     'Resolve a nonempty phase node count before model dispatch')
-            slots = self._slots
             self._waiting += 1
-        try:
-            while not slots.acquire(timeout=.1):
-                if recorder: recorder.check(task)
             try:
-                if recorder: recorder.check(task)
-                if recorder: recorder.model_slot(1, role=self.role)
-            except BaseException:
-                slots.release(); raise
-            started = time.monotonic()
+                while self._active>=self.capacity():
+                    self._lock.wait(.1)
+                    if recorder:recorder.check(task)
+                if recorder:recorder.check(task)
+                self._active+=1
+            finally:
+                self._waiting-=1
+        try:
+            if recorder:recorder.model_slot(1,role=self.role)
+        except BaseException:
             with self._lock:
-                self._active += 1
-                self._peak = max(self._peak, self._active)
-                row = {'id': len(self._rows) + 1, 'queue_seconds': started - queued,
-                       'started_offset_seconds': started - self._start, 'finished_offset_seconds': None}
-                self._rows.append(row)
-            self._local.active = True
-            self._local.row = row
-            self._local.recorder = recorder
-            return self
+                self._active-=1
+                self._lock.notify_all()
+            raise
+        started=time.monotonic()
+        with self._lock:
+            self._peak=max(self._peak,self._active)
+            row={'id':len(self._rows)+1,'queue_seconds':started-queued,
+                 'started_offset_seconds':started-self._start,'finished_offset_seconds':None}
+            self._rows.append(row)
+        self._local.active=True
+        self._local.row=row
+        self._local.recorder=recorder
+        return self
+
+    def capacity(self):
+        base=self.configuration['effective']
+        if self.configuration['requested']!='auto':return base
+        return min(base+self._private_width,self.configuration.get('known_backend_limit') or base+self._private_width)
+
+    @contextmanager
+    def private_batch(self, count):
+        # The blocked public job already accounts for one slot in the base width.
+        extra=max(0,count-1)
+        with self._lock:
+            self._private_width+=extra
+            self._lock.notify_all()
+        try:
+            yield min(count,self.capacity())
         finally:
             with self._lock:
-                self._waiting -= 1
+                self._private_width-=extra
+                self._lock.notify_all()
 
     def __exit__(self, kind, value, traceback):
-        if not getattr(self._local, 'active', False):return
+        if not getattr(self._local,'active',False):return
         with self._lock:
-            self._local.row['finished_offset_seconds'] = time.monotonic() - self._start
-            self._local.row['raised'] = kind.__name__ if kind else None
-            self._active -= 1
+            self._local.row['finished_offset_seconds']=time.monotonic()-self._start
+            self._local.row['raised']=kind.__name__ if kind else None
+            self._active-=1
+            self._lock.notify_all()
         self._local.active = False
         if self._local.recorder: self._local.recorder.model_slot(-1, role=self.role)
-        self._slots.release()
 
     @contextmanager
     def suspended(self):

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+from staging_storage import copy_input
 import re
 import shutil
 import subprocess
@@ -50,7 +51,7 @@ def stage_document(source, destination):
         destination.write_text(text(source))
         return 'pdftotext-layout' if shutil.which('pdftotext') else 'pypdf-text'
     source.read_text(encoding='utf-8')
-    shutil.copyfile(source,destination)
+    copy_input(source,destination)
     return 'exact_utf8_bytes'
 
 

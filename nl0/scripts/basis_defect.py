@@ -65,7 +65,7 @@ def locate(root, stage, args):
     context=ir.load(active/basis.CONTEXT)
     rows={r['id']:r for r in ir.load(context['basis']['path'])['dependencies']}
     row=rows.get(args['basis_id'])
-    if row is None or row['category']==3 or args['field'] not in {'statement','lean.type'}:
+    if row is None or row['lean'] is None or args['field'] not in {'statement','lean.type'}:
         raise ValueError('Select a frozen formal basis item and protected field')
     frozen=row['statement'] if args['field']=='statement' else row['lean']['type']
     if args['frozen_value']!=frozen:
@@ -199,7 +199,7 @@ def require_revision(artifact,descriptor,finding):
     key=finding['basis_id']
     previous=next(r for r in old['dependencies'] if r['id']==key)
     current=next((r for r in artifact['dependencies'] if r['id']==key),None)
-    if current and current['category']!=3 and current['statement']==previous['statement'] and (
+    if current and current['lean'] is not None and current['statement']==previous['statement'] and (
             current['lean']['type']==previous['lean']['type'] and artifact['proof']==old['proof'] and
             artifact['lean_header']==old['lean_header'] and current['origin']==previous['origin']):
         raise StageFailure('REPAIR_UNCHANGED','The reported basis statement, type, source and use are unchanged',

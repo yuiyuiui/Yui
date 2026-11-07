@@ -29,6 +29,9 @@ def validate(cpath, plan, step, rows):
     import ir
     ir.need(isinstance(rows, list), 'Local helpers must be an ordered list')
     available = []
+    expected_context = context(cpath,plan,step) if rows else None
+    import helper_modules
+    options = helper_modules.context(cpath,plan,step) if any(isinstance(r,dict) and isinstance(r.get('check'),dict) and 'module_check' in r['check'] for r in rows) else None
     for row in rows:
         ir.need(isinstance(row, dict) and set(row) == {
             'name', 'statement', 'proof', 'dependencies', 'context_sha256', 'sha256', 'check'},
@@ -36,7 +39,7 @@ def validate(cpath, plan, step, rows):
         name = row['name']
         ir.need(isinstance(name, str) and NAME.fullmatch(name) and name not in available,
                 'Invalid or duplicate local helper name')
-        ir.need(row['context_sha256'] == context(cpath, plan, step), 'Stale or foreign helper context')
+        ir.need(row['context_sha256'] == expected_context, 'Stale or foreign helper context')
         ir.need(isinstance(row['statement'], str) and row['statement'].strip()
                 and not ir.FORBIDDEN.search(row['statement']), 'Invalid helper statement')
         ir.proof_text(row['proof'])
@@ -49,6 +52,10 @@ def validate(cpath, plan, step, rows):
                 and check.get('auxiliary_valid') is True
                 and not set(check.get('axioms', [])) - {'propext', 'Classical.choice', 'Quot.sound'},
                 'Local helper has no successful native check')
+        if 'module_check' in check:
+            helper_modules.validate(options,rows[:len(available)],row)
+            available.append(name)
+            continue
         expected = ir.render_auxiliary(cpath, plan, step, row['statement'], row['proof'],
                                        helpers=rows[:len(available)], validated=True)
         ir.need(check.get('lean_sha256') == hashlib.sha256(expected.encode()).hexdigest(),

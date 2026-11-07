@@ -31,7 +31,7 @@ def render(contract, context, conditional_source, levels, *, legacy=False):
     for premise in contract['premises']:
         if premise['kind']=='mathlib':continue  # Already discharged by ordinary assembly.
         row=by_port.get(premise['id'])
-        arguments.append('(@YuiBasis.'+row['id']+')' if row and row['category'] in {1,2} else 'h_'+premise['id'])
+        arguments.append('(@YuiBasis.'+row['id']+')' if row and basis.prepared(row) else 'h_'+premise['id'])
     declarations,_,_=basis.declarations(artifact)
     source=conditional_source+'\n'+declarations
     source+='\nnamespace YuiClosed\nset_option autoImplicit false\n'
@@ -44,7 +44,7 @@ def render(contract, context, conditional_source, levels, *, legacy=False):
         application='@AuditBExport.P'+suffix+' '+' '.join(arguments)
     else:
         omitted=['h_'+p['id'] for p in contract['premises'] if p['kind']=='external'
-            and by_port[p['id']]['category'] in {1,2}]
+            and basis.prepared(by_port[p['id']])]
         helper=Path(__file__).with_name('basis_export.lean').read_text()
         source+=helper.replace('__DISCHARGED_BINDERS__', '#['+', '.join(map(json.dumps,omitted))+']')+'\n'
         application='yui_basis_export%('+', '.join(arguments)+')'

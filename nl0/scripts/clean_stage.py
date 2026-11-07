@@ -5,6 +5,7 @@ import json
 from copy import deepcopy
 import hashlib
 from pathlib import Path
+from staging_storage import copy_input
 import shutil
 import sys
 import time
@@ -25,7 +26,8 @@ class ArtifactStage(pilot.Stage):
         logs=Path(logs).resolve()
         local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
         local_diagnosis=(phase=='interface-proof-diagnosis' and budget is not None and budget.role=='proof')
-        if not (local_review or local_diagnosis):
+        frontier = phase=='basis-frontier' and budget is not None and budget.role=='foundation'
+        if not (local_review or local_diagnosis or frontier):
             budget = pilot.concurrency.serial_budget(budget)
         super().__init__(logs, logs / 'unused-contract.json', phase, timeout, budget=budget)
         if arm not in {'yui', 'direct'}:
@@ -42,6 +44,7 @@ class ArtifactStage(pilot.Stage):
         self.acceptance_authority=(AcceptanceContract(self.rule_texts[str((CORE/'nl0/references/audit-a.md').resolve())])
             if arm=='yui' and (kind=='nl0' or phase.startswith('audit-a')) else None)
         self.task_inputs = {}
+        input_paths = {}
         self.task_json_inputs = {}
         if inputs:
             manifest = Path(inputs).resolve()
@@ -53,6 +56,7 @@ class ArtifactStage(pilot.Stage):
                 if hashlib.sha256(data).hexdigest() != row['sha256']:
                     raise ValueError('Task input hash differs from the frozen manifest')
                 self.task_inputs[row['id']] = data.decode('utf-8')
+                input_paths[row['id']] = path
         self.artifact_kind = kind
         self.background_review = bool(self.acceptance_authority and kind == 'json' and 'packet.json' in self.task_inputs)
         self.background_notes = []
@@ -222,7 +226,7 @@ class ArtifactStage(pilot.Stage):
         for path in source_files:
             destination = snapshot/path.relative_to(CORE)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(path, destination)
+            copy_input(path, destination)
             files.append({'path':str(path.relative_to(CORE)), 'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
         from library_catalog import binding as catalog_binding, catalog_path
         selected_catalog=catalog_binding()
@@ -230,7 +234,7 @@ class ArtifactStage(pilot.Stage):
             relative=Path('library')/Path(row['path']).relative_to(catalog_path().parent)
             destination=snapshot/relative
             destination.parent.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(row['path'],destination)
+            copy_input(row['path'],destination)
             if hashlib.sha256(destination.read_bytes()).hexdigest()!=row['sha256']:
                 raise ValueError('User library changed while its stage snapshot was copied')
             files.append({'path':str(relative),'sha256':row['sha256']})
@@ -245,7 +249,12 @@ class ArtifactStage(pilot.Stage):
         for index,(identifier,text) in enumerate(self.task_inputs.items(),1):
             destination=self.logs/'task-inputs'/f'{index:04d}.txt'
             destination.parent.mkdir(exist_ok=True)
-            destination.write_text(text)
+            if identifier in input_paths:
+                copy_input(input_paths[identifier],destination)
+                if destination.read_bytes() != text.encode('utf-8'):
+                    raise ValueError('Frozen stage input changed during staging')
+            else:
+                destination.write_text(text)
             task_bindings.append({'id':identifier,'path':str(destination.relative_to(self.logs)),
                                   'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
         (self.logs/'execution-manifest.json').write_text(json.dumps({'model':self.model,'model_selection':self.model_selection,'effort':self.model_selection['reasoning_effort'],'speed':self.model_selection['speed'],

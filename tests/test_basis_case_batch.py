@@ -103,6 +103,39 @@ class BasisCaseBatchTests(unittest.TestCase):
                 self.assertTrue(author_ids.isdisjoint(reviewer_ids))
                 self.assertTrue(ir.load(run/'batch-result.json')['children_exited'])
 
+    def test_planned_foundation_worker_reaches_final_kernel_export(self):
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['planned-closed'])
+            self.assertEqual(result['status'],'WORKFLOW-PASSED')
+            self.assertEqual(result['closure']['remaining_premises'],['H001'])
+            registry=ir.load(root/'active-inputs/basis-registry.json')
+            self.assertEqual([r['category'] for r in registry['dependencies']],[2,3])
+            self.assertIn('YuiBasis.B001',registry['dependencies'][1]['lean']['proof'])
+            self.assertEqual(len(list(root.glob('2basis/*/stage/foundation-proofs/*/checked.json'))),1)
+            self.assertEqual(len(list(root.glob('2basis/*/stage/frontier/*/*/checked.json'))),2)
+            self.assertEqual(len(list(root.glob('nl0-to-lean/**/private-proofs/*/checked.json'))),2)
+            import b2lean
+            b2lean.validate_receipt(root/'b2lean')
+
+    def test_preparation_decision_precedes_paid_proofs_and_is_reused(self):
+        for mode in ('planned-conditional','planned-stop','planned-continue'):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as raw:
+                [(root,result)]=self.batch(Path(raw),[mode])
+                decisions=list(root.glob('2basis/*/plans/*/decision/error-incidents/*.json'))
+                self.assertEqual(len(decisions),1)
+                self.assertFalse(list(root.glob('2basis/*/decision/error-incidents/*.json')))
+                proofs=list(root.glob('2basis/*/stage/foundation-proofs/*/checked.json'))
+                if mode=='planned-stop':
+                    self.assertEqual(result['status'],'STOPPED_BY_USER')
+                    self.assertFalse(proofs)
+                else:
+                    self.assertEqual(result['status'],'WORKFLOW-PASSED' if mode=='planned-continue' else 'WORKFLOW-CONDITIONAL')
+                    self.assertEqual(set(result['closure']['remaining_premises']),{'H001'} if mode=='planned-continue' else {'H001','E003'})
+                    self.assertEqual(len(proofs),1)
+                    self.assertLess(decisions[0].stat().st_mtime_ns,proofs[0].stat().st_mtime_ns)
+                    import b2lean
+                    b2lean.validate_receipt(root/'b2lean')
+
     def test_located_late_defect_pauses_then_explicit_CLI_revises_and_rechecks(self):
         import json
         import basis_defect

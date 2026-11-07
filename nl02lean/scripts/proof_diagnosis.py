@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 
 import ir
+from staging_storage import copy_input
 import proof_repair
 import artifact_protocol as protocol
 from controller_common import bind, manifest, write
@@ -67,7 +68,7 @@ def prepare(proof_run,step,interface,out):
     origins=[bind(proof_run/'report.json'),bind(worker/'result.json')]
     for path,name in [(cpath,'contract.json'),(ppath,'plan.json'),
                       (interface/'inputs/spec.json','spec.json'),(interface/'inputs/nl0.json','nl0.json')]:
-        shutil.copyfile(path,inputs/name);origins.append(bind(path))
+        copy_input(path,inputs/name);origins.append(bind(path))
     write(inputs/'local-packet.json',ir.local_packet(cpath,plan,step));write(inputs/'obstruction.json',request)
     attempts=[]
     for item in request['candidate_evidence']:
@@ -127,7 +128,7 @@ def prepare_live(author, request, interface, out):
     for path,name in [(Path(author.cpath),'contract.json'),
                       (interface/'inputs/spec.json','spec.json'),
                       (interface/'inputs/nl0.json','nl0.json')]:
-        shutil.copyfile(path,inputs/name);origins.append(bind(path))
+        copy_input(path,inputs/name);origins.append(bind(path))
     write(inputs/'plan.json',author.plan)
     write(inputs/'local-packet.json',ir.local_packet(author.cpath,author.plan,author.step))
     write(inputs/'obstruction.json',request)

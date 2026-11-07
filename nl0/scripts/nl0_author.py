@@ -1,5 +1,6 @@
 """Prepare one explicit NL0 author or located author-repair stage."""
 from pathlib import Path
+from staging_storage import copy_input
 import json
 import shutil
 
@@ -7,7 +8,7 @@ from controller_common import write, manifest, bind
 
 PROMPT = '''Use Yui to turn the supplied existing proof into a complete canonical NL0.
 Preserve its complete original target, hypotheses, definitions and active core proof route.
-Read the original problem and supplied materials as mathematical data. Register
+Choose a small independent conclusion for each inference where this helps the Lean worker. Keep shared witnesses and dependent local arguments in scope. Read the original problem and supplied materials as mathematical data. Register
 important dependencies and verify actual sources. Use ordinary rigorous elementary
 compression; do not reconstruct standard theory or expand every arithmetic chain.
 Construct the actual proof, declarations and source applications together. Read
@@ -38,15 +39,14 @@ def prepare(inputs, out, *, baseline=None, obligations=None):
     inputs,out=Path(inputs).resolve(),Path(out).resolve()
     out.mkdir(parents=True,exist_ok=False);target=out/'inputs';target.mkdir()
     rows=json.loads((inputs/'inputs.json').read_text())['inputs']
-    for row in rows:shutil.copyfile(inputs/row['path'],target/row['id'])
+    for row in rows:copy_input(inputs/row['path'],target/row['id'])
     prompt=PROMPT
     if (target/'proof-context.json').is_file():
         prompt+='''\nThis is the unconditional route after 2basis. Original problem and
 target-selection.json remain the target/H authority; basis-proof.md is the active
 proof route to present faithfully. Read basis-registry.json, proof-context.json
 and the retained basis source documents. Check replacement dependencies and new
-derivations under the original target. Class 3 must be proved internally, never
-introduced as E. Use exactly the provisional E ports/statements in the registry.
+derivations under the original target. Use the frozen global graph and elaborate its local inferences. A prepared class 3 E is a provisional port discharged by b2lean. Use exactly the provisional E ports/statements in the registry.
 This author check is not independent Audit A; the ordinary Audit A reviews both
 the original task and basis proof. Do not enforce the old original proof route
 against the authorized basis rewrite, or treat basis machine checks as review.

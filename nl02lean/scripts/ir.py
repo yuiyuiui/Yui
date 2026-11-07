@@ -86,10 +86,8 @@ def checked_expression(name, expression, binders='', *, proposition=False):
 
 def compiler_feedback(native, limit=14000):
     """Keep the actual errors in model feedback even when earlier warnings are long."""
-    lines = native.get('stdout','').splitlines()
-    errors = [i for i,line in enumerate(lines) if re.search(r':\d+:\d+: error',line)]
-    selected = [line for i in errors[:8] for line in lines[i:i+20]] if errors else lines[-35:]
-    return '\n'.join(selected)[:limit]+'\n'+native.get('stderr','')[:2000]
+    from compiler_feedback import excerpt
+    return excerpt(native.get('stdout','')+'\n'+native.get('stderr',''),limit)[0]
 
 
 def contract(path):
@@ -248,7 +246,7 @@ def decomposition(cpath,plan,limit=None):
            'source_paragraphs':len(nodes[sid]['source_steps']),
            'source_paragraph_fraction':len(nodes[sid]['source_steps'])/total,
            'shared_lemma':nodes[sid].get('shared_lemma')} for sid in order]
-    return {'jobs':rows,'typed_job_count':len(rows),'configured_proof_limit':limit,
+    return {'workload':__import__('graph_workload').jobs(nodes,order),'jobs':rows,'typed_job_count':len(rows),'configured_proof_limit':limit,
             'largest_source_paragraph_count':max(row['source_paragraphs'] for row in rows),
             'scope':'Source coverage counts are not equal work or predicted time. Compatible shared jobs may be deduplicated. Conditional local proofs require actual final assembly.'}
 
@@ -455,9 +453,28 @@ def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=Fals
     return source
 
 
-def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=()):
+def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(),cache=None):
     """Check one closed helper in exactly this port's context; add no premise."""
-    source=render_auxiliary(cpath,plan,step,statement,proof,helpers=helpers)
+    import helper_modules, local_helpers
+    rows = local_helpers.validate(cpath,plan,step,list(helpers))
+    options = helper_modules.context(cpath,plan,step)
+    if options is not None:
+        need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
+             'forbidden command or placeholder in auxiliary statement')
+        proof_text(proof)
+        fast=helper_modules.check(options,cpath,plan,step,statement,proof,rows,out,timeout,cache=cache)
+        # A name/instance may only be visible in its original file scope. Keep the
+        # ordinary checker as the authority for this exceptional diagnostic.
+        diagnostic=fast.get('stdout','')+'\n'+fast.get('stderr','')
+        if (fast['exit_code']!=1 or fast.get('cache_bootstrap_failed') or
+                not re.search(r'unknown (?:identifier|constant|namespace)|failed to synthesize',diagnostic,re.I)):
+            return fast
+        out=Path(out)
+        (out/'Auxiliary.lean').rename(out/'Incremental.lean')
+        (out/'result.json').rename(out/'incremental.json')
+    else:
+        fast=None
+    source=render_auxiliary(cpath,plan,step,statement,proof,helpers=rows,validated=True)
     work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
     try:
         path=work/'output/Auxiliary.lean';path.write_text(source)
@@ -470,7 +487,8 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
             scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
         if result['exit_code']==0 and not valid:
             result.update(compiler_exit_code=0,exit_code=1,status='AXIOM-CHECK-FAILED')
-        out=Path(out);out.mkdir(parents=True,exist_ok=False);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
+        if fast is not None:result.update(native_calls=fast['native_calls']+1,fallback='original_file_scope')
+        out=Path(out);out.mkdir(parents=True,exist_ok=fast is not None);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
         return result
     finally:
         shutil.rmtree(work)

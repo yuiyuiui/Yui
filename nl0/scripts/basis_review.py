@@ -21,8 +21,7 @@ proposition produced by the pinned compiler. Use the declared source documents a
 tools as needed. Locate its use in the rewritten argument. Compare quantifier order,
 uniformity and constants, domains, binder/instance assumptions, implication direction,
 definitions, and any adapter or specialization. Compare the original H and target to the rewritten application. For class 4 review the exact residual
-assumption and the complete textbook evidence; this does not prove the theorem. Class 3
-stays internal for Audit A and formalization. Review the required set in this one role.
+assumption and the complete textbook evidence; this does not prove the theorem. For each prepared class 3 check its actual derivation and every consumer, including the scope of any specialization. Review the required set in this one role.
 Use the generated submission schema for the selected items and coverage.
 In notes explain the specific correspondence or
 mismatch. locations must include the exact pointers /items/B001/statement and
@@ -58,13 +57,13 @@ def material(artifact, native, originals, evidence, revision_report=None):
     inspected = ir.load(Path(native['path']).parent/'elaborated.json')
     types = {r['id']:r['actual_type'] for r in inspected['comparisons']}
     declarations = {r['name']:r for r in inspected['dependencies']['declarations']}
-    basis_names={'YuiBasis.'+r['id']:r['id'] for r in artifact['dependencies'] if r['category'] in {1,2}}
+    basis_names={'YuiBasis.'+r['id']:r['id'] for r in artifact['dependencies'] if r['category']!=4 and r['lean'] is not None}
     items = {}
     source_docs = {Path(r['path']).name:r['sha256'] for r in originals}
     external = {r['sha256']:'basis-source-'+r['sha256']+'.txt' for r in evidence}
     for row in artifact['dependencies']:
         item = deepcopy(row)
-        if row['category'] != 3:
+        if row['lean'] is not None:
             item['actual_type'] = types[row['id']]
             name = ('YuiBasis.type_' if row['category']==4 else 'YuiBasis.')+row['id']
             item['signature'] = declarations[name]['signature'] if row['category']!=4 else None
@@ -77,10 +76,20 @@ def material(artifact, native, originals, evidence, revision_report=None):
         verify_bindings([revision_report])
         objection=ir.load(revision_report['path'])['finding']
     return {'revision_objection':objection,'target':artifact['full_target'], 'proof':artifact['proof'], 'header':artifact['lean_header'],
+            **({'global_graph':artifact['global_graph']} if 'global_graph' in artifact else {}),
             'replacements':artifact['replacements'], 'documents':source_docs, 'items':items}
 
 
-def item_keys(packet):
+LEGACY_RULE='3abe1dc3c52b4314c9baad29e85c38c39cc48785afd8916b97393e2cbc5fdf98'
+
+
+def rule_for(packet, rule):
+    if rule!=RULE and (rule!=LEGACY_RULE or 'global_graph' in packet):
+        raise ValueError('Unknown basis review rules for this protocol')
+    return rule
+
+
+def item_keys(packet, rule=None):
     common = {k:v for k,v in packet.items() if k not in {'items','required'}}
     items = packet['items']
     links = {k:set(row['uses']) | set(row.get('native_dependencies',[])) for k,row in items.items()}
@@ -92,13 +101,13 @@ def item_keys(packet):
             if other in links:links[other].add(key)
     result = {}
     for key,row in items.items():
-        if row['category']==3:continue
+        if row['lean'] is None:continue
         seen=set();pending=[key]
         while pending:
             current=pending.pop()
             if current in seen:continue
             seen.add(current);pending.extend(links[current]-seen)
-        result[key]=hashed([RULE,common,{k:items[k] for k in sorted(seen)}])
+        result[key]=hashed([rule_for(packet,rule or RULE),common,{k:items[k] for k in sorted(seen)}])
     return result
 
 
@@ -182,13 +191,13 @@ def complete_submission(stage, raw):
 def read_batch(binding):
     verify_bindings([binding])
     path=Path(binding['path']);batch=ir.load(path);stage=path.parent/'stage';inputs=path.parent/'inputs'
-    if path.name!='assessment.json' or (batch['version'],batch['rule'])!=(VERSION,RULE):raise ValueError('Wrong basis assessment or rules')
+    if path.name!='assessment.json' or batch['version']!=VERSION:raise ValueError('Wrong basis assessment or rules')
     names={r['id']:r for r in ir.load(inputs/'inputs.json')['inputs']}
     if batch['manifest']!=bind(inputs/'inputs.json'):raise ValueError('Basis review inputs changed')
     for name,doc in names.items():
         if Path(name).name!=name or doc['path']!=name or ir.digest(inputs/name)!=doc['sha256']:
             raise ValueError('Changed basis reviewer document')
-    packet=ir.load(inputs/PACKET);keys=item_keys(packet);required=packet['required']
+    packet=ir.load(inputs/PACKET);keys=item_keys(packet,rule_for(packet,batch['rule']));required=packet['required']
     if any(names[name]['sha256']!=digest for name,digest in packet['documents'].items()):
         raise ValueError('Basis review did not receive the bound original source bytes')
     external={name for row in packet['items'].values() for name in row['documents'] if name not in packet['documents']}
@@ -208,7 +217,23 @@ def read_batch(binding):
             or m.get('role_session')!=result.get('role_session')):
         raise ValueError('Basis assessment lacks a separate bound reviewer')
     actual_author=path.parents[1]/'stage/result.json'
-    if result.get('native_thread_id'):
+    early=path.parents[1]/'planning-author.json'
+    if result.get('native_thread_id') and early.is_file():
+        origin=ir.load(early);planned=path.parents[1];owner=planned.parents[1]
+        if planned.parent.name!='plans' or origin['manifest']!=bind(owner/'stage/execution-manifest.json'):
+            raise ValueError('Wrong originating planning author')
+        verify_bindings([origin['candidate']])
+        import basis_graph, basis_preapproval
+        candidate=Path(origin['candidate']['path'])
+        if (candidate.parent.parent!=owner/'candidates' or not origin['thread_id'] or
+                origin['thread_id']==result['native_thread_id'] or
+                ir.load(origin['manifest']['path']).get('role_session',{}).get('role')!='basis-author' or
+                basis_preapproval.projection(basis_graph.optimize(ir.load(candidate)))!=ir.load(planned/'stage/accepted.json')):
+            raise ValueError('Residual reviewer did not receive an independent, bound planning candidate')
+        final_author=owner/'stage/result.json'
+        if final_author.is_file() and ir.load(final_author).get('native_thread_id')!=origin['thread_id']:
+            raise ValueError('Changed planning author identity')
+    elif result.get('native_thread_id'):
         author=ir.load(actual_author)
         require_review_execution(author,actual_author,phase='basis-authoring')
         if ((author.get('role_session') or {}).get('role')!='basis-author' or not author.get('native_thread_id')
@@ -278,10 +303,11 @@ def assess(out, context, artifact, sessions, budget, history):
 def verify(ref, context, artifact, *, require_pass=True):
     verify_bindings([ref]);path=Path(ref['path']);report=ir.load(path)
     revision=Path(context['basis']['path']).parent.parent
-    if path!=revision/'review/report.json' or (report.get('version'),report.get('rule'))!=(VERSION,RULE) or any(
+    if path!=revision/'review/report.json' or report.get('version')!=VERSION or any(
             report[k]!=context[k] for k in ('basis','native','original_inputs','evidence')):
         raise ValueError('Basis semantic receipt belongs to different inputs')
-    keys=item_keys(material(artifact,context['native'],context['original_inputs'],context['evidence'],context.get('revision_report')))
+    packet=material(artifact,context['native'],context['original_inputs'],context['evidence'],context.get('revision_report'))
+    keys=item_keys(packet,rule_for(packet,report.get('rule')))
     if set(keys)!=set(report['assessments']):raise ValueError('Incomplete basis semantic coverage')
     batches={};findings={}
     for key,binding in report['assessments'].items():

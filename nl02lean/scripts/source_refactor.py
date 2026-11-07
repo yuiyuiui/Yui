@@ -13,6 +13,7 @@ from execution_health import require_review_execution, StageFailure
 import audit_a_campaign as a
 import source_preparation as source
 import ir
+from staging_storage import copy_input
 import artifact_protocol as protocol
 from shared_lemmas import hashed
 from runtime_config import model_profile, use_profiles
@@ -146,7 +147,7 @@ def producer_reviews(case, plan, out, budget, *, sessions=None):
                 original=stage/evidence['path'];destination=target/evidence['path']
                 destination.parent.mkdir(parents=True,exist_ok=True)
                 if bind(original)['sha256']!=evidence['sha256']:raise ValueError('Changed producer source evidence')
-                shutil.copyfile(original,destination);evidence['path']=str(destination.relative_to(case))
+                copy_input(original,destination);evidence['path']=str(destination.relative_to(case))
         packet=ir.load(out/rid/'packet.json')
         library_evidence=[ev for note in row['background_notes'] if note['kind']=='mathlib' for ev in note['source']['evidence']]
         trace=stage/'tools.jsonl'

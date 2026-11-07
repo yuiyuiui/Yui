@@ -47,7 +47,8 @@ class BasisAuthorWorkflowTests(unittest.TestCase):
                 own.prompt=prompt;own.inputs=Path(kwargs['inputs'])
             def execute(own):
                 called.append({'role':role_sessions.current()[1],'inputs':own.inputs,'prompt':own.prompt})
-                value=next(iterator);own.validator(value)
+                from basis_fixtures import active_artifact
+                value=active_artifact(next(iterator));own.validator(value)
                 qualified_artifact(own.logs,value)
                 return ir.load(own.logs/'result.json'),value
         return patch.object(basis_author,'BasisStage',LocalStage),called

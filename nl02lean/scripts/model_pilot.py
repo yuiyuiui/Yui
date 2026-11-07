@@ -62,7 +62,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.logs = Path(logs)
@@ -75,6 +75,8 @@ class Stage(carrier.Trial):
         self.mode, self.plan, self.step = mode, plan, step
         self.model_selection = model_profile(mode)
         self.budget = budget
+        self.private_sources=private_sources or {}
+        if self.private_sources and not private_worker:raise ValueError('Private sources require a private proof worker')
         self.timeout = __import__('runtime_config').time_limit(timeout)
         self.harness_version = HARNESS
         self.strict = True
@@ -170,6 +172,15 @@ class Stage(carrier.Trial):
                 'on that note or rebuilding a larger argument by default.')
         if bank_enabled:
             self.tools += [json_tool('find_strategies','Query the indexed bank using a JSON diagnostic. Fields: family, tags, facts, lean_version. Advice is not a premise.','query_json')]
+        if self.private_sources:
+            self.tools.append(carrier.tool('read_private_source','Read one bound source of this obligation, by document ID and inclusive line range.',
+                {'id':{'type':'string','enum':list(self.private_sources)},'start':{'type':'integer'},'end':{'type':'integer'},'column':{'type':'integer'}},['id','start','end']))
+        if mode=='proof' and instruction_arm=='yui' and not private_worker:
+            import proof_obligations
+            shape=proof_obligations.batch_schema()
+            self.tools.append(carrier.tool('prove_independent_helpers',
+                'Prove a batch of independent private lemma statements under your exact frozen binders. Supply their natural proof routes. Children can use incremental helpers. Read each checked helper and use it to prove the original target.',
+                shape['properties'],shape['required']))
         self.tool_names = {t['name'] for t in self.tools}
         self.accepted = None
         self.own_lean_drafts={'proof':{},'auxiliary':{}}
@@ -216,6 +227,11 @@ class Stage(carrier.Trial):
             if self.mode=='proof' and self.instruction_arm=='yui' and name=='report_proof_obstruction':
                 report=proof_repair.obstruction(self,args)
                 result=self.request_proof_repair(report)
+            elif name=='read_private_source' and name in self.tool_names:
+                from controller_common import verify_bindings
+                from read_views import read_page
+                source=self.private_sources[args['id']];verify_bindings([source])
+                result=read_page(Path(source['path']).read_text(),args['start'],args['end'],column=args.get('column',0))
             elif name == 'find_strategies':
                 c=ir.contract(self.cpath)
                 if self.mode=='proof':
@@ -264,13 +280,16 @@ class Stage(carrier.Trial):
                 self.lean_calls += 1
                 if result['exit_code'] == 0 and name.startswith('submit'):
                     self.accepted = {'proof':packaged}
+            elif self.mode=='proof' and name=='prove_independent_helpers' and name in self.tool_names:
+                import proof_obligations
+                result=proof_obligations.helper_batch(self,args)
             elif self.mode=='proof' and name=='check_auxiliary':
                 number=len(self.own_lean_drafts['auxiliary'])+1
                 record={'statement':args['statement'],'proof':args['proof']}
                 self.own_lean_drafts['auxiliary'][number]=record;record_path=self.logs/'lean-drafts'/f'auxiliary-{number:04d}.json'
                 result=ir.check_auxiliary(self.cpath,self.plan,self.step,args['statement'],args['proof'],
-                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout(),helpers=self.local_helpers)
-                self.lean_calls+=1
+                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout(),helpers=self.local_helpers,cache=self.work/'output/compiled-helpers')
+                self.lean_calls+=result.get('native_calls',1)
                 result['candidate']=number
                 if result.get('auxiliary_valid') and result.get('lean_sha256'):
                     import local_helpers
@@ -302,7 +321,8 @@ class Stage(carrier.Trial):
             if 'exit_code' in result:
                 result['accepted'] = result['exit_code']==0
                 result['stage_complete'] = bool(self.accepted)
-                self.last_diagnostic = (result.get('stdout','')+'\n'+result.get('stderr',''))[:14000] if result['exit_code'] else ''
+                from compiler_feedback import excerpt
+                self.last_diagnostic = excerpt(result.get('stdout','')+'\n'+result.get('stderr',''),14000)[0] if result['exit_code'] else ''
                 if (self.mode=='proof' and self.instruction_arm=='yui'
                         and name in {'check_transition','submit_transition','check_auxiliary'}):
                     advice=strategy_bank.native_timeout_feedback(result,
@@ -311,9 +331,9 @@ class Stage(carrier.Trial):
         except (ir.Invalid, KeyError, ValueError, TypeError, IndexError) as e:
             result = {'accepted':False,'error':str(e),'feedback_kind':'candidate_rejected'}
             self.last_diagnostic=str(e)[:14000]
+        self.observe_proof_progress(name,args,result)
         if record is not None:
             record['check']=dict(result);ir.write(record_path,record)
-        self.observe_proof_progress(name,args,result)
         carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
                                                'wall_seconds':time.monotonic()-begin})
         # Keep owner oracle signatures out of compiler feedback for interface work.
@@ -321,7 +341,8 @@ class Stage(carrier.Trial):
             return {'accepted':False,'status':result['status'],
                     'feedback':'Interface did not match the original premise/target ports. Re-read the supplied NL input; do not change assumptions or equality/range conventions.'}
         if 'stdout' in result:
-            return {**result,'stdout':result['stdout'][:14000],'stderr':result.get('stderr','')[:2000]}
+            from compiler_feedback import compact_result
+            return compact_result(result)
         return result
 
     def observe_proof_progress(self,name,args,result):
@@ -399,6 +420,7 @@ class Stage(carrier.Trial):
 
     def proof_packet(self):
         packet = ir.local_packet(self.cpath, self.plan, self.step)
+        if self.private_sources:packet['source_documents']=list(self.private_sources)
         if self.background_note_policy:
             notes = packet.pop('accepted_background_notes')
             packet['background_note_index'] = [

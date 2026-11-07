@@ -16,7 +16,7 @@ sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl0
                 str(tests.parent/'nl0/scripts'),str(tests.parent/'nl02lean/scripts')]
 import harness_support
 from native_fixture import NativeFixture
-from basis_fixtures import artifact, dependency, reviewed_value, add_external_applications
+from basis_fixtures import active_artifact, artifact, dependency, reviewed_value, add_external_applications
 from final_acceptance_fixtures import addition_interface
 from review_contract import put
 import audit_a_campaign
@@ -87,7 +87,26 @@ def scripted(stage):
             row['statement']='There exists one natural number n such that every natural number equals n.'
         if mode=='evidence-repair' and requests[stage.logs]==1:
             row['origin']['evidence']=[{'path':'external-sources/misspelled.pdf','sha256':'0'*64}]
-        return call('submit_draft',artifact=artifact(row))
+        if mode.startswith('planned-'):
+            base=dependency(category=2);base['port']=None
+            derived=dependency('B002',3)
+            rows=[base,derived]
+            if mode!='planned-closed' and (mode!='planned-continue' or requests[stage.logs]==1):
+                rows.append(dependency('B003',4,port='E003'))
+            value=active_artifact(artifact(*rows))
+            target=value['dependencies'][1]
+            target['lean']['proof']=None
+            frontier=''
+            if mode=='planned-closed':
+                frontier=call('investigate_basis_frontier',obligations=[
+                    {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
+                    for r in value['dependencies']])
+            return frontier+call('submit_draft',artifact=value)
+        return call('submit_draft',artifact=active_artifact(artifact(row)))
+    if stage.mode=='basis-frontier':
+        item=json.loads(stage.task_inputs['frontier-item.json'])
+        return call('submit_draft',artifact={'route':'derivation','statement':item['statement'],'argument':NOTE,
+            'source':'Synthetic fixture only','consumer_uses':[{'id':'R002','application':NOTE}],'evidence':[]})
     if stage.mode=='basis-semantic-review':
         reject=mode in {'mismatch','first-pass'} and stage.logs.parents[1].name=='0001'
         review=reviewed_value(stage,{'B001':'FAIL'} if reject else {})
@@ -109,16 +128,25 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
-        row=ir.load(run/'active-inputs/basis-registry.json')['dependencies'][0]
-        value['premise_types'][row['port']]=row['lean']['type']
-        value['steps'][-1]['inputs'].append(row['port'])
-        value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
+        for row in ir.load(run/'active-inputs/basis-registry.json')['dependencies']:
+            if not row['port']:continue
+            value['premise_types'][row['port']]=row['lean']['type']
+            value['steps'][-1]['inputs'].append(row['port'])
+            value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
+        if ir.contract(stage.cpath)['id']=='PrivateProof':
+            if stage.plan['steps'][0]['statement'] in {'a = a','b = b'}:return call('submit_transition',proof='rfl')
+            doc=next(iter(stage.private_sources))
+            return call('read_private_source',id=doc,start=1,end=4)+call('check_auxiliary',statement='∀ n : ℕ, n + 0 = n',proof='exact h_H001')+call('submit_transition',proof='exact @yui_aux_0001 h_H001')
         if mode=='late-proof' and stage.step=='T002':
             return call('check_transition',proof='exact True.intro')+call('report_proof_obstruction',layer='interface',
                 explanation='The supplied basis statement differs from its formal premise.',locations=['/target'],
                 candidates=[{'kind':'proof','candidate':1}])
+        if mode=='planned-closed' and stage.step=='T001':
+            return call('prove_independent_helpers',obligations=[{'statement':s,'explanation':'Equality reflexivity.'} for s in ('a = a','b = b')])+call('submit_transition',proof='have _ := @yui_aux_0001 a b h_H001\nhave _ := @yui_aux_0002 a b h_H001\nexact h_H001.symm')
+        if mode.startswith('planned-') and stage.step=='T002':
+            return call('submit_transition',proof='simpa only [h_E002 a] using h_T001.symm')
         return call('submit_transition',proof='exact h_H001.symm' if stage.step=='T001'
                     else 'simpa only [h_E001 a] using h_T001.symm')
     raise AssertionError('Unexpected stage '+stage.mode)
@@ -146,8 +174,9 @@ if __name__ == '__main__':
         execute=model_pilot.Stage._execute
         pause=fault_control.Gate.pause
         def dispatch(stage):
-            fixture.stage=stage
-            return execute(stage)
+            prior=fixture.stage;fixture.stage=stage
+            try:return execute(stage)
+            finally:fixture.stage=prior
         unexpected=[]
         register=execution_state.Recorder.register_process
         def registered(recorder,process,kind,*args,**kw):
@@ -162,7 +191,7 @@ if __name__ == '__main__':
                         # Simulate elapsed wall clock only after the real residual decision is retained.
                         gate.recorder.deadline=time.monotonic()-.1
                     else:
-                        subprocess.run(gate.state['decisions'][mode],check=True,capture_output=True,timeout=15)
+                        subprocess.run(gate.state['decisions'][{'planned-conditional':'accept-conditional','planned-stop':'stop','planned-continue':'continue'}.get(mode,mode)],check=True,capture_output=True,timeout=15)
                 gate.wait=choose
             else:
                 status=error.get('outcome',{}).get('status') if isinstance(error,dict) else None

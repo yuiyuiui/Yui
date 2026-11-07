@@ -49,7 +49,11 @@ def stage_external(case, proposition, destination):
             else:
                 text='UNVERIFIED: this declared binary source has no supported text readback. Its citation checks remain unverified.\n'
                 record['readback_kind']='UNAVAILABLE'
-        (destination/name).write_text(text)
+        if record['readback_kind']=='EXACT_UTF8_BYTES':
+            from staging_storage import copy_input
+            copy_input(path,destination/name)
+        else:
+            (destination/name).write_text(text)
         record['readback_sha256']=hashlib.sha256((destination/name).read_bytes()).hexdigest()
         readbacks[evidence['sha256']]={k:v for k,v in record.items() if k not in {'source','primary'}}
         index_path.write_text(json.dumps(readbacks,ensure_ascii=False,indent=2)+'\n')

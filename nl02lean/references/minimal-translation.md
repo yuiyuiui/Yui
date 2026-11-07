@@ -68,7 +68,7 @@ actual packet obstructions. Progress counters are passive; no idle-turn count
 cancels sibling work or authorizes interface changes.
 
 Whole-case/stage execution, total tokens and calls are unlimited by default.
-Each native check has the configured 180-second wall limit and finite Lean
+Each native check has the configured 360-second wall limit and finite Lean
 heartbeat policy. Keep measuring usage and allow explicit
 cancellation. Only a user-requested finite case deadline covers the entire
 translation, including preparation, queue waiting, parallel proofs, assembly

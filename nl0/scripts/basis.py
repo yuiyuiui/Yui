@@ -15,10 +15,13 @@ import stat
 from controller_common import bind, manifest, write, verify_bindings, copy_problem_documents
 from execution_health import StageFailure, require_review_execution
 import ir
+from staging_storage import copy_input
 import basis_native
 import basis_review
+import basis_graph
 
-VERSION = 'yui-basis-1'
+LEGACY_VERSION = 'yui-basis-1'
+VERSION = basis_graph.VERSION
 CONTEXT = 'proof-context.json'
 CONTEXT_VERSION = 'yui-basis-context-2'
 MODES = {'conditional', 'unconditional'}
@@ -38,7 +41,11 @@ def text(value, label):
     if not isinstance(value, str) or not value.strip():raise ValueError('Missing '+label)
 
 
-def artifact_schema():
+def artifact_schema(version=None, *, planning=False):
+    if version is None:
+        import artifact_protocol as p
+        return p.choice(artifact_schema(LEGACY_VERSION),artifact_schema(VERSION))
+    modern = version==basis_graph.VERSION
     import artifact_protocol as p
     evidence=p.choice(p.obj({'input':p.TEXT}),p.obj({'path':p.TEXT,'sha256':p.TEXT}))
     branches=[]
@@ -48,18 +55,22 @@ def artifact_schema():
             'port':p.nullable({'type':'string','pattern':r'^[EM]\d{3}$'}),
             'compatibility':{'enum':['native','adapted','internal','unresolved']},
             'origin':p.obj({'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
-                'evidence':p.array(evidence,minItems=1 if category==4 else 0)}),
-            'lean':({'type':'null'} if category==3 else p.obj({'type':p.TEXT,
-                'proof':{'type':'null'} if category==4 else p.TEXT}))}))
+                'evidence':p.array(evidence,minItems=1 if category==4 or (modern and category==2) else 0)}),
+            'lean':({'type':'null'} if category==3 and not modern else p.obj({'type':p.TEXT,
+                'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if modern and planning else p.TEXT}))}))
     dependency=p.choice(*branches)
-    return p.obj({'version':p.literal(VERSION),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
+    return p.obj({'version':p.literal(version),**({'global_graph':basis_graph.schema()} if modern else {}),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
         'dependencies':p.array(dependency),'replacements':p.array(p.obj({
             'original_dependency':p.TEXT,'replacement':p.array(p.TEXT,minItems=1),'explanation':p.TEXT}))})
 
 
 def validate(value, target):
     import artifact_protocol as p
-    p.validate(value,artifact_schema())
+    if not isinstance(value,dict) or value.get('version') not in {LEGACY_VERSION,VERSION}:
+        raise ValueError('Unknown basis protocol version')
+    modern = value['version']==basis_graph.VERSION
+    p.validate(value,artifact_schema(value['version']))
+    if modern:basis_graph.active(value)
     if value['full_target']!=target:raise ValueError('Basis must preserve the complete original selected target verbatim')
     text(value['proof'], 'basis proof')
     header = value['lean_header'];text(header, 'basis Lean header')
@@ -89,7 +100,11 @@ def validate(value, target):
             if not isinstance(port,str) or not re.fullmatch(r'[EM]\d{3}',port) or port in ports:
                 raise ValueError('Invalid/duplicate basis port')
             ports.add(port)
-        if category==3:
+        if category==3 and modern:
+            if compatibility!='internal' or (port and not port.startswith('E')) or not row['uses']:
+                raise ValueError('A prepared derivation needs reducible dependencies and an optional discharge port')
+            ir.type_text(row['lean']['type']);ir.proof_text(row['lean']['proof'])
+        elif category==3:
             if port is not None or compatibility!='internal' or row['lean'] is not None or not row['uses']:
                 raise ValueError('Class 3 is an internal concrete derivation, never an E premise')
         else:
@@ -102,7 +117,7 @@ def validate(value, target):
                 if compatibility not in {'native','adapted'}:raise ValueError('Separate proof origin from native/adapted compatibility')
                 ir.proof_text(lean['proof'])
                 if category==2 or compatibility=='adapted':
-                    if not port or not port.startswith('E'):raise ValueError('Prepared library/adapted proofs need provisional E ports')
+                    if (not modern or port) and (not port or not port.startswith('E')):raise ValueError('Prepared library/adapted proofs need provisional E ports')
                 elif port is not None and not port.startswith('M'):
                     raise ValueError('Native Mathlib uses direct access or optional M ports')
         rows[key] = row
@@ -131,13 +146,17 @@ def validate(value, target):
     return rows, order
 
 
+def prepared(row):
+    return row['category']!=4 and row['lean'] is not None
+
+
 def declarations(value):
     rows, order = validate(value, value['full_target'])
     source = '\nnamespace YuiBasis\nset_option autoImplicit false\n'
     checks = [];roots = []
     for key in order:
         row = rows[key]
-        if row['category'] in {1,2}:
+        if prepared(row):
             source += f"set_option Elab.async false in\ntheorem {key} : {row['lean']['type']} := by\n{ir.proof_text(row['lean']['proof'])}\n"
             checks.append((key, 'YuiBasis.'+key, row['lean']['type']));roots.append('YuiBasis.'+key)
         elif row['category']==4:
@@ -146,6 +165,18 @@ def declarations(value):
             checks.append((key, 'YuiBasis.type_'+key, row['lean']['type']))
     source += '\nend YuiBasis\n'
     return source, checks, roots
+
+
+def verify_native_edges(value, directory):
+    if value['version']!=basis_graph.VERSION:return
+    inspected=ir.load(Path(directory)/'elaborated.json')
+    declarations={r['name']:r for r in inspected['dependencies']['declarations']}
+    names={'YuiBasis.'+r['id']:r['id'] for r in value['dependencies'] if prepared(r)}
+    for row in value['dependencies']:
+        if prepared(row):
+            actual=basis_review.native_basis_dependencies('YuiBasis.'+row['id'],declarations,names)
+            unexpected=set(actual)-set(row['uses'])
+            if unexpected:raise ValueError('Undeclared native foundation dependency at '+row['id']+': '+', '.join(sorted(unexpected)))
 
 
 def evidence_bindings(value, inputs, stage):
@@ -191,24 +222,21 @@ Preserve the full target, original H, quantifiers, domains, parameter ranges,
 normalizations, constant dependencies and any specified algorithm. You may change
 the proof route, auxiliary exponents and representations. Choose the mathematics;
 no forced reduction tree, difficulty score or fixed search/retry budget applies.
-Read nl0/references/basis.md for the exact submission schema and stage boundary.
+Read nl0/references/basis.md for the submission contract and basis-planning.md for the reduction strategy.
 Class 1 is an actual Mathlib proof, 2 an actual public Lean-library proof, 3 a
 concrete recursive NL derivation from 1/2, 4 a verified complete textbook theorem
 still lacking a Lean proof/reduction after serious mathematical work. Missing
 sources, contradictions, unfinished internal arguments and unsupported claims are
 not class 4. Record replaced dependencies and concrete derivations in the proof.
-Prepare actual used 1/2 proofs and needed compatibility adapters in the pinned
-environment now, without migrating a whole upstream library. All proofs are
-closed Lean propositions (bind their own parameters); reusable proofs may refer
-to earlier YuiBasis.Bddd declarations. Put mathematical object definitions in
-lean_header. Class 3 remains NL derivation here; ordinary NL0/Lean workers will
-prove it later. Use provisional E ports for 2/adapted 1, direct Mathlib or optional
-M ports for native 1, internal proof for 3, explicit E for 4. The whole pinned
-Mathlib remains freely available. Do not create a theorem-use permission list.
-Successful machine checks here are not mathematical acceptance. The one later
-NL0/Audit A reviews the original target AND the basis proof/replacements. No
-extra whole natural-language audit runs here. Remaining class 4 requires the
-user's exact stop/continue/conditional choice; you cannot approve it yourself.
+First outline the global proof and its actual consumers. Investigate remaining independent hard
+foundations together with investigate_basis_frontier. Try a pinned declaration, a textbook derivation,
+or a weaker theorem sufficient at every consumer. Optimize the selected graph jointly for shared
+dependencies and independent natural cuts. Save a yui-basis-2 draft. Supply existing proofs for
+1/2/3 or leave lean.proof null in a planning draft and call prepare_basis_graph. Independent workers
+produce the missing proofs under the frozen direct premises. Actual signatures, source fidelity and
+eventual discharge are checked. Class 4 requires an explicit user decision. Supply the global NL0
+skeleton exactly; downstream authors elaborate its local steps. The separate Audit A reviews the
+original target, the active basis proof, applications and replacement map.
 Submit the complete basis artifact through submit_draft. Continue from saved
 drafts after feedback; base_candidate and explicit JSON-pointer patches retain
 your work, and accept_candidate resubmits an actual saved complete candidate.
@@ -216,12 +244,16 @@ your work, and accept_candidate resubmits an actual saved complete candidate.
 
 
 class BasisContract:
-    def __init__(self, out, target):
+    def __init__(self, out, target, *, version=None):
+        self.version=version
+        self.concurrency='auto'
         self.out = Path(out);self.target = target;self.attempt = 0;self.drafts = {};self.selected = None
         self.last_checked = None
         self.last_receipt = None
         from payload_protocols import editable
-        self.schema=editable(artifact_schema())
+        self.schema=editable(artifact_schema(version,planning=True))
+        self.owner_stage=None
+        self.early_stop=None
 
     def save(self, value):
         if not isinstance(value,dict):raise ValueError('Save a basis JSON object')
@@ -256,13 +288,23 @@ class BasisContract:
             return {'candidate':self.last_checked,'status':'BASIS_MACHINE_CHECKED','mathematical_acceptance':False}
         candidate,directory = self.save(value)
         try:
+            if self.version and candidate.get('version')!=self.version:
+                raise ValueError('This author must submit '+self.version)
+            if (self.owner_stage is not None and candidate.get('version')==basis_graph.VERSION and
+                    any(r.get('category')!=4 and isinstance(r.get('lean'),dict) and r['lean'].get('proof') is None
+                        for r in candidate.get('dependencies',[]) if isinstance(r,dict))):
+                import basis_planning
+                prepared=basis_planning.prepare(self.owner_stage,{'candidate':self.attempt})
+                candidate=self.drafts[prepared['candidate']]
+                directory=self.out/'candidates'/f'{self.attempt:04d}'
             validate(candidate, self.target)
             evidence = evidence_bindings(candidate, self.out/'inputs', self.out/'stage')
             declarations_, checks, roots = declarations(candidate)
             native = basis_native.check(candidate['lean_header']+declarations_, checks, roots, directory/'native')
             if not native['passed']:
                 compiler = ir.load(directory/'native/compiler.json')
-                raise ValueError(', '.join(native['errors'])+'\n'+compiler['stdout'][:16000]+compiler['stderr'][:2000])
+                raise ValueError(', '.join(native['errors'])+'\n'+ir.compiler_feedback(compiler))
+            verify_native_edges(candidate,directory/'native')
             self.selected = directory
             self.last_checked = self.attempt
             write(directory/'checked.json',{'basis':bind(directory/'basis.json'),
@@ -274,9 +316,9 @@ class BasisContract:
         return {'candidate':self.attempt,'status':'BASIS_MACHINE_CHECKED', 'mathematical_acceptance':False}
 
 
-def decision(root, artifact, budget):
+def decision(root, artifact, budget, *, planning=False):
     from fault_control import Gate
-    rows, _ = validate(artifact, artifact['full_target'])
+    rows = {r['id']:r for r in artifact['dependencies']} if planning else validate(artifact,artifact['full_target'])[0]
     residual = sorted(k for k,r in rows.items() if r['category']==4)
     if not residual:return None
     gate = Gate(Path(root)/'decision', recorder=getattr(budget,'execution',None), stage='basis-decision')
@@ -304,7 +346,9 @@ def run(job, budget, progress):
         prior=ir.load(Path(job['resume']['prior_run'])/'job.json')
         ir.need(mode(prior)==mode(job),'Recovery changed the formalization goal')
         previous_inputs=problem_inputs(prior)
-        shutil.copytree(previous_inputs,root/'active-inputs')
+        (root/'active-inputs').mkdir()
+        copy_problem_documents(previous_inputs,root/'active-inputs')
+        manifest(root/'active-inputs')
         active=root/'active-inputs'
         write(root/'basis-selection.json',{'context':bind(active/CONTEXT),'inputs':bind(active/'inputs.json')})
         progress(job['case'],'BASIS_CHECKED_RESTORED',prior_run=prior['root'],new_basis_author_called=False)
@@ -315,19 +359,34 @@ def run(job, budget, progress):
         copy_problem_documents(root/'inputs', inputs)
         prompt = PROMPT
         if previous:
-            shutil.copyfile(previous, inputs/'prior-basis.json')
+            copy_input(previous, inputs/'prior-basis.json')
             if findings:
                 write(inputs/'repair-findings.json',findings)
                 prompt += '\nRepair the located basis defects in repair-findings.json. Start from prior-basis.json, preserve the original target, and recheck the revised formal propositions and their uses.'
             else:
                 prompt += '\nThe user selected continue reducing class 4. Preserve the prior basis and accumulated work; eliminate the remaining dependencies without changing the original goal.'
-        manifest(inputs);validator = BasisContract(out,target)
+        manifest(inputs);validator = BasisContract(out,target,version=basis_graph.VERSION)
+        validator.concurrency = job.get('max_concurrency','auto')
         progress(job['case'],'BASIS_AUTHORING',directory=str(out))
         stage = BasisStage(out/'stage',prompt,phase='basis-authoring',inputs=inputs/'inputs.json',
             validator=validator,budget=budget,library=True,timeout=__import__('runtime_config').configured_timeout('stage'))
-        if previous and (previous.parent/'external-sources').is_dir():
-            shutil.copytree(previous.parent/'external-sources',out/'stage/external-sources',dirs_exist_ok=True)
-        with sessions.use('basis-author'):stage.execute()
+        if previous:
+            for row in ir.load(previous)['dependencies']:
+                for ref in row['origin']['evidence']:
+                    if 'path' not in ref:continue
+                    source=(previous.parent/ref['path']).resolve()
+                    if not source.is_relative_to(previous.parent.resolve()) or bind(source)['sha256']!=ref['sha256']:
+                        raise RuntimeError('Changed retained foundation evidence')
+                    destination=out/'stage'/ref['path']
+                    destination.parent.mkdir(parents=True,exist_ok=True)
+                    copy_input(source,destination)
+        try:
+            with sessions.use('basis-author'):stage.execute()
+        finally:
+            if validator.early_stop:
+                sessions.cancel_all()
+                raise StageFailure('STOPPED_BY_USER','User stopped before basis proof dispatch',phase='basis-decision',
+                    evidence=validator.early_stop['path'],details={'user_decision':validator.early_stop})
         require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='basis-authoring')
         if validator.selected is None:raise StageFailure('BASIS_INCOMPLETE','No machine-checked basis selected',phase='basis-authoring')
         artifact = ir.load(out/'stage/accepted.json')
@@ -352,7 +411,8 @@ def run(job, budget, progress):
             previous=out/'stage/accepted.json'
             continue
         progress(job['case'],'BASIS_REVIEWED',directory=str(out/'review'))
-        chosen = decision(out,artifact,budget)
+        import basis_preapproval
+        chosen = (basis_preapproval.existing(out,artifact) if artifact['version']==basis_graph.VERSION else None) or decision(out,artifact,budget)
         action = chosen['control']['action'] if chosen else None
         if action=='stop':
             from case_outcomes import verify_basis_decision
@@ -370,6 +430,7 @@ def run(job, budget, progress):
         for number, evidence in enumerate(context['evidence']):
             stage_document(Path(evidence['path']), active/f'basis-evidence-{number:03d}.txt')
         (active/'basis-proof.md').write_text(artifact['proof']);write(active/'basis-registry.json',artifact)
+        if artifact['version']==basis_graph.VERSION:write(active/'global-nl0.json',artifact['global_graph'])
         write(active/CONTEXT, context);manifest(active)
         write(root/'basis-selection.json',{'context':bind(active/CONTEXT),'inputs':bind(active/'inputs.json')})
         sessions.close_all('BASIS_PREPARED',[validator.selected/'checked.json',out/'review/report.json'])
@@ -386,12 +447,19 @@ def verify_context(context):
     ir.need(ir.digest(Path(context['native']['path']).parent/'Proof.lean')==
         __import__('hashlib').sha256((artifact['lean_header']+declarations_).encode()).hexdigest(), 'Prepared basis proof changed')
     ir.need(native['checks']==[list(c) for c in checks] and native['roots']==roots,'Prepared basis inspection scope changed')
+    verify_native_edges(artifact,Path(context['native']['path']).parent)
     basis_review.verify(context['semantic_review'],context,artifact)
     residual = sorted(k for k,r in rows.items() if r['category']==4)
     ir.need(context['residual_class4']==residual,'Residual basis scope changed')
     approval = context['approval']
     if residual:
         from case_outcomes import verify_basis_decision
+        revision=Path(context['basis']['path']).parent.parent
+        if (artifact['version']==basis_graph.VERSION and isinstance(approval,dict) and
+                approval.get('checkpoint',{}).get('basis')!=context['basis']):
+            import basis_preapproval
+            basis_preapproval.verify(revision,artifact,approval)
+            return artifact
         ir.need(isinstance(approval,dict) and approval.get('checkpoint')=={'basis':context['basis'],'residual_class4':residual,
                 'semantic_review':context['semantic_review']},
             'Residual class 4 lacks exact user approval')
@@ -442,10 +510,12 @@ def source_context(graph, spec):
     ir.need(path.resolve().is_relative_to(graph.parent.resolve()) and ir.digest(path)==row['sha256'],'Changed source proof context')
     context = ir.load(path);artifact = verify_context(context)
     ir.need(document['full_target']==context['full_target'],'Source changed original target after basis reduction')
-    props = ir.load(graph)['propositions']
+    source_graph = ir.load(graph)
+    basis_graph.verify_handoff(artifact,source_graph)
+    props = source_graph['propositions']
     expected = {r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('E')}
     actual = {p['id']:p for p in props if p['kind']=='external'}
-    ir.need(set(actual)==set(expected),'Basis source added/omitted external ports or made class 3 external')
+    ir.need(set(actual)==set(expected),'Basis source changed the frozen external ports')
     for key,row in actual.items():ir.need(row['statement']==expected[key]['statement'],'Basis external statement changed')
     return context
 
