@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -63,6 +64,15 @@ class LeanWritingGuidanceTests(unittest.TestCase):
         self.assertIsNone(proof.timeout)
         self.assertIsNone(proof.accepted)
         self.assertEqual((proof.api_calls, proof.lean_calls), (0, 0))
+
+    def test_reconstructing_a_saved_packet_accepts_optional_private_sources(self):
+        fields = SimpleNamespace(cpath=self.cp, plan=self.plan, step='T001',
+                                 background_note_policy=None)
+        public = ir.local_packet(self.cp, self.plan, 'T001')
+        self.assertEqual(model_pilot.Stage.proof_packet(fields), public)
+        fields.private_sources = {'S001 port.lean': {'path': 'private-host-path'}}
+        self.assertEqual(model_pilot.Stage.proof_packet(fields),
+                         {**public, 'source_documents': ['S001 port.lean']})
 
     def test_snapshot_keeps_the_rules_loaded_by_this_stage(self):
         proof = self.stage()

@@ -420,7 +420,9 @@ class Stage(carrier.Trial):
 
     def proof_packet(self):
         packet = ir.local_packet(self.cpath, self.plan, self.step)
-        if self.private_sources:packet['source_documents']=list(self.private_sources)
+        sources = getattr(self, 'private_sources', None)
+        if sources:
+            packet['source_documents'] = list(sources)
         if self.background_note_policy:
             notes = packet.pop('accepted_background_notes')
             packet['background_note_index'] = [
