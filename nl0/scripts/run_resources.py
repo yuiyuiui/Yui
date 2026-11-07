@@ -68,13 +68,13 @@ def retention(work, logs):
             'owner':identity(os.getpid()),'marker_sha256':hashlib.sha256(marker.read_bytes()).hexdigest()}
 
 
-def safe_stage_workspace(result):
+def safe_stage_workspace(result, *, archived=None):
     """Accept retained ownership or its separate authorized release receipt."""
     if result.get('temporary_workspace_removed') is not False:return True
     row=result.get('workspace_retention',{})
     if row.get('status')!='OWNED_RETAINED':return False
     work=Path(row['workspace']);logs=Path(row['logs'])
-    if work.is_dir() and not work.is_symlink():
+    if archived is None and work.is_dir() and not work.is_symlink():
         try:
             marker=work/MARKER;owner=json.loads(marker.read_text())
             from execution_state import same_process
@@ -83,8 +83,10 @@ def safe_stage_workspace(result):
                     and owner['owner']==row['owner'] and same_process(row['owner']))
         except (OSError,ValueError,KeyError):return False
     try:
-        released=json.loads((logs/'resources/release.json').read_text())
+        release_file, result_file = ((logs/'resources/release.json', logs/'result.json')
+                                     if archived is None else (archived[0]/'release.json', archived[1]))
+        released=json.loads(release_file.read_text())
         return (released['workspace_retention']==row and released['cleanup_confirmed'] is True
                 and released['authorization'] in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}
-                and hashlib.sha256((logs/'result.json').read_bytes()).hexdigest()==released['result_sha256'])
+                and hashlib.sha256(result_file.read_bytes()).hexdigest()==released['result_sha256'])
     except (OSError,ValueError,KeyError):return False

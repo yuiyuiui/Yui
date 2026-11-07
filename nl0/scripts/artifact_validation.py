@@ -496,11 +496,12 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
 
 class NL0Contract:
     """Bind metadata/omitted aliases; leave primary mathematical content to authors/reviewers."""
-    def __init__(self, directory, documents, case_id=None):
+    def __init__(self, directory, documents, case_id=None, *, global_only=False):
         self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=False)
         self.expected_inputs = []
         self.case_id = case_id
+        self.global_only = global_only
         self.attempt = 0
         self.documents = dict(documents)
         self.drafts = {}
@@ -557,7 +558,7 @@ class NL0Contract:
                 if 'case_id' in document and document['case_id']!=self.case_id:
                     raise ValueError('Expected '+name+'.case_id='+repr(self.case_id)+'; received '+repr(document['case_id']))
                 document['case_id']=self.case_id
-        errors=preflight(spec,graph)
+        errors=[] if self.global_only else preflight(spec,graph)
         if errors:raise ValueError('STRUCTURAL_PREFLIGHT:\n'+'\n'.join(errors))
         lock = load_lock()
         # Bind reproducibility metadata and explicitly omitted duplicate aliases.
@@ -672,7 +673,7 @@ class NL0Contract:
             write(staged_spec, spec)
             graph['spec_sha256'] = nl0.sha(staged_spec)
             write(staged_graph, graph)
-            summary = nl0.validate(staged_graph, staged_spec)[0]
+            summary = nl0.validate(staged_graph, staged_spec, global_only=self.global_only)[0]
         except ValueError as error:
             self.last_check={'candidate':self.attempt,'status':'STRUCTURE_REJECTED','error':str(error)}
             write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
@@ -687,11 +688,12 @@ class NL0Contract:
             staged_graph.unlink(missing_ok=True)
         publish_valid_pair(self.directory, spec, graph)
         import source_qualification
-        source_qualification.publish(self.directory,nl0.validate(self.directory/'nl0.json',self.directory/'spec.json'))
+        if not self.global_only:
+            source_qualification.publish(self.directory,nl0.validate(self.directory/'nl0.json',self.directory/'spec.json'))
         self.last_valid_candidate=self.attempt
         self.valid_drafts[self.attempt]=deepcopy(expanded)
         self.last_check={'candidate':self.attempt,'status':'STRUCTURE_PASSED','mathematical_acceptance':False}
         write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)
-        return {'status': 'NL0-STRUCTURALLY-VALID', 'summary': summary,
+        return {'status': 'GLOBAL-GRAPH-FROZEN' if self.global_only else 'NL0-STRUCTURALLY-VALID', 'summary': summary,
                 'mathematical_acceptance': False,
                 'note': 'Actual source fidelity, proof replay and Audit A remain required.'}

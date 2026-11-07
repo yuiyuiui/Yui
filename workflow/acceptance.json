@@ -1,0 +1,182 @@
+[
+  {
+    "name": "audit a supplied proof without Lean",
+    "entry": "audit",
+    "input": {
+      "job": {
+        "path": "ordinary",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "audited",
+          "data": {
+            "scope": "NL0",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "use an external hypothesis only through the direct conditional interface",
+    "entry": "conditional",
+    "input": {
+      "job": {
+        "path": "external",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "conditional",
+          "data": {
+            "scope": "CONDITIONAL_LEAN",
+            "extra_premises": [
+              "E001"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "discharge prepared foundations on the selected route",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "closed",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "unconditional",
+          "data": {
+            "scope": "UNCONDITIONAL_LEAN",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "keep exactly the approved residual",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "residual",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "conditional",
+          "data": {
+            "scope": "CONDITIONAL_LEAN",
+            "extra_premises": [
+              "E004"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "stop before spending local proof work",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "stop",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "stopped",
+          "data": {
+            "scope": "STOPPED",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "keep source qualification after kernel closure",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "qualified",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "qualified",
+          "data": {
+            "scope": "CLOSED_LEAN_SOURCE_QUALIFIED",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "retain natural-language source qualification",
+    "entry": "audit",
+    "input": {
+      "job": {
+        "path": "qualified",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "qualified-audit",
+          "data": {
+            "scope": "NL0_SOURCE_QUALIFIED",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "label an authorized different theorem",
+    "entry": "conditional",
+    "input": {
+      "job": {
+        "path": "different",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "different",
+          "data": {
+            "scope": "DIFFERENT_RESULT",
+            "extra_premises": []
+          }
+        }
+      }
+    ]
+  }
+]

@@ -17,6 +17,9 @@ def main():
     import entrypoint
     entrypoint.parsers(commands)
     commands.add_parser('doctor')
+    delivered=commands.add_parser('verify-delivery',help='Recheck a retained public delivery directory')
+    delivered.add_argument('directory',type=Path)
+    delivered.add_argument('--comparator',type=Path,help='Also run this compatible upstream Comparator executable on a disposable copy')
     commands.add_parser('selftest').add_argument('--verbose',action='store_true')
     stage = commands.add_parser('stage')
     stage.add_argument('prompt', type=Path)
@@ -38,7 +41,15 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
-    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','final-decision','basis-decision'}:
+    if args.command=='verify-delivery':
+        import delivery
+        try:
+            result=delivery.verify(args.directory)
+            if args.comparator:result['comparator']=delivery.compare(args.directory,args.comparator)
+        except (ValueError,KeyError,OSError,subprocess.SubprocessError) as error:
+            print(json.dumps({'status':'VALIDATION_FAILED','error':str(error)}));return 1
+        print(json.dumps(result,indent=2));return 0
+    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))

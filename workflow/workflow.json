@@ -1,0 +1,580 @@
+{
+  "protocol": 1,
+  "name": "yui-workflow",
+  "description": "Turn an existing mathematical proof into an independently audited NL0 graph or a verified Lean proof.",
+  "contracts": {
+    "Binding@1": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "Request@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job"
+      ],
+      "additionalProperties": false
+    },
+    "Job@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        }
+      },
+      "required": [
+        "job",
+        "goal"
+      ],
+      "additionalProperties": false
+    },
+    "Basis@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "basis": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "basis"
+      ],
+      "additionalProperties": false
+    },
+    "Global@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global"
+      ],
+      "additionalProperties": false
+    },
+    "Local@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "local": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "local"
+      ],
+      "additionalProperties": false
+    },
+    "Audited@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "authority": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "authority"
+      ],
+      "additionalProperties": false
+    },
+    "Intermediate@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "authority": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "intermediate": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "authority",
+        "intermediate"
+      ],
+      "additionalProperties": false
+    },
+    "Outcome@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "outcome": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "Delivery@1": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "extra_premises": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "inventory": {
+          "$ref": "urn:workflow:blob@1"
+        }
+      },
+      "required": [
+        "scope",
+        "extra_premises",
+        "inventory"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "blocks": {
+    "request-audit": {
+      "kind": "task",
+      "input": "Request@1",
+      "outputs": {
+        "selected": "Job@1"
+      },
+      "handler": "request_audit",
+      "executor": "python",
+      "effect": "pure"
+    },
+    "request-conditional": {
+      "kind": "task",
+      "input": "Request@1",
+      "outputs": {
+        "selected": "Job@1"
+      },
+      "handler": "request_conditional",
+      "executor": "python",
+      "effect": "pure"
+    },
+    "request-unconditional": {
+      "kind": "task",
+      "input": "Request@1",
+      "outputs": {
+        "selected": "Job@1"
+      },
+      "handler": "request_unconditional",
+      "executor": "python",
+      "effect": "pure"
+    },
+    "reduce": {
+      "kind": "task",
+      "input": "Job@1",
+      "outputs": {
+        "prepared": "Basis@1",
+        "stopped": "Outcome@1"
+      },
+      "handler": "reduce",
+      "executor": "model",
+      "effect": "reconcile"
+    },
+    "basis-outline": {
+      "kind": "task",
+      "input": "Basis@1",
+      "outputs": {
+        "frozen": "Global@1"
+      },
+      "handler": "basis_outline",
+      "executor": "model",
+      "effect": "reconcile"
+    },
+    "outline": {
+      "kind": "task",
+      "input": "Job@1",
+      "outputs": {
+        "frozen": "Global@1"
+      },
+      "handler": "direct_outline",
+      "executor": "model",
+      "effect": "reconcile"
+    },
+    "detail": {
+      "kind": "task",
+      "input": "Global@1",
+      "outputs": {
+        "detailed": "Local@1"
+      },
+      "handler": "detail",
+      "executor": "model",
+      "effect": "reconcile"
+    },
+    "audit": {
+      "kind": "task",
+      "input": "Local@1",
+      "outputs": {
+        "formalize": "Audited@1",
+        "finish": "Outcome@1"
+      },
+      "handler": "audit",
+      "executor": "model",
+      "effect": "reconcile"
+    },
+    "translate": {
+      "kind": "task",
+      "input": "Audited@1",
+      "outputs": {
+        "discharge": "Intermediate@1",
+        "finish": "Outcome@1"
+      },
+      "handler": "translate",
+      "executor": "tool",
+      "effect": "reconcile"
+    },
+    "close": {
+      "kind": "task",
+      "input": "Intermediate@1",
+      "outputs": {
+        "finish": "Outcome@1"
+      },
+      "handler": "close",
+      "executor": "tool",
+      "effect": "reconcile"
+    },
+    "publish": {
+      "kind": "task",
+      "input": "Outcome@1",
+      "outputs": {
+        "audited": "Delivery@1",
+        "qualified-audit": "Delivery@1",
+        "unconditional": "Delivery@1",
+        "conditional": "Delivery@1",
+        "qualified": "Delivery@1",
+        "different": "Delivery@1",
+        "stopped": "Delivery@1"
+      },
+      "handler": "publish",
+      "executor": "python",
+      "effect": "idempotent"
+    },
+    "exit-audited": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "audited",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-qualified-audit": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "qualified-audit",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-unconditional": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "unconditional",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-conditional": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "conditional",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-qualified": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "qualified",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-different": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "different",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "exit-stopped": {
+      "kind": "exit",
+      "input": "Delivery@1",
+      "result": "stopped",
+      "files": {
+        "inventory.json": "inventory"
+      }
+    },
+    "basis": {
+      "kind": "subflow",
+      "input": "Job@1",
+      "outputs": {
+        "stopped": "Outcome@1",
+        "frozen": "Global@1"
+      },
+      "flow": "basis"
+    },
+    "nl0-local": {
+      "kind": "subflow",
+      "input": "Global@1",
+      "outputs": {
+        "formalize": "Audited@1",
+        "finish": "Outcome@1"
+      },
+      "flow": "nl0-local"
+    }
+  },
+  "flows": {
+    "main": {
+      "entries": {
+        "audit": "request-audit",
+        "conditional": "request-conditional",
+        "unconditional": "request-unconditional"
+      },
+      "nodes": {
+        "request-audit": {
+          "block": "request-audit",
+          "on": {
+            "selected": "outline"
+          }
+        },
+        "request-conditional": {
+          "block": "request-conditional",
+          "on": {
+            "selected": "outline"
+          }
+        },
+        "request-unconditional": {
+          "block": "request-unconditional",
+          "on": {
+            "selected": "basis"
+          }
+        },
+        "outline": {
+          "block": "outline",
+          "on": {
+            "frozen": "nl0-local"
+          }
+        },
+        "translate": {
+          "block": "translate",
+          "on": {
+            "discharge": "close",
+            "finish": "publish"
+          }
+        },
+        "close": {
+          "block": "close",
+          "on": {
+            "finish": "publish"
+          }
+        },
+        "publish": {
+          "block": "publish",
+          "on": {
+            "audited": "exit-audited",
+            "qualified-audit": "exit-qualified-audit",
+            "unconditional": "exit-unconditional",
+            "conditional": "exit-conditional",
+            "qualified": "exit-qualified",
+            "different": "exit-different",
+            "stopped": "exit-stopped"
+          }
+        },
+        "exit-audited": {
+          "block": "exit-audited",
+          "on": {}
+        },
+        "exit-qualified-audit": {
+          "block": "exit-qualified-audit",
+          "on": {}
+        },
+        "exit-unconditional": {
+          "block": "exit-unconditional",
+          "on": {}
+        },
+        "exit-conditional": {
+          "block": "exit-conditional",
+          "on": {}
+        },
+        "exit-qualified": {
+          "block": "exit-qualified",
+          "on": {}
+        },
+        "exit-different": {
+          "block": "exit-different",
+          "on": {}
+        },
+        "exit-stopped": {
+          "block": "exit-stopped",
+          "on": {}
+        },
+        "basis": {
+          "block": "basis",
+          "on": {
+            "stopped": "publish",
+            "frozen": "nl0-local"
+          }
+        },
+        "nl0-local": {
+          "block": "nl0-local",
+          "on": {
+            "formalize": "translate",
+            "finish": "publish"
+          }
+        }
+      }
+    },
+    "basis": {
+      "entries": {
+        "start": "reduce"
+      },
+      "nodes": {
+        "reduce": {
+          "block": "reduce",
+          "on": {
+            "prepared": "basis-outline",
+            "stopped": "^stopped"
+          }
+        },
+        "basis-outline": {
+          "block": "basis-outline",
+          "on": {
+            "frozen": "^frozen"
+          }
+        }
+      }
+    },
+    "nl0-local": {
+      "entries": {
+        "start": "detail"
+      },
+      "nodes": {
+        "detail": {
+          "block": "detail",
+          "on": {
+            "detailed": "audit"
+          }
+        },
+        "audit": {
+          "block": "audit",
+          "on": {
+            "formalize": "^formalize",
+            "finish": "^finish"
+          }
+        }
+      }
+    }
+  }
+}

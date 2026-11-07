@@ -52,6 +52,11 @@ def runtime_bindings():
                    'nl02lean/references', 'nl02lean/templates', 'nl02lean/bank'):
         paths.extend(p for p in (CORE/folder).rglob('*')
                      if p.is_file() and p.suffix in {'.py', '.mjs', '.lean', '.json', '.md'})
+    definition = CORE/'workflow'
+    if definition.is_dir():
+        paths.extend([definition/'workflow.json', definition/'adapters.py', definition/'requirements.txt'])
+    for folder in ('scripts','blocks'):
+        paths.extend((definition/folder).rglob('*.py'))
     from library_catalog import catalog_files
     paths.extend(catalog_files())
     return [bind(p) for p in sorted(set(paths))]

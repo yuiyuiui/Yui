@@ -75,3 +75,12 @@ def _offline_notification(thread,message):
 
 
 _faults.queue_notification=_offline_notification
+
+def historical_job(*args, **kwargs):
+    """Exercise the pre-protocol public controller against its historical snapshot layout."""
+    from unittest.mock import patch
+    import jobs
+    bound=jobs.runtime_bindings()
+    previous=[row for row in bound if not Path(row['path']).is_relative_to(CORE/'workflow')]
+    with patch.object(jobs,'runtime_bindings',return_value=previous):
+        return jobs.prepare(*args,**kwargs)

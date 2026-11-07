@@ -1,5 +1,7 @@
 # Installed skill operation
 
+For a new public case, the job snapshot pins the route in [workflow.json](../../workflow/workflow.json). See the [workflow guide](../../workflow/SKILL.md) for the native CLI, final directory tree, explicit verification, optional stage breakpoints and operator attachments. After complete cleanup the four artifacts remain in `RUN/delivery`. For a stopped or interrupted case, read its actual phase and scope in `run.json`. Historical cases use their own frozen runtime and recovery instructions.
+
 This reference is for the invoking agent/operator, not an additional proof step.
 All executable paths are relative to the installed skill, independent of the
 Yui repository. Keep case materials and outputs outside the installation.

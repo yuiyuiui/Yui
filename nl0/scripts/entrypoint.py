@@ -24,6 +24,7 @@ def parsers(commands):
         p.add_argument('--max-concurrency',metavar='auto|N',default='auto',
                        help='Per-case local review/proof limit; default auto uses the current R/T node count')
         p.add_argument('--case-concurrency',type=int)
+        p.add_argument('--stop-after',choices=['2basis','nl0','nl02lean'],help='Hold a live case at the verified stage boundary')
         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
         p.add_argument('--time-budget-seconds',type=int)
         p.add_argument('--use-config-profiles',action='store_true',help='Explicitly select the installed defaults for missing profiles')
@@ -56,6 +57,10 @@ def parsers(commands):
         p.add_argument('runs',nargs='+',type=Path)
         if name=='cancel':p.add_argument('--task',help='One known proof task; requires a single run')
         if name=='cleanup':p.add_argument('--apply',action='store_true');p.add_argument('--grace-seconds',type=float,default=10)
+    checkpoint=commands.add_parser('resume-checkpoint',help='Continue an explicitly stopped stage under its existing owner')
+    checkpoint.add_argument('run',type=Path);checkpoint.add_argument('--id',required=True)
+    material=commands.add_parser('supply-material',help='Bind a received source file to its exact waiting incident')
+    material.add_argument('run',type=Path);material.add_argument('--incident',required=True);material.add_argument('--file',type=Path)
     for name in ('errors','resume-error'):
         p=commands.add_parser(name,help='Inspect or explicitly resume one retained live error checkpoint; no model call')
         p.add_argument('run',type=Path)
@@ -145,6 +150,12 @@ def dispatch(args):
     if args.command=='observe':
         from owner_observation import snapshot
         return snapshot(args.runs)
+    if args.command=='resume-checkpoint':
+        import workflow_checkpoint
+        return workflow_checkpoint.resume(args.run,args.id)
+    if args.command=='supply-material':
+        from material_exchange import supply
+        return supply(args.run,args.incident,args.file)
     if args.command=='targets':
         import target_selection
         return target_selection.inspect(args.problem)
@@ -185,7 +196,7 @@ def dispatch(args):
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
-                target=selections.get(str(problem)),formalization=selected_mode))
+                target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None)))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),
@@ -204,6 +215,10 @@ def dispatch(args):
         from execution_state import inspect, same_process
         result={}
         for p in args.runs:
+            if not (p/'job.json').exists() and (p/'delivery/run.json').is_file():
+                import delivery
+                result[str(p)]={'phase':'CLEANED','delivery':delivery.verify(p/'delivery')}
+                continue
             job=json.loads((p/'job.json').read_text())
             if (p/'execution-status.json').exists():value=inspect(p)
             elif (p/'case-result.json').exists():value=json.loads((p/'case-result.json').read_text())

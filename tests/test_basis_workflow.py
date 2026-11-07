@@ -135,7 +135,8 @@ class BasisCaseRoutingTests(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
 
     def job(self,mode='unconditional'):
-        return jobs.prepare(self.problem,track='full',profiles=PROFILES,formalization=mode,target=self.selection)
+        from harness_support import historical_job
+        return historical_job(self.problem,track='full',profiles=PROFILES,formalization=mode,target=self.selection)
 
     def routed(self,job,*,closure=True,residual=False,stop=None,different=False):
         events=[];run=Path(job['root'])

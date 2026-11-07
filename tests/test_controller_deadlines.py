@@ -87,7 +87,7 @@ class DeadlinePathTests(unittest.TestCase):
                     result = original_dispatch(name, args)
                     fixture.stage.execution.deadline = time.monotonic()-1
                     return result
-                def work(job, recorder, budget, progress, **kwargs):
+                def work(job, budget, **kwargs):
                     fixture.stage.budget = budget
                     fixture.stage.execute()
                     raise AssertionError('Deadline should leave the stage')
@@ -102,7 +102,7 @@ class DeadlinePathTests(unittest.TestCase):
                     gate.wait = lambda _:execution.request_cancel(gate.recorder.root)
                     return original_pause(gate, error, **kwargs)
                 try:
-                    with patch.object(case_runner, 'nl0_work', side_effect=work), \
+                    with patch('frozen_graph.global_stage', side_effect=work), \
                          patch.object(fixture.stage, 'dispatch', side_effect=expire), \
                          patch.object(fault_control.Gate, 'pause', pause):
                         result = case_runner.execute(job)

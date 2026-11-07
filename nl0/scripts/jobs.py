@@ -57,13 +57,16 @@ def stage_document(source, destination):
 
 def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
-            resume=None, resume_bindings=(), target=None, formalization='conditional'):
+            resume=None, resume_bindings=(), target=None, formalization='conditional', stop_after=None):
     import concurrency
     from runtime_config import time_limit
     if track not in TRACKS or policy not in {'normal','first-pass'}:
         raise ValueError('Unknown track or execution policy')
     from basis import validate_mode
     validate_mode(formalization, track,resume=resume)
+    from workflow_checkpoint import allowed
+    if stop_after is not None and (resume or stop_after not in allowed(track,formalization)):
+        raise ValueError('Cannot stop after a stage outside the requested public route')
     if set(profiles) != {'nl0','lean'}:
         raise ValueError('Freeze both profile slots; unused slots are not dispatched')
     profiles = {key:validate_profile(row) for key,row in profiles.items()}
@@ -132,6 +135,10 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
              'time_budget_seconds':time_budget_seconds,'runtime':runtime,
              'runtime_snapshot':snapshot,'library_catalog':catalog_binding}
         job['formalization']=formalization
+        if stop_after:job['stop_after']=stop_after
+        if (any(r['path']==str(root/'runtime/workflow/workflow.json') for r in runtime)
+                and track in {'nl0','full'} and (not resume or resume.get('mode')=='basis-revision')):
+            job['workflow_protocol']='yui-workflow-1'
         from runtime_config import load_lock
         job['native_components']=load_lock()['codex']
         if target:job['target_selection']=target
@@ -157,6 +164,15 @@ def validate(job, *, verify_runtime=True):
         raise ValueError('Unsupported explicit case job')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
+    if 'stop_after' in job:
+        from workflow_checkpoint import allowed
+        if not job.get('workflow_protocol') or job['stop_after'] not in allowed(job['track'],job.get('formalization')):
+            raise ValueError('Unknown workflow stopping point')
+        expected.add('stop_after')
+    if 'workflow_protocol' in job:
+        if job['workflow_protocol']!='yui-workflow-1' or job['track'] not in {'nl0','full'}:
+            raise ValueError('Unknown public workflow protocol or track')
+        expected.add('workflow_protocol')
     if 'resume' in job:expected.add('resume')
     if 'library_catalog' in job:expected.add('library_catalog')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')

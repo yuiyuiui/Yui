@@ -51,12 +51,12 @@ def qualification(result):
                                      and result.get('usage',{}).get('complete'))}
 
 
-def known_transport_recovery(result):
+def known_transport_recovery(result, *, archived=None):
     """A real submitted record survived a disclosed transport-only interruption."""
     if (result.get('status') not in {'ACCEPTED','BLOCKED'} or result.get('execution_health')!='FAULT'
             or result.get('isolation_violation') or result.get('execution_fault')
             or type(result.get('temporary_workspace_removed')) is not bool
-            or not __import__('run_resources').safe_stage_workspace(result)):return False
+            or not __import__('run_resources').safe_stage_workspace(result,archived=archived)):return False
     transport=result.get('transport_health',{});faults=transport.get('faults',[])
     if transport.get('status')!='FAULT' or not faults:return False
     numbers={f.get('request_number') for f in faults if type(f.get('request_number')) is int}
@@ -64,7 +64,8 @@ def known_transport_recovery(result):
         import hashlib
         for row in result.get('error_pauses',[]):
             try:
-                path=Path(row['path']);raw=path.read_bytes();value=json.loads(raw)
+                path=Path(row['path']) if archived is None else archived[0]/(row['sha256']+'.json')
+                raw=path.read_bytes();value=json.loads(raw)
                 if (hashlib.sha256(raw).hexdigest()==row['sha256'] and value.get('state')=='RESUMED'
                         and value.get('control',{}).get('incident')==value.get('incident')
                         and value.get('control',{}).get('action')=='resume'
@@ -88,12 +89,12 @@ def known_transport_recovery(result):
                for u in transport.get('uncertainty',[]))
 
 
-def record_qualification(result,*,allow_blocked=False):
+def record_qualification(result,*,allow_blocked=False,archived=None):
     """Submitted evidence eligibility, never a mathematical or healthy-time PASS."""
-    checked=qualification(result);recovered=known_transport_recovery(result)
+    checked=qualification(result);recovered=known_transport_recovery(result,archived=archived)
     context=bool(checked['identity_and_input_boundary_verified']
         and not result.get('isolation_violation') and not result.get('execution_fault')
-        and __import__('run_resources').safe_stage_workspace(result)
+        and __import__('run_resources').safe_stage_workspace(result,archived=archived)
         and (checked['execution_health']=='NO_RECORDED_FAULT' or recovered))
     submitted=result.get('status') in ({'ACCEPTED','BLOCKED'} if allow_blocked else {'ACCEPTED'})
     return {**checked,'record_context_qualified':context,

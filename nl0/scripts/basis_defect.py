@@ -8,7 +8,7 @@ from execution_health import StageFailure, record_qualification
 import ir
 
 STATUS = 'BASIS_REVISION_REQUIRED'
-PHASES = {'nl0-authoring', 'audit-a-global', 'translation-source-preparation', 'translation-cut-review',
+PHASES = {'basis-global-metadata', 'nl0-local-authoring', 'nl0-authoring', 'audit-a-global', 'translation-source-preparation', 'translation-cut-review',
           'interface-authoring', 'interface-semantic-review', 'interface-dispute-review',
           'interface-proof-diagnosis', 'audit-b-assembly', 'audit-b-semantic-review'}
 TOOL = 'report_basis_defect'

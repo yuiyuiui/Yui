@@ -58,15 +58,24 @@ def generated_roots(repo):
     raise ValueError('Select explicit owned run directories; no global output tree is scanned')
 
 
+def selected_path(raw):
+    path = Path(raw).absolute()
+    # macOS exposes its system-owned /private/var and /private/tmp through aliases.
+    aliases = {Path('/var'):Path('/private/var'), Path('/tmp'):Path('/private/tmp')}
+    for ancestor in (path,*path.parents):
+        if ancestor.is_symlink() and not (
+                sys.platform=='darwin' and ancestor in aliases and ancestor.resolve()==aliases[ancestor]
+                and ancestor!=path):
+            raise ValueError('Refuse symlink selected output: '+str(path))
+    return path.resolve()
+
+
 def selected_roots(repo, outputs=None):
     if outputs is None:
         raise ValueError('Explicit --output run directories are required')
     selected = []
     for raw in outputs:
-        path = Path(raw).absolute()
-        if any(p.is_symlink() for p in [path,*path.parents]):
-            raise ValueError('Refuse symlink selected output: '+str(path))
-        path = path.resolve()
+        path = selected_path(raw)
         import jobs
         if path.is_relative_to(CORE) or not (path/jobs.MARKER).is_file():
             raise ValueError('Select a marked Yui run outside the installed skill: '+str(path))
@@ -93,7 +102,7 @@ def inventory(repo, outputs=None):
             continue
         for directory, dirs, files in os.walk(root, followlinks=False):
             base = Path(directory)
-            dirs[:] = [d for d in dirs if not (base/d).is_symlink()]
+            dirs[:] = [d for d in dirs if not (base/d).is_symlink() and not (base==root and d=='delivery')]
             for filename in files:
                 path = base/filename
                 if path.is_symlink():
@@ -233,10 +242,28 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
     repo = Path(repo).resolve()
     if grace < 0 or grace > 60:
         raise ValueError('Grace must be between zero and sixty seconds')
+    # Completed public deliveries survive clean. A second call only verifies them.
+    import delivery
+    pending=[]
+    retained=[]
+    for raw in outputs or []:
+        path=selected_path(raw)
+        if path.is_dir() and {p.name for p in path.iterdir()}=={'delivery'}:
+            delivery.verify(path/'delivery')
+            retained.append(str(path/'delivery'))
+        else:
+            pending.append(raw)
+    if retained and not pending:
+        return {'status':'CLEANED' if apply else 'PREVIEW','retained_deliveries':retained,'residual_pids':[]}
+    outputs=pending if outputs is not None else None
     roots=selected_roots(repo,outputs)
     with contextlib.ExitStack() as locks:
         if apply:
             for root in sorted(roots):locks.enter_context(cleanup_lock(root))
+        anchors={}
+        for root in roots:
+            if json.loads((root/'job.json').read_text()).get('workflow_protocol') and (root/'delivery').exists():
+                anchors[root]=delivery.cleanup_anchor(root)
         inv = inventory(repo, outputs)
         table = process_table(); owned = discover(inv, table, repo)
         report = {'mode': 'APPLY' if apply else 'PREVIEW', 'at_utc': now(),
@@ -294,12 +321,27 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
         if owned or inv['errors']:
             report.update(status='BLOCKED', errors=inv['errors'], residual_pids=sorted(owned))
             return report  # Keep every ownership record if shutdown is not confirmed.
+        for root in roots:
+            job=json.loads((root/'job.json').read_text())
+            if job.get('workflow_protocol') and (root/'delivery').exists():
+                anchors[root]=delivery.cleanup_anchor(root)
+            elif job.get('workflow_protocol') and (root/'execution-status.json').is_file():
+                anchors[root]=delivery.partial(job)
         for work in inv['workspaces']:
             shutil.rmtree(work)
             report['removed_temporary_directories'] += 1
         for root in inv['roots']:
-            if root.exists():
+            if root in anchors:
+                delivery.verify(root/'delivery',anchor=anchors[root])
+                for path in root.iterdir():
+                    if path.name in {'delivery','.cleanup.lock'}:continue
+                    if path.is_dir() and not path.is_symlink():shutil.rmtree(path)
+                    else:path.unlink()
+                delivery.verify(root/'delivery',anchor=anchors[root])
+                retained.append(str(root/'delivery'))
+            elif root.exists():
                 shutil.rmtree(root); report['removed_roots'].append(str(root))
+        report['retained_deliveries']=retained
         caches = []
         for parent in (() if outputs is not None else (repo/'nl0', repo/'nl02lean', repo/'tests')):
             for directory, dirs, _ in os.walk(parent, followlinks=False):

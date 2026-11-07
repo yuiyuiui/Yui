@@ -26,6 +26,8 @@ The installed skill root is the directory containing this `SKILL.md`. Keep
 `config.json`, `nl0/`, `nl02lean/` and `toolchain/` beside it; no enclosing
 `rigorous-proof/` subdirectory or particular checkout name is required.
 
+New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A direct NL0 request freezes the global graph at its entrance. A basis request supplies that graph once. Both routes fill the local R bodies and run independent Audit A. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
+
 ## Select a stage
 
 Before dispatch, follow [target selection](nl0/references/target-selection.md).

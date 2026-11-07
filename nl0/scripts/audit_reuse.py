@@ -242,13 +242,18 @@ def validate(case,binding,data,scope,entry=None):
     if record['selector']!=selector:raise ValueError('Inherited review selector differs from its scope')
     old=data_from_files(paths['graph'],paths['spec'])
     policy=record.get('structure_policy','whole_graph')
-    old_context=context(old,scope,structure_policy=policy);new_context=context(data,scope,structure_policy=policy)
+    archive=Path(case)/'review-evidence/execution'
+    semantic_rules=({key:sha(archive/'rules'/Path(key).name) for key in SEMANTIC_RULES}
+                    if archive.is_dir() else rules())
+    old_context=context(old,scope,structure_policy=policy,semantic_rules=semantic_rules)
+    new_context=context(data,scope,structure_policy=policy,semantic_rules=semantic_rules)
     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
         raise ValueError('Inherited review mathematical context changed')
     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
-    if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified'] or exposure!=result['exposure']:
+    archived=(archive/record['previous']['result']['sha256'],paths['result']) if archive.is_dir() else None
+    if result.get('status')!='ACCEPTED' or not record_qualification(result,archived=archived)['submitted_record_qualified'] or exposure!=result['exposure']:
         raise ValueError('Inherited review execution is unqualified')
-    if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():
+    if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=semantic_rules:
         raise ValueError('Inherited review semantic rules changed')
     if scope.startswith('packet:'):
         packet=load(paths['packet']);rid=scope.split(':')[1]

@@ -202,6 +202,8 @@ class Gate:
             'cleanup_authorized':False, 'notification':{'status':'PENDING'},
             'resume_command':[sys.executable, '-B', str(entry), 'resume-error', str(self.root), '--incident', incident],
             'cancel_command':[sys.executable, '-B', str(entry), 'cancel', str(self.root)]}
+        if self.stage=='source-material':
+            self.state['resume_command']=[sys.executable,'-B',str(entry),'supply-material',str(self.root),'--incident',incident,'--file','<attached-file>']
         if decisions:
             basis_choices=set(decisions)=={'stop','continue','accept-conditional'} and self.stage=='basis-decision'
             if resumable or not (basis_choices or set(decisions)=={'deliver-actual','recheck','reset-translation'}):
@@ -219,7 +221,7 @@ class Gate:
         seen_controls=set()
         while True:
             self.check_cancel()
-            if self.stage=='basis-decision' and self.recorder is not None:
+            if self.stage in {'basis-decision','source-material'} and self.recorder is not None:
                 try:self.recorder.check()
                 except execution.CaseDeadlineExceeded:
                     self.state.update(state='EXPIRED',expired_at_utc=execution.now())
@@ -243,7 +245,11 @@ class Gate:
                 if key in seen_controls:
                     self.wait(1);continue
                 seen_controls.add(key)
-                try:validate_context(self.root,self.job_binding,self.requires_job)
+                try:
+                    validate_context(self.root,self.job_binding,self.requires_job)
+                    if self.stage=='source-material':
+                        from material_exchange import received
+                        received(self.logs,incident,self.job_binding)
                 except (OSError,ValueError,KeyError) as error:
                     self.state['resume_rejected']=redact(str(error));self.persist()
                     self.wait(1);continue
@@ -294,6 +300,8 @@ def resume(root, incident):
     root=Path(root).resolve()
     if Path(row['root']).resolve()!=root or not Path(row['logs']).resolve().is_relative_to(root):
         raise ValueError('Error checkpoint escapes its explicitly selected run')
+    if row.get('stage')=='source-material':
+        raise ValueError('Use supply-material with the received attachment for this incident')
     if not row.get('resumable'):
         if case_deadline_error(row.get('error')):
             raise ValueError('The whole-case budget is exhausted; ordinary resume cannot extend it')

@@ -23,7 +23,9 @@ def summarize(directory):
         request_count=None if (stage/'native-client.json').exists() else sum(1 for _ in rows(stage/'requests.jsonl'))
         lifecycles={}
         for row in rows(stage/'request-lifecycle.jsonl'):
-            lifecycles.setdefault(row['request_number'],{})[row['event']]=row
+            # Native tool-delivery events have a call_id and no HTTP request number.
+            if row.get('event') in {'FORWARDED','PROVIDER_TERMINAL'} and 'request_number' in row:
+                lifecycles.setdefault(row['request_number'],{})[row['event']]=row
         request_times=[]
         for number,events in lifecycles.items():
             begin=events.get('FORWARDED');end=events.get('PROVIDER_TERMINAL')

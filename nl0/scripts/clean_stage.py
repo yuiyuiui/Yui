@@ -71,11 +71,14 @@ class ArtifactStage(pilot.Stage):
                 'unsupported mathematical implication with concrete mathematical grounds.')
         if kind not in {'json', 'nl0'}:
             raise ValueError('Unknown artifact contract')
+        from frozen_graph import BASIS, DIRECT, LOCAL, AuthorContract
+        self.author_closing = kind == 'nl0' and phase not in {BASIS, DIRECT}
         if kind == 'nl0':
             if validator is not None or not self.task_inputs:
                 raise ValueError('NL0 authoring requires explicit frozen inputs and its built-in validator')
             from artifact_validation import NL0Contract
-            self.validator = NL0Contract(self.logs/'case', self.task_inputs, case_id=case_id)
+            self.validator = (AuthorContract(self.logs/'case',self.task_inputs,case_id,phase)
+                if phase in {BASIS,DIRECT,LOCAL} else NL0Contract(self.logs/'case',self.task_inputs,case_id=case_id))
             if self.acceptance_authority:
                 self.validator.author_check.acceptance=self.acceptance_authority
         self.system = ('Complete the supplied mathematical task using only its explicit inputs and tools. '
@@ -189,7 +192,7 @@ class ArtifactStage(pilot.Stage):
             self.tools.append(pilot.carrier.tool('find_library_sources',
                 'Search pinned foundational metadata by an exact declaration name or ordinary mathematical terms. Ranked lexical candidates are not a theorem whitelist or an applicability judgment. Selected sources still need explicit M roots and complete checks.',
                 {'query':{'type':'string'}},['query']))
-        if kind == 'nl0':
+        if self.author_closing:
             self.tools.append(pilot.carrier.tool('read_draft',
                 'Read a JSON pointer in your own same-stage candidate after an actual structural check. No other file/stage is accessible. For an existing string optionally supply both start_line/end_line to request up to 250 numbered lines and its complete text_sha256 for replace_lines. A read end beyond the text returns the remaining existing lines and actual range; the start must exist. Edits never clamp their range.',
                 {'candidate':{'type':'integer'},'pointer':{'type':'string'},
@@ -215,6 +218,15 @@ class ArtifactStage(pilot.Stage):
                     'required':['id','dependency_and_local_assumption_check','source_application_check','declaration_check'],
                     'additionalProperties':False}}},
                 ['candidate','readiness','open_issues','original_context_note','output_notes','inference_notes']))
+        self.supplied_materials={}
+        from fault_control import run_root
+        owner=run_root(self.logs)/'job.json'
+        self.material_requests=(phase in {BASIS,DIRECT,LOCAL,'basis-authoring'} and owner.is_file()
+                                and json.loads(owner.read_text()).get('workflow_protocol')=='yui-workflow-1')
+        if self.material_requests:
+            self.tools.append(pilot.carrier.tool('read_supplied_material','Read a bound operator attachment by incident and line range.',
+                {'incident':artifact_protocol.STRING,'start':{'type':'integer'},'end':{'type':'integer'},'column':{'type':'integer'}},
+                ['incident','start','end']))
         import basis_defect
         basis_defect.enable(self)
         self.tool_names = {t['name'] for t in self.tools}
@@ -271,7 +283,7 @@ class ArtifactStage(pilot.Stage):
             'acceptance_contract':self.acceptance_authority.metadata() if self.acceptance_authority else None,
             'rule_snapshot_note':'The entry is saved as SKILL.md.snapshot.txt to prevent a second discoverable skill.',
             'scope':'Explicit task inputs and frozen Yui role instructions, through native Codex. Native built-in instructions/context management remain present; no HTTP payload interception.'},indent=2)+'\n')
-        if kind == 'nl0':
+        if self.author_closing and phase!=LOCAL:
             import nl0
             self.input_prompt += ('\nWrite the complete proof, retaining all supplied calculations, '
                 'intermediate derivations and limiting arguments needed for the original target and active core proof route. '
@@ -382,7 +394,7 @@ class ArtifactStage(pilot.Stage):
                 'Relevant frozen rule paths (relative to the installed skill root): '+', '.join(index)+'. '
                 'Other declared Markdown references linked from these remain available through read_yui. '
                 'Reads return explicit pages of at most 250 lines with continuation metadata. Follow relevant links; operator scheduling/control manuals are not proof-worker inputs.')
-            if kind == 'nl0':
+            if self.author_closing and phase!=LOCAL:
                 self.input_prompt += ('\nFrozen Yui authoring template (read the linked schema for field details):\n'+
                     self.rule_texts[str(CORE/'nl0/templates/authoring.md')])
         if self.task_inputs:
@@ -395,7 +407,7 @@ class ArtifactStage(pilot.Stage):
         return self.input_prompt
 
     def controller_checkpoint(self):
-        if self.artifact_kind!='nl0' or not self.validator.drafts:return None
+        if not self.author_closing or not self.validator.drafts:return None
         number=self.validator.attempt
         candidate=self.validator.directory/f'candidate-{number:04d}.json'
         check=self.validator.directory/f'check-result-{number:04d}.json'
@@ -472,6 +484,8 @@ class ArtifactStage(pilot.Stage):
                         'path':reference['path'],'sha256':reference['sha256']}},
                         'primary_evidence':[],'qualification':reference['qualification'],
                         'warning':'The completed result will remain conditional until original-source checks pass.'}
+            elif name=='read_supplied_material':
+                result=read_page(self.supplied_materials[args['incident']],args['start'],args['end'],column=args.get('column',0))
             elif name == 'report_basis_defect':
                 import basis_defect
                 from fault_control import run_root
@@ -494,8 +508,12 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('PRIMARY_SOURCE_DEFERRED: use source search/read and defer_primary_source when a complete secondary statement exists. '
                         'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
                 artifact_protocol.validate(value,shape)
-                self.accepted = value
-                result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
+                if self.material_requests and value['status'] in {'MISSING_SOURCE_STATEMENT','SOURCE_UNAVAILABLE'}:
+                    import material_exchange
+                    result = material_exchange.request(self,value['location']+' — '+value['explanation'])
+                else:
+                    self.accepted = value
+                    result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
             elif name == 'record_review_item':
                 if self.validator.shape:
                     try:artifact_protocol.validate(args,self.validator.shape.record_schema())
@@ -583,7 +601,7 @@ class ArtifactStage(pilot.Stage):
                         raise ValueError('Preserve your recorded background notes; do not drop or replace them at submission')
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}
                 result = {'accepted': True, 'validation': checked, 'stage_complete': name in {'submit_artifact','submit_draft'}}
-                if self.artifact_kind=='nl0':
+                if self.author_closing:
                     own=self.validator.author_check.status(self.validator.attempt)
                     result['author_closing_check']=own
                     if result['stage_complete'] and not own['author_release_ready']:
@@ -600,7 +618,7 @@ class ArtifactStage(pilot.Stage):
         except Exception as e:
             self.record_tool_fault(name,args,e,started)
             raise
-        if self.artifact_kind=='nl0' and name in {'check_artifact','submit_artifact','check_draft','submit_draft'}:
+        if self.author_closing and name in {'check_artifact','submit_artifact','check_draft','submit_draft'}:
             result['candidate_number']=self.validator.attempt or None
             result['revision_note']='Preserve accumulated proof edits with base_candidate and explicit patches, or resubmit the exact draft with accept_candidate. Restarting a frozen base_input requires reset_base:true. Full validation still applies.'
         if self.artifact_kind=='nl0':

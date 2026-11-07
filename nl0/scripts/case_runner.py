@@ -81,6 +81,9 @@ def repair_obligations(source, campaign):
 
 
 def author_stage(job, root, budget, *, baseline=None, obligations=None):
+    if job.get('workflow_protocol'):
+        import frozen_graph
+        return frozen_graph.local_stage(job,root,budget,baseline=baseline,obligations=obligations)
     nl0_author.prepare(basis.problem_inputs(job),root,baseline=baseline,obligations=obligations)
     stage=ArtifactStage(root/'stage',(root/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',
         case_id=job['case'],inputs=root/'inputs/inputs.json',timeout=f.stage_seconds(budget),budget=budget)
@@ -100,10 +103,10 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
     return source
 
 
-def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
+def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_source=None):
     if job['policy']!='first-pass':
         import nl0_review_loop
-        restored=None;prior=[];obligations=None
+        restored=initial_source;prior=[];obligations=None
         mode=(job.get('resume') or {}).get('mode')
         if mode in {'audit-a','author-repair'}:
             import interrupted
@@ -112,7 +115,7 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None):
         return nl0_review_loop.run(job,budget,audit_budget,progress,author_stage,repair_obligations,
             restored=restored,prior=prior,initial_issues=obligations)
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
-    restored=None
+    restored=initial_source
     if (job.get('resume') or {}).get('mode')=='audit-a':
         import interrupted
         restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
@@ -165,7 +168,7 @@ def translation_attempt(job, authority, budgets, progress):
         import native_cleanup_recovery
         native_cleanup_recovery.validate_descriptor(job)
         checkpoint=job['resume'];authority=checkpoint['source_authority']
-    else:
+    elif not job.get('workflow_protocol'):
         extraction=0;previous=None;findings=None
         while True:
             extraction+=1
@@ -262,6 +265,9 @@ def execute(job, root=None):
                 if resume.get('mode')=='basis-final-closure':
                     import basis_closure_recovery
                     result=basis_closure_recovery.run(job,progress)
+                elif job.get('workflow_protocol'):
+                    import workflow_execution
+                    result=workflow_execution.run(job,recorder,budgets,progress)
                 elif job['track']=='audit-b':
                     import audit_b_continuation
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)

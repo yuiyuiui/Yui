@@ -24,7 +24,12 @@ class MetricsTests(unittest.TestCase):
             (stage/'result.json').write_text(json.dumps({'status':'UNFINISHED','wall_seconds':10,'queue_seconds':2}))
             (stage/'execution-manifest.json').write_text('{"phase":"proof"}')
             (stage/'tools.jsonl').write_text('{"tool":"check_transition","wall_seconds":3}\n')
+            (stage/'request-lifecycle.jsonl').write_text(
+                '{"event":"FORWARDED","request_number":1,"at_utc":"2026-01-01T09:00:00"}\n'
+                '{"event":"TOOL_RESULT_DELIVERED","call_id":"a"}\n'
+                '{"event":"PROVIDER_TERMINAL","request_number":1,"at_utc":"2026-01-01T09:00:02"}\n')
             value=summarize(raw);row=value['stages'][0]
+            self.assertEqual(row['request_observations'],[{'request_number':1,'forward_to_terminal_seconds':2}])
             self.assertEqual(row['wall_seconds'],10)
             self.assertEqual(row['tool_wall_seconds_by_name']['check_transition'],3)
             self.assertIsNone(row['usage']);self.assertIsNone(value['pure_internal_model_reasoning_seconds'])

@@ -107,7 +107,7 @@ EXTERNAL_CHECKS = {"literature_identity", "result_location", "statement_fidelity
 VERDICTS = {"PASS", "FAIL", "UNVERIFIED"}
 
 
-def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, legacy=False):
+def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, legacy=False, global_only=False):
     graph_path, spec_path = Path(graph_path), Path(spec_path)
     base = graph_path.parent
     graph, spec = load(graph_path), load(spec_path)
@@ -250,10 +250,14 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(all(propositions[p]["kind"] in {"hypothesis", "internal"} for p in definition["requires"]),
                 "DEFINITION-PREREQUISITE", f"invalid proof guard in {key}")
 
+    if global_only:
+        require(current and audit_path is None, "GLOBAL", "Only a current, unaudited global graph can be frozen")
+    interface = {"id", "inputs", "output", "definitions"}
+    detail = {"rules", "locals", "argument", "applications"}
     producer = {}
     for key, item in inferences.items():
-        record(item, {"id", "inputs", "output", "definitions", "rules", "locals", "argument", "applications"}, key)
-        for field in ("inputs", "definitions", "rules"):
+        record(item, interface if global_only else interface | detail, key)
+        for field in (("inputs", "definitions") if global_only else ("inputs", "definitions", "rules")):
             strings(item[field], f"{key}.{field}")
         require(set(item["inputs"]) <= propositions.keys(), "INPUT", f"unknown graph input {key}")
         out = item["output"]
@@ -261,6 +265,8 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(out not in producer, "PRODUCER", f"multiple producers of {out}")
         producer[out] = key
         definition_closure(item["definitions"])
+        if global_only:
+            continue
         require(item["rules"] and set(item["rules"]) <= set(spec["logic"]["rules"]), "LOGIC", f"unpermitted rule {key}")
         require(spec["logic"]["classical"] or "contradiction_classical" not in item["rules"], "LOGIC", f"classical rule in constructive context {key}")
         require(isinstance(item["locals"], list), "TYPE", f"{key}.locals")
@@ -346,7 +352,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
             require(set(definitions[did]["requires"]) <= available, "DEFINITION-PREREQUISITE", f"{key} uses {did} before its proof guard")
 
     if current:
-        closed_call(closure.validate, graph, spec, propositions, inferences, definitions, definition_closure)
+        closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
+    if global_only:
+        return {"status":"GLOBAL-GRAPH-FROZEN", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
     result = {"status": "STRUCTURE-PASSED" if current else "LEGACY-STRUCTURE-PASSED", "case_id": spec["case_id"],
               "contract_version": spec["format_version"], "current_standard_receipt_valid": False,

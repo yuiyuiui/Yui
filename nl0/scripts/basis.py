@@ -528,6 +528,12 @@ def check_interface(context, contract):
     expected = {r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('E')}
     actual = {p['id']:p for p in contract['premises'] if p['kind']=='external'}
     ir.need(set(expected)==set(actual),'Interface changed prepared basis E ports')
+    if artifact['version']==basis_graph.VERSION:
+        expected.update({r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('M')})
+        mathlib={p['id']:p for p in contract['premises'] if p['kind']=='mathlib'}
+        for key in expected.keys()-actual.keys():
+            ir.need(key in mathlib,'Interface omitted a frozen basis Mathlib port: '+key)
+            actual[key]=mathlib[key]
     for key,row in actual.items():
         ir.need(row['type']==expected[key]['lean']['type'] and row['statement']==expected[key]['statement'],
             'Interface changed prepared basis type/context at '+key)

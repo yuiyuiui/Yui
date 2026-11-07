@@ -41,8 +41,20 @@ def author_code(stage):
     spec['case_id']=graph['case_id']=job['case']
     spec['hypotheses'][0]['origin']='problem.md:1'
     evidence=[r for r in stage.validator.expected_inputs if r['path']=='inputs/problem.md']
-    add_external_applications(graph,json.loads(stage.task_inputs['basis-registry.json']),evidence)
-    code=call('check_draft',artifact={'spec':spec,'graph':graph})
+    import frozen_graph as fg
+    if 'basis-registry.json' in stage.task_inputs:
+        add_external_applications(graph,json.loads(stage.task_inputs['basis-registry.json']),evidence)
+    if mode=='direct-external':
+        add_external_applications(graph,artifact(dependency(category=2)),evidence)
+    if stage.mode==fg.BASIS:
+        return call('submit_draft',artifact={'spec':spec,
+            'proposition_details':{p['id']:{k:v for k,v in p.items() if k not in ('id','statement')} for p in graph['propositions']},
+            'inference_definitions':{r['id']:r['definitions'] for r in graph['inferences']}})
+    if stage.mode==fg.DIRECT:
+        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph)})
+    draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
+           if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
+    code=call('check_draft',artifact=draft)
     for row in graph['inferences']:
         code+=call('read_author_packet',candidate=1,inference=row['id'])
     code+=call('record_author_checks',candidate=1,readiness='no_known_issue',open_issues=[],
@@ -113,7 +125,7 @@ def scripted(stage):
         if mode=='evidence-repair':
             return call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
         return call('submit_draft',artifact=review)
-    if stage.mode=='nl0-authoring':return author_code(stage)
+    if stage.mode in {'nl0-authoring','nl0-global','basis-global-metadata','nl0-local-authoring'}:return author_code(stage)
     if (stage.mode,mode) in {('interface-semantic-review','late'),('interface-proof-diagnosis','late-proof')}:
         row=json.loads(stage.task_inputs['basis-registry.json'])['dependencies'][0]
         finding={'basis_id':'B001','field':'statement','frozen_value':row['statement'],
@@ -128,7 +140,9 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
-        for row in ir.load(run/'active-inputs/basis-registry.json')['dependencies']:
+        registry=run/'active-inputs/basis-registry.json'
+        rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
+        for row in rows:
             if not row['port']:continue
             value['premise_types'][row['port']]=row['lean']['type']
             value['steps'][-1]['inputs'].append(row['port'])
@@ -148,7 +162,7 @@ def scripted(stage):
         if mode.startswith('planned-') and stage.step=='T002':
             return call('submit_transition',proof='simpa only [h_E002 a] using h_T001.symm')
         return call('submit_transition',proof='exact h_H001.symm' if stage.step=='T001'
-                    else 'simpa only [h_E001 a] using h_T001.symm')
+                    else 'simpa only [h_E001 a] using h_T001.symm' if job['formalization']=='unconditional' or mode=='direct-external' else 'simpa using h_T001.symm')
     raise AssertionError('Unexpected stage '+stage.mode)
 
 

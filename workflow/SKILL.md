@@ -1,0 +1,20 @@
+---
+name: yui-workflow
+description: Route frozen Yui proof requests through natural-language review, conditional Lean formalization, or explicit checked foundation discharge.
+---
+
+# Yui public workflow
+
+Give the Yui operator a proof, its complete target and one of three goals. Use `nl0/scripts/yui.py run` from the parent Yui installation. The `audit` entry ends after independent natural-language Audit A. The `conditional` entry continues to checked Lean assembly and Audit B. The `unconditional` entry additionally prepares the foundation registry before local authoring and checks actual discharge at the end. A residual theorem requires an explicit user decision. Each exit in [the definition](workflow.json) identifies the scope actually achieved.
+
+Both global producers hand the same versioned graph to the local author. Global declarations, types and edges stay frozen during local work. Located defects go back to their owner. The native case adapter invokes the mathematical workers and checkers in the pinned Yui runtime. Their prompts, native check policies, compatible cached libraries and recovery histories remain with those workers.
+
+## Operators
+
+The Yui case owns the process group, budget, material requests, decisions, checkpoints, delivery and cleanup. Read `yui.py status RUN`, `observe RUN` or `errors RUN` for the live owner and exact incident. Supply source bytes with `supply-material RUN --incident ID --file FILE`. Use `resume-checkpoint RUN --id ID` at a requested stage boundary. Acknowledging receipt requires the attached bytes. `verify-delivery RUN/delivery` rechecks the portable graph, evidence and endpoint inventory. Supply `--comparator BINARY` to build and compare the theorem package. `cleanup RUN --apply` explicitly releases owned scratch and preserves the verified delivery.
+
+The standalone protocol CLI accepts a prepared job binding in `{"job":{"path":"…/job.json","sha256":"…"}}`. Run `python scripts/flow.py start PROTOCOL_DIR ENTRY @input.json` from this package with a fresh protocol directory, separate from the case. This runs the frozen case or reads its corresponding completed transitions. Use Yui controls against the case path for operational interaction.
+
+## Maintenance
+
+Install [requirements](requirements.txt) in the local Yui Python environment. Use `python scripts/flow.py check`, `plan`, `diagram` and `test` to inspect the same definition the cases execute. Edit a consumer contract at its owner, version incompatible changes, and add an independent expectation to [acceptance.json](acceptance.json) before regenerating path tests. Audit the package with the registered workflow-builder before and after a change. Run the parent Yui regression suite, including native CLI and Lean tests, before recording a new maintenance baseline. The protocol fixtures exercise every declared route using offline adapters. Real proof acceptance comes from the corresponding native reviews, Lean checks and actual output.
