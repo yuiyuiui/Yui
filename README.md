@@ -6,13 +6,15 @@ Yui is a multi-agent harness designed to make natural-language mathematical proo
 
 ## Public workflow
 
+[Explore the illustrated workflow](workflow-guide/README.md) to follow each entry through its proof stages and exits. Open the [interactive HTML guide](workflow-guide/index.html) in a local checkout to navigate between diagrams and contracts.
+
 | Request | Command options | Accepted delivery |
 | --- | --- | --- |
 | Natural-language audit | `--track nl0` | Frozen graph, local proofs and actual Audit A |
 | Conditional Lean | `--track full --formalization conditional` | Audit B and the exported theorem under the listed external premises |
 | Unconditional Lean | `--track full --formalization unconditional` | Checked discharge, or the conditional result explicitly selected for retained foundations |
 
-Use these options with `python nl0/scripts/yui.py run PROOF --target 'FULL STATEMENT' --use-config-profiles`. Create the Python environment once from the repository root with `python3 -m venv .venv` and `.venv/bin/python -m pip install -r workflow/requirements.txt`. Run the CLI with that interpreter. The workflow definition drives execution, diagrams and generated tests. The [workflow guide](workflow/SKILL.md) describes the shared graph, checkpoints, output and maintenance checks.
+Use these options with `python nl0/scripts/yui.py run PROOF --target 'FULL STATEMENT' --use-config-profiles`. Create the Python environment once from the repository root with `python3 -m venv .venv` and `.venv/bin/python -m pip install -r workflow/requirements.txt`. Run the CLI with that interpreter. The workflow definition drives execution, diagrams and generated tests. The [operator instructions](workflow/SKILL.md) describe the shared graph, checkpoints, output and maintenance checks.
 
 The public result is in `RUN/delivery/`. It contains `formalization/`, `theorem_formalization_statement.json`, `nl0/` and `run.json`. A natural-language audit leaves the Lean directory and statement list empty. Use `yui.py verify-delivery RUN/delivery` for readback, and add `--comparator /path/to/comparator` for native proof comparison. Explicit `yui.py cleanup RUN --apply` preserves the delivery and checks it again after releasing owned resources.
 

@@ -1,0 +1,867 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file:; style-src 'unsafe-inline'; base-uri 'none'"><title>Yui workflow · Workflow guide</title><style>
+:root{color-scheme:light;--ink:#182d39;--sub:#415866;--line:#cbd6da;--teal:#065d5b}
+*{box-sizing:border-box}
+html{scroll-padding-top:4.5rem}
+body{margin:0;background:#fcfdfb;color:var(--ink);font:16px/1.55 Inter,Arial,sans-serif}
+main,nav>div{max-width:1280px;margin:auto;padding:0 clamp(18px,4vw,68px)}
+nav{position:sticky;top:0;z-index:1;background:#f5f8f7;border-bottom:1px solid var(--line)}
+nav>div{display:flex;gap:clamp(15px,3vw,43px);overflow:auto}
+nav a{display:block;white-space:nowrap;padding:13px 0;color:var(--ink);font-weight:600;text-decoration:none;font-size:.9rem}
+a{color:var(--teal);text-underline-offset:3px}
+a:focus-visible,summary:focus-visible{outline:3px solid #a35812;outline-offset:3px}
+header{padding:40px 0 24px;max-width:860px}
+h1,h2,h3{line-height:1.16;letter-spacing:-.025em;overflow-wrap:anywhere}
+h1{margin:0 0 12px;font-size:clamp(36px,5vw,65px)}
+header p{font-size:1.15rem;margin:.3em 0;color:var(--sub)}
+h2{border-top:2px solid #3d6065;padding-top:22px;margin:34px 0 18px;font-size:clamp(26px,3vw,38px)}
+h3{margin:24px 0 12px;font-size:1.35rem}
+article{padding:4px 0 20px;border-bottom:1px solid var(--line);min-width:0}
+.columns{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(260px,1fr);align-items:start;gap:clamp(20px,3vw,44px)}
+figure{margin:0;min-width:0}
+.viewport,.tablewrap{max-width:100%;overflow:auto}
+.viewport{border:1px solid var(--line);border-radius:10px;background:#f4f7f8}
+.canvas{position:relative;margin:auto;width:100%;max-width:var(--natural);min-width:var(--readable)}
+figure img{display:block;width:100%;height:auto}
+.jump{position:absolute;border-radius:7px}.jump:hover,.jump:focus-visible{outline:2px solid var(--teal);outline-offset:0}
+figcaption,footer{color:var(--sub);font-size:.86rem}
+figcaption{margin:7px 0}
+aside p{margin:0 0 .72em}
+.links{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin:12px 0 0}
+ul.index{columns:3;column-width:200px;padding-left:1.1em}
+.index li{break-inside:avoid}
+table{border-collapse:collapse;text-align:left;width:100%;font-size:.91rem}
+th,td{border-bottom:1px solid var(--line);vertical-align:top;padding:7px 12px 7px 0;overflow-wrap:anywhere}
+th{font-weight:650;color:#274849}
+details{margin:.5rem 0;border:1px solid var(--line);border-radius:5px;background:white}
+summary{cursor:pointer;padding:9px 12px;font-weight:600;overflow-wrap:anywhere}
+details p{margin:8px 12px}
+pre{font: .85rem/1.5 "IBM Plex Mono",Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:14px;color:#193546;background:#f3f6f6}
+footer{margin:32px 0;overflow-wrap:anywhere}
+@media(max-width:760px){.columns{grid-template-columns:minmax(0,1fr);gap:10px}header{padding:25px 0 10px}html{scroll-padding-top:3.5rem}}
+@media print{nav,figcaption,.jump,.links{display:none}main{padding:0;max-width:none}header{padding:0}h1{font-size:26pt}h2{font-size:20pt}h3{break-after:avoid}article{break-inside:avoid}.columns{display:block}.viewport,.tablewrap{overflow:visible}.canvas{max-width:100%!important;min-width:0!important}aside{margin-top:8px}body{font-size:10pt}a{color:inherit}details::details-content{display:block;content-visibility:visible}}
+</style></head><body><nav aria-label="Guide sections"><div><a href="#overview">Overview</a><a href="#areas">Functional areas</a><a href="#controls">Run controls</a><a href="#reference">Technical reference</a></div></nav><main><header>
+<h1 id="guide">Yui workflow</h1>
+<p>Turn an existing mathematical proof into an independently audited NL0 graph or a verified Lean proof.</p>
+</header>
+<h2 id="overview">Overview</h2>
+<article>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="Overview. 19 nodes and 21 connections."><div class="canvas" style="--natural:1464px;--readable:1113px"><img src="figures/overview.svg" alt="Overview. 19 nodes and 21 connections.">
+<a class="jump" href="#contract-Request@1" aria-label="Open audit details" title="Open audit details" style="left:2.0492%;top:38.2653%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#contract-Request@1" aria-label="Open conditional details" title="Open conditional details" style="left:2.0492%;top:48.7245%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#contract-Request@1" aria-label="Open unconditional details" title="Open unconditional details" style="left:2.0492%;top:59.1837%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#flow-basis" aria-label="Open basis details" title="Open basis details" style="left:35.6557%;top:52.9337%;width:11.8852%;height:11.9898%"></a>
+<a class="jump" href="#block-close" aria-label="Open close details" title="Open close details" style="left:86.0656%;top:47.7041%;width:11.8852%;height:10.0765%"></a>
+<a class="jump" href="#block-exit-audited" aria-label="Open exit-audited details" title="Open exit-audited details" style="left:69.2623%;top:21.9388%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#block-exit-conditional" aria-label="Open exit-conditional details" title="Open exit-conditional details" style="left:69.2623%;top:32.3980%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#block-exit-different" aria-label="Open exit-different details" title="Open exit-different details" style="left:69.2623%;top:42.8571%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#block-exit-qualified" aria-label="Open exit-qualified details" title="Open exit-qualified details" style="left:69.2623%;top:53.3163%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#block-exit-qualified-audit" aria-label="Open exit-qualified-audit details" title="Open exit-qualified-audit details" style="left:69.2623%;top:63.7755%;width:11.8852%;height:10.7143%"></a>
+<a class="jump" href="#block-exit-stopped" aria-label="Open exit-stopped details" title="Open exit-stopped details" style="left:69.2623%;top:76.7857%;width:11.8852%;height:8.1633%"></a>
+<a class="jump" href="#block-exit-unconditional" aria-label="Open exit-unconditional details" title="Open exit-unconditional details" style="left:69.2623%;top:87.2449%;width:11.8852%;height:10.7143%"></a>
+<a class="jump" href="#flow-nl0-local" aria-label="Open nl0-local details" title="Open nl0-local details" style="left:52.4590%;top:34.8214%;width:11.8852%;height:11.9898%"></a>
+<a class="jump" href="#block-outline" aria-label="Open outline details" title="Open outline details" style="left:35.6557%;top:40.5612%;width:11.8852%;height:10.0765%"></a>
+<a class="jump" href="#block-publish" aria-label="Open publish details" title="Open publish details" style="left:52.4590%;top:49.1071%;width:11.8852%;height:21.5561%"></a>
+<a class="jump" href="#block-request-audit" aria-label="Open request-audit details" title="Open request-audit details" style="left:18.8525%;top:32.7806%;width:11.8852%;height:10.0765%"></a>
+<a class="jump" href="#block-request-conditional" aria-label="Open request-conditional details" title="Open request-conditional details" style="left:18.8525%;top:45.1531%;width:11.8852%;height:12.6276%"></a>
+<a class="jump" href="#block-request-unconditional" aria-label="Open request-unconditional details" title="Open request-unconditional details" style="left:18.8525%;top:60.0765%;width:11.8852%;height:12.6276%"></a>
+<a class="jump" href="#block-translate" aria-label="Open translate details" title="Open translate details" style="left:69.2623%;top:7.6531%;width:11.8852%;height:11.9898%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/overview.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The audit entry accepts Request@1 and starts at request-audit.</p>
+<p>The conditional entry accepts Request@1 and starts at request-conditional.</p>
+<p>The unconditional entry accepts Request@1 and starts at request-unconditional.</p>
+<p>The audited exit delivers Delivery@1 through publish.audited.</p>
+<p>The conditional exit delivers Delivery@1 through publish.conditional.</p>
+<p>The different exit delivers Delivery@1 through publish.different.</p>
+<p>The qualified exit delivers Delivery@1 through publish.qualified.</p>
+<p>The qualified-audit exit delivers Delivery@1 through publish.qualified-audit.</p>
+<p>The stopped exit delivers Delivery@1 through publish.stopped.</p>
+<p>The unconditional exit delivers Delivery@1 through publish.unconditional.</p>
+<p class="links"><a href="#block-basis">basis</a> <a href="#block-close">close</a> <a href="#block-exit-audited">exit-audited</a> <a href="#block-exit-conditional">exit-conditional</a> <a href="#block-exit-different">exit-different</a> <a href="#block-exit-qualified">exit-qualified</a> <a href="#block-exit-qualified-audit">exit-qualified-audit</a> <a href="#block-exit-stopped">exit-stopped</a> <a href="#block-exit-unconditional">exit-unconditional</a> <a href="#block-nl0-local">nl0-local</a> <a href="#block-outline">outline</a> <a href="#block-publish">publish</a> <a href="#block-request-audit">request-audit</a> <a href="#block-request-conditional">request-conditional</a> <a href="#block-request-unconditional">request-unconditional</a> <a href="#block-translate">translate</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>audit</td><td>→</td><td>request-audit</td></tr>
+<tr><td>conditional</td><td>→</td><td>request-conditional</td></tr>
+<tr><td>unconditional</td><td>→</td><td>request-unconditional</td></tr>
+<tr><td>basis</td><td>frozen</td><td>nl0-local</td></tr>
+<tr><td>basis</td><td>stopped</td><td>publish</td></tr>
+<tr><td>close</td><td>finish</td><td>publish</td></tr>
+<tr><td>nl0-local</td><td>finish</td><td>publish</td></tr>
+<tr><td>nl0-local</td><td>formalize</td><td>translate</td></tr>
+<tr><td>outline</td><td>frozen</td><td>nl0-local</td></tr>
+<tr><td>publish</td><td>audited</td><td>exit-audited</td></tr>
+<tr><td>publish</td><td>conditional</td><td>exit-conditional</td></tr>
+<tr><td>publish</td><td>different</td><td>exit-different</td></tr>
+<tr><td>publish</td><td>qualified</td><td>exit-qualified</td></tr>
+<tr><td>publish</td><td>qualified-audit</td><td>exit-qualified-audit</td></tr>
+<tr><td>publish</td><td>stopped</td><td>exit-stopped</td></tr>
+<tr><td>publish</td><td>unconditional</td><td>exit-unconditional</td></tr>
+<tr><td>request-audit</td><td>selected</td><td>outline</td></tr>
+<tr><td>request-conditional</td><td>selected</td><td>outline</td></tr>
+<tr><td>request-unconditional</td><td>selected</td><td>basis</td></tr>
+<tr><td>translate</td><td>discharge</td><td>close</td></tr>
+<tr><td>translate</td><td>finish</td><td>publish</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<h2 id="areas">Functional areas</h2>
+<ul class="index"><li><a href="#block-request-audit">request-audit</a></li><li><a href="#block-request-conditional">request-conditional</a></li><li><a href="#block-request-unconditional">request-unconditional</a></li><li><a href="#block-outline">outline</a></li><li><a href="#block-basis">basis</a></li><li><a href="#flow-basis">Inside basis</a></li><li><a href="#block-reduce">reduce</a></li><li><a href="#block-basis-outline">basis-outline</a></li><li><a href="#block-nl0-local">nl0-local</a></li><li><a href="#flow-nl0-local">Inside nl0-local</a></li><li><a href="#block-detail">detail</a></li><li><a href="#block-audit">audit</a></li><li><a href="#block-publish">publish</a></li><li><a href="#block-translate">translate</a></li><li><a href="#block-exit-audited">exit-audited</a></li><li><a href="#block-exit-conditional">exit-conditional</a></li><li><a href="#block-exit-different">exit-different</a></li><li><a href="#block-exit-qualified">exit-qualified</a></li><li><a href="#block-exit-qualified-audit">exit-qualified-audit</a></li><li><a href="#block-exit-stopped">exit-stopped</a></li><li><a href="#block-exit-unconditional">exit-unconditional</a></li><li><a href="#block-close">close</a></li></ul>
+<article>
+<h3 id="block-request-audit">request-audit</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="request-audit. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-request-audit.svg" alt="request-audit. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Request@1" aria-label="Open Request@1 details" title="Open Request@1 details" style="left:2.7523%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:70.6422%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#handler-request_audit" aria-label="Open request_audit details" title="Open request_audit details" style="left:36.6972%;top:14.4144%;width:26.6055%;height:71.1712%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-request-audit.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The python adapter request_audit receives Request@1 and returns a named port and its payload.</p>
+<p>The declared effect is pure. Interrupted work can be attempted again.</p>
+<p class="links"><a href="#handler-request_audit">request_audit implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Request@1</td><td>→</td><td>request_audit</td></tr>
+<tr><td>request_audit</td><td>selected</td><td>Job@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-request-conditional">request-conditional</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="request-conditional. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-request-conditional.svg" alt="request-conditional. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Request@1" aria-label="Open Request@1 details" title="Open Request@1 details" style="left:2.7523%;top:25.1908%;width:26.6055%;height:48.8550%"></a>
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:70.6422%;top:25.1908%;width:26.6055%;height:48.8550%"></a>
+<a class="jump" href="#handler-request_conditional" aria-label="Open request_conditional details" title="Open request_conditional details" style="left:36.6972%;top:12.2137%;width:26.6055%;height:75.5725%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-request-conditional.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The python adapter request_conditional receives Request@1 and returns a named port and its payload.</p>
+<p>The declared effect is pure. Interrupted work can be attempted again.</p>
+<p class="links"><a href="#handler-request_conditional">request_conditional implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Request@1</td><td>→</td><td>request_conditional</td></tr>
+<tr><td>request_conditional</td><td>selected</td><td>Job@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-request-unconditional">request-unconditional</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="request-unconditional. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-request-unconditional.svg" alt="request-unconditional. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Request@1" aria-label="Open Request@1 details" title="Open Request@1 details" style="left:2.7523%;top:25.1908%;width:26.6055%;height:48.8550%"></a>
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:70.6422%;top:25.1908%;width:26.6055%;height:48.8550%"></a>
+<a class="jump" href="#handler-request_unconditional" aria-label="Open request_unconditional details" title="Open request_unconditional details" style="left:36.6972%;top:12.2137%;width:26.6055%;height:75.5725%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-request-unconditional.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The python adapter request_unconditional receives Request@1 and returns a named port and its payload.</p>
+<p>The declared effect is pure. Interrupted work can be attempted again.</p>
+<p class="links"><a href="#handler-request_unconditional">request_unconditional implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Request@1</td><td>→</td><td>request_unconditional</td></tr>
+<tr><td>request_unconditional</td><td>selected</td><td>Job@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-outline">outline</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="outline. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-outline.svg" alt="outline. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:2.7523%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#contract-Global@1" aria-label="Open Global@1 details" title="Open Global@1 details" style="left:70.6422%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#handler-direct_outline" aria-label="Open direct_outline details" title="Open direct_outline details" style="left:36.6972%;top:14.4144%;width:26.6055%;height:71.1712%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-outline.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The model adapter direct_outline receives Job@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-direct_outline">direct_outline implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Job@1</td><td>→</td><td>direct_outline</td></tr>
+<tr><td>direct_outline</td><td>frozen</td><td>Global@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-basis">basis</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="basis. 4 nodes and 3 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-basis.svg" alt="basis. 4 nodes and 3 connections.">
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:2.7523%;top:32.0225%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#flow-basis" aria-label="Open basis details" title="Open basis details" style="left:36.6972%;top:23.5955%;width:26.6055%;height:52.8090%"></a>
+<a class="jump" href="#contract-Global@1" aria-label="Open Global@1 details" title="Open Global@1 details" style="left:70.6422%;top:8.9888%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:55.0562%;width:26.6055%;height:35.9551%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-basis.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The start entry of basis receives Job@1. Its named returns select the caller&#x27;s output port.</p>
+<p class="links"><a href="#flow-basis">Open the internal flow</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Job@1</td><td>→</td><td>basis</td></tr>
+<tr><td>basis</td><td>frozen</td><td>Global@1</td></tr>
+<tr><td>basis</td><td>stopped</td><td>Outcome@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="flow-basis">Inside basis</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="Inside basis. 5 nodes and 4 connections."><div class="canvas" style="--natural:876px;--readable:666px"><img src="figures/flow-basis.svg" alt="Inside basis. 5 nodes and 4 connections.">
+<a class="jump" href="#contract-Job@1" aria-label="Open start details" title="Open start details" style="left:2.0548%;top:33.1606%;width:19.8630%;height:33.1606%"></a>
+<a class="jump" href="#block-basis-outline" aria-label="Open basis-outline details" title="Open basis-outline details" style="left:52.7397%;top:8.2902%;width:19.8630%;height:40.9326%"></a>
+<a class="jump" href="#block-reduce" aria-label="Open reduce details" title="Open reduce details" style="left:27.3973%;top:25.3886%;width:19.8630%;height:48.7047%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/flow-basis.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The start entry accepts Job@1 and starts at reduce.</p>
+<p>Called at basis. Each ^port returns to the matching outcome of its caller.</p>
+<p class="links"><a href="#block-basis-outline">basis-outline</a> <a href="#block-reduce">reduce</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>start</td><td>→</td><td>reduce</td></tr>
+<tr><td>basis-outline</td><td>frozen</td><td>^frozen</td></tr>
+<tr><td>reduce</td><td>prepared</td><td>basis-outline</td></tr>
+<tr><td>reduce</td><td>stopped</td><td>^stopped</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-reduce">reduce</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="reduce. 4 nodes and 3 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-reduce.svg" alt="reduce. 4 nodes and 3 connections.">
+<a class="jump" href="#contract-Job@1" aria-label="Open Job@1 details" title="Open Job@1 details" style="left:2.7523%;top:32.0225%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Basis@1" aria-label="Open Basis@1 details" title="Open Basis@1 details" style="left:70.6422%;top:8.9888%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:55.0562%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#handler-reduce" aria-label="Open reduce details" title="Open reduce details" style="left:36.6972%;top:23.5955%;width:26.6055%;height:52.8090%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-reduce.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The model adapter reduce receives Job@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-reduce">reduce implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Job@1</td><td>→</td><td>reduce</td></tr>
+<tr><td>reduce</td><td>prepared</td><td>Basis@1</td></tr>
+<tr><td>reduce</td><td>stopped</td><td>Outcome@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-basis-outline">basis-outline</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="basis-outline. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-basis-outline.svg" alt="basis-outline. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Basis@1" aria-label="Open Basis@1 details" title="Open Basis@1 details" style="left:2.7523%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#contract-Global@1" aria-label="Open Global@1 details" title="Open Global@1 details" style="left:70.6422%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#handler-basis_outline" aria-label="Open basis_outline details" title="Open basis_outline details" style="left:36.6972%;top:14.4144%;width:26.6055%;height:71.1712%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-basis-outline.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The model adapter basis_outline receives Basis@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-basis_outline">basis_outline implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Basis@1</td><td>→</td><td>basis_outline</td></tr>
+<tr><td>basis_outline</td><td>frozen</td><td>Global@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-nl0-local">nl0-local</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="nl0-local. 4 nodes and 3 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-nl0-local.svg" alt="nl0-local. 4 nodes and 3 connections.">
+<a class="jump" href="#contract-Global@1" aria-label="Open Global@1 details" title="Open Global@1 details" style="left:2.7523%;top:32.0225%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#flow-nl0-local" aria-label="Open nl0-local details" title="Open nl0-local details" style="left:36.6972%;top:23.5955%;width:26.6055%;height:52.8090%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:8.9888%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Audited@1" aria-label="Open Audited@1 details" title="Open Audited@1 details" style="left:70.6422%;top:55.0562%;width:26.6055%;height:35.9551%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-nl0-local.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The start entry of nl0-local receives Global@1. Its named returns select the caller&#x27;s output port.</p>
+<p class="links"><a href="#flow-nl0-local">Open the internal flow</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Global@1</td><td>→</td><td>nl0-local</td></tr>
+<tr><td>nl0-local</td><td>finish</td><td>Outcome@1</td></tr>
+<tr><td>nl0-local</td><td>formalize</td><td>Audited@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="flow-nl0-local">Inside nl0-local</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="Inside nl0-local. 5 nodes and 4 connections."><div class="canvas" style="--natural:876px;--readable:666px"><img src="figures/flow-nl0-local.svg" alt="Inside nl0-local. 5 nodes and 4 connections.">
+<a class="jump" href="#contract-Global@1" aria-label="Open start details" title="Open start details" style="left:2.0548%;top:32.0225%;width:19.8630%;height:35.9551%"></a>
+<a class="jump" href="#block-audit" aria-label="Open audit details" title="Open audit details" style="left:52.7397%;top:23.5955%;width:19.8630%;height:52.8090%"></a>
+<a class="jump" href="#block-detail" aria-label="Open detail details" title="Open detail details" style="left:27.3973%;top:27.5281%;width:19.8630%;height:44.3820%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/flow-nl0-local.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The start entry accepts Global@1 and starts at detail.</p>
+<p>Called at nl0-local. Each ^port returns to the matching outcome of its caller.</p>
+<p class="links"><a href="#block-audit">audit</a> <a href="#block-detail">detail</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>start</td><td>→</td><td>detail</td></tr>
+<tr><td>audit</td><td>finish</td><td>^finish</td></tr>
+<tr><td>audit</td><td>formalize</td><td>^formalize</td></tr>
+<tr><td>detail</td><td>detailed</td><td>audit</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-detail">detail</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="detail. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-detail.svg" alt="detail. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Global@1" aria-label="Open Global@1 details" title="Open Global@1 details" style="left:2.7523%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#contract-Local@1" aria-label="Open Local@1 details" title="Open Local@1 details" style="left:70.6422%;top:20.7207%;width:26.6055%;height:57.6577%"></a>
+<a class="jump" href="#handler-detail" aria-label="Open detail details" title="Open detail details" style="left:36.6972%;top:14.4144%;width:26.6055%;height:71.1712%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-detail.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The model adapter detail receives Global@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-detail">detail implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Global@1</td><td>→</td><td>detail</td></tr>
+<tr><td>detail</td><td>detailed</td><td>Local@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-audit">audit</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="audit. 4 nodes and 3 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-audit.svg" alt="audit. 4 nodes and 3 connections.">
+<a class="jump" href="#contract-Local@1" aria-label="Open Local@1 details" title="Open Local@1 details" style="left:2.7523%;top:32.0225%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:8.9888%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#contract-Audited@1" aria-label="Open Audited@1 details" title="Open Audited@1 details" style="left:70.6422%;top:55.0562%;width:26.6055%;height:35.9551%"></a>
+<a class="jump" href="#handler-audit" aria-label="Open audit details" title="Open audit details" style="left:36.6972%;top:23.5955%;width:26.6055%;height:52.8090%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-audit.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The model adapter audit receives Local@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-audit">audit implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Local@1</td><td>→</td><td>audit</td></tr>
+<tr><td>audit</td><td>finish</td><td>Outcome@1</td></tr>
+<tr><td>audit</td><td>formalize</td><td>Audited@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-publish">publish</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="publish. 9 nodes and 8 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-publish.svg" alt="publish. 9 nodes and 8 connections.">
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:2.7523%;top:44.5578%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:2.7211%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:16.6667%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:30.6122%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:44.5578%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:58.5034%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:72.4490%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:70.6422%;top:86.3946%;width:26.6055%;height:10.8844%"></a>
+<a class="jump" href="#handler-publish" aria-label="Open publish details" title="Open publish details" style="left:36.6972%;top:35.5442%;width:26.6055%;height:28.7415%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-publish.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The python adapter publish receives Outcome@1 and returns a named port and its payload.</p>
+<p>The adapter must reuse the operation ID when retrying an external effect.</p>
+<p class="links"><a href="#handler-publish">publish implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Outcome@1</td><td>→</td><td>publish</td></tr>
+<tr><td>publish</td><td>audited</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>conditional</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>different</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>qualified</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>qualified-audit</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>stopped</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>unconditional</td><td>Delivery@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-translate">translate</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="translate. 4 nodes and 3 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-translate.svg" alt="translate. 4 nodes and 3 connections.">
+<a class="jump" href="#contract-Audited@1" aria-label="Open Audited@1 details" title="Open Audited@1 details" style="left:2.7523%;top:33.8384%;width:26.6055%;height:32.3232%"></a>
+<a class="jump" href="#contract-Intermediate@1" aria-label="Open Intermediate@1 details" title="Open Intermediate@1 details" style="left:70.6422%;top:8.0808%;width:26.6055%;height:42.4242%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:59.5960%;width:26.6055%;height:32.3232%"></a>
+<a class="jump" href="#handler-translate" aria-label="Open translate details" title="Open translate details" style="left:36.6972%;top:26.2626%;width:26.6055%;height:47.4747%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-translate.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The tool adapter translate receives Audited@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-translate">translate implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Audited@1</td><td>→</td><td>translate</td></tr>
+<tr><td>translate</td><td>discharge</td><td>Intermediate@1</td></tr>
+<tr><td>translate</td><td>finish</td><td>Outcome@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-audited">exit-audited</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-audited. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-audited.svg" alt="exit-audited. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-audited.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for audited.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>audited</td></tr>
+<tr><td>audited</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-conditional">exit-conditional</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-conditional. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-conditional.svg" alt="exit-conditional. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-conditional.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for conditional.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>conditional</td></tr>
+<tr><td>conditional</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-different">exit-different</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-different. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-different.svg" alt="exit-different. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-different.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for different.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>different</td></tr>
+<tr><td>different</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-qualified">exit-qualified</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-qualified. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-qualified.svg" alt="exit-qualified. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-qualified.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for qualified.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>qualified</td></tr>
+<tr><td>qualified</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-qualified-audit">exit-qualified-audit</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-qualified-audit. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-qualified-audit.svg" alt="exit-qualified-audit. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-qualified-audit.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for qualified-audit.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>qualified-audit</td></tr>
+<tr><td>qualified-audit</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-stopped">exit-stopped</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-stopped. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-stopped.svg" alt="exit-stopped. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-stopped.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for stopped.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>stopped</td></tr>
+<tr><td>stopped</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-exit-unconditional">exit-unconditional</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="exit-unconditional. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-exit-unconditional.svg" alt="exit-unconditional. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Delivery@1" aria-label="Open Delivery@1 details" title="Open Delivery@1 details" style="left:2.7523%;top:16.6667%;width:26.6055%;height:66.6667%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-exit-unconditional.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The exit publishes result.json and receipt.json for unconditional.</p>
+<p>The file reference in inventory supplies the bytes for inventory.json.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Delivery@1</td><td>→</td><td>unconditional</td></tr>
+<tr><td>unconditional</td><td>→</td><td>Verified bundle</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="block-close">close</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="close. 3 nodes and 2 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/block-close.svg" alt="close. 3 nodes and 2 connections.">
+<a class="jump" href="#contract-Intermediate@1" aria-label="Open Intermediate@1 details" title="Open Intermediate@1 details" style="left:2.7523%;top:13.7931%;width:26.6055%;height:72.4138%"></a>
+<a class="jump" href="#contract-Outcome@1" aria-label="Open Outcome@1 details" title="Open Outcome@1 details" style="left:70.6422%;top:22.4138%;width:26.6055%;height:55.1724%"></a>
+<a class="jump" href="#handler-close" aria-label="Open close details" title="Open close details" style="left:36.6972%;top:15.5172%;width:26.6055%;height:68.1034%"></a>
+</div></div><figcaption>Select a node for details. <a href="figures/block-close.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>The tool adapter close receives Intermediate@1 and returns a named port and its payload.</p>
+<p>An uncertain external effect requires a receipt for the same operation before the run continues.</p>
+<p class="links"><a href="#handler-close">close implementation</a></p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Intermediate@1</td><td>→</td><td>close</td></tr>
+<tr><td>close</td><td>finish</td><td>Outcome@1</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<h2 id="controls">Run controls</h2>
+<article>
+<h3 id="control-recovery">Faults and recovery</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="Faults and recovery. 3 nodes and 4 connections."><div class="canvas" style="--natural:464px;--readable:353px"><img src="figures/control-recovery.svg" alt="Faults and recovery. 3 nodes and 4 connections.">
+</div></div><figcaption><a href="figures/control-recovery.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>An ordinary execution fault retains its node and diagnostic. An explicit resume retries from the saved state.</p>
+<p>For a reconcile effect, inspect the external operation and submit its actual outcome with settle and the matching operation ID.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Execute block</td><td>fault</td><td>Inspect diagnostic</td></tr>
+<tr><td>Inspect diagnostic</td><td>resume</td><td>Execute block</td></tr>
+<tr><td>Execute block</td><td>unknown effect</td><td>Reconcile effect</td></tr>
+<tr><td>Reconcile effect</td><td>settle</td><td>Execute block</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<article>
+<h3 id="control-delivery">Delivery, cancellation and cleanup</h3>
+<div class="columns"><figure><div class="viewport" tabindex="0" aria-label="Delivery, cancellation and cleanup. 5 nodes and 4 connections."><div class="canvas" style="--natural:654px;--readable:497px"><img src="figures/control-delivery.svg" alt="Delivery, cancellation and cleanup. 5 nodes and 4 connections.">
+</div></div><figcaption><a href="figures/control-delivery.svg">Open full-size diagram</a></figcaption></figure><aside>
+<p>A business exit records its named result and verifies the published bundle. Cancellation of unfinished work records its own receipt. An already published delivery is recovered if cancellation races with its final commit.</p>
+<p>Explicit clean cancels unfinished work, verifies delivery, and removes owned working files. The delivery command can verify the retained bundle afterwards.</p>
+<details><summary>Diagram connections</summary>
+<div class="tablewrap"><table><thead><tr><th scope="col">From</th><th scope="col">Port or action</th><th scope="col">To</th></tr></thead><tbody>
+<tr><td>Business exit</td><td>verified publish</td><td>Completed receipt</td></tr>
+<tr><td>Unfinished run</td><td>cancel</td><td>Cancelled receipt</td></tr>
+<tr><td>Completed receipt</td><td>clean</td><td>Keep delivery</td></tr>
+<tr><td>Cancelled receipt</td><td>clean</td><td>Keep delivery</td></tr>
+</tbody></table></div>
+</details>
+</aside></div></article>
+<h2 id="reference">Technical reference</h2>
+<p>Each run pins its workflow, adapters and runtime. This guide describes the source definition identified below. Receipt status, observed paths and usage belong to individual runs.</p>
+<h3 id="handoffs">Resolved handoffs</h3>
+<p>Each row is one executable outcome. Instance paths distinguish repeated calls to the same subflow. Both ends use the named contract.</p>
+<div class="tablewrap"><table><thead><tr><th scope="col">Producer</th><th scope="col">Outcome</th><th scope="col">Receiver</th><th scope="col">Contract</th></tr></thead><tbody>
+<tr><td>basis/@enter</td><td>enter</td><td>basis/reduce</td><td>Job@1</td></tr>
+<tr><td>basis/basis-outline</td><td>frozen</td><td>nl0-local/@enter</td><td>Global@1</td></tr>
+<tr><td>basis/reduce</td><td>prepared</td><td>basis/basis-outline</td><td>Basis@1</td></tr>
+<tr><td>basis/reduce</td><td>stopped</td><td>publish</td><td>Outcome@1</td></tr>
+<tr><td>close</td><td>finish</td><td>publish</td><td>Outcome@1</td></tr>
+<tr><td>nl0-local/@enter</td><td>enter</td><td>nl0-local/detail</td><td>Global@1</td></tr>
+<tr><td>nl0-local/audit</td><td>finish</td><td>publish</td><td>Outcome@1</td></tr>
+<tr><td>nl0-local/audit</td><td>formalize</td><td>translate</td><td>Audited@1</td></tr>
+<tr><td>nl0-local/detail</td><td>detailed</td><td>nl0-local/audit</td><td>Local@1</td></tr>
+<tr><td>outline</td><td>frozen</td><td>nl0-local/@enter</td><td>Global@1</td></tr>
+<tr><td>publish</td><td>audited</td><td>exit-audited</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>conditional</td><td>exit-conditional</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>different</td><td>exit-different</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>qualified</td><td>exit-qualified</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>qualified-audit</td><td>exit-qualified-audit</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>stopped</td><td>exit-stopped</td><td>Delivery@1</td></tr>
+<tr><td>publish</td><td>unconditional</td><td>exit-unconditional</td><td>Delivery@1</td></tr>
+<tr><td>request-audit</td><td>selected</td><td>outline</td><td>Job@1</td></tr>
+<tr><td>request-conditional</td><td>selected</td><td>outline</td><td>Job@1</td></tr>
+<tr><td>request-unconditional</td><td>selected</td><td>basis/@enter</td><td>Job@1</td></tr>
+<tr><td>translate</td><td>discharge</td><td>close</td><td>Intermediate@1</td></tr>
+<tr><td>translate</td><td>finish</td><td>publish</td><td>Outcome@1</td></tr>
+</tbody></table></div>
+<h3 id="contracts">Contract definitions</h3>
+<details><summary>Audited@1</summary><div id="contract-Audited@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;authority&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;global&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;global&quot;,
+    &quot;authority&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Basis@1</summary><div id="contract-Basis@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;basis&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;basis&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Binding@1</summary><div id="contract-Binding@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;path&quot;: {
+      &quot;minLength&quot;: 1,
+      &quot;type&quot;: &quot;string&quot;
+    },
+    &quot;sha256&quot;: {
+      &quot;pattern&quot;: &quot;^[0-9a-f]{64}$&quot;,
+      &quot;type&quot;: &quot;string&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;path&quot;,
+    &quot;sha256&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Delivery@1</summary><div id="contract-Delivery@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;extra_premises&quot;: {
+      &quot;items&quot;: {
+        &quot;minLength&quot;: 1,
+        &quot;type&quot;: &quot;string&quot;
+      },
+      &quot;type&quot;: &quot;array&quot;,
+      &quot;uniqueItems&quot;: true
+    },
+    &quot;inventory&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:blob@1&quot;
+    },
+    &quot;scope&quot;: {
+      &quot;minLength&quot;: 1,
+      &quot;type&quot;: &quot;string&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;scope&quot;,
+    &quot;extra_premises&quot;,
+    &quot;inventory&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Global@1</summary><div id="contract-Global@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;global&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;global&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Intermediate@1</summary><div id="contract-Intermediate@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;authority&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;global&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;intermediate&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;global&quot;,
+    &quot;authority&quot;,
+    &quot;intermediate&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Job@1</summary><div id="contract-Job@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Local@1</summary><div id="contract-Local@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;global&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;local&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;global&quot;,
+    &quot;local&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Outcome@1</summary><div id="contract-Outcome@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;goal&quot;: {
+      &quot;enum&quot;: [
+        &quot;audit&quot;,
+        &quot;conditional&quot;,
+        &quot;unconditional&quot;
+      ]
+    },
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    },
+    &quot;outcome&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;,
+    &quot;goal&quot;,
+    &quot;outcome&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>Request@1</summary><div id="contract-Request@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;job&quot;: {
+      &quot;$ref&quot;: &quot;urn:workflow:Binding@1&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;job&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<details><summary>blob@1</summary><div id="contract-blob@1">
+<pre><code>{
+  &quot;additionalProperties&quot;: false,
+  &quot;properties&quot;: {
+    &quot;sha256&quot;: {
+      &quot;pattern&quot;: &quot;^[a-f0-9]{64}$&quot;,
+      &quot;type&quot;: &quot;string&quot;
+    },
+    &quot;size&quot;: {
+      &quot;minimum&quot;: 0,
+      &quot;type&quot;: &quot;integer&quot;
+    }
+  },
+  &quot;required&quot;: [
+    &quot;sha256&quot;,
+    &quot;size&quot;
+  ],
+  &quot;type&quot;: &quot;object&quot;
+}</code></pre>
+</div></details>
+<h3 id="handlers">Handler implementations</h3>
+<p>Python excerpts and docstrings come from this checkout. Model reasoning, remote services and dynamically bound implementations are opaque to static inspection.</p>
+<details><summary>audit</summary><div id="handler-audit">
+<p>adapters.py · line 23</p>
+<pre><code>def audit(ctx, data): return dispatch(ctx, data, &#x27;audit&#x27;)</code></pre>
+</div></details>
+<details><summary>basis_outline</summary><div id="handler-basis_outline">
+<p>adapters.py · line 21</p>
+<pre><code>def basis_outline(ctx, data): return dispatch(ctx, data, &#x27;basis_outline&#x27;)</code></pre>
+</div></details>
+<details><summary>close</summary><div id="handler-close">
+<p>adapters.py · line 25</p>
+<pre><code>def close(ctx, data): return dispatch(ctx, data, &#x27;close&#x27;)</code></pre>
+</div></details>
+<details><summary>detail</summary><div id="handler-detail">
+<p>adapters.py · line 22</p>
+<pre><code>def detail(ctx, data): return dispatch(ctx, data, &#x27;detail&#x27;)</code></pre>
+</div></details>
+<details><summary>direct_outline</summary><div id="handler-direct_outline">
+<p>adapters.py · line 20</p>
+<pre><code>def direct_outline(ctx, data): return dispatch(ctx, data, &#x27;direct_outline&#x27;)</code></pre>
+</div></details>
+<details><summary>publish</summary><div id="handler-publish">
+<p>adapters.py · line 26</p>
+<pre><code>def publish(ctx, data): return dispatch(ctx, data, &#x27;publish&#x27;)</code></pre>
+</div></details>
+<details><summary>reduce</summary><div id="handler-reduce">
+<p>adapters.py · line 19</p>
+<pre><code>def reduce(ctx, data): return dispatch(ctx, data, &#x27;reduce&#x27;)</code></pre>
+</div></details>
+<details><summary>request_audit</summary><div id="handler-request_audit">
+<p>adapters.py · line 16</p>
+<pre><code>def request_audit(ctx, data): return dispatch(ctx, data, &#x27;request_audit&#x27;)</code></pre>
+</div></details>
+<details><summary>request_conditional</summary><div id="handler-request_conditional">
+<p>adapters.py · line 17</p>
+<pre><code>def request_conditional(ctx, data): return dispatch(ctx, data, &#x27;request_conditional&#x27;)</code></pre>
+</div></details>
+<details><summary>request_unconditional</summary><div id="handler-request_unconditional">
+<p>adapters.py · line 18</p>
+<pre><code>def request_unconditional(ctx, data): return dispatch(ctx, data, &#x27;request_unconditional&#x27;)</code></pre>
+</div></details>
+<details><summary>translate</summary><div id="handler-translate">
+<p>adapters.py · line 24</p>
+<pre><code>def translate(ctx, data): return dispatch(ctx, data, &#x27;translate&#x27;)</code></pre>
+</div></details>
+<footer>Workflow protocol 1 · Definition 35942fd42b9b6cb2e15bfd94c4a829fc63d43000a639e9215bd01e0c26bc0f2b</footer></main></body></html>
