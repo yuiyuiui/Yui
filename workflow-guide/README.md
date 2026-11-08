@@ -10,7 +10,7 @@ Turn an existing mathematical proof into an independently audited NL0 graph or a
 
 ## Overview
 
-![Overview. 19 nodes and 21 connections.](figures/overview.svg)
+![Overview. 20 nodes and 22 connections.](figures/overview.svg)
 
 The audit entry accepts Request@1 and starts at request-audit.
 
@@ -32,7 +32,7 @@ The stopped exit delivers Delivery@1 through publish.stopped.
 
 The unconditional exit delivers Delivery@1 through publish.unconditional.
 
-[basis](#block-basis) · [close](#block-close) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [nl0-local](#block-nl0-local) · [outline](#block-outline) · [publish](#block-publish) · [request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [translate](#block-translate)
+[basis](#block-basis) · [close](#block-close) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [freeze-global](#block-freeze-global) · [nl0-local](#block-nl0-local) · [outline](#block-outline) · [publish](#block-publish) · [request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [translate](#block-translate)
 
 <details><summary>Diagram connections</summary>
 
@@ -44,9 +44,10 @@ The unconditional exit delivers Delivery@1 through publish.unconditional.
 | basis | frozen | nl0-local |
 | basis | stopped | publish |
 | close | finish | publish |
+| freeze-global | frozen | nl0-local |
 | nl0-local | finish | publish |
 | nl0-local | formalize | translate |
-| outline | frozen | nl0-local |
+| outline | checked | freeze-global |
 | publish | audited | exit-audited |
 | publish | conditional | exit-conditional |
 | publish | different | exit-different |
@@ -66,7 +67,7 @@ The unconditional exit delivers Delivery@1 through publish.unconditional.
 
 ## Functional areas
 
-[request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [outline](#block-outline) · [basis](#block-basis) · [Inside basis](#flow-basis) · [reduce](#block-reduce) · [basis-outline](#block-basis-outline) · [nl0-local](#block-nl0-local) · [Inside nl0-local](#flow-nl0-local) · [detail](#block-detail) · [audit](#block-audit) · [publish](#block-publish) · [translate](#block-translate) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [close](#block-close)
+[request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [outline](#block-outline) · [basis](#block-basis) · [Inside basis](#flow-basis) · [reduce](#block-reduce) · [basis-outline](#block-basis-outline) · [freeze-global](#block-freeze-global) · [nl0-local](#block-nl0-local) · [Inside nl0-local](#flow-nl0-local) · [detail](#block-detail) · [audit](#block-audit) · [publish](#block-publish) · [translate](#block-translate) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [close](#block-close)
 
 <a id="block-request-audit"></a>
 
@@ -148,7 +149,7 @@ An uncertain external effect requires a receipt for the same operation before th
 | From | Port or action | To |
 | --- | --- | --- |
 | Job@1 | → | direct\_outline |
-| direct\_outline | frozen | Global@1 |
+| direct\_outline | checked | CheckedGlobal@1 |
 
 </details>
 
@@ -176,20 +177,21 @@ The start entry of basis receives Job@1. Its named returns select the caller's o
 
 ### Inside basis
 
-![Inside basis. 5 nodes and 4 connections.](figures/flow-basis.svg)
+![Inside basis. 6 nodes and 5 connections.](figures/flow-basis.svg)
 
 The start entry accepts Job@1 and starts at reduce.
 
 Called at basis. Each ^port returns to the matching outcome of its caller.
 
-[basis-outline](#block-basis-outline) · [reduce](#block-reduce)
+[basis-outline](#block-basis-outline) · [freeze-global](#block-freeze-global) · [reduce](#block-reduce)
 
 <details><summary>Diagram connections</summary>
 
 | From | Port or action | To |
 | --- | --- | --- |
 | start | → | reduce |
-| basis-outline | frozen | ^frozen |
+| basis-outline | checked | freeze-global |
+| freeze-global | frozen | ^frozen |
 | reduce | prepared | basis-outline |
 | reduce | stopped | ^stopped |
 
@@ -234,7 +236,28 @@ An uncertain external effect requires a receipt for the same operation before th
 | From | Port or action | To |
 | --- | --- | --- |
 | Basis@1 | → | basis\_outline |
-| basis\_outline | frozen | Global@1 |
+| basis\_outline | checked | CheckedGlobal@1 |
+
+</details>
+
+<a id="block-freeze-global"></a>
+
+### freeze-global
+
+![freeze-global. 3 nodes and 2 connections.](figures/block-freeze-global.svg)
+
+The python adapter freeze\_global receives CheckedGlobal@1 and returns a named port and its payload.
+
+The declared effect is pure. Interrupted work can be attempted again.
+
+[freeze\_global implementation](#handler-freeze_global)
+
+<details><summary>Diagram connections</summary>
+
+| From | Port or action | To |
+| --- | --- | --- |
+| CheckedGlobal@1 | → | freeze\_global |
+| freeze\_global | frozen | Global@1 |
 
 </details>
 
@@ -588,15 +611,17 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 | Producer | Outcome | Receiver | Contract |
 | --- | --- | --- | --- |
 | basis/@enter | enter | basis/reduce | Job@1 |
-| basis/basis-outline | frozen | nl0-local/@enter | Global@1 |
+| basis/basis-outline | checked | basis/freeze-global | CheckedGlobal@1 |
+| basis/freeze-global | frozen | nl0-local/@enter | Global@1 |
 | basis/reduce | prepared | basis/basis-outline | Basis@1 |
 | basis/reduce | stopped | publish | Outcome@1 |
 | close | finish | publish | Outcome@1 |
+| freeze-global | frozen | nl0-local/@enter | Global@1 |
 | nl0-local/@enter | enter | nl0-local/detail | Global@1 |
 | nl0-local/audit | finish | publish | Outcome@1 |
 | nl0-local/audit | formalize | translate | Audited@1 |
 | nl0-local/detail | detailed | nl0-local/audit | Local@1 |
-| outline | frozen | nl0-local/@enter | Global@1 |
+| outline | checked | freeze-global | CheckedGlobal@1 |
 | publish | audited | exit-audited | Delivery@1 |
 | publish | conditional | exit-conditional | Delivery@1 |
 | publish | different | exit-different | Delivery@1 |
@@ -700,6 +725,37 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
   "required": [
     "path",
     "sha256"
+  ],
+  "type": "object"
+}
+```
+
+<a id="contract-CheckedGlobal@1"></a>
+
+#### CheckedGlobal@1
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "$ref": "urn:workflow:Binding@1"
+    },
+    "goal": {
+      "enum": [
+        "audit",
+        "conditional",
+        "unconditional"
+      ]
+    },
+    "job": {
+      "$ref": "urn:workflow:Binding@1"
+    }
+  },
+  "required": [
+    "job",
+    "goal",
+    "global"
   ],
   "type": "object"
 }
@@ -955,7 +1011,7 @@ Python excerpts and docstrings come from this checkout. Model reasoning, remote 
 
 #### audit
 
-adapters.py · line 23
+adapters.py · line 24
 
 ```python
 def audit(ctx, data): return dispatch(ctx, data, 'audit')
@@ -975,7 +1031,7 @@ def basis_outline(ctx, data): return dispatch(ctx, data, 'basis_outline')
 
 #### close
 
-adapters.py · line 25
+adapters.py · line 26
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -985,7 +1041,7 @@ def close(ctx, data): return dispatch(ctx, data, 'close')
 
 #### detail
 
-adapters.py · line 22
+adapters.py · line 23
 
 ```python
 def detail(ctx, data): return dispatch(ctx, data, 'detail')
@@ -1001,11 +1057,21 @@ adapters.py · line 20
 def direct_outline(ctx, data): return dispatch(ctx, data, 'direct_outline')
 ```
 
+<a id="handler-freeze_global"></a>
+
+#### freeze\_global
+
+adapters.py · line 22
+
+```python
+def freeze_global(ctx, data): return dispatch(ctx, data, 'freeze_global')
+```
+
 <a id="handler-publish"></a>
 
 #### publish
 
-adapters.py · line 26
+adapters.py · line 27
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1055,10 +1121,10 @@ def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_uncond
 
 #### translate
 
-adapters.py · line 24
+adapters.py · line 25
 
 ```python
 def translate(ctx, data): return dispatch(ctx, data, 'translate')
 ```
 
-Workflow protocol 1 · Definition 35942fd42b9b6cb2e15bfd94c4a829fc63d43000a639e9215bd01e0c26bc0f2b
+Workflow protocol 1 · Definition 515be9e26fba083416c00b890106445703626afca93033f982a4bc6c8fbdc36c

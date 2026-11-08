@@ -3,6 +3,7 @@ from copy import deepcopy
 import re
 
 import artifact_protocol as p
+from closure import standalone_statement
 
 VERSION = 'yui-basis-2'
 PROP = {'type':'string','pattern':r'^(?:[HEMN]\d{3,}|P)$'}
@@ -32,6 +33,8 @@ def active(value, *, prune=False):
     graph = value['global_graph']
     p.validate(graph,schema())
     props, steps = indexed(graph['propositions']), indexed(graph['inferences'])
+    for key, proposition in props.items():
+        standalone_statement(proposition['statement'], key)
     rows = indexed(value['dependencies'])
     by_port = {r['port']:r for r in rows.values() if r['port']}
     if len(by_port)!=sum(bool(r['port']) for r in rows.values()):raise ValueError('Duplicate basis port')

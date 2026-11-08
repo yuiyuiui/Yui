@@ -82,6 +82,10 @@ class PublicEntryTests(unittest.TestCase):
                 self.assertEqual(delivery.verify(user)['scope'],scope)
                 steps=[r['node'].split('/')[-1] for r in nl0.load(out/'protocol/work/state.json')['trace']]
                 self.assertEqual(steps.count('outline')+steps.count('basis-outline'),1)
+                self.assertEqual(steps.count('freeze-global'),1)
+                producer='basis-outline' if goal=='unconditional' else 'outline'
+                self.assertLess(steps.index(producer),steps.index('freeze-global'))
+                self.assertLess(steps.index('freeze-global'),steps.index('detail'))
                 self.assertEqual(steps.count('detail'),1)
                 self.assertEqual(steps.count('close'),int(goal=='unconditional'))
                 self.assertEqual([r['id'] for r in nl0.load(user/delivery.STATEMENTS)['entries']],ids)

@@ -3,7 +3,7 @@
     "blocks": {
       "audit": "8efa6f330c89a1d5a9c65c4f77373b5dcccfe941510153e5d812f295a8d16742",
       "basis": "256f659e9f0d01b7b8958af0e96897222e46c813c45e681bf536977ab219ebbb",
-      "basis-outline": "59785bdf10e647b3988153291e12160c08a8dd26787d35ab2558d8813bcad763",
+      "basis-outline": "95d4fae062da5a943ee1e528b73900f0f65ac0842d7a41914141278f20ab463d",
       "close": "6994496c9d66b2d11c1d7eab983decf239db18d392f95a3e90a837d5613f9662",
       "detail": "5a9a70522e1fef6c4a2184e5957815c18caed59f3ea73b6f2a83816a633e99d2",
       "exit-audited": "a9bea21b39fe7100d65008006531902e727aa234aeeeb57278c4cea167fbbf1a",
@@ -13,8 +13,9 @@
       "exit-qualified-audit": "f4453e425b6801489f6f5331de6ae04e91425c140c4df992e18c705ac0e4df48",
       "exit-stopped": "32fd67682f5cc13073781cefd1185dbe1c0f39a84abe05390f332963af01e221",
       "exit-unconditional": "d6f6a6ac66b60b8b819ac6318b215367d4d16a316d262fc0fc6246cf057e053d",
+      "freeze-global": "226293111fd144b45f5f4c8b0828c287102f08e3f15d4e7250b7be644f0e6492",
       "nl0-local": "b8076e76345b3b762b336c5eab8a2cc0c2718790dd9a8a59e518546fc7266481",
-      "outline": "7db2c5a0b1e94668a31684b663d7791fb92f8389a69d606c2f2ef977e104da50",
+      "outline": "3f62e31a0e0903af8eba4ff89db9722db3acf231976faca14c4dc4efd161a4fa",
       "publish": "58fcc3d298a66df4e83ddebdab98db4289c03d9cdfdcc6b8213bdca22076adc8",
       "reduce": "810902fc643d17133bd3568264ef12184ed40b4b4e63187fbb28b4d85d6072ed",
       "request-audit": "0e1cd604b0ba7dcd234c87ecb3bcc3a6ee0bcc713e25c1db1b3614c9fa6ca40b",
@@ -41,6 +42,25 @@
               },
               "result": "audited",
               "status": "completed"
+            }
+          }
+        ]
+      },
+      "audit refuses to freeze a different global graph from the reviewed one": {
+        "entry": "audit",
+        "input": {
+          "job": {
+            "path": "modified-after-review",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "name": "audit refuses to freeze a different global graph from the reviewed one",
+        "steps": [
+          {
+            "expect": {
+              "deliveries": 0,
+              "node": "freeze-global",
+              "status": "paused"
             }
           }
         ]
@@ -179,6 +199,25 @@
           }
         ]
       },
+      "unconditional refuses to freeze a different global graph from the reviewed one": {
+        "entry": "unconditional",
+        "input": {
+          "job": {
+            "path": "modified-after-review",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "name": "unconditional refuses to freeze a different global graph from the reviewed one",
+        "steps": [
+          {
+            "expect": {
+              "deliveries": 0,
+              "node": "basis/freeze-global",
+              "status": "paused"
+            }
+          }
+        ]
+      },
       "use an external hypothesis only through the direct conditional interface": {
         "entry": "conditional",
         "input": {
@@ -208,6 +247,7 @@
       "Audited@1": "1e7f63ea9137a029d9a4fc41763aade5e4f5efd7e8c773a521fb36d073aaf83f",
       "Basis@1": "02bd9872b2dd069aed214733ab7dbd57d08c9363562c4948d95cdbfd07d46cbc",
       "Binding@1": "135ca05a9613a4e165488d7e78b6414e25b12e4eb500219ab6e247dfadc9d0da",
+      "CheckedGlobal@1": "824546b8c7316d8967698c6abe684906a26d9d0d9ccb50db89b5938cddc30bc0",
       "Delivery@1": "655de848645d576f00c97523466ff541525365340bceb58705d1ce10d3e4190a",
       "Global@1": "824546b8c7316d8967698c6abe684906a26d9d0d9ccb50db89b5938cddc30bc0",
       "Intermediate@1": "1dba56151813ed5d37d9ac554b474ad45e22d747bba69ad79b015a54d4f2b9c3",
@@ -219,7 +259,8 @@
     },
     "nodes": {
       "basis/@enter": "d9100a9604545d6512dbbe38358f5fa15338cb33194aad0742350177b8ed9126",
-      "basis/basis-outline": "77558d1cfe40f2c7ea6d191a0fd8e17e5b8b58ada0dac2e4d58c35407ba245b2",
+      "basis/basis-outline": "852160f7179a9b40f4a9206d8994b5ff9907793b3c7106dd53543c8514e9ec6f",
+      "basis/freeze-global": "900456056c11f0eaa34caaa94206fbbc4ad6359a8db586ebe29d3f169299f757",
       "basis/reduce": "20e3058998cb62470536030fb980720d14cfa8ebe1866d775d17e8ae6a6041b2",
       "close": "9434eb0c24266acb2d97a37046fca7be206b4e6a1214752f5a384436e3dff7d5",
       "exit-audited": "2836679e36a6aacbe1c954ba240a4587acc0bd730eb896ace549b9559ba4b41d",
@@ -229,10 +270,11 @@
       "exit-qualified-audit": "9a28503b87d00051172253440dceced46e8cc3a8bfd29fe856cfe7df32f46aa6",
       "exit-stopped": "8e10d1792d24844027674fe341c5da380b04800a0690ad51481d05d5162848da",
       "exit-unconditional": "bd3e05a1ea8ee1d4874b36d3527a456f830f9ba134ff623ed72493c98353b061",
+      "freeze-global": "43598cb76dfb7abb1fba50f0b1c86523a2d3f9562f0508d875f4f1feedea0ae1",
       "nl0-local/@enter": "e069cd99cbbc21d50d614995da284656eba955395e7f3707fa548cec019e2664",
       "nl0-local/audit": "dc4c051d389adf1809cdd48331243e9f37e52e85e10587f8e6aa3455405998f1",
       "nl0-local/detail": "b80e13ae977044101dee575f6648b12b0765a14773db690147946f6b007a2060",
-      "outline": "1d3e67f75d2373c796bd2ec87457633a6e79a33a89d49bb5dfae86bea0cce715",
+      "outline": "4b247f5aabe66d7fa62d678d69728af7a675354d2604c4971711a8fa12911ba2",
       "publish": "8fcd144df40a7c9ff963847586b14a921c5294a8560a2823bf11677394718c78",
       "request-audit": "2ec625b64d341c6981e582e7c54fc225d86eb93fb544a96f511c89b744519188",
       "request-conditional": "4eaf224965cda9c841342f1908e0b7175a49604c09f37d354a309022be98c8a5",
@@ -242,16 +284,16 @@
     "skill": "yui-workflow",
     "sources": {
       "SKILL.md": "07465c1c2b47a815e595ebaee3e321168dfd8f8ed473e693c10e54684e8945b2",
-      "acceptance.json": "9b9df201f073053048c2bb9e8fb1a439aa52b9faed884f3d7aa85874951e1c57",
-      "adapters.py": "e8319169b3303a13e55ef8d6e4a9535bc6ac6549f784bc965e2b0f8a5c581870",
-      "blocks/native_case.py": "9f44377320db674a8f2cb85c655734ef691cad7c3000b9289f8655078bbb099b",
+      "acceptance.json": "288f3f3155a018cfc5d542ac7e4f6b3c91350f9cc466204ffe18d734056284e4",
+      "adapters.py": "fdd620c1e4c12d59b93180137612daddc34fb5b4a98d3f898f5849017ff4b84f",
+      "blocks/native_case.py": "7c6b8954cb356962cfaf91537c63cfe5383f4c38d2718c2ebc0da3981d4cdfc5",
       "blocks/prepared_case.py": "7a79ca5b19b901d12f9128b00d00fdfdd55d906addce12095dc460dd7ad8be97",
       "blocks/routing.py": "ba1a52c4377c1e23c7c951592045eee12d7f6d4a1c067a5a90834ce3474ece51",
       "checks.json": "ecb136d994479c518f0023f5beed3ac1c1a5595a073275f1d3ee561433f3a150",
       "fixtures.json": "5d585fd396692cd471b12a713dae78d8e7118c12740faaf6a58e21230642f430",
-      "test_adapters.py": "7ef57e86e940447747fc27aee892b05355d25d903362cf3d85f944ba258fded3",
+      "test_adapters.py": "34d9360e76ed205a1306a30d4e8f0aee85aaa2a553b9b4c553ea411696bde41b",
       "tests/test_public_contract.py": "aeea105d225d09d07bddcc182db4a4446621d31b9cc3448c59eefbf72a835432",
-      "workflow.json": "0e0dc0e83f8ef2f2209cc6bd2e4ec283a4691c3a1a6253b1982547d60dfc26d8"
+      "workflow.json": "519780e48fb5a7c32267bffcf6fe958ea8f4ed0e61121a1d2e0979e254ce9336"
     },
     "standard": "workflow-repository/1",
     "suites": {
@@ -269,7 +311,11 @@
         "contract": "Job@1",
         "next": "basis/reduce"
       },
-      "edge:basis/basis-outline.frozen": {
+      "edge:basis/basis-outline.checked": {
+        "contract": "CheckedGlobal@1",
+        "next": "basis/freeze-global"
+      },
+      "edge:basis/freeze-global.frozen": {
         "contract": "Global@1",
         "next": "nl0-local/@enter"
       },
@@ -284,6 +330,10 @@
       "edge:close.finish": {
         "contract": "Outcome@1",
         "next": "publish"
+      },
+      "edge:freeze-global.frozen": {
+        "contract": "Global@1",
+        "next": "nl0-local/@enter"
       },
       "edge:nl0-local/@enter.enter": {
         "contract": "Global@1",
@@ -301,9 +351,9 @@
         "contract": "Local@1",
         "next": "nl0-local/audit"
       },
-      "edge:outline.frozen": {
-        "contract": "Global@1",
-        "next": "nl0-local/@enter"
+      "edge:outline.checked": {
+        "contract": "CheckedGlobal@1",
+        "next": "freeze-global"
       },
       "edge:publish.audited": {
         "contract": "Delivery@1",
@@ -417,5 +467,5 @@
     }
   },
   "format": "workflow-acceptance/1",
-  "id": "c23c95b495647f66c5f067a71346aae429fb29bd3566e4348d2a818c748ba58a"
+  "id": "c87518e7cdf38d8061a9b3f835840e8874b03e13c64543415b6147f577427e47"
 }

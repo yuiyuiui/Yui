@@ -14,10 +14,15 @@ def reduce(ctx, data):
     return outcome('prepared', {**data, 'basis': ref('basis')})
 
 def direct_outline(ctx, data):
-    return outcome('frozen', {**data, 'global': ref('outline')})
+    return outcome('checked', {**data, 'global': ref('outline')})
 
 def basis_outline(ctx, data):
     return direct_outline(ctx, {k:data[k] for k in ('job','goal')})
+
+def freeze_global(ctx, data):
+    if data['job']['path'] == 'modified-after-review':
+        data = {**data, 'global': {**data['global'], 'sha256': 'b' * 64}}
+    return outcome('frozen', data)
 
 def detail(ctx, data):
     return outcome('detailed', {**data, 'local': ref('local')})

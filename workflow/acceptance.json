@@ -178,5 +178,43 @@
         }
       }
     ]
+  },
+  {
+    "name": "audit refuses to freeze a different global graph from the reviewed one",
+    "entry": "audit",
+    "input": {
+      "job": {
+        "path": "modified-after-review",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "paused",
+          "node": "freeze-global",
+          "deliveries": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "unconditional refuses to freeze a different global graph from the reviewed one",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "modified-after-review",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "paused",
+          "node": "basis/freeze-global",
+          "deliveries": 0
+        }
+      }
+    ]
   }
 ]

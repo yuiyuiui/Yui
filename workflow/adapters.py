@@ -19,6 +19,7 @@ def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_uncond
 def reduce(ctx, data): return dispatch(ctx, data, 'reduce')
 def direct_outline(ctx, data): return dispatch(ctx, data, 'direct_outline')
 def basis_outline(ctx, data): return dispatch(ctx, data, 'basis_outline')
+def freeze_global(ctx, data): return dispatch(ctx, data, 'freeze_global')
 def detail(ctx, data): return dispatch(ctx, data, 'detail')
 def audit(ctx, data): return dispatch(ctx, data, 'audit')
 def translate(ctx, data): return dispatch(ctx, data, 'translate')

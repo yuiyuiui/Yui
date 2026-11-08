@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+from . import content
 from .protocol import (
     BLOB,
     CONTRACT,
@@ -185,6 +186,7 @@ class Model:
         self.entries = expand("main", "", (), {})
         need(self.used_flows == flows.keys(), "unreferenced flow definitions")
         self._topology()
+        content.check_routes(self)
 
     def _block(self, name, b):
         need(isinstance(b, dict), f"{name}: block object required")
@@ -213,6 +215,8 @@ class Model:
             "task": {"effect"},
             "wait": {"on_duplicate"},
         }.get(kind, set())
+        if kind in {"task", "wait", "map", "fork"}:
+            optional = optional | {"content"}
         fields(b, required, optional, name)
 
         def contract(ref):
@@ -230,6 +234,8 @@ class Model:
             for port, ref in b["outputs"].items():
                 symbol(port, name)
                 contract(ref)
+        if "content" in b:
+            content.declarations(b, name)
         if kind in {"task", "wait", "map", "fork"}:
             for field in ("handler", "worker"):
                 if field in b:
@@ -272,6 +278,7 @@ class Model:
                     and child.get("kind") == "task"
                     and child.get("executor") == "python"
                     and child.get("effect", "pure") == "pure"
+                    and "content" not in child
                     and child.get("input") == b["input"]
                     and isinstance(child.get("outputs"), dict)
                     and len(child["outputs"]) == 1,

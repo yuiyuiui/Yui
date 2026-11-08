@@ -1,6 +1,8 @@
 """One global NL0 interface and two producers. Local authors supply only R bodies."""
 from copy import deepcopy
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import artifact_protocol as protocol
@@ -9,6 +11,7 @@ from artifact_validation import NL0Contract
 from controller_common import bind, manifest, verify_bindings, write
 from staging_storage import copy_input
 
+ORIGINAL_FIELDS = ('full_target', 'conclusion', 'parameters', 'hypotheses')
 GLOBAL_FIELDS = ('id', 'inputs', 'output', 'definitions')
 BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 FROZEN = 'frozen-global.json'
@@ -38,15 +41,15 @@ def evidence(source, graph, target):
             dest.parent.mkdir(parents=True, exist_ok=True)
             copy_input(path, dest)
 
-def freeze_receipt(source, owner):
+def checked_receipt(source, owner):
     source = Path(source)
     nl0.validate(source/'nl0.json',source/'spec.json',global_only=True)
-    receipt = source/'frozen.json'
+    receipt = source/'checked-global.json'
     write(receipt, {'version':'yui-global-1','owner':owner,'spec':bind(source/'spec.json'),
                     'graph':bind(source/'nl0.json')})
     return bind(receipt)
 
-def read_frozen(binding):
+def read_receipt(binding):
     verify_bindings([binding])
     record = nl0.load(binding['path'])
     if record['version'] != 'yui-global-1' or record['owner'] not in (DIRECT,BASIS):
@@ -54,6 +57,12 @@ def read_frozen(binding):
     verify_bindings([record['spec'],record['graph']])
     _, graph, spec, *_ = nl0.validate(record['graph']['path'],record['spec']['path'],global_only=True)
     return {'spec':spec, 'graph':graph}
+
+def read_frozen(binding):
+    if Path(binding['path']).name != 'frozen.json':
+        raise ValueError('A frozen global graph is required')
+    return read_receipt(binding)
+
 
 def check_frozen(frozen, spec, graph):
     before = {k:v for k,v in frozen['spec'].items() if k!='inputs'}
@@ -67,6 +76,7 @@ class AuthorContract(NL0Contract):
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
             {FROZEN,'prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
         self.phase = phase
+        self.prior = json.loads(documents['prior-global.json'])['spec'] if 'prior-global.json' in documents and phase!=LOCAL else None
         self.frozen = json.loads(documents[FROZEN]) if phase==LOCAL else None
         self.seed = json.loads(documents['global-nl0.json']) if phase==BASIS else None
         step = protocol.obj({'id':protocol.STRING, 'inputs':protocol.array(protocol.STRING),
@@ -121,6 +131,10 @@ class AuthorContract(NL0Contract):
         return result
 
     def _validate(self, expanded):
+        if self.prior:
+            spec = expanded['spec']
+            if any(spec.get(key) != self.prior[key] for key in ORIGINAL_FIELDS):
+                raise ValueError('SOURCE_CHANGE_REQUIRES_USER: preserve the original target, parameters and hypotheses')
         if self.frozen:
             check_frozen(self.frozen, expanded['spec'],expanded['graph'])
         return super()._validate(expanded)
@@ -163,19 +177,44 @@ def global_stage(job, budget, *, owner, previous=None, findings=None):
     canonical={'spec':nl0.load(stage.logs/'case/spec.json'),'graph':nl0.load(stage.logs/'case/nl0.json')}
     if canonical!=nl0.load(stage.logs/'accepted.json'):
         raise ValueError('Global submit differs from the accepted graph')
-    receipt=freeze_receipt(stage.logs/'case',owner)
-    owner_sessions.close_all('GLOBAL_GRAPH_FROZEN',[Path(receipt['path'])])
+    receipt=checked_receipt(stage.logs/'case',owner)
     if previous:
-        before, after=read_frozen(previous),read_frozen(receipt)
-        if any(before['spec'][key]!=after['spec'][key] for key in ('full_target','conclusion','parameters','hypotheses')):
+        before, after=read_frozen(previous),read_receipt(receipt)
+        if any(before['spec'][key]!=after['spec'][key] for key in ORIGINAL_FIELDS):
             from execution_health import StageFailure
             raise StageFailure('SOURCE_CHANGE_REQUIRES_USER','Global revision changed the original target or hypotheses',
                                phase=owner,evidence=receipt['path'])
+    owner_sessions.close_all('GLOBAL_GRAPH_CHECKED',[Path(receipt['path'])])
     return receipt
 
-def select(job, receipt):
-    read_frozen(receipt)
-    write(Path(job['root'])/'global-selection.json', receipt)
+def select(job, checked):
+    """Publish only the reviewed graph and specification of this case."""
+    root = Path(job['root']).resolve()
+    source = Path(checked['path']).resolve()
+    if (not source.is_relative_to(root/'global-graphs') or
+            source.relative_to(root/'global-graphs').parts[1:] != ('stage','case','checked-global.json')):
+        raise ValueError('Expected a checked global graph from this case')
+    frozen_path = source.with_name('frozen.json')
+    # Validate a private copy, then publish those exact bytes without overwriting a prior freeze.
+    with tempfile.TemporaryDirectory(dir=source.parent) as temp:
+        candidate = Path(temp)/'receipt.json'
+        candidate.write_bytes(source.read_bytes())
+        receipt = bind(candidate)
+        if receipt['sha256'] != checked['sha256']:
+            raise ValueError('The checked global receipt changed before freeze')
+        record = nl0.load(candidate)
+        if record['spec'] != bind(source.with_name('spec.json')) or record['graph'] != bind(source.with_name('nl0.json')):
+            raise ValueError('The checked global specification or graph differs from this stage')
+        read_receipt(receipt)
+        try:
+            os.link(candidate, frozen_path)
+        except FileExistsError:
+            pass
+    frozen = bind(frozen_path)
+    if frozen['sha256'] != checked['sha256']:
+        raise ValueError('The frozen global receipt differs from the checked revision')
+    write(root/'global-selection.json', frozen)
+    return frozen
 
 def issue_owner(issue, global_owner):
     """Distinguish frozen proof edges/statements from graph metadata and local arguments."""
@@ -208,7 +247,7 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None):
         basis.run(job,budget,session.progress,graph_findings=obligations)
     if owners & {'basis','global'}:
         previous=global_stage(job,budget,owner=owner,previous=previous,findings=obligations)
-        select(job,previous)
+        previous=select(job,previous)
     frozen=read_frozen(previous)
     nl0_author.prepare(basis.problem_inputs(job),directory,baseline=baseline,obligations=obligations)
     inputs=directory/'inputs'

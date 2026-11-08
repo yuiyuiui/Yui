@@ -77,10 +77,13 @@ class Case:
                 if 'basis' in data:
                     basis.verify_context(self.read(data['basis']))
                     owner=frozen_graph.BASIS
-                self.progress(self.job['case'],'NL0_GLOBAL_FREEZE',owner=owner)
-                frozen=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner)
-                frozen_graph.select(self.job,frozen)
-                if owner==frozen_graph.BASIS:stop_at(self,'2basis',frozen)
+                self.progress(self.job['case'],'NL0_GLOBAL_REVIEW',owner=owner)
+                checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner)
+                return routes.outcome('checked',{**common,'global':checked})
+            if name=='freeze_global':
+                self.progress(self.job['case'],'NL0_GLOBAL_FREEZE')
+                frozen=frozen_graph.select(self.job,data['global'])
+                if goal=='unconditional':stop_at(self,'2basis',frozen)
                 return routes.outcome('frozen',{**common,'global':frozen})
             if name=='detail':
                 self.progress(self.job['case'],'NL0_LOCAL_AUTHORING')

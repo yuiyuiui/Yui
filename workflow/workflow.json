@@ -238,6 +238,30 @@
         "inventory"
       ],
       "additionalProperties": false
+    },
+    "CheckedGlobal@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global"
+      ],
+      "additionalProperties": false
     }
   },
   "blocks": {
@@ -286,21 +310,41 @@
       "kind": "task",
       "input": "Basis@1",
       "outputs": {
-        "frozen": "Global@1"
+        "checked": "CheckedGlobal@1"
       },
       "handler": "basis_outline",
       "executor": "model",
-      "effect": "reconcile"
+      "effect": "reconcile",
+      "content": {
+        "checked": {
+          "subject": "global-graph",
+          "action": "review-pass",
+          "path": [
+            "global",
+            "sha256"
+          ]
+        }
+      }
     },
     "outline": {
       "kind": "task",
       "input": "Job@1",
       "outputs": {
-        "frozen": "Global@1"
+        "checked": "CheckedGlobal@1"
       },
       "handler": "direct_outline",
       "executor": "model",
-      "effect": "reconcile"
+      "effect": "reconcile",
+      "content": {
+        "checked": {
+          "subject": "global-graph",
+          "action": "review-pass",
+          "path": [
+            "global",
+            "sha256"
+          ]
+        }
+      }
     },
     "detail": {
       "kind": "task",
@@ -433,6 +477,25 @@
         "finish": "Outcome@1"
       },
       "flow": "nl0-local"
+    },
+    "freeze-global": {
+      "kind": "task",
+      "input": "CheckedGlobal@1",
+      "outputs": {
+        "frozen": "Global@1"
+      },
+      "handler": "freeze_global",
+      "executor": "python",
+      "content": {
+        "frozen": {
+          "subject": "global-graph",
+          "action": "freeze-reviewed",
+          "path": [
+            "global",
+            "sha256"
+          ]
+        }
+      }
     }
   },
   "flows": {
@@ -464,7 +527,7 @@
         "outline": {
           "block": "outline",
           "on": {
-            "frozen": "nl0-local"
+            "checked": "freeze-global"
           }
         },
         "translate": {
@@ -533,6 +596,12 @@
             "formalize": "translate",
             "finish": "publish"
           }
+        },
+        "freeze-global": {
+          "block": "freeze-global",
+          "on": {
+            "frozen": "nl0-local"
+          }
         }
       }
     },
@@ -550,6 +619,12 @@
         },
         "basis-outline": {
           "block": "basis-outline",
+          "on": {
+            "checked": "freeze-global"
+          }
+        },
+        "freeze-global": {
+          "block": "freeze-global",
           "on": {
             "frozen": "^frozen"
           }

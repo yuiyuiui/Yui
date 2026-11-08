@@ -236,7 +236,8 @@ dependencies and independent natural cuts. Save a yui-basis-2 draft. Supply exis
 1/2/3 or leave lean.proof null in a planning draft and call prepare_basis_graph. Independent workers
 produce the missing proofs under the frozen direct premises. Actual signatures, source fidelity and
 eventual discharge are checked. Class 4 requires an explicit user decision. Supply the global NL0
-skeleton exactly; downstream authors elaborate its local steps. The separate Audit A reviews the
+skeleton with standalone mathematical statements. Put graph IDs in inference input/output fields.
+Correct rejected statements before submission; downstream authors elaborate the checked local steps. The separate Audit A reviews the
 original target, the active basis proof, applications and replacement map.
 Submit the complete basis artifact through submit_draft. Continue from saved
 drafts after feedback; base_candidate and explicit JSON-pointer patches retain

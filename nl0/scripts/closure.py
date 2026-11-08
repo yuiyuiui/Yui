@@ -54,6 +54,17 @@ def opaque(text, where):
          f"{where}: expand the mathematical content; use input IDs or previously proved local F IDs")
 
 
+def standalone_statement(text, where):
+    """Intrinsic prose checks shared by the editable basis and NL0 graph owners."""
+    opaque(text, where)
+    need(not _INPUT_SHORTCUT.search(text), "OPAQUE-REFERENCE",
+         f"{where}: a standalone statement/definition must contain its complete mathematical content, not refer to the target/problem for it")
+    match = _IDS.search(text)
+    if match:
+        raise ValueError(f"OPAQUE-STATEMENT: {where}: a proposition ID cannot replace content; "
+                         f"spell out {match.group()} in the statement and keep IDs in inference inputs")
+
+
 def binders(items, reserved, where):
     need(isinstance(items, list), "BINDER", where)
     result = set()
@@ -101,10 +112,7 @@ def validate(graph, spec, props, steps, defs, definition_closure):
     def statement(item, where, body="statement", allowed=None):
         local = binders(item["binders"], global_names, where + ".binders")
         objects(item, (global_names if allowed is None else allowed) | local, where)
-        opaque(item[body], where)
-        need(not _INPUT_SHORTCUT.search(item[body]), "OPAQUE-REFERENCE",
-             f"{where}: a standalone statement/definition must contain its complete mathematical content, not refer to the target/problem for it")
-        need(not _IDS.search(item[body]), "OPAQUE-STATEMENT", f"{where}: a proposition ID cannot replace content")
+        standalone_statement(item[body], where)
 
     for key, d in defs.items():
         allowed = {p["symbol"] for p in spec["parameters"]} | {p["symbol"] for p in primitives}

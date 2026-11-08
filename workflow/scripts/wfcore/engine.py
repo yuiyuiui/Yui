@@ -8,7 +8,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from . import storage
+from . import content, storage
 from .model import Model
 from .protocol import (
     BLOB,
@@ -409,6 +409,9 @@ class Run:
             "data": reply["data"],
             "event": msg,
         }
+        rule = self.model.nodes[n]["definition"].get("content", {}).get(port)
+        if rule:
+            content.record(self.s.setdefault("content", {}), rule, reply["data"], f"{n}.{port}")
         self.s["trace"].append(row)
         if msg:
             self.s["events"][msg["id"]] = digest(msg)
@@ -563,6 +566,7 @@ def replay(state, model):
         state["entry_message"], initial, model.contracts[initial_ref], model.registry
     )
     need(state["entry_message"] == initial, "entry payload or identity changed")
+    ledger = {}
     for idx, row in enumerate(state["trace"], 1):
         need(
             node == row["node"] and row["activation"] == idx and row["input"] == data,
@@ -601,7 +605,9 @@ def replay(state, model):
         )
         receive(row["message"], expected, model.contracts[ref], model.registry)
         need(row["message"] == expected, "transition payload or identity changed")
+        content.record(ledger, b.get("content", {}).get(row["port"]), data, node)
         node = dest
+    need(ledger == state.get("content", {}), "final content review/freeze checkpoint mismatch")
     need(node == state["node"] and data == state["data"], "final checkpoint mismatch")
     end = model.nodes[node]["definition"]
     model.check(end["input"], data, "final checkpoint")
