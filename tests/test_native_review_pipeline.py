@@ -29,7 +29,7 @@ import subprocess
 
 @unittest.skipUnless(shutil.which('codex'),'Codex executable required')
 class NativeReviewPipelineTests(unittest.TestCase):
-    def exercise(self, global_verdict, *, malformed_global=False):
+    def exercise(self, global_verdict, *, malformed_global=False, preview_notes=False):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);source=canonical_propositional_case(root/'source')
             problem=root/'problem';problem.mkdir()
@@ -37,6 +37,10 @@ class NativeReviewPipelineTests(unittest.TestCase):
             out=root/'campaign';plan=campaign.prepare(source,problem,out)
             original=ArtifactStage._execute;seen=[];results=[];stages={};guard=threading.Lock()
             job_numbers={job['id']:i+1 for i,job in enumerate(plan['jobs'])};attempts={}
+            probe_role=next(job['id'] for job in plan['jobs'] if not job['library'])
+            notes=[{'id':f'BG{i:03d}','kind':'mathematical','at':'/inference/argument/0/text',
+                    'fact':f'Synthetic observation {i}.','justification':'Synthetic fixture.',
+                    'grounds':[{'location':'/inputs','reason':'Given packet inputs.'}]} for i in range(1,9)]
             local_count=sum(not job['library'] for job in plan['jobs'])
             barrier=threading.Barrier(local_count,timeout=10)
             before=(subprocess.Popen,fault_control.queue_notification,
@@ -62,10 +66,27 @@ class NativeReviewPipelineTests(unittest.TestCase):
                     artifact.update(verdict='PASS',notes='SYNTHETIC software fixture judgment only.')
                     # All three real native requests must overlap, rather than
                     # merely occupying slots around serial fixture execution.
-                    barrier.wait()
+                    if attempts[key]==1:barrier.wait()
                 artifact['coverage']={p:'assessed' for p in contract.required}
                 if malformed_global and key=='global' and attempts[key]==1:
                     artifact.update(verdict='PASS',notes='Misplaced top-level fields in a synthetic response.')
+                if preview_notes and key==probe_role:
+                    if attempts[key]==1:
+                        probes=deepcopy(notes)
+                        probes[3]['grounds'][0]['location']='/output'
+                        code=('const draft='+json.dumps(artifact)+'; const notes='+json.dumps(probes)+'; '
+                              'text(await Promise.allSettled(notes.map(note => tools.check_draft('
+                              '{artifact:{...draft,background_notes:[note]}}))));')
+                        f.code(handler,job_numbers[key]*100+1,code)
+                        return
+                    self.assertIn('preview_valid',serialized)
+                    self.assertIn('/background_notes/0/grounds/0/location (BG004)',serialized)
+                    self.assertIsNone(stage.accepted)
+                    artifact['background_notes']=notes
+                    args=json.dumps({'artifact':artifact})
+                    f.code(handler,job_numbers[key]*100+2,'const a='+args+'; '
+                           'text(await tools.check_draft(a)); text(await tools.submit_draft(a));')
+                    return
                 f.code(handler,job_numbers[key]*100+attempts[key],'text(await tools.submit_draft('+json.dumps({'artifact':artifact})+'));')
 
             # One fixture owns the process-global test patches. Separate
@@ -98,7 +119,7 @@ class NativeReviewPipelineTests(unittest.TestCase):
                 self.assertEqual(report['r_concurrency']['effective'],local_count)
                 self.assertEqual(report['r_concurrency']['observed_peak_model_stages'],
                                  local_count if global_verdict=='PASS' else 0)
-                self.assertEqual(len(f.calls),(len(plan['jobs']) if global_verdict=='PASS' else 1)+int(malformed_global))
+                self.assertEqual(len(f.calls),(len(plan['jobs']) if global_verdict=='PASS' else 1)+int(malformed_global)+int(preview_notes))
                 if malformed_global:
                     events=[json.loads(line) for line in (out/'global/stage/tools.jsonl').read_text().splitlines()]
                     rejected=[e for e in events if e['result'].get('feedback_kind')=='candidate_rejected']
@@ -120,6 +141,11 @@ class NativeReviewPipelineTests(unittest.TestCase):
                 self.assertFalse(inspection['measurement_complete'])
                 receipt=json.loads((source/'audit-a.json').read_text())
                 self.assertEqual(set(receipt['inference_reviews']),{j['id'] for j in plan['jobs'] if not j['library']})
+                if preview_notes:
+                    self.assertEqual(receipt['inference_reviews'][probe_role]['background_notes'],notes)
+                    rows=[json.loads(s) for s in (out/probe_role/'stage/tools.jsonl').read_text().splitlines()]
+                    self.assertEqual([r['tool'] for r in rows],['check_draft']*9+['submit_draft'])
+                    self.assertEqual(sum(r['result'].get('stage_complete',False) for r in rows),1)
             self.assertTrue(all(not r['measurement_complete'] for r in results))
 
     def test_native_global_fail_does_not_dispatch_local_review(self):
@@ -130,3 +156,6 @@ class NativeReviewPipelineTests(unittest.TestCase):
 
     def test_native_format_correction_then_parallel_reviews_and_bound_collection(self):
         self.exercise('PASS',malformed_global=True)
+
+    def test_parallel_note_previews_and_correction_reach_the_audit_collector(self):
+        self.exercise('PASS',preview_notes=True)

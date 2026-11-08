@@ -35,6 +35,9 @@ def reviewed_repair(oldc,oldplan,cpath,plan,step,receipt):
 def candidate(previous, cpath, plan, step, *, reviewed_interface=None, basis_revision=False):
     if previous is None:return None
     previous=Path(previous).resolve()
+    if (previous/'io-recovery.json').is_file():
+        from proof_io_recovery import candidate as io_candidate
+        return io_candidate(previous,cpath,plan,step)
     oldc=previous/'inputs/contract.json';oldp=previous/'inputs/plan.json'
     report=ir.load(previous/'report.json')
     oldplan=ir.load(oldp);oldcontract=ir.contract(oldc);current=ir.contract(cpath)

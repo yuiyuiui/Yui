@@ -152,7 +152,12 @@ class ArtifactStage(pilot.Stage):
         from review_contract import ReviewContract, INSTRUCTIONS
         if isinstance(self.validator,ReviewContract):
             from review_contract import ReviewProgressGuard
+            if self.background_review:
+                self.validator.base['background_notes'] = []
             self.review_guard = ReviewProgressGuard(self.validator)
+            self.continuation_prompt = (
+                'Continue this same review. Call read_review_progress for the saved judgments, last review_feedback '
+                'and its next_action. Correct any located validation error. '+ReviewProgressGuard.submit_guidance)
             # Source access uncertainty is a located assessed UNVERIFIED item,
             # not permission to abort all remaining citation/packet checks.
             self.tools=[t for t in self.tools if t['name']!='report_obstacle']
@@ -160,7 +165,7 @@ class ArtifactStage(pilot.Stage):
             self.tools += [pilot.carrier.tool('record_review_item','Save an actual own-stage judgment and coverage; does not finish review.',
                 {'pointer':{'type':'string'},'coverage':{'type':'string','enum':['unread','read','assessed']},
                  'judgment':self.validator.judgment_schema},['pointer','coverage','judgment']),
-                pilot.carrier.tool('read_review_progress','Read actual own-stage saved judgments and remaining work.',{},[]),
+                pilot.carrier.tool('read_review_progress','Read saved judgments, remaining work and the latest review feedback.',{},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
                     {'finding':self.validator.blocker_schema()},['finding'])]
             if self.validator.shape:
@@ -174,8 +179,6 @@ class ArtifactStage(pilot.Stage):
             self.tools += [pilot.carrier.tool('record_background_note',
                     'Optionally checkpoint YOUR positively checked routine mathematical or elementary fact, precise statement and actual available conditions. A complete review may submit these notes together. Exact Mathlib bindings belong to nl02lean. No new H, core missing argument or uncertain external source qualifies; this tool never generates PASS.',
                     note_schema['properties'],note_schema['required'])]
-            if isinstance(self.validator, ReviewContract):
-                self.validator.base['background_notes'] = []
             self.input_prompt += ('\nNL0 reviews routine background mathematically without native Mathlib probes. '
                 'Assess all five grouped checks. Submit useful precise facts, local condition grounds and '
                 'mathematical justification together in background_notes, or checkpoint them with '
@@ -438,11 +441,7 @@ class ArtifactStage(pilot.Stage):
     def dispatch(self, name, args):
         from library_catalog import use_library
         with use_library(self.logs/'harness-snapshot/library'):
-            result = self._dispatch(name,args)
-        guard = getattr(self, 'review_guard', None)
-        if guard:
-            guard.observe(name, args, result)
-        return result
+            return self._dispatch(name,args)
 
     def record_tool_fault(self, name, args, error, started):
         """Retain an actual execution failure before the carrier cleans up."""
@@ -455,13 +454,17 @@ class ArtifactStage(pilot.Stage):
             'wall_seconds':time.monotonic()-started})
 
     def _dispatch(self, name, args):
+        guard = getattr(self, 'review_guard', None)
         if name in {'search_mathlib', 'read_mathlib'}:
             if name not in self.tool_names or self.accepted is not None:
                 result={'accepted':False,'error':'Library tool is unavailable or the stage is complete.',
                         'feedback_kind':'candidate_rejected'}
                 pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0})
                 return result
-            return super().dispatch(name, args)
+            result = super().dispatch(name, args)
+            if guard:
+                guard.observe(name, args, result)
+            return result
         started = time.monotonic()
         try:
             if name not in self.tool_names:
@@ -544,7 +547,9 @@ class ArtifactStage(pilot.Stage):
                 if value.get('kind') not in {'elementary','mathematical'} or 'source_id' in value:
                     raise ValueError('Mathematical-NL0 checkpoints record mathematical/elementary notes; native implementation belongs to nl02lean')
                 background.validate([value], json.loads(self.task_inputs['packet.json']), self.logs)
-                self.background_notes = [n for n in self.background_notes if n['id'] != value['id']] + [value]
+                notes = {note['id']:note for note in self.background_notes}
+                notes[value['id']] = value
+                self.background_notes = list(notes.values())
                 if hasattr(self.validator,'base'):self.validator.base['background_notes']=deepcopy(self.background_notes)
                 pilot.ir.write(self.logs/'background-notes.json', self.background_notes)
                 result = {'recorded':value['id'],'note_count':len(self.background_notes),
@@ -624,6 +629,11 @@ class ArtifactStage(pilot.Stage):
         if self.artifact_kind=='nl0':
             shown=own_state.displayed_progress(name,result)
             if shown is not None:self.last_own_progress=shown
+        if guard:
+            checked = value if name in guard.checks and result.get('accepted') else None
+            feedback = guard.observe(name, args, result, checked=checked)
+            if feedback:
+                result['review_feedback'] = feedback
         pilot.carrier.append(self.logs / 'tools.jsonl', {'tool': name, 'arguments': args, 'result': result,
                                                        'wall_seconds': time.monotonic() - started})
         return result

@@ -164,10 +164,16 @@ def translation_work(job, authority, budgets, progress):
 def translation_attempt(job, authority, budgets, progress):
     from role_sessions import Sessions
     sessions=Sessions();root=Path(job['root']);checkpoint=None
-    if (job.get('resume') or {}).get('mode')=='native-proof-cleanup':
-        import native_cleanup_recovery
-        native_cleanup_recovery.validate_descriptor(job)
+    if (job.get('resume') or {}).get('mode') in {'native-proof-cleanup','native-proof-io'}:
+        if job['resume']['mode']=='native-proof-io':
+            import proof_io_recovery
+            proof_io_recovery.validate_descriptor(job)
+        else:
+            import native_cleanup_recovery
+            native_cleanup_recovery.validate_descriptor(job)
         checkpoint=job['resume'];authority=checkpoint['source_authority']
+        if checkpoint['mode']=='native-proof-io':
+            checkpoint={**checkpoint,'prior_proof_run':str(proof_io_recovery.stage_checkpoint(job))}
     elif not job.get('workflow_protocol'):
         extraction=0;previous=None;findings=None
         while True:
@@ -273,7 +279,7 @@ def execute(job, root=None):
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)
                 else:
                     if basis.mode(job)=='unconditional':basis.run(job,budgets.serial,progress)
-                    authority=(nl0_work(job,recorder,budgets.serial,progress,audit_budget=budgets.audit) if job['track'] in {'nl0','full'} else
+                    authority=(nl0_work(job,recorder,budgets.serial,progress,audit_budget=budgets.audit) if job['track'] in {'nl0','full'} and resume.get('mode')!='native-proof-io' else
                                job['source_authority'])
                     selected_data=source_preparation.read_source(**authority)[0]
                     write(root/'source-selection.json',authority)

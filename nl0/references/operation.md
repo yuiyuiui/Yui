@@ -250,6 +250,38 @@ can dispatch directly with `--detach` when prepare-only inspection is not needed
 
 ## Remote-service recovery
 
+### Exited proof queue after ENOSPC
+
+After the user explicitly requests recovery, use:
+
+```sh
+python3 -B /path/to/Yui/nl0/scripts/yui.py resume OLD_RUN --repair-proof-io --prepare-only
+python3 -B /path/to/Yui/nl0/scripts/yui.py execute NEW_RUN --detach
+```
+
+This narrow route requires verified exits of all owned processes/groups, an
+unlimited normal full/unconditional job, actual structured ENOSPC errors in the
+frozen local proof phase, intact native input/profile readback and the unchanged
+bound source/A/interface. It rejects existing terminal/queue result records,
+unknown faults, provenance/isolation failures and protected or source-changing
+diagnoses. The old run and all fault/cost records remain unchanged. No old
+unverified source or completed review is relabeled.
+
+The new job retains track=full and formalization=unconditional. It inherits the
+checked 2basis and Audit A at their exact checkpoint, repeats independent review
+of the unchanged interface, and passes saved local submissions to the current
+native checker. A separate candidate view replaces no missing historical queue
+report. Unfinished authors get only intact own-node drafts/helpers and completed
+local diagnostic advice in fresh isolated contexts; historical checks do not
+grant acceptance. Current local checks, assembly, machine Audit B and b2lean
+remain mandatory. This is a disclosed warm continuation, with new runtime
+bindings and separate usage, not resurrection of an exited native thread.
+
+The preparation verifies an actual writable-storage operation. Current free
+space does not establish the cause of historical ENOSPC or guarantee future
+writes. A truncated input/profile/draft record prevents this exact recovery;
+never patch the prior logs or create synthetic PASS/result records to qualify it.
+
 The common model carrier retries positively identified temporary remote errors
 (capacity, service availability, transient rate limiting or connection failures)
 inside the same isolated thread. It retains actual drafts, source probes and

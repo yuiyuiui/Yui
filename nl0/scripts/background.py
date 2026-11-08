@@ -12,6 +12,7 @@ from variant import BACKGROUND_POLICY, BACKGROUND_MODE
 
 POLICY = BACKGROUND_POLICY
 MODE = BACKGROUND_MODE
+GROUND_ROOTS = ('/inputs', '/parameters', '/definitions', '/logic', '/inference/locals', '/inference/argument')
 
 
 def source_schema():
@@ -87,7 +88,9 @@ def validate(notes, packet, base):
     import closure
     protocol.validate(notes,protocol.array(note_schema()),'/background_notes')
     ids = set()
-    for note in notes:
+    for index, note in enumerate(notes):
+        field = f'/background_notes/{index}'
+        note_id = note['id']
         need(isinstance(note['id'], str) and re.fullmatch(r'BG\d{3,}', note['id']) and note['id'] not in ids, 'invalid/duplicate local note ID')
         ids.add(note['id'])
         need(note['kind'] in {'elementary', 'mathematical', 'mathlib'}, 'use elementary, mathematically reviewed routine facts, or explicit pinned-library facts')
@@ -95,15 +98,25 @@ def validate(notes, packet, base):
             need(isinstance(note[key], str) and note[key].strip(), 'empty '+key)
         match = re.fullmatch(r'/inference/argument/(\d+)(?:/text)?', note['at'])
         need(match is not None, 'locate the actual argument step')
-        closure.resolve(packet, note['at'])
+        try:
+            closure.resolve(packet, note['at'])
+        except ValueError as error:
+            raise ValueError(f'{field}/at ({note_id}): {error}') from error
         need(isinstance(note['grounds'], list) and note['grounds'], 'record actual available grounds')
-        for ground in note['grounds']:
+        for number, ground in enumerate(note['grounds']):
             need(isinstance(ground, dict) and set(ground) == {'location', 'reason'}, 'invalid local condition check')
             loc = ground['location']
-            need(isinstance(loc, str) and any(loc == p or loc.startswith(p+'/') for p in ['/inputs', '/parameters', '/definitions', '/logic', '/inference/locals', '/inference/argument']), 'ground is not available local context')
+            where = f'{field}/grounds/{number}/location ({note_id})'
+            if not any(loc == p or loc.startswith(p+'/') for p in GROUND_ROOTS):
+                raise ValueError(f'{where}: ground is not available local context ({loc!r}). '
+                                 f'Use an existing packet location under {", ".join(GROUND_ROOTS)}.')
             earlier = re.match(r'/inference/argument/(\d+)', loc)
-            need(not earlier or int(earlier[1]) <= int(match[1]), 'future argument cannot supply a ground')
-            closure.resolve(packet, loc)
+            need(not earlier or int(earlier[1]) <= int(match[1]),
+                 f'{where}: {loc!r} is a future argument for {note["at"]}')
+            try:
+                closure.resolve(packet, loc)
+            except ValueError as error:
+                raise ValueError(f'{where}: {error}. Use an existing location in this packet.') from error
             need(isinstance(ground['reason'], str) and ground['reason'].strip(), 'missing actual condition explanation')
         if 'hint' in note: need(isinstance(note['hint'], str), 'invalid Lean hint')
         if note['kind'] == 'mathlib': source_check(note.get('source'), base, packet['pins'])

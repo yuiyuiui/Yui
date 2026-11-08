@@ -133,6 +133,9 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
         if prior_run is not None:
             import proof_reuse
             if not basis_revision:
+                if (Path(prior_run)/'io-recovery.json').is_file():
+                    import proof_io_recovery
+                    proof_io_recovery.restore_drafts(stage,prior_run)
                 proof_reuse.restore_cleanup_drafts(stage,prior_run)
                 proof_reuse.restore_repair_drafts(stage,prior_run,reviewed_interface=reviewed_interface)
             if arm=='yui' and cached and checked['exit_code']!=0:

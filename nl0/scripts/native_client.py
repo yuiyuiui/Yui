@@ -122,6 +122,8 @@ def observe(stage, message):
             stage.native_code_calls[item.get('call_id')]={'turn_id':turn,'tool':'exec'}
         if item.get('type')=='custom_tool_call_output':
             origin=getattr(stage,'native_code_calls',{}).get(item.get('call_id'))
+            if origin and origin['turn_id']==turn:
+                origin['output_received']=True
             output=item.get('output')
             # This is a native host-start error for a known actual exec call,
             # not prose supplied by an author, paper or Yui validation tool.
@@ -184,7 +186,7 @@ def validate_tool(stage, params):
     stage.model_calls[call]={'name':name,'arguments':json.dumps(args,ensure_ascii=False)}
 
 
-def audit(directory):
+def audit(directory, *, write_receipt=True):
     """Check native configuration and controller-supplied inputs, never HTTP bytes."""
     root=Path(directory);receipt=root/'native-client.json';errors=[]
     if not receipt.is_file():raise ValueError('Native client receipt is missing')
@@ -247,5 +249,6 @@ def audit(directory):
         'requested_service_tier':'default','actual_model_ids':[],
         'standard_tier_verified':False,'terminal_service_tiers':[],
         'scope':'Hash-bound native configuration, supplied role instructions and stdio tool/work requests. Native built-in instructions and context management are retained. Provider HTTP payloads and actual tier are not intercepted or certified.'}
-    (root/'exposure-audit.json').write_text(json.dumps(result,indent=2)+'\n')
+    if write_receipt:
+        (root/'exposure-audit.json').write_text(json.dumps(result,indent=2)+'\n')
     return result

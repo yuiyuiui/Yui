@@ -108,6 +108,15 @@ preserves the exact source/A/interface, rechecks completed local bodies and
 restores only the failed worker's own bound drafts; never use it to resample a
 mathematical nonpass or replace live work.
 
+The explicit `--repair-proof-io` continuation supports an exited, unfinalized
+full/unconditional frozen proof queue with actual ENOSPC diagnostics. It keeps
+the old run read-only, inherits the checked basis/A authority, independently
+reviews the unchanged interface again, and rechecks saved local bodies. Only
+intact own-node drafts and local diagnostic advice reach the unfinished authors
+in fresh isolated contexts. It never fabricates a missing queue/result receipt,
+overrides a protected/source diagnostic, or silently edits a frozen runtime.
+See [I/O interruption recovery](nl0/references/operation.md#exited-proof-queue-after-enospc).
+
 After verified software repair, the explicit `--repair-basis-closure` route
 repeats only final native closure from accepted basis and Audit B artifacts.
 It requires an unlimited normal unconditional job, explicit cancellation and

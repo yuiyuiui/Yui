@@ -34,6 +34,8 @@ REMOTE_RETRY_POLICY = remote_retry.POLICY
 MODEL = model_profile()['id']
 PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
 CURRENT_VERSION = '0.4.1'
+# Give an executing native tool batch time to return its diagnostics on a protective stop.
+REVIEW_FEEDBACK_DRAIN_SECONDS = 5
 SYSTEM = ('你是 Lean 4 证明形式化模型。只依据本次任务提供的定义、允许前提、自然语言证明和固定版本的 mathlib，'
           '完成精确目标 P。可以使用提供的工具查阅 mathlib 并检查证明。不得增加目标假设、使用未授权公理或占位证明。'
           'check_proof 和 submit_proof 接收 := by 之后的 Lean 证明体，不接收整个文件。'
@@ -125,6 +127,10 @@ class LocalProtocolRejection(PermissionError):
     def __init__(self, reason, details=None):
         self.reason, self.details = reason, details or {}
         super().__init__('LOCAL_TOOL_FEEDBACK_REJECTED: ' + reason)
+
+
+class NativeEventTimeout(TimeoutError):
+    """The controller wait expired before the requested native event arrived."""
 
 
 class Trial:
@@ -336,7 +342,7 @@ class Trial:
                     self.last_turn_event = msg
             if msg.get('method') == 'item/tool/call' and 'id' in msg:
                 if ((getattr(self,'submission_closed',False) or getattr(self,'budget_exhausted',False)
-                        or getattr(getattr(self,'review_guard',None),'blocked',None))
+                        or (getattr(self,'_stopping',False) and getattr(getattr(self,'review_guard',None),'blocked',None)))
                         and msg['params'].get('callId') not in self.tool_history
                         or getattr(self, '_stopping', False) and getattr(self,'native_infrastructure_fault',None)):
                     # A completed call can race with the protective interrupt.
@@ -386,10 +392,6 @@ class Trial:
                     if self.active_turn_id:
                         self.handoff_interrupt = self.send('turn/interrupt', {
                             'threadId':self.thread_id,'turnId':self.active_turn_id})
-                elif (getattr(getattr(self,'review_guard',None),'blocked',None)
-                      and self.active_turn_id and not getattr(self,'handoff_interrupt',None)):
-                    self.handoff_interrupt = self.send('turn/interrupt', {
-                        'threadId':self.thread_id,'turnId':self.active_turn_id})
                 response = {'id': msg['id'], 'result': {'success': 'error' not in result,
                     'contentItems': [{'type': 'inputText', 'text': delivered}]}}
                 self.proc.stdin.write(json.dumps(response, ensure_ascii=False) + '\n'); self.proc.stdin.flush()
@@ -407,7 +409,7 @@ class Trial:
             if predicate(msg): return msg
         execution=getattr(self,'execution',None)
         if execution and not getattr(self,'_stopping',False):execution.check(self.execution_task)
-        raise TimeoutError('本轮达到预先设置的时间限制。')
+        raise NativeEventTimeout('本轮达到预先设置的时间限制。')
 
     def snapshot_tool_result(self, call_id, result):
         """The provenance receipt is the immutable JSON value actually delivered."""
@@ -492,6 +494,55 @@ class Trial:
                               'capabilities':{'experimentalApi':True}})
         self.proc.stdin.write(json.dumps({'method':'initialized'})+'\n');self.proc.stdin.flush()
 
+    def wait_work_turn(self, review_guard, deadline):
+        def finished(msg):
+            return (getattr(self, 'submission_closed', False) or
+                    (msg.get('method') == 'turn/completed' and
+                     (not self.active_turn_id or msg.get('params', {}).get('turn', {}).get('id') == self.active_turn_id)))
+
+        while True:
+            event = self.receive_until(lambda msg: finished(msg) or (review_guard and review_guard.blocked), deadline)
+            if finished(event) or not review_guard or not review_guard.blocked:
+                return event
+            # An inner RPC reply has been flushed. Code Mode still has to assemble the
+            # outer result, possibly from several parallel checks. A corrected sibling
+            # in that batch can also clear the stall or explicitly submit the review.
+            pending = {call for call, row in getattr(self, 'native_code_calls', {}).items()
+                       if call and row['turn_id'] == self.active_turn_id and not row.get('output_received')}
+            if not pending:
+                call = event.get('params', {}).get('callId')
+                if not call:
+                    return event
+                pending.add(call)  # Direct dynamic tool, without a Code Mode wrapper.
+
+            def delivered(msg):
+                if msg.get('method') == 'rawResponseItem/completed':
+                    params = msg['params']
+                    item = params['item']
+                    if (params.get('turnId') == self.active_turn_id and
+                            item.get('type') in {'custom_tool_call_output', 'function_call_output'}):
+                        pending.discard(item.get('call_id'))
+                return not pending or finished(msg) or not review_guard.blocked
+
+            drain_deadline = time.monotonic() + REVIEW_FEEDBACK_DRAIN_SECONDS
+            try:
+                event = self.receive_until(delivered, min(deadline, drain_deadline) if deadline is not None else drain_deadline)
+            except NativeEventTimeout:
+                if time.monotonic() < drain_deadline or (deadline is not None and time.monotonic() >= deadline):
+                    raise
+                append(self.logs/'controller.jsonl', {'event':'review_feedback_drain_timeout',
+                       'turn_id':self.active_turn_id, 'pending_call_ids':sorted(pending)})
+            else:
+                if not pending:
+                    self.check_runtime_state()
+                    if review_guard.blocked and self.active_turn_id and not finished(event):
+                        self.handoff_interrupt = self.send('turn/interrupt', {
+                            'threadId':self.thread_id, 'turnId':self.active_turn_id})
+                    append(self.logs/'controller.jsonl', {'event':'review_feedback_returned',
+                           'turn_id':self.active_turn_id, 'call_id':event['params']['item']['call_id']})
+            if finished(event) or review_guard.blocked:
+                return event
+
     def solve_turns(self, user: str, *, smoke: bool = False) -> dict:
         """Continue in the same isolated history; no deadline unless requested."""
         self.allowed_user_messages.add(user)
@@ -515,9 +566,7 @@ class Trial:
                 'input': [{'type': 'text', 'text': message}], 'environments': [],'serviceTierForTurn':'default'},
                 seconds=30 if deadline is None else min(30, max(0.001, deadline - time.monotonic())))
             self.active_turn_id = started.get('turn', {}).get('id')
-            done = self.receive_until(lambda m: (m.get('method') == 'turn/completed'
-                and (not self.active_turn_id or m.get('params',{}).get('turn',{}).get('id')==self.active_turn_id))
-                or getattr(self,'submission_closed',False) or (review_guard and review_guard.blocked), deadline)
+            done = self.wait_work_turn(review_guard, deadline)
             if getattr(self,'submission_closed',False):
                 self.interrupt_active_turn(reason=getattr(self,'stage_close_reason','ACCEPTED_ARTIFACT'))
                 event=self.last_turn_event or done
@@ -530,7 +579,7 @@ class Trial:
             self.turn_results.append(done)
             if review_guard and review_guard.blocked:
                 self.pause_error(review_guard.blocked)
-                review_guard.reset()
+                review_guard.resume()
                 message = continuation_prompt
                 self.allowed_user_messages.add(message)
                 continue
@@ -580,7 +629,7 @@ class Trial:
                 review_guard.completed_turn()
                 if review_guard.blocked:
                     self.pause_error(review_guard.blocked)
-                    review_guard.reset()
+                    review_guard.resume()
             self.continuation_count += 1
             if getattr(self,'execution',None):
                 self.execution.task(self.execution_task,continuations=self.continuation_count)

@@ -6,25 +6,33 @@ from collections import deque
 import hashlib
 import json
 from pathlib import Path
+import re
 
 from execution_state import atomic
 import artifact_protocol as protocol
+from read_views import resolve
 
 
 class ReviewProgressGuard:
-    """Bound repeated rejected review operations; elapsed time is never progress evidence."""
-    submissions = {'check_artifact', 'submit_artifact', 'check_draft', 'submit_draft', 'record_review_item',
-                   'submit_review_blocker'}
+    """Track checked candidates, saved work and actual rejections separately."""
+    checks = {'check_artifact', 'check_draft'}
+    checkpoints = {'record_review_item', 'record_background_note'}
+    submissions = checks | checkpoints | {'submit_artifact', 'submit_draft', 'submit_review_blocker'}
+    submit_guidance = ('If you checked a subset, assemble the complete intended review including its notes. '
+                       'Call submit_draft with the complete review when ready.')
 
     def __init__(self, contract):
         self.contract = contract
         self.reset()
 
     def reset(self):
-        self.sequence = self.contract.sequence
+        self.saved = self.saved_digest()
         self.failures = deque(maxlen=12)
+        self.previews = deque(maxlen=64)
+        self.rechecks = deque(maxlen=64)
         self.reads = deque(maxlen=64)
-        self.feedback = {'message':'Review is incomplete. Read the remaining items and record or submit your judgments.'}
+        self.feedback = {'state':'incomplete', 'message':'Review is incomplete.',
+                         'next_action':'Read the remaining items and record or submit your judgments.'}
         self.blocked = None
         self.activity = False
         self.empty_turns = 0
@@ -33,27 +41,16 @@ class ReviewProgressGuard:
     def digest(value):
         return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
-    def observe(self, name, args, result):
-        if self.contract.sequence != self.sequence:
-            self.sequence = self.contract.sequence
-            self.empty_turns = 0
-            self.activity = True
-            self.feedback = {'message':'Saved review progress; complete the remaining items or submit.'}
-        if name not in self.submissions:
-            if self.feedback and 'error' not in result and name != 'read_review_progress':
-                key = self.digest([name,args])
-                if key not in self.reads:
-                    self.reads.append(key)
-                    self.activity = True
-            return
-        if result.get('stage_complete'):
-            self.reset()
-            return
-        error = result.get('error')
-        if error is None:
-            if not (result.get('accepted') or result.get('remaining') == []):
-                return
-            error = 'All required items checked; submit the completed review or revise its judgments.'
+    def saved_digest(self):
+        # Own-stage checkpoints include optional fields such as saved background notes.
+        return self.digest([self.contract.items, self.contract.base])
+
+    def resume(self):
+        feedback = self.blocked['last_validation'] if self.blocked else self.feedback
+        self.reset()
+        self.feedback = feedback
+
+    def candidate(self, args):
         value = args.get('artifact', args)
         if 'artifact_json' in args:
             try: value = json.loads(args['artifact_json'])
@@ -65,17 +62,93 @@ class ReviewProgressGuard:
                 value['coverage'] = {p:row['coverage'] for p,row in self.contract.items.items()}
             except ValueError:
                 pass  # Invalid wrapper: preserve it as the rejected candidate.
-        error = str(error)
-        saved = self.digest(self.contract.items)
-        key = self.digest([value, saved, error])
+        return value
+
+    def observe(self, name, args, result, *, checked=None):
+        if result.get('stage_complete'):
+            self.reset()
+            return
+        if name == 'read_review_progress':
+            if 'error' not in result:
+                return self.blocked['last_validation'] if self.blocked else self.feedback
+            return
+        if name not in self.submissions:
+            if 'error' not in result:
+                key = self.digest([name, args])
+                if key not in self.reads:
+                    self.reads.append(key)
+                    self.activity = True
+                    self.rechecks.clear()
+            return
+
+        saved = self.saved_digest()
+        if saved != self.saved:
+            self.saved = saved
+            self.failures.clear()
+            self.previews.clear()
+            self.blocked = None
+            self.empty_turns = 0
+            self.activity = True
+        if 'error' in result:
+            self.rejected(name, args, str(result['error']))
+        elif name in self.checks and result.get('accepted'):
+            # The validator has expanded wrappers, defaults and saved judgments.
+            value = checked if checked is not None else self.candidate(args)
+            self.feedback = {'tool':name, 'state':'preview_valid', 'message':'This preview passed validation.',
+                             'next_action':self.submit_guidance}
+            self.checked_work(self.digest(['preview', value]))
+        elif name in self.checkpoints and 'recorded' in result:
+            self.feedback = {'tool':name, 'state':'checkpoint_saved', 'message':'This checkpoint is saved.',
+                             'next_action':'Complete the remaining work. '+self.submit_guidance}
+            self.checked_work(self.digest([name, args]))
+        else:
+            return
+        return self.feedback
+
+    def checked_work(self, key):
+        # A new valid probe can resolve an earlier diagnostic, even without
+        # changing the saved rows. Rechecking identical work is still bounded.
+        if key not in self.previews:
+            self.previews.append(key)
+            self.rechecks.clear()
+            self.activity = True
+            self.failures.clear()
+            self.blocked = None
+        self.rechecks.append(key)
+        if self.rechecks.count(key) >= 3:
+            self.stop('Repeated the same checked work without a new candidate, saved change or submission.')
+        elif self.feedback['state'] == 'preview_valid':
+            # A correction in the current batch can restore a previously valid draft.
+            self.blocked = None
+
+    def rejected(self, name, args, error):
+        value = self.candidate(args)
+        key = self.digest([value, self.saved, error])
         location, _, detail = error.partition(':')
         family = location if location.startswith('/') and 'unexpected=' in detail else error
-        self.failures.append((key, (saved, family)))
+        # In singleton probes, /notes/0 can identify a different note on each
+        # call. Scope a recurring schema defect to the actual identified items.
+        path = location.partition(' (')[0]
+        if path.startswith('/summary/'):
+            path = path.removeprefix('/summary')
+        identities = []
+        if isinstance(value,dict) and isinstance(value.get('id'),str):
+            identities.append(value['id'])
+        for index in re.finditer(r'/[0-9]+(?=/|$)', path):
+            try:
+                row = resolve(value, path[:index.end()])
+            except (ValueError, TypeError, KeyError, IndexError):
+                continue
+            if isinstance(row, dict) and isinstance(row.get('id'), str):
+                identities.append(row['id'])
+        family = (family, identities)
+        self.failures.append((key, family))
         self.activity = True
-        self.feedback = {'tool':name, 'message':error[:1500], 'candidate_sha256':key}
+        self.feedback = {'tool':name, 'state':'validation_error', 'message':error[:1500], 'candidate_sha256':key,
+                         'next_action':'Correct the reported field using the stage inputs and saved judgments, then retry.'}
         if sum(k == key for k, _ in self.failures) >= 3:
             self.stop('The same effective review and validation error recurred three times.')
-        elif sum(f == (saved, family) for _, f in self.failures) >= 6:
+        elif sum(f == family for _, f in self.failures) >= 6:
             self.stop('Six attempts repeated the same validation defect without a new saved assessment.')
 
     def completed_turn(self):
@@ -87,6 +160,7 @@ class ReviewProgressGuard:
             self.stop('Three completed turns made no new review attempt, saved assessment or evidence read.')
 
     def stop(self, message):
+        self.feedback = {**self.feedback, 'pause_reason':message}
         self.blocked = {'code':'workflow_blocked','reason':'REVIEW_NO_PROGRESS',
                         'message':message, 'last_validation':self.feedback,
                         'progress':str(self.contract.directory/'progress.json')}

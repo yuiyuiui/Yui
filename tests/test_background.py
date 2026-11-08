@@ -109,7 +109,23 @@ class BackgroundTests(unittest.TestCase):
 
     def test_new_h_and_output_cannot_become_ground(self):
         self.note['grounds']=[{'location':'/output/statement','reason':'Assume the conclusion.'}]
-        with self.assertRaisesRegex(ValueError,'not available local context'):self.accepted()
+        with self.assertRaisesRegex(ValueError,'not available local context') as failure:self.accepted()
+        for part in ('/background_notes/0/grounds/0/location','BG001','/output/statement','/inputs'):
+            self.assertIn(part,str(failure.exception))
+
+    def test_missing_and_future_packet_locations_identify_the_failing_note_and_field(self):
+        for field,location in [('at','/inference/argument/999/text'),
+                               ('ground','/inputs/999'),('ground','/inference/argument/999')]:
+            with self.subTest(field=field,location=location):
+                note=copy.deepcopy(self.note)
+                note['id']='BG002'
+                if field=='at':note['at']=location
+                else:note['grounds'][1]['location']=location
+                with self.assertRaises(ValueError) as failure:
+                    background.validate([self.note,note],self.packet,self.base)
+                path='at' if field=='at' else 'grounds/1/location'
+                self.assertIn(f'/background_notes/1/{path} (BG002)',str(failure.exception))
+                self.assertIn(location,str(failure.exception))
 
     def test_note_cannot_erase_actual_failed_check(self):
         self.audit['inference_reviews']['R001']['checks']['argument']['verdict']='FAIL'
@@ -234,11 +250,19 @@ class BackgroundTests(unittest.TestCase):
             self.assertEqual(result['recorded'],'BG001')
             self.assertEqual(review.base['background_notes'][0]['kind'],'mathematical')
             self.assertNotIn('source',review.base['background_notes'][0])
+            second={**args,'id':'BG002'}
+            stage.dispatch('record_background_note',second)
+            stage.dispatch('record_background_note',args)
             progress=stage.dispatch('read_review_progress',{})
-            self.assertEqual(progress['background_notes'][0]['id'],'BG001')
+            self.assertEqual(progress['background_notes'],[args,second])
             attempt=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,
                 'summary':{'verdict':'PASS','notes':'TEST ONLY','background_notes':[]}}})
             self.assertFalse(attempt['accepted'])
+            supplied={**args,'fact':'Updated synthetic observation.'}
+            stage.dispatch('record_background_note',supplied)
+            final=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,'summary':{'verdict':'UNVERIFIED'}}})
+            self.assertTrue(final['stage_complete'])
+            self.assertEqual(stage.accepted['background_notes'],[supplied,second])
         finally:shutil.rmtree(stage.work,ignore_errors=True)
 
     def test_zero_extraction_preserves_notes_and_their_source_evidence(self):

@@ -48,6 +48,8 @@ def parsers(commands):
         help='Continue a verified inherited probe-directory collision from its saved pre-draft author-repair boundary')
     repairs.add_argument('--repair-native-cleanup',action='store_true',
         help='Continue an exited frozen proof queue stopped only by native-process cleanup faults')
+    repairs.add_argument('--repair-proof-io',action='store_true',
+        help='Continue an exited frozen proof queue after recorded ENOSPC; retain own drafts and recheck bodies')
     repairs.add_argument('--repair-basis-closure',action='store_true',
         help='After cancellation and verified exit, repeat only failed final basis closure from accepted artifacts')
     repairs.add_argument('--after-access-restored',action='store_true',
@@ -163,6 +165,7 @@ def dispatch(args):
         import interrupted
         import basis_defect
         import native_cleanup_recovery
+        import proof_io_recovery
         import basis_closure_recovery
         if getattr(args,'after_access_restored',False):
             if len(args.runs)!=1:raise ValueError('Select one exact run for manual restored-access recovery')
@@ -173,6 +176,7 @@ def dispatch(args):
             prepared=[basis_defect.prepare(path) if getattr(args,'repair_basis',False) else
                   basis_closure_recovery.prepare(path) if getattr(args,'repair_basis_closure',False) else
                   native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
+                  proof_io_recovery.prepare(path) if getattr(args,'repair_proof_io',False) else
                   interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
                   interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
                   interrupted.prepare(path) for path in args.runs]
