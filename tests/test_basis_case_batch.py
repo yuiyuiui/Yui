@@ -24,7 +24,7 @@ class BasisCaseBatchTests(unittest.TestCase):
             problem.parent.mkdir();problem.write_text(TARGET)
             selected.append(jobs.prepare(problem,track='full',formalization='unconditional',
                 profiles=harness_support.PROFILES,max_concurrency=1,time_budget_seconds=240,
-                policy='first-pass' if mode=='first-pass' else 'normal',
+                policy='first-pass' if mode in ('first-pass','first-pass-edge') else 'normal',
                 target=target_selection.resolve(problem,requested=TARGET)))
         routes={j['root']:mode for j,mode in zip(selected,modes)}
         def launch(job,out):
@@ -119,26 +119,71 @@ class BasisCaseBatchTests(unittest.TestCase):
             import b2lean
             b2lean.validate_receipt(root/'b2lean')
 
-    def test_frozen_graph_defect_revises_its_basis_owner_and_rechecks_the_new_graph(self):
+    def test_audit_a_returns_intermediate_statement_to_nl0_without_repeating_basis(self):
         with tempfile.TemporaryDirectory() as raw:
             [(root,result)]=self.batch(Path(raw),['global-revision'])
             self.assertEqual(result['status'],'WORKFLOW-PASSED')
-            context=ir.load(root/'basis-selection.json')['context']['path']
-            self.assertEqual(Path(context).parent,root/'2basis/0002/active-inputs')
+            self.assertEqual(len(list(root.glob('2basis/*/stage/accepted.json'))),1)
             self.assertEqual(len(list(root.glob('global-graphs/*/stage/accepted.json'))),2)
-            rejected=ir.load(root/'2basis/0002/rejected-global.json')
-            first=ir.load(rejected['path'])['global_graph']
+            first=ir.load(root/'active-inputs/global-nl0.json')
+            steps=[r['node'] for r in ir.load(root/'protocol/work/state.json')['trace']]
+            self.assertEqual(steps.count('nl0-local/revise-graph'),1)
             final=ir.load(root/'delivery/nl0/global.json')['graph']
             statement=lambda g:next(p['statement'] for p in g['propositions'] if p['id']=='N001')
             self.assertEqual(statement(first),'Both numbers vanish.')
             self.assertEqual(statement(final),'b=a.')
             self.assertTrue(ir.load(root/'delivery/run.json')['audit_a'])
 
-    def test_unrepaired_frozen_graph_stops_without_resampling_the_same_review(self):
+    def test_local_author_can_repair_a_missing_edge_before_first_audit(self):
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['local-edge'])
+            self.assertEqual(result['status'],'WORKFLOW-PASSED')
+            steps=[r['node'] for r in ir.load(root/'protocol/work/state.json')['trace']]
+            self.assertLess(steps.index('nl0-local/revise-graph'),steps.index('nl0-local/audit'))
+            self.assertEqual(steps.count('basis/reduce'),1)
+            self.assertEqual(steps.count('nl0-local/detail'),2)
+            before=ir.load(root/'active-inputs/global-nl0.json')
+            after=ir.load(root/'delivery/nl0/global.json')['graph']
+            inputs=lambda g:next(r['inputs'] for r in g['inferences'] if r['id']=='R002')
+            self.assertNotIn('H001',inputs(before))
+            self.assertIn('H001',inputs(after))
+            self.assertEqual(result['closure']['remaining_premises'],['H001'])
+            import b2lean
+            b2lean.validate_receipt(root/'b2lean')
+
+    def test_first_pass_and_genuine_mathematical_obstacles_do_not_request_new_graphs(self):
+        for mode,expected in [('first-pass-edge','NL0_GRAPH_REVISION_REQUIRED'),('local-gap','SUBSTANTIVE_GAP')]:
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as raw:
+                [(root,result)]=self.batch(Path(raw),[mode])
+                self.assertEqual(result['retained_error']['status'],expected)
+                self.assertEqual(ir.load(root/'logs/controller-errors/error-state.json')['fault']['category'],'workflow_blocked')
+                self.assertFalse((root/'global-graphs/0002').exists())
+                self.assertFalse((root/'audit-a').exists())
+                self.assertFalse((root/'nl0-to-lean').exists())
+
+    def test_an_approved_but_unused_residual_requires_a_checked_closed_export(self):
+        import b2lean
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['planned-unused-residual'])
+            foundations=ir.load(root/'handoffs/foundations.json')
+            self.assertEqual(foundations['authorized_class4'],['B003'])
+            self.assertEqual(foundations['approved_scope'],foundations['approval']['checkpoint']['approved_scope'])
+            self.assertEqual(len(list(root.glob('2basis/*/plans/*/decision/error-incidents/*.json'))),1)
+            trace=ir.load(root/'protocol/work/state.json')['trace']
+            self.assertEqual(sum(t['node']=='nl0-local/revise-graph' for t in trace),1)
+            self.assertEqual(sum(t['node']=='basis/reduce' for t in trace),1)
+            self.assertEqual(result['status'],'WORKFLOW-PASSED')
+            closure=b2lean.validate_receipt(root/'b2lean')['closure']
+            self.assertEqual(closure['residual_class4'],[])
+            self.assertEqual(closure['remaining_premises'],['H001'])
+            self.assertEqual(ir.load(root/'delivery/run.json')['remaining_extra_premises'],[])
+
+    def test_unchanged_working_graph_stops_without_resampling_the_same_review(self):
         with tempfile.TemporaryDirectory() as raw:
             [(root,result)]=self.batch(Path(raw),['stalled-graph'])
-            self.assertEqual(result['retained_error']['status'],'BASIS_GRAPH_REVISION_UNRESOLVED')
-            self.assertEqual(len(list(root.glob('2basis/*/stage/result.json'))),2)
+            self.assertEqual(result['retained_error']['status'],'NL0_GRAPH_REVISION_UNRESOLVED')
+            self.assertEqual(ir.load(root/'logs/controller-errors/error-state.json')['fault']['category'],'workflow_blocked')
+            self.assertEqual(len(list(root.glob('2basis/*/stage/result.json'))),1)
             self.assertEqual(len(list(root.glob('audit-a/*/global/stage/result.json'))),1)
             self.assertFalse((root/'delivery/formalization/Solution.lean').exists())
 

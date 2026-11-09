@@ -35,23 +35,29 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    the small check succeeds, integrate the result and recheck the complete
    obligation; success of a helper alone does not accept the target.
 
-5. **Repair after a bounded check.** Native checks have a separate per-call wall
-   limit, normally 360 seconds, and use the controller-owned 20,000,000 heartbeat budget.
-   A timeout or heartbeat diagnostic leaves the goal unaccepted and returns
-   control to the same worker. Inspect the retained candidate and diagnostic,
-   then check a smaller typed application, conversion or proof fragment before
-   integrating it. Do not repeat the unchanged expensive candidate or disable
-   limits to avoid diagnosis. Preserve the target, allowed inputs and proof
-   requirements; a timeout alone establishes no mathematical gap.
+5. **Diagnose a bounded check.** Translation starts a native check with six
+   minutes and the controller-owned 20,000,000 heartbeat budget. After an actual
+   native wall timeout a reviewer inspects the exact source and compiler output.
+   A located implementation problem returns to the author for a targeted edit at
+   the current allowance. A workload-only diagnosis authorizes the same source
+   for six more minutes on its next attempt, up to thirty minutes per call.
+   Uncertain diagnoses retain the allowance and request a smaller diagnostic.
+   A heartbeat error goes straight to local repair. Explicit shorter deadlines
+   continue to apply. Only a successful native check can accept the candidate.
 
 A proof worker can send independent private statements and their routes together
 through `prove_independent_helpers`. Its enclosing parameters and direct ports stay
 fixed. Check the original transition after accumulating helpers. Inspect its native
 diagnostic before deciding whether another local lemma or a reviewed public
 interface revision is needed. On supported headers a warm auxiliary check imports
-compiled declarations and elaborates only the new helper. Unsupported file scopes
-use the complete source. Final submission, assembly and Audit B always recheck
-source in their normal environment.
+compiled declarations and elaborates only the new helper. For file-local scopes
+the checker includes only the new helper and its transitive dependencies. Check
+each helper as it is written. A failed helper can be corrected independently.
+If composition identifies a previously checked helper body, pass its existing
+name as `replace` to `check_auxiliary`. Only edit that body. Names, types and
+other bodies remain stable. The checker renews any invalidated receipts.
+Once all helpers pass, compose them and check the whole node. Final submission,
+assembly and Audit B recheck source in their normal environment.
 
 The runtime enforces the per-call wall limit independently of these writing
 rules. Whole-case and model-stage execution remain unlimited by default.

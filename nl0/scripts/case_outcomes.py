@@ -9,6 +9,15 @@ PASSED = {'DRAFT-AUDIT-PASSED', 'WORKFLOW-PASSED', 'AUDIT-B-PASSED'}
 CONDITIONAL = {'DRAFT-AUDIT-CONDITIONAL', 'WORKFLOW-CONDITIONAL', 'AUDIT-B-CONDITIONAL'}
 
 
+def basis_checkpoint(artifact, review, *, scoped):
+    from basis_graph import residual_scope
+    data=json.loads(Path(artifact).read_bytes())
+    residual=sorted(r['id'] for r in data['dependencies'] if r['category']==4)
+    checkpoint={'basis':bind(artifact),'residual_class4':residual,'semantic_review':review}
+    if scoped:checkpoint['approved_scope']=residual_scope(data)
+    return checkpoint
+
+
 def verify_basis_decision(root, receipt, action):
     """Recheck a completed operator action after the decision-owner process exits."""
     root = Path(root).resolve()
@@ -21,13 +30,13 @@ def verify_basis_decision(root, receipt, action):
     event = json.loads(path.read_text())
     control = json.loads((decision/'error-control'/path.name).read_text())
     artifact = decision.parent/'stage/accepted.json'
-    residual = sorted(row['id'] for row in json.loads(artifact.read_text())['dependencies'] if row['category'] == 4)
+    checkpoint=basis_checkpoint(artifact,bind(decision.parent/'review/report.json'),
+                                scoped=event.get('error',{}).get('scope_version')=='yui-residual-scope-1')
     if (event['state'] != 'USER_DECIDED' or event['stage'] != 'basis-decision' or
             event['root'] != str(root) or event['logs'] != str(decision) or
             event['job_binding'] != bind(root/'job.json') or event['incident'] != match[2] or
             control != event['control'] or control['incident'] != match[2] or control['action'] != action or
-            not residual or event['checkpoint'] != {'basis':bind(artifact),'residual_class4':residual,
-                                                    'semantic_review':bind(decision.parent/'review/report.json')}):
+            not checkpoint['residual_class4'] or event['checkpoint'] != checkpoint):
         raise ValueError('Invalid basis decision authority')
     return event
 

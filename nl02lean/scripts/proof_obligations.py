@@ -94,7 +94,9 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
         raise RuntimeError('Private proof worker did not deliver checked source: '+str(attempt/'worker/result.json'))
     value=selected['proof']
     # A stored worker handoff still needs an independent complete-source check.
-    native=ir.check(cpath,plan,{'T001':value},only='T001')
+    import lean_timeout_policy
+    with lean_timeout_policy.stage_scope(stage, 'transition'):
+        native=ir.check(cpath,plan,{'T001':value},only='T001')
     if native['exit_code']:
         raise ValueError('Private proof failed complete-source check: '+ir.compiler_feedback(native))
     body=local_helpers.as_tactic(value,ir.local_packet(cpath,plan,'T001'))

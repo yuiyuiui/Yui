@@ -17,11 +17,44 @@ def request_audit(ctx, data): return dispatch(ctx, data, 'request_audit')
 def request_conditional(ctx, data): return dispatch(ctx, data, 'request_conditional')
 def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_unconditional')
 def reduce(ctx, data): return dispatch(ctx, data, 'reduce')
-def direct_outline(ctx, data): return dispatch(ctx, data, 'direct_outline')
-def basis_outline(ctx, data): return dispatch(ctx, data, 'basis_outline')
-def freeze_global(ctx, data): return dispatch(ctx, data, 'freeze_global')
-def detail(ctx, data): return dispatch(ctx, data, 'detail')
-def audit(ctx, data): return dispatch(ctx, data, 'audit')
-def translate(ctx, data): return dispatch(ctx, data, 'translate')
+def direct_outline(ctx, data):
+    """Construct the first working graph from the original proof."""
+    return dispatch(ctx, data, 'direct_outline')
+
+def basis_outline(ctx, data):
+    """Start NL0 from the existing structured seed under the frozen foundations."""
+    return dispatch(ctx, data, 'basis_outline')
+
+def freeze_basis(ctx, data):
+    """Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint."""
+    return dispatch(ctx, data, 'freeze_basis')
+
+def revise_graph(ctx, data):
+    """Give the located graph finding to the NL0 owner and assign the checked successor."""
+    return dispatch(ctx, data, 'revise_graph')
+
+def seal_audit(ctx, data):
+    """Verify the exact graph, specification and Audit A evidence at the selected revision."""
+    return dispatch(ctx, data, 'seal_audit')
+
+def audit_exit(ctx, data):
+    """Deliver the audited NL0 or pass its sealed authority to Lean."""
+    return dispatch(ctx, data, 'audit_exit')
+
+def detail(ctx, data):
+    """Fill the inference bodies or report a located defect in the assigned graph."""
+    return dispatch(ctx, data, 'detail')
+
+def audit(ctx, data):
+    """Independently review the complete current NL0 and route located graph findings."""
+    return dispatch(ctx, data, 'audit')
+
+def translate(ctx, data):
+    """Check helper declarations incrementally, compile the combined proof and audit the export.
+
+    A native wall timeout triggers a source-located diagnosis. Only a workload-only
+    finding raises the next allowance by six minutes, up to thirty minutes.
+    """
+    return dispatch(ctx, data, 'translate')
 def close(ctx, data): return dispatch(ctx, data, 'close')
 def publish(ctx, data): return dispatch(ctx, data, 'publish')

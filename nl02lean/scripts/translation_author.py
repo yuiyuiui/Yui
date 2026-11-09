@@ -272,7 +272,7 @@ class InterfaceContract:
                 background_supplement_sha256=supplement['sha256'])
         write(directory/'contract.json',contract)
         import basis
-        basis.check_interface(self.basis_context,contract)
+        basis.check_interface(self.basis_context,contract,self.graph)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,
                   json.loads(supplement_file.read_text()) if supplement_file.is_file() else None),

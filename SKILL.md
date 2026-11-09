@@ -26,7 +26,7 @@ The installed skill root is the directory containing this `SKILL.md`. Keep
 `config.json`, `nl0/`, `nl02lean/` and `toolchain/` beside it; no enclosing
 `rigorous-proof/` subdirectory or particular checkout name is required.
 
-New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A direct NL0 request freezes the global graph at its entrance. A basis request supplies that graph once. Both routes fill the local R bodies and run independent Audit A. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
+New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A basis request freezes the reviewed foundation inventory and supplies a structured graph seed. Direct NL0 builds its working graph from the original input. In both routes NL0 owns intermediate statements and dependency edges. Local authors may request a located graph repair. Independent Audit A reviews the selected complete revision before delivery or Lean. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
 
 ## Select a stage
 
@@ -76,11 +76,12 @@ New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
 Historical jobs without snapshots retain their original binding checks.
-Each native Lean call defaults to a 360-second wall limit. Yui proof workers
-automatically receive frozen ST020 repair advice after a verified native
-wall/heartbeat limit, through the same failed tool result. Keep the target and
-inputs unchanged, repair in the same worker, and recheck. General strategy-bank
-queries remain optional; this failure-triggered advice needs no extra model call.
+Native translation checks start at six minutes. Each native wall timeout gets
+a source-located diagnosis. Only a workload-only finding raises the next check
+by six minutes, up to thirty. A code defect returns to its author at the current
+allowance. Whole-case and stage deadlines remain binding. Workers check helpers
+individually and submit the complete composition to Lean. Failed wall/heartbeat
+checks also receive the locally stored ST020 repair advice.
 Follow [fault treatment and authorized exit](nl0/references/error-lifecycle.md).
 Local Python retries recognized temporary service/network faults every 60seconds,
 at most 30 times in the same carrier/thread. Other faults and exhausted retries

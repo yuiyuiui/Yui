@@ -32,7 +32,7 @@ The stopped exit delivers Delivery@1 through publish.stopped.
 
 The unconditional exit delivers Delivery@1 through publish.unconditional.
 
-[basis](#block-basis) · [close](#block-close) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [freeze-global](#block-freeze-global) · [nl0-local](#block-nl0-local) · [outline](#block-outline) · [publish](#block-publish) · [request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [translate](#block-translate)
+[basis](#block-basis) · [basis-outline](#block-basis-outline) · [close](#block-close) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [nl0-local](#block-nl0-local) · [outline](#block-outline) · [publish](#block-publish) · [request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [translate](#block-translate)
 
 <details><summary>Diagram connections</summary>
 
@@ -41,13 +41,13 @@ The unconditional exit delivers Delivery@1 through publish.unconditional.
 | audit | → | request-audit |
 | conditional | → | request-conditional |
 | unconditional | → | request-unconditional |
-| basis | frozen | nl0-local |
+| basis | frozen | basis-outline |
 | basis | stopped | publish |
+| basis-outline | selected | nl0-local |
 | close | finish | publish |
-| freeze-global | frozen | nl0-local |
 | nl0-local | finish | publish |
 | nl0-local | formalize | translate |
-| outline | checked | freeze-global |
+| outline | selected | nl0-local |
 | publish | audited | exit-audited |
 | publish | conditional | exit-conditional |
 | publish | different | exit-different |
@@ -67,7 +67,7 @@ The unconditional exit delivers Delivery@1 through publish.unconditional.
 
 ## Functional areas
 
-[request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [outline](#block-outline) · [basis](#block-basis) · [Inside basis](#flow-basis) · [reduce](#block-reduce) · [basis-outline](#block-basis-outline) · [freeze-global](#block-freeze-global) · [nl0-local](#block-nl0-local) · [Inside nl0-local](#flow-nl0-local) · [detail](#block-detail) · [audit](#block-audit) · [publish](#block-publish) · [translate](#block-translate) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [close](#block-close)
+[request-audit](#block-request-audit) · [request-conditional](#block-request-conditional) · [request-unconditional](#block-request-unconditional) · [outline](#block-outline) · [basis](#block-basis) · [Inside basis](#flow-basis) · [reduce](#block-reduce) · [freeze-basis](#block-freeze-basis) · [nl0-local](#block-nl0-local) · [Inside nl0-local](#flow-nl0-local) · [detail](#block-detail) · [audit](#block-audit) · [revise-graph](#block-revise-graph) · [seal-audit](#block-seal-audit) · [audit-exit](#block-audit-exit) · [basis-outline](#block-basis-outline) · [publish](#block-publish) · [translate](#block-translate) · [exit-audited](#block-exit-audited) · [exit-conditional](#block-exit-conditional) · [exit-different](#block-exit-different) · [exit-qualified](#block-exit-qualified) · [exit-qualified-audit](#block-exit-qualified-audit) · [exit-stopped](#block-exit-stopped) · [exit-unconditional](#block-exit-unconditional) · [close](#block-close)
 
 <a id="block-request-audit"></a>
 
@@ -142,6 +142,8 @@ The model adapter direct\_outline receives Job@1 and returns a named port and it
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
+Construct the first working graph from the original proof.
+
 [direct\_outline implementation](#handler-direct_outline)
 
 <details><summary>Diagram connections</summary>
@@ -149,7 +151,7 @@ An uncertain external effect requires a receipt for the same operation before th
 | From | Port or action | To |
 | --- | --- | --- |
 | Job@1 | → | direct\_outline |
-| direct\_outline | checked | CheckedGlobal@1 |
+| direct\_outline | selected | WorkingGraph@2 |
 
 </details>
 
@@ -168,7 +170,7 @@ The start entry of basis receives Job@1. Its named returns select the caller's o
 | From | Port or action | To |
 | --- | --- | --- |
 | Job@1 | → | basis |
-| basis | frozen | Global@1 |
+| basis | frozen | Foundation@2 |
 | basis | stopped | Outcome@1 |
 
 </details>
@@ -177,22 +179,21 @@ The start entry of basis receives Job@1. Its named returns select the caller's o
 
 ### Inside basis
 
-![Inside basis. 6 nodes and 5 connections.](figures/flow-basis.svg)
+![Inside basis. 5 nodes and 4 connections.](figures/flow-basis.svg)
 
 The start entry accepts Job@1 and starts at reduce.
 
 Called at basis. Each ^port returns to the matching outcome of its caller.
 
-[basis-outline](#block-basis-outline) · [freeze-global](#block-freeze-global) · [reduce](#block-reduce)
+[freeze-basis](#block-freeze-basis) · [reduce](#block-reduce)
 
 <details><summary>Diagram connections</summary>
 
 | From | Port or action | To |
 | --- | --- | --- |
 | start | → | reduce |
-| basis-outline | checked | freeze-global |
-| freeze-global | frozen | ^frozen |
-| reduce | prepared | basis-outline |
+| freeze-basis | frozen | ^frozen |
+| reduce | prepared | freeze-basis |
 | reduce | stopped | ^stopped |
 
 </details>
@@ -214,50 +215,31 @@ An uncertain external effect requires a receipt for the same operation before th
 | From | Port or action | To |
 | --- | --- | --- |
 | Job@1 | → | reduce |
-| reduce | prepared | Basis@1 |
+| reduce | prepared | Foundation@2 |
 | reduce | stopped | Outcome@1 |
 
 </details>
 
-<a id="block-basis-outline"></a>
+<a id="block-freeze-basis"></a>
 
-### basis-outline
+### freeze-basis
 
-![basis-outline. 3 nodes and 2 connections.](figures/block-basis-outline.svg)
+![freeze-basis. 3 nodes and 2 connections.](figures/block-freeze-basis.svg)
 
-The model adapter basis\_outline receives Basis@1 and returns a named port and its payload.
+The python adapter freeze\_basis receives Foundation@2 and returns a named port and its payload.
 
-An uncertain external effect requires a receipt for the same operation before the run continues.
+The adapter must reuse the operation ID when retrying an external effect.
 
-[basis\_outline implementation](#handler-basis_outline)
+Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint.
 
-<details><summary>Diagram connections</summary>
-
-| From | Port or action | To |
-| --- | --- | --- |
-| Basis@1 | → | basis\_outline |
-| basis\_outline | checked | CheckedGlobal@1 |
-
-</details>
-
-<a id="block-freeze-global"></a>
-
-### freeze-global
-
-![freeze-global. 3 nodes and 2 connections.](figures/block-freeze-global.svg)
-
-The python adapter freeze\_global receives CheckedGlobal@1 and returns a named port and its payload.
-
-The declared effect is pure. Interrupted work can be attempted again.
-
-[freeze\_global implementation](#handler-freeze_global)
+[freeze\_basis implementation](#handler-freeze_basis)
 
 <details><summary>Diagram connections</summary>
 
 | From | Port or action | To |
 | --- | --- | --- |
-| CheckedGlobal@1 | → | freeze\_global |
-| freeze\_global | frozen | Global@1 |
+| Foundation@2 | → | freeze\_basis |
+| freeze\_basis | frozen | Foundation@2 |
 
 </details>
 
@@ -267,7 +249,7 @@ The declared effect is pure. Interrupted work can be attempted again.
 
 ![nl0-local. 4 nodes and 3 connections.](figures/block-nl0-local.svg)
 
-The start entry of nl0-local receives Global@1. Its named returns select the caller's output port.
+The start entry of nl0-local receives WorkingGraph@2. Its named returns select the caller's output port.
 
 [Open the internal flow](#flow-nl0-local)
 
@@ -275,9 +257,9 @@ The start entry of nl0-local receives Global@1. Its named returns select the cal
 
 | From | Port or action | To |
 | --- | --- | --- |
-| Global@1 | → | nl0-local |
+| WorkingGraph@2 | → | nl0-local |
 | nl0-local | finish | Outcome@1 |
-| nl0-local | formalize | Audited@1 |
+| nl0-local | formalize | Audited@2 |
 
 </details>
 
@@ -285,22 +267,27 @@ The start entry of nl0-local receives Global@1. Its named returns select the cal
 
 ### Inside nl0-local
 
-![Inside nl0-local. 5 nodes and 4 connections.](figures/flow-nl0-local.svg)
+![Inside nl0-local. 8 nodes and 9 connections.](figures/flow-nl0-local.svg)
 
-The start entry accepts Global@1 and starts at detail.
+The start entry accepts WorkingGraph@2 and starts at detail.
 
 Called at nl0-local. Each ^port returns to the matching outcome of its caller.
 
-[audit](#block-audit) · [detail](#block-detail)
+[audit](#block-audit) · [audit-exit](#block-audit-exit) · [detail](#block-detail) · [revise-graph](#block-revise-graph) · [seal-audit](#block-seal-audit)
 
 <details><summary>Diagram connections</summary>
 
 | From | Port or action | To |
 | --- | --- | --- |
 | start | → | detail |
-| audit | finish | ^finish |
-| audit | formalize | ^formalize |
+| audit | repair | revise-graph |
+| audit | reviewed | seal-audit |
+| audit-exit | finish | ^finish |
+| audit-exit | formalize | ^formalize |
 | detail | detailed | audit |
+| detail | repair | revise-graph |
+| revise-graph | selected | detail |
+| seal-audit | sealed | audit-exit |
 
 </details>
 
@@ -308,11 +295,13 @@ Called at nl0-local. Each ^port returns to the matching outcome of its caller.
 
 ### detail
 
-![detail. 3 nodes and 2 connections.](figures/block-detail.svg)
+![detail. 4 nodes and 3 connections.](figures/block-detail.svg)
 
-The model adapter detail receives Global@1 and returns a named port and its payload.
+The model adapter detail receives WorkingGraph@2 and returns a named port and its payload.
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
+
+Fill the inference bodies or report a located defect in the assigned graph.
 
 [detail implementation](#handler-detail)
 
@@ -320,8 +309,9 @@ An uncertain external effect requires a receipt for the same operation before th
 
 | From | Port or action | To |
 | --- | --- | --- |
-| Global@1 | → | detail |
-| detail | detailed | Local@1 |
+| WorkingGraph@2 | → | detail |
+| detail | detailed | Local@2 |
+| detail | repair | GraphRepair@1 |
 
 </details>
 
@@ -331,9 +321,11 @@ An uncertain external effect requires a receipt for the same operation before th
 
 ![audit. 4 nodes and 3 connections.](figures/block-audit.svg)
 
-The model adapter audit receives Local@1 and returns a named port and its payload.
+The model adapter audit receives Local@2 and returns a named port and its payload.
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
+
+Independently review the complete current NL0 and route located graph findings.
 
 [audit implementation](#handler-audit)
 
@@ -341,9 +333,104 @@ An uncertain external effect requires a receipt for the same operation before th
 
 | From | Port or action | To |
 | --- | --- | --- |
-| Local@1 | → | audit |
-| audit | finish | Outcome@1 |
-| audit | formalize | Audited@1 |
+| Local@2 | → | audit |
+| audit | repair | GraphRepair@1 |
+| audit | reviewed | Audited@2 |
+
+</details>
+
+<a id="block-revise-graph"></a>
+
+### revise-graph
+
+![revise-graph. 3 nodes and 2 connections.](figures/block-revise-graph.svg)
+
+The model adapter revise\_graph receives GraphRepair@1 and returns a named port and its payload.
+
+An uncertain external effect requires a receipt for the same operation before the run continues.
+
+Give the located graph finding to the NL0 owner and assign the checked successor.
+
+nl0-local/revise-graph pauses when visits exceed 8.
+
+[revise\_graph implementation](#handler-revise_graph)
+
+<details><summary>Diagram connections</summary>
+
+| From | Port or action | To |
+| --- | --- | --- |
+| GraphRepair@1 | → | revise\_graph |
+| revise\_graph | selected | WorkingGraph@2 |
+
+</details>
+
+<a id="block-seal-audit"></a>
+
+### seal-audit
+
+![seal-audit. 3 nodes and 2 connections.](figures/block-seal-audit.svg)
+
+The python adapter seal\_audit receives Audited@2 and returns a named port and its payload.
+
+The adapter must reuse the operation ID when retrying an external effect.
+
+Verify the exact graph, specification and Audit A evidence at the selected revision.
+
+[seal\_audit implementation](#handler-seal_audit)
+
+<details><summary>Diagram connections</summary>
+
+| From | Port or action | To |
+| --- | --- | --- |
+| Audited@2 | → | seal\_audit |
+| seal\_audit | sealed | Audited@2 |
+
+</details>
+
+<a id="block-audit-exit"></a>
+
+### audit-exit
+
+![audit-exit. 4 nodes and 3 connections.](figures/block-audit-exit.svg)
+
+The python adapter audit\_exit receives Audited@2 and returns a named port and its payload.
+
+The adapter must reuse the operation ID when retrying an external effect.
+
+Deliver the audited NL0 or pass its sealed authority to Lean.
+
+[audit\_exit implementation](#handler-audit_exit)
+
+<details><summary>Diagram connections</summary>
+
+| From | Port or action | To |
+| --- | --- | --- |
+| Audited@2 | → | audit\_exit |
+| audit\_exit | finish | Outcome@1 |
+| audit\_exit | formalize | Audited@2 |
+
+</details>
+
+<a id="block-basis-outline"></a>
+
+### basis-outline
+
+![basis-outline. 3 nodes and 2 connections.](figures/block-basis-outline.svg)
+
+The model adapter basis\_outline receives Foundation@2 and returns a named port and its payload.
+
+An uncertain external effect requires a receipt for the same operation before the run continues.
+
+Start NL0 from the existing structured seed under the frozen foundations.
+
+[basis\_outline implementation](#handler-basis_outline)
+
+<details><summary>Diagram connections</summary>
+
+| From | Port or action | To |
+| --- | --- | --- |
+| Foundation@2 | → | basis\_outline |
+| basis\_outline | selected | WorkingGraph@2 |
 
 </details>
 
@@ -380,9 +467,11 @@ The adapter must reuse the operation ID when retrying an external effect.
 
 ![translate. 4 nodes and 3 connections.](figures/block-translate.svg)
 
-The tool adapter translate receives Audited@1 and returns a named port and its payload.
+The tool adapter translate receives Audited@2 and returns a named port and its payload.
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
+
+Check helper declarations incrementally, compile the combined proof and audit the export.  A native wall timeout triggers a source-located diagnosis. Only a workload-only finding raises the next allowance by six minutes, up to thirty minutes.
 
 [translate implementation](#handler-translate)
 
@@ -390,7 +479,7 @@ An uncertain external effect requires a receipt for the same operation before th
 
 | From | Port or action | To |
 | --- | --- | --- |
-| Audited@1 | → | translate |
+| Audited@2 | → | translate |
 | translate | discharge | Intermediate@1 |
 | translate | finish | Outcome@1 |
 
@@ -564,6 +653,8 @@ An ordinary execution fault retains its node and diagnostic. An explicit resume 
 
 For a reconcile effect, inspect the external operation and submit its actual outcome with settle and the matching operation ID.
 
+A visit limit also pauses execution. Resuming the same over-budget activation keeps that limit in force.
+
 <details><summary>Diagram connections</summary>
 
 | From | Port or action | To |
@@ -610,18 +701,22 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 
 | Producer | Outcome | Receiver | Contract |
 | --- | --- | --- | --- |
+| basis-outline | selected | nl0-local/@enter | WorkingGraph@2 |
 | basis/@enter | enter | basis/reduce | Job@1 |
-| basis/basis-outline | checked | basis/freeze-global | CheckedGlobal@1 |
-| basis/freeze-global | frozen | nl0-local/@enter | Global@1 |
-| basis/reduce | prepared | basis/basis-outline | Basis@1 |
+| basis/freeze-basis | frozen | basis-outline | Foundation@2 |
+| basis/reduce | prepared | basis/freeze-basis | Foundation@2 |
 | basis/reduce | stopped | publish | Outcome@1 |
 | close | finish | publish | Outcome@1 |
-| freeze-global | frozen | nl0-local/@enter | Global@1 |
-| nl0-local/@enter | enter | nl0-local/detail | Global@1 |
-| nl0-local/audit | finish | publish | Outcome@1 |
-| nl0-local/audit | formalize | translate | Audited@1 |
-| nl0-local/detail | detailed | nl0-local/audit | Local@1 |
-| outline | checked | freeze-global | CheckedGlobal@1 |
+| nl0-local/@enter | enter | nl0-local/detail | WorkingGraph@2 |
+| nl0-local/audit | repair | nl0-local/revise-graph | GraphRepair@1 |
+| nl0-local/audit | reviewed | nl0-local/seal-audit | Audited@2 |
+| nl0-local/audit-exit | finish | publish | Outcome@1 |
+| nl0-local/audit-exit | formalize | translate | Audited@2 |
+| nl0-local/detail | detailed | nl0-local/audit | Local@2 |
+| nl0-local/detail | repair | nl0-local/revise-graph | GraphRepair@1 |
+| nl0-local/revise-graph | selected | nl0-local/detail | WorkingGraph@2 |
+| nl0-local/seal-audit | sealed | nl0-local/audit-exit | Audited@2 |
+| outline | selected | nl0-local/@enter | WorkingGraph@2 |
 | publish | audited | exit-audited | Delivery@1 |
 | publish | conditional | exit-conditional | Delivery@1 |
 | publish | different | exit-different | Delivery@1 |
@@ -639,9 +734,9 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 
 ### Contract definitions
 
-<a id="contract-Audited@1"></a>
+<a id="contract-Audited@2"></a>
 
-#### Audited@1
+#### Audited@2
 
 ```json
 {
@@ -674,37 +769,6 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
-<a id="contract-Basis@1"></a>
-
-#### Basis@1
-
-```json
-{
-  "additionalProperties": false,
-  "properties": {
-    "basis": {
-      "$ref": "urn:workflow:Binding@1"
-    },
-    "goal": {
-      "enum": [
-        "audit",
-        "conditional",
-        "unconditional"
-      ]
-    },
-    "job": {
-      "$ref": "urn:workflow:Binding@1"
-    }
-  },
-  "required": [
-    "job",
-    "goal",
-    "basis"
-  ],
-  "type": "object"
-}
-```
-
 <a id="contract-Binding@1"></a>
 
 #### Binding@1
@@ -725,37 +789,6 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
   "required": [
     "path",
     "sha256"
-  ],
-  "type": "object"
-}
-```
-
-<a id="contract-CheckedGlobal@1"></a>
-
-#### CheckedGlobal@1
-
-```json
-{
-  "additionalProperties": false,
-  "properties": {
-    "global": {
-      "$ref": "urn:workflow:Binding@1"
-    },
-    "goal": {
-      "enum": [
-        "audit",
-        "conditional",
-        "unconditional"
-      ]
-    },
-    "job": {
-      "$ref": "urn:workflow:Binding@1"
-    }
-  },
-  "required": [
-    "job",
-    "goal",
-    "global"
   ],
   "type": "object"
 }
@@ -794,9 +827,40 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
-<a id="contract-Global@1"></a>
+<a id="contract-Foundation@2"></a>
 
-#### Global@1
+#### Foundation@2
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "$ref": "urn:workflow:Binding@1"
+    },
+    "goal": {
+      "enum": [
+        "audit",
+        "conditional",
+        "unconditional"
+      ]
+    },
+    "job": {
+      "$ref": "urn:workflow:Binding@1"
+    }
+  },
+  "required": [
+    "job",
+    "goal",
+    "basis"
+  ],
+  "type": "object"
+}
+```
+
+<a id="contract-GraphRepair@1"></a>
+
+#### GraphRepair@1
 
 ```json
 {
@@ -814,12 +878,16 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
     },
     "job": {
       "$ref": "urn:workflow:Binding@1"
+    },
+    "repair": {
+      "$ref": "urn:workflow:Binding@1"
     }
   },
   "required": [
     "job",
     "goal",
-    "global"
+    "global",
+    "repair"
   ],
   "type": "object"
 }
@@ -891,9 +959,9 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
-<a id="contract-Local@1"></a>
+<a id="contract-Local@2"></a>
 
-#### Local@1
+#### Local@2
 
 ```json
 {
@@ -908,6 +976,9 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
         "conditional",
         "unconditional"
       ]
+    },
+    "history": {
+      "$ref": "urn:workflow:Binding@1"
     },
     "job": {
       "$ref": "urn:workflow:Binding@1"
@@ -976,6 +1047,40 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
+<a id="contract-WorkingGraph@2"></a>
+
+#### WorkingGraph@2
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "global": {
+      "$ref": "urn:workflow:Binding@1"
+    },
+    "goal": {
+      "enum": [
+        "audit",
+        "conditional",
+        "unconditional"
+      ]
+    },
+    "history": {
+      "$ref": "urn:workflow:Binding@1"
+    },
+    "job": {
+      "$ref": "urn:workflow:Binding@1"
+    }
+  },
+  "required": [
+    "job",
+    "goal",
+    "global"
+  ],
+  "type": "object"
+}
+```
+
 <a id="contract-blob@1"></a>
 
 #### blob@1
@@ -1011,27 +1116,43 @@ Python excerpts and docstrings come from this checkout. Model reasoning, remote 
 
 #### audit
 
-adapters.py · line 24
+adapters.py · line 48
 
 ```python
-def audit(ctx, data): return dispatch(ctx, data, 'audit')
+def audit(ctx, data):
+    """Independently review the complete current NL0 and route located graph findings."""
+    return dispatch(ctx, data, 'audit')
+```
+
+<a id="handler-audit_exit"></a>
+
+#### audit\_exit
+
+adapters.py · line 40
+
+```python
+def audit_exit(ctx, data):
+    """Deliver the audited NL0 or pass its sealed authority to Lean."""
+    return dispatch(ctx, data, 'audit_exit')
 ```
 
 <a id="handler-basis_outline"></a>
 
 #### basis\_outline
 
-adapters.py · line 21
+adapters.py · line 24
 
 ```python
-def basis_outline(ctx, data): return dispatch(ctx, data, 'basis_outline')
+def basis_outline(ctx, data):
+    """Start NL0 from the existing structured seed under the frozen foundations."""
+    return dispatch(ctx, data, 'basis_outline')
 ```
 
 <a id="handler-close"></a>
 
 #### close
 
-adapters.py · line 26
+adapters.py · line 59
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -1041,10 +1162,12 @@ def close(ctx, data): return dispatch(ctx, data, 'close')
 
 #### detail
 
-adapters.py · line 23
+adapters.py · line 44
 
 ```python
-def detail(ctx, data): return dispatch(ctx, data, 'detail')
+def detail(ctx, data):
+    """Fill the inference bodies or report a located defect in the assigned graph."""
+    return dispatch(ctx, data, 'detail')
 ```
 
 <a id="handler-direct_outline"></a>
@@ -1054,24 +1177,28 @@ def detail(ctx, data): return dispatch(ctx, data, 'detail')
 adapters.py · line 20
 
 ```python
-def direct_outline(ctx, data): return dispatch(ctx, data, 'direct_outline')
+def direct_outline(ctx, data):
+    """Construct the first working graph from the original proof."""
+    return dispatch(ctx, data, 'direct_outline')
 ```
 
-<a id="handler-freeze_global"></a>
+<a id="handler-freeze_basis"></a>
 
-#### freeze\_global
+#### freeze\_basis
 
-adapters.py · line 22
+adapters.py · line 28
 
 ```python
-def freeze_global(ctx, data): return dispatch(ctx, data, 'freeze_global')
+def freeze_basis(ctx, data):
+    """Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint."""
+    return dispatch(ctx, data, 'freeze_basis')
 ```
 
 <a id="handler-publish"></a>
 
 #### publish
 
-adapters.py · line 27
+adapters.py · line 60
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1117,14 +1244,44 @@ adapters.py · line 18
 def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_unconditional')
 ```
 
+<a id="handler-revise_graph"></a>
+
+#### revise\_graph
+
+adapters.py · line 32
+
+```python
+def revise_graph(ctx, data):
+    """Give the located graph finding to the NL0 owner and assign the checked successor."""
+    return dispatch(ctx, data, 'revise_graph')
+```
+
+<a id="handler-seal_audit"></a>
+
+#### seal\_audit
+
+adapters.py · line 36
+
+```python
+def seal_audit(ctx, data):
+    """Verify the exact graph, specification and Audit A evidence at the selected revision."""
+    return dispatch(ctx, data, 'seal_audit')
+```
+
 <a id="handler-translate"></a>
 
 #### translate
 
-adapters.py · line 25
+adapters.py · line 52
 
 ```python
-def translate(ctx, data): return dispatch(ctx, data, 'translate')
+def translate(ctx, data):
+    """Check helper declarations incrementally, compile the combined proof and audit the export.
+
+    A native wall timeout triggers a source-located diagnosis. Only a workload-only
+    finding raises the next allowance by six minutes, up to thirty minutes.
+    """
+    return dispatch(ctx, data, 'translate')
 ```
 
-Workflow protocol 1 · Definition 515be9e26fba083416c00b890106445703626afca93033f982a4bc6c8fbdc36c
+Workflow protocol 1 · Definition 2e65be121a581ad69e109b32b5fde8dd0400282e880486f2eadcddbef8e9558c

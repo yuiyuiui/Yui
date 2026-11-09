@@ -540,6 +540,9 @@ class NL0Contract:
         artifact.clear();artifact.update(expanded)
         return result
 
+    def validate_canonical(self, spec, graph):
+        """Optional owner checks on canonical declarations before publishing a candidate."""
+
     def _validate(self, expanded):
         spec, graph = expanded['spec'], expanded['graph']
         if not isinstance(spec, dict) or not isinstance(graph, dict):
@@ -566,16 +569,6 @@ class NL0Contract:
         spec['inputs'] = self.expected_inputs
         spec['pins'] = {'lean_version': '4.32.2', 'mathlib_commit': lock['mathlib']['rev'],
                         'mathlib_root': lock['mathlib']['local_path']}
-        if 'proof-context.json' in self.documents:
-            import basis
-            context=json.loads(self.documents['proof-context.json'])
-            registry=basis.verify_context(context)
-            if spec['full_target']!=context['full_target']:
-                raise ValueError('Basis NL0 changed the original target')
-            basis.basis_graph.verify_handoff(registry,graph)
-            expected={r['port']:r['statement'] for r in registry['dependencies'] if r['port'] and r['port'].startswith('E')}
-            actual={p['id']:p['statement'] for p in graph['propositions'] if p['kind']=='external'}
-            if actual!=expected:raise ValueError('Basis NL0 changed the frozen E statements')
         # The author selects a declaration and writes its mathematical meaning.
         # Exact Lean printer output and evidence hashes come from actual probes,
         # rather than an error-prone model transcription of thousands of bytes.
@@ -670,10 +663,18 @@ class NL0Contract:
         staged_spec = self.directory / ('.validation-spec-'+token+'.json')
         staged_graph = self.directory / ('.validation-nl0-'+token+'.json')
         try:
+            if 'proof-context.json' in self.documents:
+                import basis
+                context=json.loads(self.documents['proof-context.json'])
+                registry=basis.verify_context(context)
+                if spec['full_target']!=context['full_target']:
+                    raise ValueError('Basis NL0 changed the original target')
+                basis.basis_graph.verify_handoff(registry,graph)
             write(staged_spec, spec)
             graph['spec_sha256'] = nl0.sha(staged_spec)
             write(staged_graph, graph)
             summary = nl0.validate(staged_graph, staged_spec, global_only=self.global_only)[0]
+            self.validate_canonical(spec,graph)
         except ValueError as error:
             self.last_check={'candidate':self.attempt,'status':'STRUCTURE_REJECTED','error':str(error)}
             write(self.directory/f'check-result-{self.attempt:04d}.json',self.last_check)

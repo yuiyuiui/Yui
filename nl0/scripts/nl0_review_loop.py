@@ -15,6 +15,7 @@ from controller_common import bind, manifest, write
 from execution_health import StageFailure, require_review_execution
 from role_sessions import Sessions
 import nl0
+from graph_repair import Request
 
 
 def copy_source(source, destination):
@@ -77,8 +78,9 @@ class NodePatch:
                 'candidate':self.attempt}
 
 
-def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None):
-    root=Path(job['root']);sessions=Sessions();source=restored;issues=initial_issues;prior=list(prior);epoch=0
+def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None, sessions=None, route_graph=False):
+    root=Path(job['root']);sessions=sessions or Sessions();source=restored;issues=initial_issues;prior=list(prior)
+    epoch=max((int(p.name.split('-')[1]) for p in (root/'nl0').glob('merged-[0-9]*')),default=0)
     from basis import problem_inputs
     rejected=RejectedReviews(prior)
     while True:
@@ -86,10 +88,18 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
         # A restored global role uses the saved accepted draft and actual local
         # findings; it does not restart the original proof from an empty prompt.
         while True:
+            if issues and route_graph:
+                from frozen_graph import issue_owner
+                if any(issue_owner(item)=='global' for item in issues['issues']):
+                    raise Request(issues,baseline=source,evidence=[Path(d)/'campaign.json' for d in prior],prior=prior)
             if source is None or issues is not None:
                 directory=root/'nl0'/f'{epoch:04d}-{len(prior)+1:04d}'
                 with sessions.use('nl0-author'):
-                    source=author_stage(job,directory,budget,baseline=source,obligations=issues)
+                    try:
+                        source=author_stage(job,directory,budget,baseline=source,obligations=issues)
+                    except Request as request:
+                        request.prior=list(prior)
+                        raise
                 issues=None
             blocker=rejected.blocker(source,'global')
             if blocker:raise blocker
@@ -184,6 +194,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 'baseline_content_sha256':__import__('author_check').digest({'spec':json.loads((merged/'spec.json').read_text()),'graph':graph}),
                 'issues':[{'id':'ISSUE'+str(i+1).zfill(3),'criterion':'structure','location':'/graph/inferences',
                     'note':v['rid']+': '+v['global']['explanation']} for i,v in enumerate(global_issues)]}
+            prior.extend(v['campaign'] for v in global_issues)
             source=merged
             continue
         final=root/'audit-a'/f'final-{epoch:04d}'

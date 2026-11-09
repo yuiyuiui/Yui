@@ -88,7 +88,7 @@ class GraphReviewOrder(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'SOURCE_CHANGE_REQUIRES_USER'):
             owner({'spec':modified, **frozen_graph.shape(graph)})
         self.assertIsNone(owner.last_valid_candidate)
-        self.assertFalse((owner.directory/'frozen.json').exists())
+        self.assertFalse((owner.directory/'working.json').exists())
 
     def test_checked_receipt_is_editable_until_freeze_and_tampering_is_refused(self):
         import shutil
@@ -99,7 +99,7 @@ class GraphReviewOrder(unittest.TestCase):
         graph.update(frozen_graph.shape(graph))
         write(source / "nl0.json", graph)
         checked = frozen_graph.checked_receipt(source, frozen_graph.DIRECT)
-        self.assertFalse((source / "frozen.json").exists())
+        self.assertFalse((source / "working.json").exists())
         job = {"root":str(self.root)}
         original = (source / "nl0.json").read_bytes()
         with (source / "nl0.json").open("ab") as stream:
@@ -108,7 +108,7 @@ class GraphReviewOrder(unittest.TestCase):
             frozen_graph.select(job, checked)
         self.assertFalse((self.root / "global-selection.json").exists())
         (source / "nl0.json").write_bytes(original)
-        conflict = source / "frozen.json"
+        conflict = source / "working.json"
         conflict.write_text("previous version")
         with self.assertRaisesRegex(ValueError, "differs"):
             frozen_graph.select(job, checked)
@@ -117,6 +117,6 @@ class GraphReviewOrder(unittest.TestCase):
         conflict.unlink()
         frozen = frozen_graph.select(job, checked)
         self.assertEqual(checked["sha256"], frozen["sha256"])
-        self.assertEqual(frozen, bind(source / "frozen.json"))
+        self.assertEqual(frozen, bind(source / "working.json"))
         self.assertEqual(frozen_graph.select(job, checked), frozen)
         self.assertEqual(nl0.load(self.root / "global-selection.json"), frozen)

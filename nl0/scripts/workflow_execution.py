@@ -41,6 +41,12 @@ def run(job,recorder,budgets,progress):
         entry='audit' if job['track']=='nl0' else basis.mode(job)
         view=start(project,root/'protocol',entry,{'job':bind(root/'job.json')})
         if session.failure: raise session.failure
+        if (view['status']=='paused' and view['node']=='nl0-local/revise-graph'
+                and 'visit budget' in str(view.get('error'))):
+            from execution_health import StageFailure
+            from graph_repair import LIMIT
+            raise StageFailure(LIMIT,str(view['error']),phase='nl0-global',
+                               evidence=root/'protocol/work/state.json')
         if view['status']!='completed' or session.result is None:
             raise ValueError('Public workflow stopped at '+str(view))
         return session.result

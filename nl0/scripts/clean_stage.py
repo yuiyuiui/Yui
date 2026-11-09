@@ -25,7 +25,9 @@ class ArtifactStage(pilot.Stage):
                  kind='json', case_id=None):
         logs=Path(logs).resolve()
         local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
-        local_diagnosis=(phase=='interface-proof-diagnosis' and budget is not None and budget.role=='proof')
+        local_diagnosis=(budget is not None and
+                         (phase=='interface-lean-timeout-diagnosis' or
+                          (phase=='interface-proof-diagnosis' and budget.role=='proof')))
         frontier = phase=='basis-frontier' and budget is not None and budget.role=='foundation'
         if not (local_review or local_diagnosis or frontier):
             budget = pilot.concurrency.serial_budget(budget)
@@ -142,6 +144,11 @@ class ArtifactStage(pilot.Stage):
                         'NL0, source registration and JSON bookkeeping are not reports: continue an actual '
                         'lookup or draft edit. TASK_INCOMPLETE is unavailable for NL0 authoring. '
                         'Difficulty or a long run is not evidence of a mathematical gap.')
+        if phase=='nl0-local-authoring':
+            import graph_repair
+            self.tools.append(pilot.carrier.tool(graph_repair.TOOL,
+                'Request a change to an assigned inference input, output, or definition list. For an intermediate statement, select field=statement and its single N input or output. Explain the problem with this revision.',
+                graph_repair.SCHEMA['properties'],graph_repair.SCHEMA['required']))
         for name in ['check_draft','submit_draft']:
             self.tools.append(pilot.carrier.tool(name,
                 'Preferred structured-object form of '+('check_artifact' if name=='check_draft' else 'submit_artifact')+
@@ -489,6 +496,14 @@ class ArtifactStage(pilot.Stage):
                         'warning':'The completed result will remain conditional until original-source checks pass.'}
             elif name=='read_supplied_material':
                 result=read_page(self.supplied_materials[args['incident']],args['start'],args['end'],column=args.get('column',0))
+            elif name == 'report_graph_issue' and self.mode=='nl0-local-authoring':
+                import graph_repair
+                from frozen_graph import ASSIGNED
+                from controller_common import bind
+                graph_repair.locate(self.validator.frozen,args)
+                assigned=bind(self.logs.parent/'inputs'/ASSIGNED)
+                self.accepted={'status':graph_repair.STATUS,'assigned':assigned,'finding':deepcopy(args)}
+                result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':graph_repair.STATUS}
             elif name == 'report_basis_defect':
                 import basis_defect
                 from fault_control import run_root

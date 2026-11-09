@@ -474,7 +474,8 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
         (out/'result.json').rename(out/'incremental.json')
     else:
         fast=None
-    source=render_auxiliary(cpath,plan,step,statement,proof,helpers=rows,validated=True)
+    required=local_helpers.required(rows, statement+'\n'+proof)
+    source=render_auxiliary(cpath,plan,step,statement,proof,helpers=required,validated=True)
     work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
     try:
         path=work/'output/Auxiliary.lean';path.write_text(source)
@@ -482,7 +483,7 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
         match=re.search(r"'YuiAuxiliary.checked' depends on axioms: \[([^]]*)\]",result['stdout'])
         axioms={v.strip() for v in match[1].split(',') if v.strip()} if match else set() if "'YuiAuxiliary.checked' does not depend on any axioms" in result['stdout'] else {'MISSING_AXIOM_REPORT'}
         valid=result['exit_code']==0 and not axioms-{'propext','Classical.choice','Quot.sound'}
-        result.update(auxiliary_valid=valid,axioms=sorted(axioms),
+        result.update(auxiliary_valid=valid,axioms=sorted(axioms),checked_helpers=[r['name'] for r in required],
             lean_sha256=hashlib.sha256(source.encode()).hexdigest(),
             scope='AUXILIARY_ONLY_NOT_ADDED_TO_PREMISES_OR_ACCEPTED_TARGET',context_port=step)
         if result['exit_code']==0 and not valid:

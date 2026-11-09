@@ -43,9 +43,42 @@ def author_code(stage):
     evidence=[r for r in stage.validator.expected_inputs if r['path']=='inputs/problem.md']
     import frozen_graph as fg
     if 'basis-registry.json' in stage.task_inputs:
-        add_external_applications(graph,json.loads(stage.task_inputs['basis-registry.json']),evidence)
+        registry=json.loads(stage.task_inputs['basis-registry.json'])
+        if mode=='planned-unused-residual':
+            if stage.mode==fg.LOCAL:
+                assigned=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
+                if any(p['id']=='E003' for p in assigned['propositions']):
+                    return call('report_graph_issue',inference='R002',related_propositions=['E003','E002'],
+                                explanation='The checked E002 suffices at this use. Drop the redundant assumption E003.')
+            if stage.mode==fg.LOCAL or 'prior-global.json' in stage.task_inputs:
+                registry['dependencies']=[r for r in registry['dependencies'] if r['port']!='E003']
+        add_external_applications(graph,registry,evidence)
     if mode=='direct-external':
         add_external_applications(graph,artifact(dependency(category=2)),evidence)
+    if mode=='local-gap' and stage.mode==fg.LOCAL:
+        return call('report_obstacle',status='SUBSTANTIVE_GAP',location='R002 last implication',
+            basis='The supplied statements do not imply the requested implication.',
+            explanation='The obligations conflict at the last inference even after consulting all available roots.',
+            partial_progress='The earlier symmetry node can still be retained.')
+    if mode in {'local-edge','first-pass-edge'}:
+        if stage.mode==fg.LOCAL:
+            current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
+            if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
+                return (call('report_graph_issue',inference='R999',related_propositions=['H001'],explanation='Wrong node.')+
+                        call('report_graph_issue',inference='R002',related_propositions=['H999'],explanation='Unknown input.')+
+                        call('report_graph_issue',inference='R002',related_propositions=['H001'],
+                             explanation='The chosen last equality uses the original equality directly as well as its symmetric form.'))
+        graph['inferences'][-1]['inputs'].append('H001')
+        last=graph['inferences'][-1]['argument'][-1]
+        last['uses'].append('H001')
+        last['text']+=' Compose the original equality, its symmetric equality and the original equality to obtain the last equality.'
+    if stage.mode==fg.BASIS and 'prior-global.json' in stage.task_inputs and mode!='stalled-graph':
+        if mode=='local-edge':
+            # The graph protocol accepts omitted H/P aliases copied from their original specification.
+            for prop in graph['propositions']:
+                if prop['kind'] in ('target','hypothesis'):
+                    del prop['statement']
+        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph)})
     if stage.mode==fg.BASIS:
         return call('submit_draft',artifact={'spec':spec,
             'proposition_details':{p['id']:{k:v for k,v in p.items() if k not in ('id','statement')} for p in graph['propositions']},
@@ -134,7 +167,7 @@ def scripted(stage):
         if mode=='evidence-repair':
             return call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
         return call('submit_draft',artifact=review)
-    if stage.mode in {'nl0-authoring','nl0-global','basis-global-metadata','nl0-local-authoring'}:return author_code(stage)
+    if stage.mode in {'nl0-authoring','nl0-global','nl0-global-from-basis','nl0-local-authoring'}:return author_code(stage)
     if (stage.mode,mode) in {('interface-semantic-review','late'),('interface-proof-diagnosis','late-proof')}:
         row=json.loads(stage.task_inputs['basis-registry.json'])['dependencies'][0]
         finding={'basis_id':'B001','field':'statement','frozen_value':row['statement'],
@@ -149,11 +182,12 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
+        if mode=='local-edge':value['steps'][-1]['inputs'].append('H001')
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
         for row in rows:
-            if not row['port']:continue
+            if not row['port'] or (mode=='planned-unused-residual' and row['port']=='E003'):continue
             value['premise_types'][row['port']]=row['lean']['type']
             value['steps'][-1]['inputs'].append(row['port'])
             value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
@@ -163,6 +197,8 @@ def scripted(stage):
             if stage.plan['steps'][0]['statement'] in {'a = a','b = b'}:return call('submit_transition',proof='rfl')
             doc=next(iter(stage.private_sources))
             return call('read_private_source',id=doc,start=1,end=4)+call('check_auxiliary',statement='∀ n : ℕ, n + 0 = n',proof='exact h_H001')+call('submit_transition',proof='exact @yui_aux_0001 h_H001')
+        if mode=='local-edge' and stage.step=='T002':
+            return call('submit_transition',proof='exact (h_E001 a).trans (h_H001.trans (h_T001.trans h_H001))')
         if mode=='late-proof' and stage.step=='T002':
             return call('check_transition',proof='exact True.intro')+call('report_proof_obstruction',layer='interface',
                 explanation='The supplied basis statement differs from its formal premise.',locations=['/target'],
@@ -215,12 +251,12 @@ if __name__ == '__main__':
                         # Simulate elapsed wall clock only after the real residual decision is retained.
                         gate.recorder.deadline=time.monotonic()-.1
                     else:
-                        subprocess.run(gate.state['decisions'][{'planned-conditional':'accept-conditional','planned-stop':'stop','planned-continue':'continue'}.get(mode,mode)],check=True,capture_output=True,timeout=15)
+                        subprocess.run(gate.state['decisions'][{'planned-conditional':'accept-conditional','planned-unused-residual':'accept-conditional','planned-stop':'stop','planned-continue':'continue'}.get(mode,mode)],check=True,capture_output=True,timeout=15)
                 gate.wait=choose
             else:
                 status=error.get('outcome',{}).get('status') if isinstance(error,dict) else None
                 expected={'late':'BASIS_REVISION_REQUIRED','late-proof':'BASIS_REVISION_REQUIRED','first-pass':'BASIS_SEMANTIC_NONPASS',
-                          'deadline-decision':'UNFINISHED','stalled-graph':'BASIS_GRAPH_REVISION_UNRESOLVED'}
+                          'deadline-decision':'UNFINISHED','stalled-graph':'NL0_GRAPH_REVISION_UNRESOLVED','local-gap':'SUBSTANTIVE_GAP','first-pass-edge':'NL0_GRAPH_REVISION_REQUIRED'}
                 if status!=expected.get(mode) or mode not in expected:
                     unexpected.append((gate.stage,str(error)[:3000]))
                 def cancel(_):
@@ -233,7 +269,7 @@ if __name__ == '__main__':
         with patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
              patch.object(execution_state.Recorder,'register_process',registered):
             result=case_runner.execute(job)
-    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph'}:
+    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge'}:
         print('Fixture failures:',unexpected,fixture.failures,'result:',result,flush=True)
         raise SystemExit(2)
     raise SystemExit(0 if result['completion']['workflow_completed'] else 1)

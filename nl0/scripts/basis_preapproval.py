@@ -93,7 +93,10 @@ def verify(revision,candidate,event):
     from case_outcomes import verify_basis_decision
     directory=Path(revision)/'plans'/plan_identity(candidate)
     selected=ir.load(directory/'stage/accepted.json')
-    ir.need(selected==projection(candidate),'Residual approval does not cover this target and route')
+    ir.need(selected==projection(candidate),'Residual approval does not cover this original foundation plan')
+    from basis_graph import residual_scope
+    if 'approved_scope' in event['checkpoint']:
+        ir.need(event['checkpoint']['approved_scope']==residual_scope(candidate),'Changed approved residual premise or target')
     ctx=ir.load(directory/'context.json')
     verify_bindings([ctx['basis'],ctx['native'],ctx['semantic_review'],*ctx['original_inputs'],*ctx['evidence']])
     ir.need(ctx['basis']==bind(directory/'stage/accepted.json') and ctx['semantic_review']==bind(directory/'review/report.json'),

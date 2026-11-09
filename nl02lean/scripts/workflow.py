@@ -91,7 +91,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     c, nodes, _ = ir.validate(contract, ir.load(plan))
     import basis
     basis_context=basis.source_context(graph,spec)
-    basis.check_interface(basis_context,c)
+    basis.check_interface(basis_context,c,data[1])
     ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
     if data[0].get('background_note_count',0):
         supplement=data[0]['background_supplement']
@@ -164,7 +164,7 @@ def bound(directory):
     import basis
     context=basis.source_context(manifest['authority']['graph'],manifest['authority']['spec'])
     ir.need(context==manifest.get('basis_context'),'Frozen basis authority changed')
-    basis.check_interface(context,ir.contract(manifest['contract']))
+    basis.check_interface(context,ir.contract(manifest['contract']),data[1])
     return manifest
 
 
@@ -283,8 +283,10 @@ def main():
         elif args.command=='run':result=run(args.directory,shared_store=args.shared_store,timeout_seconds=args.timeout_seconds,bank=args.bank)
         elif args.command=='audit-prepare':result=prepare_audit(args.directory)
         elif args.command=='audit-build':
+            import lean_timeout_policy
             frozen=bound(args.directory)
-            result=audit_b.build(args.directory/'audit-b',frozen_contract=frozen['contract'] if frozen.get('interface_review') else None)
+            with lean_timeout_policy.scope(args.directory/'audit-b'/'lean-timeouts', None):
+                result=audit_b.build(args.directory/'audit-b',frozen_contract=frozen['contract'] if frozen.get('interface_review') else None)
         elif args.command=='audit-check':result=finish(args.directory,args.review,machine=args.machine)
         else:result={'status':bound(args.directory)['status'],'completed_report_present':(args.directory/'report.json').exists()}
         print(json.dumps(result,ensure_ascii=False,indent=2));return 0

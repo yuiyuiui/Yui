@@ -54,6 +54,17 @@ class ClassificationPathTests(unittest.TestCase):
         self.assertEqual(remote_retry.diagnose(TimeoutError('Remote request timed out'))['category'],'model_timeout')
         self.assertEqual(remote_retry.diagnose({'code':'insufficient_quota'})['category'],'model_quota')
 
+    def test_working_graph_stops_preserve_their_own_outcome_and_transport_health(self):
+        for status in ('NL0_GRAPH_REVISION_REQUIRED','NL0_GRAPH_REVISION_UNRESOLVED','NL0_GRAPH_REVISION_LIMIT'):
+            with self.subTest(status=status):
+                captured=StageFailure(status,'Located issue at the current graph revision').result
+                error=fault_control.outcome_error(captured)
+                self.assertEqual(error['outcome']['status'],status)
+                self.assertEqual(remote_retry.diagnose(error)['category'],'workflow_blocked')
+                self.assertFalse(remote_retry.diagnose(error)['retryable'])
+                fault=fault_control.outcome_error({**captured,'execution_fault':'Lost the local worker'})
+                self.assertEqual(remote_retry.diagnose(fault)['category'],'harness_bug')
+
     def test_first_pass_nonpass_reaches_actual_case_pause_and_preserves_its_outcome_on_cancel(self):
         with tempfile.TemporaryDirectory(prefix='yui-first-pass-case-') as raw:
             root=Path(raw);graph,spec,_=source_fixtures.case(root/'source')

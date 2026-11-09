@@ -46,7 +46,7 @@ class Progress:
             elif result.get('auxiliary_valid'):
                 self.helpers_since_target.add(key)
                 if len(self.helpers_since_target)>=4:
-                    result['target_progress_advice']='Check the original transition against the current helpers now. If independent missing claims remain, use prove_independent_helpers. Report a public boundary defect through report_proof_obstruction only with located evidence.'
+                    result['target_progress_advice']='Keep checking outstanding helpers independently. Once they are ready, compose them and check the original transition. Report a public boundary defect only with located evidence.'
         elif tool in {'search_mathlib','read_mathlib','read_background_note','find_strategies'}:
             key=digest([family,args])
         else:return

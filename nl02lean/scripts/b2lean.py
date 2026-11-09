@@ -19,8 +19,8 @@ from controller_common import bind, write, verify_bindings
 from execution_health import StageFailure
 
 
-def render(contract, context, conditional_source, levels, *, legacy=False):
-    artifact=basis.verify_context(context);basis.check_interface(context,contract)
+def render(contract, context, conditional_source, levels, *, legacy=False, graph=None):
+    artifact=basis.verify_context(context);basis.check_interface(context,contract,graph)
     by_port={r['port']:r for r in artifact['dependencies'] if r['port']}
     retained=[p for p in contract['premises'] if p['kind']!='mathlib'
         and (p['kind']=='hypothesis' or by_port[p['id']]['category']==4)]
@@ -53,6 +53,11 @@ def render(contract, context, conditional_source, levels, *, legacy=False):
     return source, expected, [p['id'] for p in retained]
 
 
+def actual_residual(context,retained):
+    registry=ir.load(context['basis']['path'])
+    return sorted(r['id'] for r in registry['dependencies'] if r['category']==4 and r['port'] in retained)
+
+
 def finish(directory, out, *, context, intermediate, before_publish=None):
     started=time.monotonic()
     directory,out=Path(directory).resolve(),Path(out).resolve()
@@ -64,7 +69,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
     ir.need(not receipt['freeze_deviation'],'Basis closure requires the exact frozen target/interface')
     conditional=directory/'audit-b/Proof.lean';contract=ir.contract(frozen['contract'])
     source,expected,retained=render(contract,context,conditional.read_text(),
-        ir.load(directory/'audit-b/assembly.json')['universe_parameters'])
+        ir.load(directory/'audit-b/assembly.json')['universe_parameters'],graph=ir.load(frozen['authority']['graph']))
     checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out)
     if not checked['passed']:
         raise StageFailure('BASIS_FINAL_CLOSURE_FAILED','Prepared proofs did not close the actual frozen target',
@@ -73,9 +78,9 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
     workflow.bound(directory);basis.verify_context(context)
     final_acceptance.validate_receipt(intermediate['audit_b']['receipt_path'])
     if before_publish is not None:before_publish()
-    residual=context['residual_class4']
+    residual=actual_residual(context,retained)
     unconditional=not residual and not receipt['source_conditional']
-    result={**intermediate,'version':'yui-b2lean-2','status':'WORKFLOW-PASSED' if unconditional else 'WORKFLOW-CONDITIONAL',
+    result={**intermediate,'version':'yui-b2lean-3','status':'WORKFLOW-PASSED' if unconditional else 'WORKFLOW-CONDITIONAL',
         'formalization_goal':'unconditional','achieved_scope':'UNCONDITIONAL_LEAN' if unconditional else
             'CONDITIONAL_LEAN' if residual else 'CLOSED_LEAN_SOURCE_QUALIFIED',
         'proof':str(out/'Proof.lean'),'basis_discharge_seconds':time.monotonic()-started,
@@ -101,7 +106,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
 def validate_receipt(out):
     """Read-only revalidation of a delivered closed proof and its authority."""
     out=Path(out);report=ir.load(out/'report.json');verify_bindings(report['bindings'])
-    ir.need(report.get('version') in {'yui-b2lean-1','yui-b2lean-2'},'Unknown final basis receipt')
+    ir.need(report.get('version') in {'yui-b2lean-1','yui-b2lean-2','yui-b2lean-3'},'Unknown final basis receipt')
     verify_bindings([report['closure']['native'],report['closure']['proof']])
     checked=basis_native.verify(report['closure']['native']['path'])
     frozen=workflow.bound(report['conditional_workflow']);context=frozen['basis_context']
@@ -110,15 +115,16 @@ def validate_receipt(out):
     source,expected,retained=render(ir.contract(frozen['contract']),context,
         (Path(report['conditional_workflow'])/'audit-b/Proof.lean').read_text(),
         ir.load(Path(report['conditional_workflow'])/'audit-b/assembly.json')['universe_parameters'],
-        legacy=report['version']=='yui-b2lean-1')
+        legacy=report['version']=='yui-b2lean-1',graph=ir.load(frozen['authority']['graph']))
     ir.need((out/'Proof.lean').read_text()==source and checked['checks']==[['P','YuiClosed.P',expected]],'Closed export changed')
-    complete=not context['residual_class4'] and not receipt['source_conditional']
-    scope='UNCONDITIONAL_LEAN' if complete else 'CONDITIONAL_LEAN' if context['residual_class4'] else 'CLOSED_LEAN_SOURCE_QUALIFIED'
+    residual=actual_residual(context,retained) if report['version']=='yui-b2lean-3' else context['residual_class4']
+    complete=not residual and not receipt['source_conditional']
+    scope='UNCONDITIONAL_LEAN' if complete else 'CONDITIONAL_LEAN' if residual else 'CLOSED_LEAN_SOURCE_QUALIFIED'
     ir.need(report['formalization_goal']=='unconditional' and report['achieved_scope']==scope
         and report['final_semantic_model_called'] is False and report['proof']==str(out.resolve()/'Proof.lean'),
         'Final basis delivery scope changed')
-    ir.need(report['closure']=={'unconditional':complete,'kernel_closed':not context['residual_class4'],'remaining_premises':retained,
-        'residual_class4':context['residual_class4'],'native':bind(out/'check.json'),
+    ir.need(report['closure']=={'unconditional':complete,'kernel_closed':not residual,'remaining_premises':retained,
+        'residual_class4':residual,'native':bind(out/'check.json'),
         'proof':bind(out/'Proof.lean'),'export':'YuiClosed.P'},'Final closure scope changed')
     ir.need(report['status']==('WORKFLOW-PASSED' if complete else 'WORKFLOW-CONDITIONAL'),'Final scope promoted')
     return report

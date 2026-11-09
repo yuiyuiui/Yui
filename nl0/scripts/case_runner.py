@@ -103,17 +103,17 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None):
     return source
 
 
-def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_source=None):
+def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_source=None, review_history=(), sessions=None):
     if job['policy']!='first-pass':
         import nl0_review_loop
-        restored=initial_source;prior=[];obligations=None
+        restored=initial_source;prior=list(review_history);obligations=None
         mode=(job.get('resume') or {}).get('mode')
-        if mode in {'audit-a','author-repair'}:
+        if mode in {'audit-a','author-repair'} and not review_history:
             import interrupted
             if mode=='audit-a':restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
             else:restored,obligations,prior=interrupted.restore_repair(job)
         return nl0_review_loop.run(job,budget,audit_budget,progress,author_stage,repair_obligations,
-            restored=restored,prior=prior,initial_issues=obligations)
+            restored=restored,prior=prior,initial_issues=obligations,sessions=sessions,route_graph=bool(job.get('workflow_protocol')))
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
     restored=initial_source
     if (job.get('resume') or {}).get('mode')=='audit-a':
@@ -150,6 +150,12 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_sour
 
 
 def translation_work(job, authority, budgets, progress):
+    import lean_timeout_policy
+    with lean_timeout_policy.scope(Path(job['root'])/'nl0-to-lean'/'lean-timeouts', budgets.serial):
+        return translation_work_scoped(job, authority, budgets, progress)
+
+
+def translation_work_scoped(job, authority, budgets, progress):
     root=Path(job['root']);original=dict(authority)
     before_native={p.name for p in (root/'native-checks').glob('*')}
     while True:

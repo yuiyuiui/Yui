@@ -14,7 +14,6 @@ def allowed(track, formalization):
 
 
 def verify(record):
-    from frozen_graph import read_frozen
     import basis
     import source_preparation
     from source_qualification import usable
@@ -24,8 +23,7 @@ def verify(record):
     if not path.is_relative_to(Path(job['root'])) or record['stage']!=job.get('stop_after'):
         raise ValueError('Checkpoint differs from the authorized stage')
     if record['stage']=='2basis':
-        read_frozen(record['artifact'])
-        basis.verify_context(json.loads((basis.problem_inputs(job)/basis.CONTEXT).read_text()))
+        basis.verify_foundations(job,record['artifact'])
     elif record['stage']=='nl0':
         if not usable(source_preparation.read_source(**json.loads(path.read_text()))[0][0]):
             raise ValueError('No actual Audit A acceptance')

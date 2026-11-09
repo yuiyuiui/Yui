@@ -145,7 +145,7 @@ class PrivateLevelWorkflow(unittest.TestCase):
 
     def test_checked_basis_through_a_b_and_real_final_export(self):
         report=b2lean.validate_receipt(self.out)
-        self.assertEqual(report['version'],'yui-b2lean-2')
+        self.assertEqual(report['version'],'yui-b2lean-3')
         self.assertEqual(report['status'],'WORKFLOW-PASSED')
         self.assertEqual(report['closure']['remaining_premises'],['H001'])
         self.assertFalse(report['final_semantic_model_called'])

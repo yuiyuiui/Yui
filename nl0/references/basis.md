@@ -20,9 +20,12 @@ One subsequent Audit A receives original documents, `basis-proof.md`, complete
 `basis-registry.json`, retained source evidence and `proof-context.json`.
 Its global lane checks original-target fidelity, replacement dependencies and
 structure; ordinary local R lanes check all new arguments. There is no preceding
-full mathematical audit of 2basis. NL0 faithfully presents the active basis route,
-without requiring the original proof route to remain unchanged. Review reuse
-includes active context; source warnings retain their original qualification.
+full mathematical audit of 2basis. The NL0 global author receives the structured
+route and the reviewed foundation inventory. It can revise intermediate claims,
+definitions and inference ports while preserving the original problem and every
+foundation's exact meaning. A local author can request a located graph correction.
+Each local assignment and subsequent review refers to a specific graph revision.
+Audit A seals the accepted complete revision for delivery or Lean.
 
 The [foundation planning strategy](basis-planning.md) covers parallel research, shared dependencies and the transition from a draft graph to native proofs.
 
@@ -163,9 +166,10 @@ its own operator decision.
 
 ## Shared translation and final closure
 
-The interface author receives prepared basis header/E types. Preserve that
-header prefix and exact E types; independently review the NL/Lean correspondence
-before freezing. Original H and whole target retain ordinary semantic review.
+The interface author receives the prepared basis header and registered port
+types. Preserve the header prefix and the exact types of the foundations used
+in the audited graph. Independently review the NL/Lean correspondence before
+freezing. Original H and the whole target retain ordinary semantic review.
 All shared proof, repair, assembly and worker machinery is reused.
 
 After machine Audit B, b2lean applies prepared 1/2/3 proofs to `AuditBExport.P` and
@@ -179,7 +183,8 @@ diagnostic for owned cleanup; normal completed native checks release scratch.
 
 `b2lean/Proof.lean`, `check.json` and `report.json` bind the final export.
 Only closed output with unqualified upstream authority is `UNCONDITIONAL_LEAN`
-and `WORKFLOW-PASSED`. Approved 4 yields `CONDITIONAL_LEAN`. A closed kernel proof
+and `WORKFLOW-PASSED`. Any approved class 4 still present in the final signature
+yields `CONDITIONAL_LEAN`. A closed kernel proof
 with remaining source qualifications is `CLOSED_LEAN_SOURCE_QUALIFIED`, with
 `closure.kernel_closed:true` but no unconditional workflow acceptance. Both
 qualified cases remain `WORKFLOW-CONDITIONAL`, with warnings and an unmet

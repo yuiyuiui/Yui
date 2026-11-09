@@ -327,13 +327,17 @@ def decision(root, artifact, budget, *, planning=False):
     review=bind(Path(root)/'review/report.json')
     terms=[{'id':k,'port':rows[k]['port'],'statement':rows[k]['statement'],'lean_type':rows[k]['lean']['type'],
             'reference':rows[k]['origin']['reference']} for k in residual]
-    receipt = gate.pause({'status':'BASIS_USER_DECISION_REQUIRED','residual_class4':residual,'reviewed_premises':terms},
-        resumable=False, checkpoint={'basis':bind(Path(root)/'stage/accepted.json'),'residual_class4':residual,'semantic_review':review},
+    from case_outcomes import basis_checkpoint
+    scoped=artifact['version']==basis_graph.VERSION
+    checkpoint=basis_checkpoint(Path(root)/'stage/accepted.json',review,scoped=scoped)
+    receipt = gate.pause({'status':'BASIS_USER_DECISION_REQUIRED','residual_class4':residual,'reviewed_premises':terms,
+                          **({'scope_version':'yui-residual-scope-1'} if scoped else {})},
+        resumable=False, checkpoint=checkpoint,
         decisions=('stop','continue','accept-conditional'))
     return receipt
 
 
-def run(job, budget, progress, *, graph_findings=None):
+def run(job, budget, progress):
     from basis_author import BasisStage
     from role_sessions import Sessions
     root = Path(job['root']);sessions = Sessions();previous = None;revision = 0
@@ -341,17 +345,7 @@ def run(job, budget, progress, *, graph_findings=None):
     resume=job.get('resume') or {}
     if resume.get('mode')=='basis-revision':
         late_finding=ir.load(resume['report']['path'])['finding']
-    if graph_findings is not None:
-        current=ir.load(problem_inputs(job)/CONTEXT)
-        previous=Path(current['basis']['path'])
-        rejected=[current['basis']]
-        for path in sorted((root/'2basis').glob('*/rejected-global.json')):
-            rejected.append(ir.load(path))
-        verify_bindings(rejected)
-        rejected_graphs=[basis_graph.projection(ir.load(row['path'])['global_graph']) for row in rejected]
-        findings=graph_findings
-        revision=max(int(p.name) for p in (root/'2basis').iterdir() if p.name.isdigit())
-    elif resume.get('mode')=='basis-revision':
+    if resume.get('mode')=='basis-revision':
         previous=Path(resume['basis']['path'])
         findings={late_finding['basis_id']:late_finding}
         progress(job['case'],'BASIS_REVISION_STARTED',prior_run=resume['prior_run'],defect=resume['report'])
@@ -370,7 +364,6 @@ def run(job, budget, progress, *, graph_findings=None):
     while True:
         revision += 1;out = root/'2basis'/f'{revision:04d}';inputs = out/'inputs';inputs.mkdir(parents=True)
         copy_problem_documents(root/'inputs', inputs)
-        if graph_findings is not None:write(out/'rejected-global.json',current['basis'])
         prompt = PROMPT
         if previous:
             copy_input(previous, inputs/'prior-basis.json')
@@ -405,9 +398,6 @@ def run(job, budget, progress, *, graph_findings=None):
         if validator.selected is None:raise StageFailure('BASIS_INCOMPLETE','No machine-checked basis selected',phase='basis-authoring')
         artifact = ir.load(out/'stage/accepted.json')
         ir.need(artifact==ir.load(validator.selected/'basis.json'),'Basis submission differs from checked candidate')
-        if graph_findings is not None and basis_graph.projection(artifact['global_graph']) in rejected_graphs:
-            raise StageFailure('BASIS_GRAPH_REVISION_UNRESOLVED','The basis owner returned the same rejected propositions and edges',
-                               phase='basis-authoring',evidence=out/'stage/accepted.json')
         if resume.get('mode')=='basis-revision':
             import basis_defect
             basis_defect.require_revision(artifact,resume,late_finding)
@@ -441,7 +431,7 @@ def run(job, budget, progress, *, graph_findings=None):
         if action=='continue':previous=out/'stage/accepted.json';continue
         context['approval']=chosen
         verify_context(context)
-        active = out/'active-inputs' if graph_findings is not None else root/'active-inputs'
+        active = root/'active-inputs'
         active.mkdir()
         copy_problem_documents(root/'inputs',active)
         from jobs import stage_document
@@ -478,8 +468,10 @@ def verify_context(context):
             import basis_preapproval
             basis_preapproval.verify(revision,artifact,approval)
             return artifact
-        ir.need(isinstance(approval,dict) and approval.get('checkpoint')=={'basis':context['basis'],'residual_class4':residual,
-                'semantic_review':context['semantic_review']},
+        from case_outcomes import basis_checkpoint
+        ir.need(isinstance(approval,dict) and approval.get('checkpoint')==basis_checkpoint(
+            context['basis']['path'],context['semantic_review'],
+            scoped=approval.get('error',{}).get('scope_version')=='yui-residual-scope-1'),
             'Residual class 4 lacks exact user approval')
         revision=Path(context['basis']['path']).parent.parent
         incident=approval.get('incident')
@@ -534,27 +526,48 @@ def source_context(graph, spec):
     ir.need(document['full_target']==context['full_target'],'Source changed original target after basis reduction')
     source_graph = ir.load(graph)
     basis_graph.verify_handoff(artifact,source_graph)
-    props = source_graph['propositions']
-    expected = {r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('E')}
-    actual = {p['id']:p for p in props if p['kind']=='external'}
-    ir.need(set(actual)==set(expected),'Basis source changed the frozen external ports')
-    for key,row in actual.items():ir.need(row['statement']==expected[key]['statement'],'Basis external statement changed')
     return context
 
 
-def check_interface(context, contract):
+def check_interface(context, contract, graph=None):
     if context is None:return
     artifact = verify_context(context)
     ir.need(contract['header'].startswith(artifact['lean_header']),'Interface changed prepared basis definitions')
     expected = {r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('E')}
     actual = {p['id']:p for p in contract['premises'] if p['kind']=='external'}
-    ir.need(set(expected)==set(actual),'Interface changed prepared basis E ports')
     if artifact['version']==basis_graph.VERSION:
         expected.update({r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('M')})
-        mathlib={p['id']:p for p in contract['premises'] if p['kind']=='mathlib'}
-        for key in expected.keys()-actual.keys():
-            ir.need(key in mathlib,'Interface omitted a frozen basis Mathlib port: '+key)
-            actual[key]=mathlib[key]
+        active=set(expected)
+        if graph is not None:
+            basis_graph.verify_handoff(artifact,graph)
+            active.intersection_update(p['id'] for p in graph['propositions'])
+        actual.update({p['id']:p for p in contract['premises'] if p['kind']=='mathlib' and p['id'] in expected})
+        ir.need(set(actual)==active,'Interface changed the foundation ports used by the selected NL0 graph')
+    else:
+        ir.need(set(expected)==set(actual),'Interface changed prepared basis E ports')
     for key,row in actual.items():
         ir.need(row['type']==expected[key]['lean']['type'] and row['statement']==expected[key]['statement'],
             'Interface changed prepared basis type/context at '+key)
+
+
+def foundation_record(job):
+    """Bind the reviewed mathematical inventory and the separately usable graph seed."""
+    active=problem_inputs(job)
+    context=ir.load(active/CONTEXT)
+    registry=verify_context(context)
+    seed=active/'global-nl0.json'
+    ir.need(ir.load(seed)==registry['global_graph'],'Basis seed differs from the selected author submission')
+    return {'version':'yui-foundations-1','context':bind(active/CONTEXT),'seed':bind(seed),
+            'full_target':registry['full_target'],'original_inputs':context['original_inputs'],
+            'original_statements':{p['id']:p['statement'] for p in registry['global_graph']['propositions']
+                                   if p['id']=='P' or p['id'].startswith('H')},
+            'lean_header':registry['lean_header'],'foundations':registry['dependencies'],
+            'native':context['native'],'review':context['semantic_review'],'evidence':context['evidence'],
+            'authorized_class4':context['residual_class4'],'approval':context['approval'],
+            'approved_scope':basis_graph.residual_scope(registry) if context['approval'] else None}
+
+
+def verify_foundations(job,binding):
+    verify_bindings([binding])
+    ir.need(Path(binding['path'])==Path(job['root'])/'handoffs/foundations.json'
+            and ir.load(binding['path'])==foundation_record(job),'Changed or foreign reviewed foundations')

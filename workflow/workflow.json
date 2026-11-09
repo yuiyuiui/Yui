@@ -53,110 +53,6 @@
       ],
       "additionalProperties": false
     },
-    "Basis@1": {
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "goal": {
-          "enum": [
-            "audit",
-            "conditional",
-            "unconditional"
-          ]
-        },
-        "basis": {
-          "$ref": "urn:workflow:Binding@1"
-        }
-      },
-      "required": [
-        "job",
-        "goal",
-        "basis"
-      ],
-      "additionalProperties": false
-    },
-    "Global@1": {
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "goal": {
-          "enum": [
-            "audit",
-            "conditional",
-            "unconditional"
-          ]
-        },
-        "global": {
-          "$ref": "urn:workflow:Binding@1"
-        }
-      },
-      "required": [
-        "job",
-        "goal",
-        "global"
-      ],
-      "additionalProperties": false
-    },
-    "Local@1": {
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "goal": {
-          "enum": [
-            "audit",
-            "conditional",
-            "unconditional"
-          ]
-        },
-        "global": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "local": {
-          "$ref": "urn:workflow:Binding@1"
-        }
-      },
-      "required": [
-        "job",
-        "goal",
-        "global",
-        "local"
-      ],
-      "additionalProperties": false
-    },
-    "Audited@1": {
-      "type": "object",
-      "properties": {
-        "job": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "goal": {
-          "enum": [
-            "audit",
-            "conditional",
-            "unconditional"
-          ]
-        },
-        "global": {
-          "$ref": "urn:workflow:Binding@1"
-        },
-        "authority": {
-          "$ref": "urn:workflow:Binding@1"
-        }
-      },
-      "required": [
-        "job",
-        "goal",
-        "global",
-        "authority"
-      ],
-      "additionalProperties": false
-    },
     "Intermediate@1": {
       "type": "object",
       "properties": {
@@ -239,7 +135,31 @@
       ],
       "additionalProperties": false
     },
-    "CheckedGlobal@1": {
+    "Foundation@2": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "basis": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "basis"
+      ],
+      "additionalProperties": false
+    },
+    "WorkingGraph@2": {
       "type": "object",
       "properties": {
         "job": {
@@ -254,12 +174,102 @@
         },
         "global": {
           "$ref": "urn:workflow:Binding@1"
+        },
+        "history": {
+          "$ref": "urn:workflow:Binding@1"
         }
       },
       "required": [
         "job",
         "goal",
         "global"
+      ],
+      "additionalProperties": false
+    },
+    "Local@2": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "local": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "history": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "local"
+      ],
+      "additionalProperties": false
+    },
+    "Audited@2": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "authority": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "authority"
+      ],
+      "additionalProperties": false
+    },
+    "GraphRepair@1": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "goal": {
+          "enum": [
+            "audit",
+            "conditional",
+            "unconditional"
+          ]
+        },
+        "global": {
+          "$ref": "urn:workflow:Binding@1"
+        },
+        "repair": {
+          "$ref": "urn:workflow:Binding@1"
+        }
+      },
+      "required": [
+        "job",
+        "goal",
+        "global",
+        "repair"
       ],
       "additionalProperties": false
     }
@@ -299,58 +309,49 @@
       "kind": "task",
       "input": "Job@1",
       "outputs": {
-        "prepared": "Basis@1",
+        "prepared": "Foundation@2",
         "stopped": "Outcome@1"
       },
       "handler": "reduce",
       "executor": "model",
-      "effect": "reconcile"
-    },
-    "basis-outline": {
-      "kind": "task",
-      "input": "Basis@1",
-      "outputs": {
-        "checked": "CheckedGlobal@1"
-      },
-      "handler": "basis_outline",
-      "executor": "model",
       "effect": "reconcile",
       "content": {
-        "checked": {
-          "subject": "global-graph",
+        "prepared": {
+          "subject": "foundations",
           "action": "review-pass",
           "path": [
-            "global",
+            "basis",
             "sha256"
           ]
         }
       }
+    },
+    "basis-outline": {
+      "kind": "task",
+      "input": "Foundation@2",
+      "outputs": {
+        "selected": "WorkingGraph@2"
+      },
+      "handler": "basis_outline",
+      "executor": "model",
+      "effect": "reconcile"
     },
     "outline": {
       "kind": "task",
       "input": "Job@1",
       "outputs": {
-        "checked": "CheckedGlobal@1"
+        "selected": "WorkingGraph@2"
       },
       "handler": "direct_outline",
       "executor": "model",
-      "effect": "reconcile",
-      "content": {
-        "checked": {
-          "subject": "global-graph",
-          "action": "review-pass",
-          "path": [
-            "global",
-            "sha256"
-          ]
-        }
-      }
+      "effect": "reconcile"
     },
     "detail": {
       "kind": "task",
-      "input": "Global@1",
+      "input": "WorkingGraph@2",
       "outputs": {
-        "detailed": "Local@1"
+        "detailed": "Local@2",
+        "repair": "GraphRepair@1"
       },
       "handler": "detail",
       "executor": "model",
@@ -358,18 +359,28 @@
     },
     "audit": {
       "kind": "task",
-      "input": "Local@1",
+      "input": "Local@2",
       "outputs": {
-        "formalize": "Audited@1",
-        "finish": "Outcome@1"
+        "reviewed": "Audited@2",
+        "repair": "GraphRepair@1"
       },
       "handler": "audit",
       "executor": "model",
-      "effect": "reconcile"
+      "effect": "reconcile",
+      "content": {
+        "reviewed": {
+          "subject": "audited-nl0",
+          "action": "review-pass",
+          "path": [
+            "authority",
+            "sha256"
+          ]
+        }
+      }
     },
     "translate": {
       "kind": "task",
-      "input": "Audited@1",
+      "input": "Audited@2",
       "outputs": {
         "discharge": "Intermediate@1",
         "finish": "Outcome@1"
@@ -465,37 +476,79 @@
       "input": "Job@1",
       "outputs": {
         "stopped": "Outcome@1",
-        "frozen": "Global@1"
+        "frozen": "Foundation@2"
       },
       "flow": "basis"
     },
     "nl0-local": {
       "kind": "subflow",
-      "input": "Global@1",
+      "input": "WorkingGraph@2",
       "outputs": {
-        "formalize": "Audited@1",
+        "formalize": "Audited@2",
         "finish": "Outcome@1"
       },
       "flow": "nl0-local"
     },
-    "freeze-global": {
+    "freeze-basis": {
       "kind": "task",
-      "input": "CheckedGlobal@1",
+      "input": "Foundation@2",
       "outputs": {
-        "frozen": "Global@1"
+        "frozen": "Foundation@2"
       },
-      "handler": "freeze_global",
+      "handler": "freeze_basis",
       "executor": "python",
+      "effect": "idempotent",
       "content": {
         "frozen": {
-          "subject": "global-graph",
+          "subject": "foundations",
           "action": "freeze-reviewed",
           "path": [
-            "global",
+            "basis",
             "sha256"
           ]
         }
       }
+    },
+    "seal-audit": {
+      "kind": "task",
+      "input": "Audited@2",
+      "outputs": {
+        "sealed": "Audited@2"
+      },
+      "handler": "seal_audit",
+      "executor": "python",
+      "effect": "idempotent",
+      "content": {
+        "sealed": {
+          "subject": "audited-nl0",
+          "action": "freeze-reviewed",
+          "path": [
+            "authority",
+            "sha256"
+          ]
+        }
+      }
+    },
+    "audit-exit": {
+      "kind": "task",
+      "input": "Audited@2",
+      "outputs": {
+        "formalize": "Audited@2",
+        "finish": "Outcome@1"
+      },
+      "handler": "audit_exit",
+      "executor": "python",
+      "effect": "idempotent"
+    },
+    "revise-graph": {
+      "kind": "task",
+      "input": "GraphRepair@1",
+      "outputs": {
+        "selected": "WorkingGraph@2"
+      },
+      "handler": "revise_graph",
+      "executor": "model",
+      "effect": "reconcile"
     }
   },
   "flows": {
@@ -527,7 +580,7 @@
         "outline": {
           "block": "outline",
           "on": {
-            "checked": "freeze-global"
+            "selected": "nl0-local"
           }
         },
         "translate": {
@@ -587,7 +640,7 @@
           "block": "basis",
           "on": {
             "stopped": "publish",
-            "frozen": "nl0-local"
+            "frozen": "basis-outline"
           }
         },
         "nl0-local": {
@@ -597,10 +650,10 @@
             "finish": "publish"
           }
         },
-        "freeze-global": {
-          "block": "freeze-global",
+        "basis-outline": {
+          "block": "basis-outline",
           "on": {
-            "frozen": "nl0-local"
+            "selected": "nl0-local"
           }
         }
       }
@@ -613,18 +666,12 @@
         "reduce": {
           "block": "reduce",
           "on": {
-            "prepared": "basis-outline",
+            "prepared": "freeze-basis",
             "stopped": "^stopped"
           }
         },
-        "basis-outline": {
-          "block": "basis-outline",
-          "on": {
-            "checked": "freeze-global"
-          }
-        },
-        "freeze-global": {
-          "block": "freeze-global",
+        "freeze-basis": {
+          "block": "freeze-basis",
           "on": {
             "frozen": "^frozen"
           }
@@ -639,11 +686,32 @@
         "detail": {
           "block": "detail",
           "on": {
-            "detailed": "audit"
+            "detailed": "audit",
+            "repair": "revise-graph"
           }
         },
         "audit": {
           "block": "audit",
+          "on": {
+            "reviewed": "seal-audit",
+            "repair": "revise-graph"
+          }
+        },
+        "revise-graph": {
+          "block": "revise-graph",
+          "on": {
+            "selected": "detail"
+          },
+          "max_visits": 8
+        },
+        "seal-audit": {
+          "block": "seal-audit",
+          "on": {
+            "sealed": "audit-exit"
+          }
+        },
+        "audit-exit": {
+          "block": "audit-exit",
           "on": {
             "formalize": "^formalize",
             "finish": "^finish"

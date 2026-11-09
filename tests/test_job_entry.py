@@ -257,7 +257,8 @@ class JobEntryTests(unittest.TestCase):
             result=case_runner.nl0_work(job,None,serial,lambda *a,**k:None,audit_budget=local)
         self.assertEqual(result,expected);self.assertEqual(runner.call_count,1);legacy.assert_not_called()
         self.assertIs(runner.call_args.args[1],serial);self.assertIs(runner.call_args.args[2],local)
-        self.assertEqual(runner.call_args.kwargs,{'restored':None,'prior':[],'initial_issues':None})
+        self.assertEqual(runner.call_args.kwargs,{'restored':None,'prior':[],'initial_issues':None,
+                                                 'sessions':None,'route_graph':True})
 
     def test_first_pass_policy_stops_after_actual_first_nonpass(self):
         job=self.job(policy='first-pass')

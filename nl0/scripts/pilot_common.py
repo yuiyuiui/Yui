@@ -82,14 +82,21 @@ def transport_sandbox_profile(work: Path) -> str:
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
              output: Path | None = None, timeout: float | None = None) -> dict:
+    import lean_timeout_policy
     from staging_storage import reserve, NATIVE_RESERVE
-    with reserve(work,NATIVE_RESERVE):
-        return _run_lean(file,work,extra=extra,sandbox=sandbox,output=output,timeout=timeout)
+    adaptive = lean_timeout_policy.active.get() is not None
+    def invoke(limit):
+        with reserve(work, NATIVE_RESERVE):
+            return _run_lean(file, work, extra=extra, sandbox=sandbox, output=output,
+                             timeout=limit, reviewed_policy=adaptive)
+    if adaptive:
+        return lean_timeout_policy.run(file, timeout, invoke)
+    return invoke(timeout)
 
 
-def _run_lean(file, work, *, extra, sandbox, output, timeout):
+def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False):
     config = __import__('runtime_config')
-    timeout = config.native_timeout(timeout)
+    timeout = config.time_limit(timeout) if reviewed_policy else config.native_timeout(timeout)
     heartbeats = config.native_heartbeats()
     lock = load_lock()
     for name in ['home', 'tmp', 'output']:

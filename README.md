@@ -10,7 +10,7 @@ Yui is a multi-agent harness designed to make natural-language mathematical proo
 
 | Request | Command options | Accepted delivery |
 | --- | --- | --- |
-| Natural-language audit | `--track nl0` | Frozen graph, local proofs and actual Audit A |
+| Natural-language audit | `--track nl0` | The graph revision and local proofs accepted by Audit A |
 | Conditional Lean | `--track full --formalization conditional` | Audit B and the exported theorem under the listed external premises |
 | Unconditional Lean | `--track full --formalization unconditional` | Checked discharge, or the conditional result explicitly selected for retained foundations |
 
@@ -28,7 +28,7 @@ The completed NL0 is reviewed under **Audit A**. A pass produces an acceptance r
 
 ### Conditional formalization
 
-Yui freezes the global proof structure before local authoring, independently reviews and freezes the formal statements of the external theorems and target, and supplies the global information needed for formalization. This forms the intermediate layer.
+Yui assigns each local author a specific revision of the proof graph, returns missing edges to the NL0 graph author, independently reviews and freezes the formal statements of the external theorems and target, and supplies the global information needed for formalization. This forms the intermediate layer.
 
 The resulting proof nodes are then formalized concurrently. Workers can use NL0, the intermediate layer's global information, the optional [Mathlib library](library/README.md) and the [Lean strategy bank](nl02lean/bank/rule.md) to help with their proofs.
 
@@ -44,10 +44,12 @@ An explicit unconditional request uses
 concrete internal derivations, preparing the used Lean proofs and version
 adapters. Before release, a separate reviewer compares the prepared statements
 with their actual Lean propositions, sources and intended uses in one batch.
-The shared Audit A checks both the original target and rewritten proof.
+The checked foundations are frozen. NL0 starts with the supplied graph and can
+revise its intermediate claims and edges under the same foundations.
+The shared Audit A checks both the original target and the revised proof.
 b2lean applies the prepared proofs, then compiles and inspects the actual final
-export with only the original hypotheses. Unresolved textbook dependencies need
-an explicit user choice; accepting them produces a conditional result.
+export. Any remaining textbook premises must have explicit user approval and
+appear in the conditional result.
 See [the basis workflow](nl0/references/basis.md) for stages, records and errors.
 This route is under development; existing benchmark numbers concern the
 conditional workflow, not unconditional performance.

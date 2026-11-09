@@ -192,7 +192,7 @@
       {
         "expect": {
           "status": "paused",
-          "node": "freeze-global",
+          "node": "nl0-local/seal-audit",
           "deliveries": 0
         }
       }
@@ -211,7 +211,82 @@
       {
         "expect": {
           "status": "paused",
-          "node": "basis/freeze-global",
+          "node": "nl0-local/seal-audit",
+          "deliveries": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "refuse a substituted reviewed foundation",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "tampered-foundation",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "paused",
+          "node": "basis/freeze-basis",
+          "deliveries": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "repair a missing local input without rebuilding foundations",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "local-edge",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "unconditional"
+        }
+      }
+    ]
+  },
+  {
+    "name": "return a located Audit A graph finding to the NL0 owner",
+    "entry": "audit",
+    "input": {
+      "job": {
+        "path": "audit-edge",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "completed",
+          "result": "audited"
+        }
+      }
+    ]
+  },
+  {
+    "name": "stop successive graph revisions at the declared limit before delivery",
+    "entry": "unconditional",
+    "input": {
+      "job": {
+        "path": "recurring-edge",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "status": "paused",
+          "node": "nl0-local/revise-graph",
+          "error": "nl0-local/revise-graph: visit budget 8 reached",
           "deliveries": 0
         }
       }

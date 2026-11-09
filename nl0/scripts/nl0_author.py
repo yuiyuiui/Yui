@@ -46,7 +46,7 @@ def prepare(inputs, out, *, baseline=None, obligations=None):
 target-selection.json remain the target/H authority; basis-proof.md is the active
 proof route to present faithfully. Read basis-registry.json, proof-context.json
 and the retained basis source documents. Check replacement dependencies and new
-derivations under the original target. Use the frozen global graph and elaborate its local inferences. A prepared class 3 E is a provisional port discharged by b2lean. Use exactly the provisional E ports/statements in the registry.
+derivations under the original target. Elaborate the currently assigned NL0 graph. Report a missing edge to its NL0 graph owner. Use the exact frozen statements for the foundation ports on this route. Prepared E ports are discharged by b2lean.
 This author check is not independent Audit A; the ordinary Audit A reviews both
 the original task and basis proof. Do not enforce the old original proof route
 against the authorized basis rewrite, or treat basis machine checks as review.

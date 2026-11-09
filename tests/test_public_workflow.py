@@ -56,10 +56,11 @@ class PublicEntryTests(unittest.TestCase):
                 argv=['yui','run',str(problem),'--target',TARGET,'--track',track,'--formalization',goal,
                       '--use-config-profiles','--output',str(out),'--max-concurrency','1']
                 program=support.TESTS/'tooling/public_entry_control.py'
-                if mode=='direct-external':argv+=['--stop-after','nl0']
+                checkpoint_stage={'direct-external':'nl0','planned-closed':'2basis'}.get(mode)
+                if checkpoint_stage:argv+=['--stop-after',checkpoint_stage]
                 command=[sys.executable,'-B',str(program),mode,*argv[1:]]
                 with subprocess.Popen(command,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as child:
-                    if mode=='direct-external':
+                    if checkpoint_stage:
                         import workflow_checkpoint
                         until=time.monotonic()+160
                         checkpoint=out/'stage-checkpoint.json'
@@ -69,7 +70,18 @@ class PublicEntryTests(unittest.TestCase):
                             child.kill()
                             self.fail('No verified NL0 checkpoint: '+str(child.communicate())[-1800:])
                         row=nl0.load(checkpoint)
-                        self.assertEqual(row['stage'],'nl0')
+                        self.assertEqual(row['stage'],checkpoint_stage)
+                        if checkpoint_stage=='2basis':
+                            self.assertFalse((out/'global-graphs').exists())
+                            self.assertFalse((out/'nl0').exists())
+                            self.assertFalse((out/'audit-a').exists())
+                            self.assertTrue((out/'active-inputs/global-nl0.json').is_file())
+                            self.assertEqual(row['artifact'],bind(out/'handoffs/foundations.json'))
+                            seed=out/'active-inputs/global-nl0.json'
+                            original=seed.read_bytes()
+                            seed.write_bytes(original+b' ')
+                            with self.assertRaises(ValueError):workflow_checkpoint.resume(out,row['id'])
+                            seed.write_bytes(original)
                         self.assertFalse((out/'nl0-to-lean').exists())
                         with self.assertRaisesRegex(ValueError,'current waiting'):
                             workflow_checkpoint.resume(out,'stale-id')
@@ -82,10 +94,11 @@ class PublicEntryTests(unittest.TestCase):
                 self.assertEqual(delivery.verify(user)['scope'],scope)
                 steps=[r['node'].split('/')[-1] for r in nl0.load(out/'protocol/work/state.json')['trace']]
                 self.assertEqual(steps.count('outline')+steps.count('basis-outline'),1)
-                self.assertEqual(steps.count('freeze-global'),1)
+                self.assertEqual(steps.count('freeze-basis'),int(goal=='unconditional'))
                 producer='basis-outline' if goal=='unconditional' else 'outline'
-                self.assertLess(steps.index(producer),steps.index('freeze-global'))
-                self.assertLess(steps.index('freeze-global'),steps.index('detail'))
+                self.assertLess(steps.index(producer),steps.index('detail'))
+                if goal=='unconditional':self.assertLess(steps.index('freeze-basis'),steps.index(producer))
+                self.assertLess(steps.index('audit'),steps.index('seal-audit'))
                 self.assertEqual(steps.count('detail'),1)
                 self.assertEqual(steps.count('close'),int(goal=='unconditional'))
                 self.assertEqual([r['id'] for r in nl0.load(user/delivery.STATEMENTS)['entries']],ids)
@@ -164,7 +177,7 @@ class GlobalBoundaryTests(unittest.TestCase):
         spec=nl0.load(source/'spec.json')
         graph=nl0.load(source/'nl0.json')
         outline={'spec':spec,'graph':{**graph,**frozen_graph.shape(graph)}}
-        frozen_graph.check_frozen(outline,spec,graph)
+        frozen_graph.check_assignment(outline,spec,graph)
         mutations=[('prop',lambda s,g:g['propositions'][-1].update(statement='True')),
                    ('edge',lambda s,g:g['inferences'][0].update(inputs=[])),
                    ('target',lambda s,g:s.update(full_target='True')),
@@ -172,10 +185,10 @@ class GlobalBoundaryTests(unittest.TestCase):
                    ('definitions',lambda s,g:s.update(definitions=[{}])),
                    ('params',lambda s,g:s.update(parameters=[]))]
         for label,change in mutations:
-            with self.subTest(label=label),self.assertRaisesRegex(ValueError,'Frozen global'):
-                s,g=deepcopy(spec),deepcopy(graph);change(s,g);frozen_graph.check_frozen(outline,s,g)
+            with self.subTest(label=label),self.assertRaisesRegex(ValueError,'Assigned global'):
+                s,g=deepcopy(spec),deepcopy(graph);change(s,g);frozen_graph.check_assignment(outline,s,g)
         graph['inferences'][0]['argument'][0]['text']='A local revision.'
-        frozen_graph.check_frozen(outline,spec,graph)
+        frozen_graph.check_assignment(outline,spec,graph)
 
     def test_explicit_clean_can_retry_a_previously_packaged_interruption(self):
         import execution_state
@@ -206,9 +219,9 @@ class GlobalBoundaryTests(unittest.TestCase):
 
     def test_located_findings_return_to_the_owner_of_the_field(self):
         for pointer,basis_owner,direct_owner in [
-            ('/spec/definitions/0','global','global'),('/graph/propositions/2/statement','basis','global'),
-            ('/graph/propositions/1/source/reference','global','global'),('/graph/inferences/0/inputs/1','basis','global'),
-            ('/graph/inferences/0/output','basis','global'),('/graph/inferences','basis','global'),
+            ('/spec/definitions/0','global','global'),('/graph/propositions/2/statement','global','global'),
+            ('/graph/propositions/1/source/reference','global','global'),('/graph/inferences/0/inputs/1','global','global'),
+            ('/graph/inferences/0/output','global','global'),('/graph/inferences','global','global'),
             ('/graph/inferences/0/definitions/0','global','global'),('/graph/inferences/0/argument/2','local','local')]:
             issue={'location':pointer,'criterion':'structure'}
             self.assertEqual(frozen_graph.issue_owner(issue,frozen_graph.BASIS),basis_owner)

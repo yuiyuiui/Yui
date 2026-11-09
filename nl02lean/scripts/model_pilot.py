@@ -30,11 +30,14 @@ from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
 import run_pilot as carrier
+import graph_repair
 from runtime_config import model_profile
 from native_client import OUTPUT_POLICY, PROVIDER_WAIT_POLICY
 from pilot_common import sha256, load_lock as runtime_lock
 
 REMOTE_RETRY_POLICY = carrier.REMOTE_RETRY_POLICY
+REPORTED_OBSTACLES = {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT',
+                      'INPUT_CONFLICT','BASIS_REVISION_REQUIRED',graph_repair.STATUS}
 
 
 def load_lock():
@@ -142,7 +145,8 @@ class Stage(carrier.Trial):
             self.system+=artifact_protocol.instructions(schema)
         if mode=='proof':
             self.tools += [carrier.tool('check_auxiliary','Compile one helper proposition and tactic body in exactly this local port context. This never accepts the final goal or adds a premise.',
-                {'statement':{'type':'string'},'proof':{'type':'string'}},['statement','proof']),
+                {'statement':{'type':'string'},'proof':{'type':'string'},
+                 'replace':{'type':'string','description':'Existing helper name for a body repair that preserves its statement and name.'}},['statement','proof']),
                 carrier.tool('read_lean_draft','Read only your own same-stage proof/helper attempts. kind=index lists attempts; proof/auxiliary returns the selected body lines and actual check. No other stage or file is accessible.',
                 {'kind':{'type':'string','enum':['index','proof','auxiliary']},'candidate':{'type':'integer'},'start':{'type':'integer'},'end':{'type':'integer'}},['kind','candidate','start','end'])]
             if instruction_arm=='yui':
@@ -215,6 +219,16 @@ class Stage(carrier.Trial):
         self.last_diagnostic = ''
 
     def dispatch(self, name, args):
+        import lean_timeout_policy
+        key = {'submit_transition':'transition', 'check_transition':'transition',
+               'submit_plan':'plan', 'check_plan':'plan',
+               'submit_interface':'interface', 'check_interface':'interface'}.get(name, name)
+        if name == 'check_auxiliary' and self.mode == 'proof':
+            key = args.get('replace') or f'yui_aux_{len(self.local_helpers)+1:04d}'
+        with lean_timeout_policy.stage_scope(self, key):
+            return self.dispatch_tool(name, args)
+
+    def dispatch_tool(self, name, args):
         if name in ('search_mathlib','read_mathlib'):
             result=super().dispatch(name,args)
             self.observe_proof_progress(name,args,result)
@@ -286,17 +300,12 @@ class Stage(carrier.Trial):
             elif self.mode=='proof' and name=='check_auxiliary':
                 number=len(self.own_lean_drafts['auxiliary'])+1
                 record={'statement':args['statement'],'proof':args['proof']}
+                if 'replace' in args:record['replace']=args['replace']
                 self.own_lean_drafts['auxiliary'][number]=record;record_path=self.logs/'lean-drafts'/f'auxiliary-{number:04d}.json'
-                result=ir.check_auxiliary(self.cpath,self.plan,self.step,args['statement'],args['proof'],
-                    out=self.logs/'auxiliary-checks'/f'{number:04d}',timeout=self.lean_timeout(),helpers=self.local_helpers,cache=self.work/'output/compiled-helpers')
-                self.lean_calls+=result.get('native_calls',1)
+                import local_helpers
+                result,helper=local_helpers.check_edit(self,args,number)
                 result['candidate']=number
-                if result.get('auxiliary_valid') and result.get('lean_sha256'):
-                    import local_helpers
-                    helper=local_helpers.append(self.cpath,self.plan,self.step,self.local_helpers,
-                        args['statement'],args['proof'],result)
-                    self.local_helpers.append(helper)
-                    ir.write(self.logs/'local-helpers.json',self.local_helpers)
+                if helper is not None:
                     result['helper']={'name':helper['name'],'statement':helper['statement'],
                         'application':'@'+helper['name']+' '+ ' '.join(
                             [p['name'] for p in ir.contract(self.cpath)['parameters']]+
@@ -458,6 +467,7 @@ class Stage(carrier.Trial):
                            'packet':self.proof_packet()},ensure_ascii=False)
 
     def execute(self):
+        import lean_timeout_policy
         from role_sessions import current
         session=current()
         if session and not getattr(self,'_role_dispatching',False):
@@ -479,12 +489,14 @@ class Stage(carrier.Trial):
                 if limiter is None:
                     if recorder:self.timeout=recorder.remaining(self.timeout)
                     self.check_runtime_state()
-                    return self._execute()
+                    with lean_timeout_policy.stage_scope(self):
+                        return self._execute()
                 with limiter:
                     self.queue_seconds = time.monotonic()-queued
                     if recorder:self.timeout=recorder.remaining(self.timeout)
                     self.check_runtime_state()
-                    return self._execute()
+                    with lean_timeout_policy.stage_scope(self):
+                        return self._execute()
         except proof_repair.RoundInterrupted as error:
             result={'status':'REPAIR_WAIT','task_outcome':'PROOF_ROUND_RETIRED',
                     'error':str(error),'api_calls':0,'acceptance':False}
@@ -624,7 +636,7 @@ class Stage(carrier.Trial):
             if self.repair_request:
                 result.update(task_outcome='PROOF_DIAGNOSIS_REQUIRED',repair_request=self.repair_request,
                               stop_reason='PROOF_REPAIR_ESCALATION')
-            if self.accepted and self.accepted.get('status') in {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT','BASIS_REVISION_REQUIRED'}:
+            if self.accepted and self.accepted.get('status') in REPORTED_OBSTACLES:
                 result['status'] = 'BLOCKED'
                 result['task_outcome'] = self.accepted['status']
             if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE':
@@ -678,8 +690,7 @@ class Stage(carrier.Trial):
                 result['local_protocol_fault']=self.local_protocol_fault
             if getattr(self,'submission_completion',None):
                 result['submission_completion']=self.submission_completion
-                if case_deadline is None:result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in
-                    {'SUBSTANTIVE_GAP','SUSPECTED_GAP','SOURCE_UNAVAILABLE','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT','BASIS_REVISION_REQUIRED'} else
+                if case_deadline is None:result['stop_reason']=('REPORTED_OBSTACLE' if self.accepted and self.accepted.get('status') in REPORTED_OBSTACLES else
                     'LOCATED_REVIEW_BLOCKER' if self.accepted and self.accepted.get('status')=='REVIEW_BLOCKED_INCOMPLETE' else 'ACCEPTED_ARTIFACT')
             if getattr(self,'post_acceptance_closing_error',None):
                 result['execution_fault']='Post-acceptance closing: '+self.post_acceptance_closing_error

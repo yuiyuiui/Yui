@@ -20,6 +20,47 @@ from audit_b_fixtures import fixture
 
 
 class NativeHelperModules(unittest.TestCase):
+    def test_file_local_helpers_use_exact_closure_and_failed_repair_preserves_registry(self):
+        import copy
+        import model_pilot
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);cp,pp,_,_=fixture(root/'case')
+            c=ir.load(cp);c['header']+='private def localNumber := 1\n';ir.write(cp,c)
+            plan=ir.load(pp);plan['contract_sha256']=ir.digest(cp)
+            worker=model_pilot.Stage(root/'worker',cp,'proof',None,plan,'T001')
+            self.addCleanup(shutil.rmtree,worker.work,True)
+            def check(proof, **options):
+                return worker.dispatch('check_auxiliary',dict(statement='p',proof=proof,**options))
+            for proof in ('exact h_H001','exact @yui_aux_0001 p h_H001','exact h_H001',
+                          'exact @yui_aux_0002 p h_H001'):
+                result=check(proof)
+                self.assertTrue(result.get('auxiliary_valid'),result)
+            rows=copy.deepcopy(worker.local_helpers)
+            self.assertEqual([r['check']['checked_helpers'] for r in rows],
+                             [[],['yui_aux_0001'],[],['yui_aux_0001','yui_aux_0002']])
+            last=(worker.logs/'auxiliary-checks/0004/Auxiliary.lean').read_text()
+            self.assertNotIn('theorem yui_aux_0003',last)
+            self.assertIn('theorem yui_aux_0002',last)
+            self.assertFalse(check('exact False.elim h_H001',replace='yui_aux_0001')['accepted'])
+            self.assertEqual(worker.local_helpers,rows)
+            self.assertEqual(ir.load(worker.logs/'local-helpers.json'),rows)
+            corrected=check('exact (show p from h_H001)',replace='yui_aux_0001')
+            self.assertEqual(corrected['helper']['name'],'yui_aux_0001',corrected)
+            self.assertEqual(worker.local_helpers[2],rows[2])
+            self.assertFalse((worker.logs/'auxiliary-checks/0006/rechecked/yui_aux_0003').exists())
+            self.assertTrue((worker.logs/'auxiliary-checks/0006/rechecked/yui_aux_0002/result.json').is_file())
+            self.assertEqual([r['proof'] for r in worker.local_helpers[1:]],[r['proof'] for r in rows[1:]])
+            with self.assertRaisesRegex(ValueError,'required dependencies'):
+                bad=copy.deepcopy(worker.local_helpers);bad[-1]['check']['checked_helpers']=[]
+                local_helpers.validate(cp,plan,'T001',bad)
+            # An older source-bound receipt remains usable after upgrading.
+            old=copy.deepcopy(rows[:2])
+            del old[1]['check']['checked_helpers']
+            local_helpers.validate(cp,plan,'T001',old)
+            final=worker.dispatch('submit_transition',{'proof':'exact @yui_aux_0004 p h_H001'})
+            self.assertTrue(final['stage_complete'],final)
+            self.assertEqual(len(worker.accepted['proof']['helpers']),4)
+
     def test_warm_dag_replay_is_independent_of_compiled_files_at_final_assembly(self):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);cp,pp,_,_=fixture(root/'case')

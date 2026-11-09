@@ -66,6 +66,8 @@ class FrozenRoute(unittest.TestCase):
         copy=deepcopy(g)
         basis_graph.verify_handoff(optimized,copy)
         copy['inferences'][0]['inputs'].remove('E002')
+        basis_graph.verify_handoff(optimized,copy)
+        next(p for p in copy['propositions'] if p['id']=='E002')['statement']='A different lemma.'
         with self.assertRaisesRegex(ValueError,'frozen'):basis_graph.verify_handoff(optimized,copy)
         for change in ['uses','statement','graph']:
             other=deepcopy(optimized)

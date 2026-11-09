@@ -206,13 +206,13 @@ def verify_route(directory, record, scope, qualified):
     """Read back the public exit from the evidence that survived cleanup."""
     from controller_common import CORE
     from workflow_execution import block_module
-    from frozen_graph import BASIS, DIRECT
+    from frozen_graph import BASIS, DIRECT, LEGACY_BASIS
     goal=record['requested_goal']
     entry='2basis' if goal=='unconditional' else 'nl0'
     if goal not in {'audit','conditional','unconditional'} or record['entry']!=entry:
         raise ValueError('Published entry differs from the requested goal')
     natural=directory/'nl0'
-    if record['audit_a'] and nl0.load(natural/'global.json')['owner']!=(BASIS if entry=='2basis' else DIRECT):
+    if record['audit_a'] and nl0.load(natural/'global.json')['owner'] not in ((BASIS,LEGACY_BASIS) if entry=='2basis' else (DIRECT,)):
         raise ValueError('Published entry differs from the frozen graph producer')
     discharged=(natural/'lean-evidence/discharge.json').is_file()
     alternate=(natural/'alternative/Actual.lean').is_file() and (natural/'alternative/findings.json').is_file()
@@ -341,12 +341,12 @@ def publish(job,result,scope,recorder):
                 entries,audit_b=export_lean(result,scope,Path(authority['graph']),lean)
         global_receipt=root/'global-selection.json'
         if global_receipt.is_file():
-            from frozen_graph import read_frozen,shape
+            from frozen_graph import read_working,shape
             selected=nl0.load(global_receipt)
-            frozen=read_frozen(selected)
+            frozen=read_working(selected)
             if audit_a:
-                from frozen_graph import check_frozen
-                check_frozen(frozen,data[2],data[1])
+                from frozen_graph import check_assignment
+                check_assignment(frozen,data[2],data[1])
                 write(natural/'global.json',{'owner':nl0.load(selected['path'])['owner'],'graph':shape(frozen['graph']),
                                             'spec_sha256':nl0.sha(natural/'spec.json')})
             else:

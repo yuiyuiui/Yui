@@ -14,21 +14,37 @@ def reduce(ctx, data):
     return outcome('prepared', {**data, 'basis': ref('basis')})
 
 def direct_outline(ctx, data):
-    return outcome('checked', {**data, 'global': ref('outline')})
+    return outcome('selected', {**data, 'global': ref('outline')})
 
 def basis_outline(ctx, data):
     return direct_outline(ctx, {k:data[k] for k in ('job','goal')})
 
-def freeze_global(ctx, data):
-    if data['job']['path'] == 'modified-after-review':
-        data = {**data, 'global': {**data['global'], 'sha256': 'b' * 64}}
-    return outcome('frozen', data)
+def freeze_basis(ctx, data):
+    if data['job']['path']=='tampered-foundation':
+        data={**data,'basis':{**data['basis'],'sha256':'b'*64}}
+    return outcome('frozen',data)
 
 def detail(ctx, data):
-    return outcome('detailed', {**data, 'local': ref('local')})
+    if data['job']['path']=='recurring-edge' or (data['job']['path']=='local-edge' and data['global']['path']=='outline'):
+        return outcome('repair',{**data,'repair':ref('missing input')})
+    return outcome('detailed',{**data,'local':ref('local')})
+
+def revise_graph(ctx, data):
+    return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(ctx.activation))})
 
 def audit(ctx, data):
-    return after_audit(data, ref('authority'), ref(data['job']['path']))
+    common={k:data[k] for k in ('job','goal','global')}
+    if data['job']['path']=='audit-edge' and data['global']['path']=='outline':
+        return outcome('repair',{**common,'repair':ref('audit finding')})
+    return outcome('reviewed',{**common,'authority':ref('reviewed source')})
+
+def seal_audit(ctx, data):
+    if data['job']['path']=='modified-after-review':
+        data={**data,'authority':{**data['authority'],'sha256':'b'*64}}
+    return outcome('sealed',data)
+
+def audit_exit(ctx, data):
+    return after_audit(data,data['authority'],ref(data['job']['path']))
 
 def translate(ctx, data):
     different = data['job']['path'] == 'different'
@@ -42,7 +58,7 @@ def publish(ctx, data):
     status = {'stop':'STOPPED_BY_USER','different':'DIFFERENT_RESULT_DELIVERED'}.get(case)
     if not status:
         status = ('DRAFT-AUDIT-CONDITIONAL' if case=='qualified' else 'DRAFT-AUDIT-PASSED') if data['goal']=='audit' else 'WORKFLOW-CONDITIONAL' if case in ('qualified','residual') else 'WORKFLOW-PASSED'
-    closed = case in ('closed','qualified')
+    closed = case in ('closed','qualified','local-edge')
     extra = {'residual':['E004'],'external':['E001']}.get(case,[])
     port, scope = classify(data['goal'], status, closed=closed, qualified=case=='qualified')
     return outcome(port, {'scope':scope,'extra_premises':extra,'inventory':ctx.put_file(scope.encode())})

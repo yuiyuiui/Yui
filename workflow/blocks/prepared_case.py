@@ -20,6 +20,10 @@ def invoke(ctx, data):
         raise ValueError('Expected a new prepared Yui public job')
     expected='audit' if job['track']=='nl0' else job['formalization']
     if ctx.node.startswith('request-'):
+        captured=root/'runtime/workflow/workflow.json'
+        outer=Path(__file__).resolve().parents[1]/'workflow.json'
+        if not captured.is_file() or json.loads(captured.read_bytes())!=json.loads(outer.read_bytes()):
+            raise ValueError('Use this prepared case\'s snapshotted workflow CLI. Its route differs from the selected package.')
         if ctx.node!='request-'+expected:
             raise ValueError('The requested entry differs from the prepared goal')
         return {'port':'selected','data':{**data,'goal':expected}}

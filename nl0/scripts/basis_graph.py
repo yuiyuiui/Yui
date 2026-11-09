@@ -1,4 +1,4 @@
-"""The frozen global NL0 handoff and the active closure of its foundation DAG."""
+"""The structured basis route seed, its active foundation DAG, and the NL0 handoff."""
 from copy import deepcopy
 import re
 
@@ -103,6 +103,34 @@ def optimize(value):
     return result
 
 
+def residual_scope(registry):
+    """Mathematical scope of a reviewed decision within its original case and pinned environment."""
+    return {'version':'yui-residual-scope-1','target':registry['full_target'],
+            'original_statements':{p['id']:p['statement'] for p in registry['global_graph']['propositions']
+                                   if p['id']=='P' or p['id'].startswith('H')},
+            'lean_header':registry['lean_header'],
+            'premises':[r for r in sorted(registry['dependencies'],key=lambda r:r['id']) if r['category']==4]}
+
+
 def verify_handoff(registry, graph):
-    if registry['version']==VERSION and projection(registry['global_graph'])!=projection(graph):
-        raise ValueError('NL0 changed a frozen global statement, inference or input edge; revise the basis graph first')
+    """Compare mathematical roots to the frozen registry. NL0 owns derived N/R nodes."""
+    ports = {row['port']:row for row in registry['dependencies'] if row['port']}
+    props = indexed(graph['propositions'])
+    if registry['version'] != VERSION:
+        expected = {key:row['statement'] for key,row in ports.items() if key.startswith('E')}
+        actual = {key:row.get('statement') for key,row in props.items() if key.startswith('E')}
+        if expected != actual:
+            raise ValueError('Basis NL0 changed the frozen E statements or external ports')
+        return
+    initial = indexed(registry['global_graph']['propositions'])
+    originals = {k for k in initial if k=='P' or k.startswith('H')}
+    if {k for k in props if k=='P' or k.startswith('H')} != originals:
+        raise ValueError('SOURCE_CHANGE_REQUIRES_USER: original hypothesis or target set changed')
+    for key,row in props.items():
+        if key in originals and row.get('statement')!=initial[key]['statement']:
+            raise ValueError('SOURCE_CHANGE_REQUIRES_USER: original statement changed at '+key)
+        if key.startswith(('E','M')):
+            if key not in initial or initial[key]['statement']!=row.get('statement'):
+                raise ValueError('Undeclared or changed frozen foundation at '+key)
+            if key.startswith('E') and key not in ports:
+                raise ValueError('No checked foundation for external premise '+key)

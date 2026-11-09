@@ -12,7 +12,9 @@ hashes at entry. A failed main-proof or auxiliary check with actual structured
 `LEAN_TIMEOUT` metadata or a native heartbeat-exhaustion diagnostic receives
 `repair_advice` in that same tool result. The same worker first follows the
 applicable diagnostic branch, then checks a small fragment and the unchanged
-complete target. No retrieval model or fresh proof session is started.
+complete target. ST020 is retrieved locally. On an actual native wall timeout
+a separate diagnostic reviewer inspects that source and compiler output under
+the translation timeout policy. The original proof author retains the node.
 
 This does not enable arbitrary `find_strategies` queries. Successes, ordinary
 type errors, cancellation, provider faults, native cleanup faults and direct-arm
