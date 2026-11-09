@@ -21,6 +21,27 @@ class WorkingGraphTests(unittest.TestCase):
         self.seed=self.registry['global_graph']
         self.source=support.TESTS/'fixtures/closed-addition'
 
+    def test_a_matching_graph_label_cannot_substitute_an_unrelated_native_theorem(self):
+        import basis
+        registry=active_artifact(artifact(dependency()))
+        rules=basis_graph.handoff()
+        graph,labels=rules.numbered_seed(registry)
+        for row in graph['propositions']:
+            if row['id']=='M001':
+                row.update(kind='mathlib',source={'declaration':'Nat.add_zero'})
+        rules.attach(registry,graph,labels)
+        with tempfile.TemporaryDirectory() as raw:
+            path=Path(raw)/'elaborated.json'
+            write(path,{'dependencies':{'declarations':[
+                {'name':'YuiBasis.B001','imported':False,'direct_constants':['YuiBasis.B001.helper']},
+                {'name':'YuiBasis.B001.helper','imported':False,'direct_constants':['Nat.add_zero']}]}})
+            context={'native':{'path':str(Path(raw)/'check.json')}}
+            basis.check_graph_sources(context,registry,graph)
+            native=next(p for p in graph['propositions'] if p['id']=='M001')
+            native['source']['declaration']='Nat.mul_zero'
+            with self.assertRaisesRegex(ValueError,'M001.*Nat.mul_zero.*B001'):
+                basis.check_graph_sources(context,registry,graph)
+
     def test_frozen_foundations_allow_splitting_merging_and_reusing_intermediates(self):
         draft=deepcopy(self.seed)
         middle=next(p for p in draft['propositions'] if p['id']=='N001')

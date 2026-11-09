@@ -23,9 +23,12 @@ OBJECT = {'type':'object', 'additionalProperties':True}
 
 def shape(graph):
     return {'propositions':graph['propositions'],
-            'inferences':[{name:row[name] for name in GLOBAL_FIELDS} for row in graph['inferences']]}
+            'inferences':[{name:row[name] for name in GLOBAL_FIELDS} for row in graph['inferences']],
+            **({'foundation_ports':graph['foundation_ports']} if 'foundation_ports' in graph else {})}
 
 def indexed(rows):
+    if not isinstance(rows,list) or any(not isinstance(row,dict) or not isinstance(row.get('id'),str) for row in rows):
+        raise ValueError('Supply an ID on each global or local node')
     result = {row['id']:row for row in rows}
     if len(rows) != len(result):
         raise ValueError('Repeated global or local node ID')
@@ -46,18 +49,21 @@ def checked_receipt(source, owner, *, foundation=None, previous=None):
     source = Path(source)
     nl0.validate(source/'nl0.json',source/'spec.json',global_only=True)
     receipt = source/'checked-global.json'
-    write(receipt, {'version':'yui-working-graph-2','owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
+    version = 'yui-working-graph-3' if 'foundation_ports' in nl0.load(source/'nl0.json') else 'yui-working-graph-2'
+    write(receipt, {'version':version,'owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
                     'graph':bind(source/'nl0.json'),**({'foundation':foundation} if foundation else {})})
     return bind(receipt)
 
 def read_receipt(binding):
     verify_bindings([binding])
     record = nl0.load(binding['path'])
-    owners={'yui-global-1':(DIRECT,LEGACY_BASIS),'yui-working-graph-2':(DIRECT,BASIS)}
+    owners={'yui-global-1':(DIRECT,LEGACY_BASIS),'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,)}
     if record['owner'] not in owners.get(record['version'],()):
         raise ValueError('Unknown global graph authority')
     verify_bindings([record['spec'],record['graph']]+([record['foundation']] if 'foundation' in record else []))
     _, graph, spec, *_ = nl0.validate(record['graph']['path'],record['spec']['path'],global_only=True)
+    if record['version']=='yui-working-graph-3' and 'foundation_ports' not in graph:
+        raise ValueError('Missing reviewed foundation labels in working graph')
     return {'spec':spec, 'graph':graph}
 
 def read_working(binding):
@@ -76,19 +82,28 @@ class AuthorContract(NL0Contract):
     def __init__(self, directory, documents, case_id, phase):
         super().__init__(directory, documents, case_id, global_only=phase!=LOCAL)
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
-            {ASSIGNED,'protected-roots.json','prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
+            {ASSIGNED,'numbered-basis-graph.json','protected-roots.json','prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
         self.phase = phase
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
         self.earlier=json.loads(documents.get('protected-roots.json','[]'))
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
-        self.seed = json.loads(documents['global-nl0.json']) if phase==BASIS else None
+        self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
+        if self.registry:
+            from basis_graph import handoff
+            self.seed, self.labels = handoff().numbered_seed(self.registry, self.prior['graph'] if self.prior else None)
         step = protocol.obj({'id':protocol.STRING, 'inputs':protocol.array(protocol.STRING),
                              'output':protocol.STRING, 'definitions':protocol.array(protocol.STRING)})
         if phase in (DIRECT,BASIS):
             form = protocol.obj({'spec':OBJECT,'propositions':protocol.array(OBJECT),
                                  'inferences':protocol.array(step,minItems=1)})
             if phase==BASIS:
-                form = protocol.choice(form,protocol.obj({'spec':OBJECT, 'proposition_details':OBJECT,'inference_definitions':OBJECT}))
+                # A revised route can name B identities directly on its inference rows.
+                step['properties']['basis'] = protocol.array(protocol.STRING,uniqueItems=True)
+                compact = protocol.obj({'spec':OBJECT, 'proposition_details':OBJECT,'inference_definitions':OBJECT})
+                for option in (compact,form):
+                    option['properties']['rename_foundations'] = OBJECT
+                form['properties']['foundation_ports'] = OBJECT
+                form = protocol.choice(form,compact)
         else:
             fields = {'rules':protocol.array(protocol.STRING),'locals':protocol.array(OBJECT),
                       'argument':protocol.array(OBJECT,minItems=1),'applications':protocol.array(OBJECT)}
@@ -112,12 +127,13 @@ class AuthorContract(NL0Contract):
             spec = deepcopy(value['spec'])
             spec.setdefault('format_version',2)
             if 'propositions' in value:
-                props, steps = value['propositions'], value['inferences']
+                props, steps = deepcopy(value['propositions']), deepcopy(value['inferences'])
             else:
                 details = value['proposition_details']
                 definitions = value['inference_definitions']
                 if set(details)!=set(indexed(self.seed['propositions'])) or set(definitions)!=set(indexed(self.seed['inferences'])):
-                    raise ValueError('Supply metadata for exactly the existing basis graph IDs')
+                    missing = sorted(set(indexed(self.seed['propositions'])) - set(details))
+                    raise ValueError(f'Supply metadata for the numbered-basis-graph.json IDs; missing {missing}')
                 props, steps = [], []
                 for row in self.seed['propositions']:
                     extra=details[row['id']]
@@ -128,10 +144,54 @@ class AuthorContract(NL0Contract):
                     steps.append({k:row[k] for k in ('id','inputs','output')} |
                                  {'definitions':definitions[row['id']]})
             expanded={'spec':spec,'graph':{'format_version':2,'propositions':props,'inferences':steps}}
+            if self.registry:
+                if 'foundation_ports' in value and (not self.prior or value['foundation_ports']!=self.prior['graph'].get('foundation_ports')):
+                    raise ValueError('Use rename_foundations to revise the controller-owned foundation labels')
+                self.bind_graph(expanded['graph'], value.get('rename_foundations',{}))
         result=super().__call__(expanded)
         value.clear()
         value.update(expanded)
         return result
+
+    def bind_graph(self, graph, renames):
+        from basis_graph import handoff
+        rules = handoff()
+        seed_steps = indexed(self.seed['inferences'])
+        labels = dict(self.labels)
+        props = indexed(graph['propositions'])
+        rows = indexed(self.registry['dependencies'])
+        for step in graph['inferences']:
+            seed = seed_steps.get(step['id'])
+            # The first handoff preserves each declared use. A revision owns its new edges.
+            uses = step.pop('basis', None)
+            if uses is None:
+                uses = seed['basis'] if not self.prior and seed and seed['output']==step['output'] else []
+            elif not self.prior and seed and seed['output']==step['output']:
+                uses = list(dict.fromkeys([*seed['basis'],*uses]))
+            for key in uses:
+                if key not in labels:
+                    if key not in rows:
+                        raise ValueError(f'{step["id"]}: unknown frozen foundation {key}')
+                    preferred = rows[key]['port']
+                    occupied = set(labels.values()) | {p['id'] for p in self.registry['global_graph']['propositions']
+                                                       if p['id']!=preferred}
+                    labels[key] = preferred if preferred and preferred not in occupied else rules.allocate(rows[key],occupied)
+                label = labels[key]
+                if label not in props:
+                    raise ValueError(f'{step["id"]} uses {key}: supply {label} source metadata from the frozen registry; its input edge is automatic')
+                if label not in step['inputs']:
+                    step['inputs'].append(label)
+        rules.attach(self.registry,graph,labels)
+        if renames:
+            previous=dict(graph[rules.FIELD]['labels'])
+            rules.rename(self.registry,graph,renames)
+            old_label={destination:previous[key] for key,destination in renames.items() if previous[key]!=destination}
+            for row in graph['propositions']:
+                source=row.get('source')
+                if row['id'] in old_label and isinstance(source,dict) and source.get('verification'):
+                    from source_qualification import relabel
+                    source.setdefault('statement',row.get('statement'))
+                    relabel(self.directory,source,old_label[row['id']],row['id'])
 
     def _validate(self, expanded):
         if self.prior:
@@ -153,12 +213,30 @@ def preserve_originals(prior, current, *, basis):
     if any(before[k]!=after[k] for k in ORIGINAL_FIELDS):
         raise ValueError('SOURCE_CHANGE_REQUIRES_USER: original problem changed')
     old,new=indexed(prior['graph']['propositions']),indexed(current['graph']['propositions'])
+    old_labels=prior['graph'].get('foundation_ports',{}).get('labels',{})
+    new_labels=current['graph'].get('foundation_ports',{}).get('labels',{})
+    next_label={label:new_labels.get(b) for b,label in old_labels.items()}
     protected={k for k in old if k=='P' or k.startswith('H') or (basis and k.startswith(('M','E')))}
     used_definitions=set()
     for key in protected:
         row=old[key]
-        if key in new:
-            if row!=new[key]:
+        target=next_label.get(key,key)
+        if target in new:
+            expected={**row,'id':target}
+            actual=new[target]
+            if row['kind']=='mathlib':
+                # Each revision independently verifies these probe receipts against pinned source bytes.
+                expected=deepcopy(expected)
+                expected['source']['evidence']=actual['source']['evidence']
+            elif key!=target and row['kind']=='external' and 'verification' in row['source']:
+                expected=deepcopy(expected)
+                previous=expected['source']['verification']['record']
+                current_record=actual['source'].get('verification',{}).get('record')
+                if not current_record:
+                    raise ValueError('A graph label change cannot remove a source qualification')
+                expected['source']['verification']['record']=current_record
+                expected['source']['evidence']=[current_record if r==previous else r for r in expected['source']['evidence']]
+            if expected!=actual:
                 raise ValueError('Original or foundation declaration changed at '+key)
             used_definitions.update(row['definitions'])
         elif key=='P' or key.startswith('H'):
@@ -216,19 +294,29 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
         for old,_ in versions:
             spec={k:old['spec'][k] for k in (*ORIGINAL_FIELDS,'definitions')}
             props=[p for p in old['graph']['propositions'] if p['id']=='P' or p['id'].startswith(('H','E','M'))]
-            saved={'spec':spec,'graph':{'propositions':props}}
+            saved={'spec':spec,'graph':{'propositions':props,**{k:v for k,v in old['graph'].items() if k=='foundation_ports'}}}
             if saved not in roots:roots.append(saved)
         if roots:write(inputs/'protected-roots.json',roots)
         write(inputs/'global-findings.json',findings)
+    if owner==BASIS:
+        registry=nl0.load(inputs/'basis-registry.json')
+        numbered,labels=basis.basis_graph.handoff().numbered_seed(registry,latest['graph'] if previous else None)
+        write(inputs/'numbered-basis-graph.json',{'version':basis.basis_graph.handoff().VERSION,
+              'labels':labels,'graph':numbered})
     manifest(inputs)
     prompt=('Choose natural small inference nodes suitable for independent Lean workers. Keep shared witnesses and local scopes intact. '
             'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
             'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
-            'Each inference here has only id, inputs, output and definitions. No local proof paragraphs yet. ')
+            'Supply id, inputs, output and definitions for each inference. Local proof paragraphs come later. ')
     if owner==BASIS:
-        prompt+=('Start from the structured route in global-nl0.json. For an unchanged seed submit spec, '
+        prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
+                 'Supply actual source metadata for every allocated node, including successful probes for native M. '
+                 'Use declared document IDs in E evidence, e.g. {"input":"problem.md"}. '
+                 'For the numbered seed submit spec, '
                  'proposition_details and inference_definitions. To revise N/R statements or dependencies, submit '
-                 'spec, propositions and inferences. Use only the authorized foundations, with their exact meanings. ')
+                 'spec, propositions and inferences. In a changed inference, list its direct B IDs in basis. '
+                 'Use rename_foundations (B ID to new graph ID) to rename all uses together. On revisions, start with '
+                 'the prior working labels. Omit case_id; the controller fills it. ')
     else:
         prompt+='Submit spec, propositions and inferences. Direct conditional external sources remain available.'
     if previous:

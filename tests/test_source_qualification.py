@@ -85,6 +85,19 @@ class SourceQualificationTests(unittest.TestCase):
         self.assertFalse(payload['unqualified_pass'])
         self.assertTrue((self.root/'warn.md').is_file())
 
+    def test_relabel_preserves_the_actual_secondary_text_and_failed_access_receipts(self):
+        source=deepcopy(self.graph['propositions'][0]['source'])
+        original=deepcopy(source)
+        before=sq.deferred('E001',source,self.root)
+        sq.relabel(self.root,source,'E001','E014')
+        after=sq.deferred('E014',source,self.root)
+        for field in ('statement','qualification','retrieval_attempts','access_outcomes'):
+            self.assertEqual(before[field],after[field])
+        self.assertNotEqual(before['record'],after['record'])
+        self.assertEqual(sq.deferred('E001',original,self.root),before)
+        with self.assertRaises(ValueError):
+            sq.deferred('E001',source,self.root)
+
     def test_global_acceptance_and_scoped_reuse_preserve_source_warning_without_a_new_review(self):
         import audit_a_campaign as campaign
         import audit_reuse

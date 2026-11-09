@@ -153,10 +153,13 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
     import basis
     basis_context=basis.source_context(case/'nl0.json',case/'spec.json')
     if basis_context:
-        write(inputs/'prepared-basis.json',basis.verify_context(basis_context))
+        registry=basis.verify_context(basis_context)
+        ports=basis.basis_graph.handoff().by_port(registry,data[1])
+        write(inputs/'prepared-basis.json',registry)
+        write(inputs/'working-foundation-ports.json',{p:{'basis':r['id'],'type':r['lean']['type']} for p,r in ports.items()})
         prompt+='''\nThis accepted source follows 2basis. Read prepared-basis.json.
-Keep its lean_header as an exact prefix of your header, and use its exact closed
-Lean types for the provisional E ports. Their actual proofs/adapters have already
+Use working-foundation-ports.json for this audited graph's public IDs and exact closed
+Lean types. Keep the registry lean_header as an exact prefix of your header. The prepared proofs/adapters have already
 been checked. Choose remaining target/representation/T details normally; prepared class 3 ports supply already checked derivations. Do not add E assumptions or re-prove
 the prepared dependencies. b2lean discharges all prepared ports after ordinary Audit B.
 '''

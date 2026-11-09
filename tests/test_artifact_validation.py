@@ -43,6 +43,75 @@ class ArtifactValidationTests(unittest.TestCase):
         value['graph']['inferences'][1]['locals'][0]['end']='S001'
         return value
 
+    def test_external_source_errors_identify_the_actual_row_and_recover_in_place(self):
+        from copy import deepcopy
+        from basis_fixtures import add_external_applications, artifact, dependency
+        value=self.neutral()
+        material={'input':'original.txt'}
+        add_external_applications(value['graph'],artifact(dependency('B001',2),dependency('B002',2)),[material])
+        value['spec'].pop('case_id')
+        value['graph'].pop('case_id')
+        owner=NL0Contract(self.root/'receiver',{'original.txt':'Reviewed source.'},'owned-case',global_only=True)
+        for step in value['graph']['inferences']:
+            for k in ('rules','locals','argument','applications'): step.pop(k)
+        owner(deepcopy(value))
+        pair=[owner.directory/k for k in ('spec.json','nl0.json')]
+        accepted=[p.read_bytes() for p in pair]
+        for position in (0,1):
+            pid=value['graph']['propositions'][position]['id']
+            for field,invalid in [('source',None),('source','absent'),('verification',True),
+                                  ('verification',{'status':'UNVERIFIED_PRIMARY'}),('primary_evidence',[{'input':'missing'}]),
+                                  ('evidence',[{'path':'/another/case/doc.txt','sha256':'a'*64}])]:
+                attempt=deepcopy(value)
+                row=attempt['graph']['propositions'][position]
+                if field=='source' and invalid is None: row.pop(field)
+                elif field=='source': row[field]=invalid
+                else:row['source'][field]=invalid
+                with self.subTest(pid=pid,field=field,invalid=invalid),self.assertRaisesRegex(ValueError,pid+r'\.source'):
+                    owner(attempt)
+                self.assertEqual([p.read_bytes() for p in pair],accepted)
+        modified=deepcopy(value)
+        modified['graph']['propositions'][0]['source']['evidence']=[{'path':'inputs/original.txt','sha256':'a'*64}]
+        with self.assertRaisesRegex(ValueError,'EVIDENCE-HASH'):
+            owner(modified)
+        owner(deepcopy(value))
+        self.assertEqual([p.read_bytes() for p in pair],accepted)
+        self.assertEqual(json.loads(pair[0].read_text())['case_id'],'owned-case')
+
+    def test_prepared_and_external_theorems_bind_only_their_reviewed_primary_material(self):
+        from basis_fixtures import dependency
+        owner=NL0Contract(self.root/'materials',{'text.txt':'citation','basis-registry.json':'checked derivation'})
+        context={'evidence':[]}
+        for category in (2,4):
+            row=dependency(category=category)
+            row['origin']['evidence']=[{'input':'text.txt'}]
+            source={}
+            owner.bind_external_source('E001',source,row,context,working=True)
+            self.assertEqual(source['primary_evidence'],[owner.expected_inputs[0]])
+            with self.assertRaisesRegex(ValueError,'reviewed original evidence'):
+                owner.bind_external_source('E001',{'primary_evidence':[{'input':'basis-registry.json'}]},row,context,working=True)
+        source={}
+        owner.bind_external_source('E001',source,dependency(category=3),context,working=True)
+        self.assertEqual(source['primary_evidence'],[owner.expected_inputs[1]])
+
+    def test_staged_view_of_a_retained_source_is_bound_to_its_own_text_bytes(self):
+        import hashlib
+        from basis_fixtures import dependency
+        name='basis-evidence-000.txt'
+        owner=NL0Contract(self.root/'view',{name:'retained excerpt'})
+        digest=hashlib.sha256(b'retained excerpt').hexdigest()
+        original='b'*64
+        context={'evidence':[{'path':'/earlier/primary.pdf','sha256':original}],
+                 'staged_evidence':[{'input':name,'source_sha256':original,'text_sha256':digest}]}
+        row=dependency(category=4)
+        row['origin']['evidence']=[{'path':'download/primary.pdf','sha256':original}]
+        source={}
+        owner.bind_external_source('E001',source,row,context,working=True)
+        self.assertEqual(source['primary_evidence'],owner.expected_inputs)
+        context['staged_evidence'][0]['text_sha256']='c'*64
+        with self.assertRaisesRegex(ValueError,'staged original evidence changed'):
+            owner.bind_external_source('E001',{},row,context,working=True)
+
     def test_rejected_initial_draft_publishes_no_canonical_pair(self):
         contract=NL0Contract(self.root/'first-invalid',{'problem.txt':'Neutral controller fixture.'})
         with self.assertRaises(ValueError):contract(self.invalid_scope(self.neutral()))

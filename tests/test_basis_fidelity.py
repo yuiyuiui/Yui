@@ -18,6 +18,13 @@ from role_sessions import Sessions
 
 
 class BasisFidelityTests(unittest.TestCase):
+    def test_historical_review_reads_its_own_keys_and_cannot_be_reused_as_a_new_review(self):
+        self.assertEqual(basis_review.rule_for(self.packet,basis_review.PRE_NUMBERING_RULE),basis_review.PRE_NUMBERING_RULE)
+        self.assertNotEqual(basis_review.item_keys(self.packet,basis_review.PRE_NUMBERING_RULE),
+                            basis_review.item_keys(self.packet))
+        with self.assertRaises(ValueError):
+            basis_review.rule_for(self.packet,'unknown')
+
     @classmethod
     def setUpClass(cls):
         cls.scratch=tempfile.TemporaryDirectory()

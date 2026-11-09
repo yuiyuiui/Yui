@@ -151,6 +151,23 @@ class BasisCaseBatchTests(unittest.TestCase):
             import b2lean
             b2lean.validate_receipt(root/'b2lean')
 
+    def test_relabel_approved_theorem_through_local_repair_lean_discharge_and_delivery(self):
+        import b2lean
+        for mode in ('relabel-closed','relabel-residual'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as raw:
+                [(root,result)]=self.batch(Path(raw),[mode])
+                residual=mode=='relabel-residual'
+                self.assertEqual(result['status'],'WORKFLOW-CONDITIONAL' if residual else 'WORKFLOW-PASSED')
+                frozen=ir.load(root/'active-inputs/basis-registry.json')['dependencies'][0]
+                self.assertEqual(frozen['port'],'E001')
+                delivered=ir.load(root/'delivery/nl0/global.json')['graph']
+                self.assertEqual(delivered['foundation_ports']['labels'],{'B001':'E014'})
+                self.assertIn('E014',delivered['inferences'][-1]['inputs'])
+                self.assertNotIn('E001',delivered['inferences'][-1]['inputs'])
+                self.assertEqual(result['closure']['residual_class4'],['B001'] if residual else [])
+                self.assertEqual(result['closure']['remaining_premises'],['E014','H001'] if residual else ['H001'])
+                b2lean.validate_receipt(root/'b2lean')
+
     def test_first_pass_and_genuine_mathematical_obstacles_do_not_request_new_graphs(self):
         for mode,expected in [('first-pass-edge','NL0_GRAPH_REVISION_REQUIRED'),('local-gap','SUBSTANTIVE_GAP')]:
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as raw:

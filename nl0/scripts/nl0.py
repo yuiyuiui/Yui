@@ -119,11 +119,21 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
     require(not current or not legacy, "VERSION", "--legacy is only for historical v1 artifacts")
     for key in ("case_id", "full_target", "conclusion"):
         string(spec[key], f"spec.{key}")
-    record(graph, {"format_version", "case_id", "spec_sha256", "propositions", "inferences"}, "graph")
+    record(graph, {"format_version", "case_id", "spec_sha256", "propositions", "inferences"}, "graph",
+           optional={'foundation_ports'})
     require(type(graph["format_version"]) is int and graph["format_version"] == spec["format_version"], "VERSION", "graph/spec versions differ")
     require(graph["case_id"] == spec["case_id"], "SPEC", "case IDs differ")
     require(graph["spec_sha256"] == sha(spec_path), "SPEC-HASH", "graph is bound to a different specification")
     evidence(base, spec["inputs"])
+    if 'foundation_ports' in graph:
+        import basis_graph
+        registries = [r for r in spec['inputs'] if r['path']=='inputs/basis-registry.json']
+        contexts = [r for r in spec['inputs'] if r['path']=='inputs/proof-context.json']
+        require(len(registries)==len(contexts)==1, 'BASIS', 'graph labels need the selected foundation inventory')
+        context = load(local_path(base,contexts[0]['path']))
+        require(isinstance(context,dict) and isinstance(context.get('basis'),dict) and
+                context['basis'].get('sha256')==registries[0]['sha256'], 'BASIS', 'foundation inventory mismatch')
+        basis_graph.verify_handoff(load(local_path(base,registries[0]['path'])),graph)
     hypotheses = indexed(spec["hypotheses"], r"H\d{3,}", "hypotheses")
     for key, item in hypotheses.items():
         record(item, {"id", "statement", "origin"}, key)

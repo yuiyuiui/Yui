@@ -62,14 +62,16 @@ Reference identifies the actual declaration/public source/theorem or derivation;
 revision identifies its version/edition. Category and compatibility are distinct:
 a Mathlib result from another version is still class 1, possibly `adapted`.
 
-- Class 1/native: direct Mathlib (`port:null`) or optional M port.
+- Class 1/native uses an M label in the working graph.
 - Class 1/adapted and class 2: provisional E port with actual checked proof in
   the pinned target environment. Prepare needed adapters and retained source
   attribution now; no whole-library migration prerequisite.
-- Class 3 is a checked derivation with nonempty `uses`. Supply a pinned type and proof. Use a provisional E for direct consumers and null for a dependency used only by another prepared declaration. The final export applies the prepared proof.
+- Class 3 is a checked derivation with nonempty `uses`. Supply a pinned type and proof. Its direct consumers use an E label. The final export applies the prepared proof.
 - Class 4: `unresolved`, E port, `lean:{type,proof:null}`. Retain a verified
   complete textbook theorem and evidence. Missing sources, contradictions,
   unspecified statements and internal proof gaps are not 4.
+
+List each directly used B ID in the inference's `basis`. For a new working graph the controller assigns one M/E label per directly used B and adds it to every consuming inference. A dependency used solely inside another B needs no graph label. A registry `port` supplies an initial spelling. Before Audit A seals the graph, the global author can request `rename_foundations` for a working revision. The B ID, exact mathematical statement, Lean type, checked proof, provenance and class-4 decision stay bound to the reviewed registry.
 
 `uses` records genuine dependencies; unknown IDs and cycles are rejected.
 Prepared declarations may use their declared predecessors as `YuiBasis.Bddd`. Class 3 can depend on earlier prepared derivations. Classes 1 and 2 use existing pinned or adapted declarations.

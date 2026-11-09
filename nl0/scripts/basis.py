@@ -6,6 +6,7 @@ No source category, compilation result or author note confers Audit A acceptance
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -111,7 +112,7 @@ def validate(value, target):
             lean = row['lean']
             ir.type_text(lean['type'])
             if category==4:
-                if compatibility!='unresolved' or lean['proof'] is not None or not port or not port.startswith('E'):
+                if compatibility!='unresolved' or lean['proof'] is not None or (not modern and not port) or (port and not port.startswith('E')):
                     raise ValueError('Class 4 remains an explicit E with no claimed proof')
             else:
                 if compatibility not in {'native','adapted'}:raise ValueError('Separate proof origin from native/adapted compatibility')
@@ -192,8 +193,10 @@ def evidence_bindings(value, inputs, stage):
                 declared = {r['id']:r for r in ir.load(Path(inputs)/'inputs.json')['inputs']}
                 if name not in declared:raise ValueError(f"{row['id']}: undeclared basis source input: {name}")
                 path=Path(inputs)/name
+                local=basis_graph.handoff().material_ref(evidence, {k:{'path':v['path'],'sha256':v['sha256']}
+                    for k,v in declared.items()}, row['id']+'.origin.evidence')
                 binding=bind(path)
-                if path.is_symlink() or declared[name]['path']!=name or binding['sha256']!=declared[name]['sha256']:
+                if path.is_symlink() or local['path']!=name or binding['sha256']!=local['sha256']:
                     raise RuntimeError('Changed previously declared basis source: '+name)
             elif set(evidence)=={'path','sha256'}:
                 name = evidence['path']
@@ -435,8 +438,14 @@ def run(job, budget, progress):
         active.mkdir()
         copy_problem_documents(root/'inputs',active)
         from jobs import stage_document
+        staged_evidence=[]
         for number, evidence in enumerate(context['evidence']):
-            stage_document(Path(evidence['path']), active/f'basis-evidence-{number:03d}.txt')
+            document=f'basis-evidence-{number:03d}.txt'
+            stage_document(Path(evidence['path']), active/document)
+            # The clean author workspace receives UTF-8 text, including for a retained PDF.
+            staged_evidence.append({'source_sha256':evidence['sha256'],'input':document,
+                                    'text_sha256':hashlib.sha256((active/document).read_text().encode()).hexdigest()})
+        context['staged_evidence']=staged_evidence
         (active/'basis-proof.md').write_text(artifact['proof']);write(active/'basis-registry.json',artifact)
         if artifact['version']==basis_graph.VERSION:write(active/'global-nl0.json',artifact['global_graph'])
         write(active/CONTEXT, context);manifest(active)
@@ -449,6 +458,13 @@ def verify_context(context):
     ir.need(context.get('version')==CONTEXT_VERSION and context.get('formalization')=='unconditional',
         'A new unconditional handoff requires the early basis semantic review; use the frozen runtime for historical receipts')
     verify_bindings([context['basis'],context['native'],*context['original_inputs'],*context['evidence']])
+    if 'staged_evidence' in context:
+        staged=context['staged_evidence']
+        ir.need(isinstance(staged,list) and len(staged)==len(context['evidence']),'Incomplete staged foundation evidence')
+        for index,(view,source) in enumerate(zip(staged,context['evidence'])):
+            ir.need(isinstance(view,dict) and view.get('input')==f'basis-evidence-{index:03d}.txt'
+                    and view.get('source_sha256')==source['sha256'] and isinstance(view.get('text_sha256'),str)
+                    and bool(re.fullmatch(r'[0-9a-f]{64}',view['text_sha256'])), 'Invalid staged foundation evidence binding')
     native = basis_native.verify(context['native']['path'])
     artifact = ir.load(context['basis']['path']);rows,_ = validate(artifact,context['full_target'])
     declarations_, checks, roots = declarations(artifact)
@@ -526,17 +542,47 @@ def source_context(graph, spec):
     ir.need(document['full_target']==context['full_target'],'Source changed original target after basis reduction')
     source_graph = ir.load(graph)
     basis_graph.verify_handoff(artifact,source_graph)
+    check_graph_sources(context,artifact,source_graph)
     return context
+
+
+def check_graph_sources(context, registry, graph):
+    """A working M label names a theorem used in its checked proof or its reviewed citation."""
+    if 'foundation_ports' not in graph:
+        return
+    ports=basis_graph.handoff().by_port(registry,graph)
+    native=[p for p in graph['propositions'] if p['id'] in ports and p['kind']=='mathlib']
+    if not native:
+        return
+    inspected=ir.load(Path(context['native']['path']).parent/'elaborated.json')
+    declarations={r['name']:r for r in inspected['dependencies']['declarations']}
+    for prop in native:
+        row=ports[prop['id']]
+        selector=prop['source']['declaration']
+        pending=['YuiBasis.'+row['id']]
+        visited=set()
+        while pending:
+            name=pending.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            entry=declarations.get(name)
+            if entry and not entry['imported']:
+                pending.extend(entry['direct_constants'])
+        cited=re.findall(r"[\w']+(?:\.[\w']+)*",row['origin']['reference'])
+        if selector not in visited and selector not in cited:
+            raise ValueError(f"{prop['id']}: {selector} is not the checked or cited Mathlib source of {row['id']}")
 
 
 def check_interface(context, contract, graph=None):
     if context is None:return
     artifact = verify_context(context)
     ir.need(contract['header'].startswith(artifact['lean_header']),'Interface changed prepared basis definitions')
-    expected = {r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('E')}
+    ports=basis_graph.handoff().by_port(artifact,graph)
+    expected = {p:r for p,r in ports.items() if p.startswith('E')}
     actual = {p['id']:p for p in contract['premises'] if p['kind']=='external'}
     if artifact['version']==basis_graph.VERSION:
-        expected.update({r['port']:r for r in artifact['dependencies'] if r['port'] and r['port'].startswith('M')})
+        expected.update({p:r for p,r in ports.items() if p.startswith('M')})
         active=set(expected)
         if graph is not None:
             basis_graph.verify_handoff(artifact,graph)

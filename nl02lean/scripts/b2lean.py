@@ -21,7 +21,7 @@ from execution_health import StageFailure
 
 def render(contract, context, conditional_source, levels, *, legacy=False, graph=None):
     artifact=basis.verify_context(context);basis.check_interface(context,contract,graph)
-    by_port={r['port']:r for r in artifact['dependencies'] if r['port']}
+    by_port=basis.basis_graph.handoff().by_port(artifact,graph)
     retained=[p for p in contract['premises'] if p['kind']!='mathlib'
         and (p['kind']=='hypothesis' or by_port[p['id']]['category']==4)]
     expected=audit_b.full_type(contract,contract['conclusion']['type'],retained)
@@ -53,9 +53,10 @@ def render(contract, context, conditional_source, levels, *, legacy=False, graph
     return source, expected, [p['id'] for p in retained]
 
 
-def actual_residual(context,retained):
+def actual_residual(context,retained,graph=None):
     registry=ir.load(context['basis']['path'])
-    return sorted(r['id'] for r in registry['dependencies'] if r['category']==4 and r['port'] in retained)
+    ports=basis.basis_graph.handoff().by_port(registry,graph)
+    return sorted(r['id'] for p,r in ports.items() if r['category']==4 and p in retained)
 
 
 def finish(directory, out, *, context, intermediate, before_publish=None):
@@ -78,7 +79,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
     workflow.bound(directory);basis.verify_context(context)
     final_acceptance.validate_receipt(intermediate['audit_b']['receipt_path'])
     if before_publish is not None:before_publish()
-    residual=actual_residual(context,retained)
+    residual=actual_residual(context,retained,ir.load(frozen['authority']['graph']))
     unconditional=not residual and not receipt['source_conditional']
     result={**intermediate,'version':'yui-b2lean-3','status':'WORKFLOW-PASSED' if unconditional else 'WORKFLOW-CONDITIONAL',
         'formalization_goal':'unconditional','achieved_scope':'UNCONDITIONAL_LEAN' if unconditional else
@@ -117,7 +118,7 @@ def validate_receipt(out):
         ir.load(Path(report['conditional_workflow'])/'audit-b/assembly.json')['universe_parameters'],
         legacy=report['version']=='yui-b2lean-1',graph=ir.load(frozen['authority']['graph']))
     ir.need((out/'Proof.lean').read_text()==source and checked['checks']==[['P','YuiClosed.P',expected]],'Closed export changed')
-    residual=actual_residual(context,retained) if report['version']=='yui-b2lean-3' else context['residual_class4']
+    residual=actual_residual(context,retained,ir.load(frozen['authority']['graph'])) if report['version']=='yui-b2lean-3' else context['residual_class4']
     complete=not residual and not receipt['source_conditional']
     scope='UNCONDITIONAL_LEAN' if complete else 'CONDITIONAL_LEAN' if residual else 'CLOSED_LEAN_SOURCE_QUALIFIED'
     ir.need(report['formalization_goal']=='unconditional' and report['achieved_scope']==scope

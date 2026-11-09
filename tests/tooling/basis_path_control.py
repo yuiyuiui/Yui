@@ -44,6 +44,12 @@ def author_code(stage):
     import frozen_graph as fg
     if 'basis-registry.json' in stage.task_inputs:
         registry=json.loads(stage.task_inputs['basis-registry.json'])
+        if mode.startswith('relabel-'):
+            spec.pop('case_id')
+            evidence=[{'input':'problem.md'}]
+            if stage.mode==fg.LOCAL:
+                current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
+                registry['dependencies'][0]['port']=current['foundation_ports']['labels']['B001']
         if mode=='planned-unused-residual':
             if stage.mode==fg.LOCAL:
                 assigned=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
@@ -60,7 +66,7 @@ def author_code(stage):
             basis='The supplied statements do not imply the requested implication.',
             explanation='The obligations conflict at the last inference even after consulting all available roots.',
             partial_progress='The earlier symmetry node can still be retained.')
-    if mode in {'local-edge','first-pass-edge'}:
+    if mode in {'local-edge','first-pass-edge','relabel-closed','relabel-residual'}:
         if stage.mode==fg.LOCAL:
             current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
             if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
@@ -78,7 +84,8 @@ def author_code(stage):
             for prop in graph['propositions']:
                 if prop['kind'] in ('target','hypothesis'):
                     del prop['statement']
-        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph)})
+        renames={'rename_foundations':{'B001':'E014'}} if mode.startswith('relabel-') else {}
+        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),**renames})
     if stage.mode==fg.BASIS:
         return call('submit_draft',artifact={'spec':spec,
             'proposition_details':{p['id']:{k:v for k,v in p.items() if k not in ('id','statement')} for p in graph['propositions']},
@@ -131,7 +138,7 @@ def review_value(stage):
 def scripted(stage):
     if stage.mode=='basis-authoring':
         revision=stage.logs.parent.name
-        wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision'} and revision=='0001'
+        wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision','relabel-residual'} and revision=='0001'
         cat=4 if wants_residual else 2
         row=dependency(category=cat)
         if mode in {'mismatch','first-pass','late','late-proof'} and revision=='0001':
@@ -182,17 +189,20 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
-        if mode=='local-edge':value['steps'][-1]['inputs'].append('H001')
+        if mode=='local-edge' or mode.startswith('relabel-'):value['steps'][-1]['inputs'].append('H001')
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
         for row in rows:
+            if mode.startswith('relabel-'):row['port']='E014'
             if not row['port'] or (mode=='planned-unused-residual' and row['port']=='E003'):continue
             value['premise_types'][row['port']]=row['lean']['type']
             value['steps'][-1]['inputs'].append(row['port'])
             value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
+        if mode.startswith('relabel-') and stage.step=='T002':
+            return call('submit_transition',proof='exact (h_E014 a).trans (h_H001.trans (h_T001.trans h_H001))')
         if ir.contract(stage.cpath)['id']=='PrivateProof':
             if stage.plan['steps'][0]['statement'] in {'a = a','b = b'}:return call('submit_transition',proof='rfl')
             doc=next(iter(stage.private_sources))
@@ -251,7 +261,9 @@ if __name__ == '__main__':
                         # Simulate elapsed wall clock only after the real residual decision is retained.
                         gate.recorder.deadline=time.monotonic()-.1
                     else:
-                        subprocess.run(gate.state['decisions'][{'planned-conditional':'accept-conditional','planned-unused-residual':'accept-conditional','planned-stop':'stop','planned-continue':'continue'}.get(mode,mode)],check=True,capture_output=True,timeout=15)
+                        action={'planned-conditional':'accept-conditional','planned-unused-residual':'accept-conditional',
+                                'relabel-residual':'accept-conditional','planned-stop':'stop','planned-continue':'continue'}.get(mode,mode)
+                        subprocess.run(gate.state['decisions'][action],check=True,capture_output=True,timeout=15)
                 gate.wait=choose
             else:
                 status=error.get('outcome',{}).get('status') if isinstance(error,dict) else None

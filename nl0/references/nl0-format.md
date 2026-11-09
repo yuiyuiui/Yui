@@ -53,7 +53,7 @@ Use [the authoring template](../templates/authoring.md) and the complete
 example explains metadata placeholders and local-witness accounting; it is not
 a benchmark or proof certification. Required top-level spec fields are:
 
-- `format_version: 2`, `case_id`, `full_target`, `conclusion` (nonempty strings);
+- `format_version: 2`, `case_id`, `full_target`, `conclusion` (nonempty strings). Omit `case_id` in an author submission. The receiving controller fills its bound case ID and checks any explicit value.
 - `parameters`: records `{symbol, type}`; parameter symbols reserve global names.
   Give ambient data types/structures only. Original conditions, ranges and
   equations belong in H, not in parameter refinements that would be visible
@@ -223,6 +223,10 @@ refuses to overwrite existing evidence; `--replace-existing` deliberately
 archives previous outputs and revokes the old active receipt before rerunning.
 The checker verifies this record binding; it does not authenticate a fabricated
 execution transcript. Audit A still reads the actual source and checks meaning.
+
+In an author draft, select a declared document in an evidence list with `{"input":"document-ID"}`. The receiver supplies its case-relative path and verifies the actual SHA-256. Already bound case-relative evidence from the same case can be reused. For an approved class-3 derivation the checked basis registry is its primary material. Classes backed by an outside publication keep their original evidence.
+
+For a basis entry, read `numbered-basis-graph.json` for the current B IDs, graph labels and direct consumer edges. Supply source metadata for those graph nodes. To rename one before local assignment, submit the current IDs plus `"rename_foundations":{"B001":"M014"}`. The controller updates the label and its edges together. The selected graph carries the versioned `foundation_ports` mapping into local proof, Audit A and Lean.
 
 E additionally has nonempty strings `author`, `title`, `version`, `identifier`,
 `locator`, `notation_map`, `errata`, `source_kind`, `origin`, `retrieved_at`,

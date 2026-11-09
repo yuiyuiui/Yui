@@ -12,3 +12,5 @@ Start from the selected target and original hypotheses. Sketch the whole argumen
 Prefer targeted source reads and small source extracts. The controller bounds individual downloads and shares a requested readable URL within its case. Every role gets an independent file view. Disk pressure is an execution fault. Preserve accepted evidence and retry after sufficient space becomes available.
 
 Write each proposition in the global graph as a standalone mathematical statement. Put proposition IDs in inference input and output fields. The editable basis producer applies the same prose checks as the global NL0 reader before dispatching foundation proofs or accepting a candidate. A rejected draft can be patched and resubmitted. The public freeze pins the reviewed mathematical foundations. NL0 receives this structured graph as a seed. Its global author can revise intermediate propositions and edges while preserving the original problem and the frozen foundation declarations.
+
+List directly used B IDs on every consuming inference. The controller assigns working M/E labels and edges for these uses. Keep purely transitive prerequisites in their parent foundation's `uses`.

@@ -243,6 +243,7 @@ class ArtifactStage(pilot.Stage):
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
         source_files = [*CORE.glob('nl0/scripts/*.py'), *CORE.glob('nl02lean/scripts/*.py'),
+                        CORE/'workflow/blocks/foundation_handoff.py',
                         CORE/'toolchain/lock.json', CORE/'config.json']
         files = []
         for path in source_files:
@@ -341,6 +342,8 @@ class ArtifactStage(pilot.Stage):
                 'Candidates from another stage and undeclared files are unavailable. '
                 'The controller binds spec.inputs to all frozen task documents, pins to the verified runtime, '
                 'and graph.spec_sha256 to the resulting spec. Supply these fields as placeholders if needed. '
+                'For E citations select a declared document as {"input":"ID"} in evidence and primary_evidence. '
+                'The controller binds its local file and hash. For a frozen derivation, omit both lists to use its checked source. '
                 'All mathematical fields remain your responsibility. probe_library returns checked M-source evidence '
                 'inside this stage case directory. The controller binds M signature, source hashes, '
                 'declaration kind, commit and evidence from the actual successful probe matching its ID, '
@@ -354,7 +357,7 @@ class ArtifactStage(pilot.Stage):
                 'rewritten. Actual source signatures/source_statement remain separate fidelity obligations. '
                 'A successful check_artifact is structural validation, not Audit A acceptance.')
             self.input_prompt += ('\nFrozen structural contract: spec.format_version=2; graph.format_version=2; '
-                'spec.case_id=graph.case_id='+json.dumps(case_id)+'. '
+                'Omit spec.case_id and graph.case_id; the controller supplies the bound case identity. '
                 'The controller-bound pins are '+json.dumps({'lean_version':'4.32.2',
                     'mathlib_commit':pilot.load_lock()['mathlib']['rev'],
                     'mathlib_root':pilot.load_lock()['mathlib']['local_path']})+'. '

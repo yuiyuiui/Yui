@@ -543,6 +543,60 @@ class NL0Contract:
     def validate_canonical(self, spec, graph):
         """Optional owner checks on canonical declarations before publishing a candidate."""
 
+    def bind_external_source(self, identifier, source, row, context, *, working=False):
+        from basis_graph import handoff
+        from source_qualification import deferred, load_bound
+        where = f'{identifier}.source'
+        declared = {Path(item['path']).name:item for item in self.expected_inputs}
+        staged = {r['source_sha256']:r for r in (context or {}).get('staged_evidence',[])}
+        defaults = []
+        if row is not None:
+            if row['category']==3 and 'basis-registry.json' in declared:
+                # The registered, checked derivation itself is the primary material.
+                defaults = [{'input':'basis-registry.json'}]
+            else:
+                for ref in row['origin']['evidence']:
+                    if 'input' in ref and ref['input'] in declared:
+                        defaults.append(ref)
+                    elif ref.get('sha256') in staged:
+                        record=staged[ref['sha256']]
+                        name=record['input']
+                        if name not in declared or declared[name]['sha256']!=record['text_sha256']:
+                            raise ValueError(f'{where}: staged original evidence changed: {name}')
+                        defaults.append({'input':name})
+                    elif 'sha256' in ref:
+                        for index,item in enumerate(context['evidence']):
+                            name=f'basis-evidence-{index:03d}.txt'
+                            if (item['sha256']==ref['sha256'] and name in declared
+                                    and declared[name]['sha256']==ref['sha256']):
+                                defaults.append({'input':name})
+                                break
+        for field in ('evidence','primary_evidence'):
+            values=source.get(field,defaults if not source.get('verification') else [])
+            if not isinstance(values,list):
+                raise ValueError(f'{where}.{field} must be a list of material references')
+            source[field]=[handoff().material_ref(v,declared,f'{where}.{field}') for v in values]
+            if not source[field] and not source.get('verification'):
+                raise ValueError(f'{where}.{field}: select a primary document with {{"input":"ID"}}; available: '+', '.join(declared))
+        if working and row and row['category'] in (2,4):
+            approved = {declared[ref['input']]['sha256'] for ref in defaults}
+            evidence = source['evidence'] if source.get('verification') else source['primary_evidence']
+            if not any(item['sha256'] in approved for item in evidence):
+                names=', '.join(ref['input'] for ref in defaults)
+                raise ValueError(f"{where}: cite the reviewed original evidence for {row['id']}: {names}")
+        if 'verification' in source:
+            qualification=source['verification']
+            if (not isinstance(qualification,dict) or set(qualification)!={'status','record'}
+                    or qualification['status']!='UNVERIFIED_PRIMARY'):
+                raise ValueError(f'{where}.verification: expected UNVERIFIED_PRIMARY and a bound record')
+            ref=handoff().material_ref(qualification['record'],declared,where+'.verification.record')
+            qualification['record']=ref
+            deferred(identifier,source,self.directory)
+            receipt=json.loads(load_bound(self.directory,ref).read_text())
+            for extra in [ref,receipt['basis'],*receipt['attempts']]:
+                if extra not in source['evidence']:
+                    source['evidence'].append(extra)
+
     def _validate(self, expanded):
         spec, graph = expanded['spec'], expanded['graph']
         if not isinstance(spec, dict) or not isinstance(graph, dict):
@@ -573,6 +627,15 @@ class NL0Contract:
         # Exact Lean printer output and evidence hashes come from actual probes,
         # rather than an error-prone model transcription of thousands of bytes.
         bindings, aliases = [], []
+        context=registry=None
+        ports={}
+        if 'proof-context.json' in self.documents:
+            import basis
+            context=json.loads(self.documents['proof-context.json'])
+            registry=basis.verify_context(context)
+            if spec['full_target']!=context['full_target']:
+                raise ValueError('Basis NL0 changed the original target')
+            ports=basis.basis_graph.handoff().by_port(registry,graph)
         propositions = graph.get('propositions', [])
         if not isinstance(propositions, list):
             raise ValueError('FIELDS: graph.propositions must be a list')
@@ -589,8 +652,10 @@ class NL0Contract:
                 elif kind == 'target' and 'conclusion' in spec:
                     proposition['statement'] = spec['conclusion']
                     aliases.append({'id': identifier, 'field': 'statement', 'from': 'spec.conclusion'})
-            if kind in {'mathlib', 'external'} and isinstance(proposition.get('source'), dict):
-                source = proposition['source']
+            if kind in {'mathlib', 'external'}:
+                source = proposition.get('source')
+                if not isinstance(source,dict):
+                    raise ValueError(f'FIELDS: {identifier}.source must be an object; provide source metadata and select declared evidence with {{"input":"ID"}}')
                 if 'statement' not in source and 'statement' in proposition:
                     source['statement'] = proposition['statement']
                     aliases.append({'id': identifier, 'field': 'source.statement', 'from': 'proposition.statement'})
@@ -601,13 +666,9 @@ class NL0Contract:
                         '; duplicate source.statement='+repr(source.get('statement'))+
                         '. They must match exactly. You may omit source.statement to serialize a copy '
                         'of the primary statement; actual source fidelity is reviewed against the probe/primary document.')
-            if proposition.get('kind') != 'mathlib':
-                if proposition.get('kind')=='external' and source.get('verification'):
-                    from source_qualification import load_bound
-                    reference=source['verification']['record']
-                    deferred=json.loads(load_bound(self.directory,reference).read_text())
-                    source['evidence']=list({(row['path'],row['sha256']):row for row in
-                        [*source.get('evidence',[]),reference,deferred['basis'],*deferred['attempts']]}.values())
+            if kind == 'external':
+                self.bind_external_source(identifier,source,ports.get(identifier),context,working='foundation_ports' in graph)
+            if kind != 'mathlib':
                 continue
             identifier, source = proposition.get('id'), proposition.get('source', {})
             if not isinstance(source, dict):
@@ -663,13 +724,9 @@ class NL0Contract:
         staged_spec = self.directory / ('.validation-spec-'+token+'.json')
         staged_graph = self.directory / ('.validation-nl0-'+token+'.json')
         try:
-            if 'proof-context.json' in self.documents:
-                import basis
-                context=json.loads(self.documents['proof-context.json'])
-                registry=basis.verify_context(context)
-                if spec['full_target']!=context['full_target']:
-                    raise ValueError('Basis NL0 changed the original target')
+            if registry is not None:
                 basis.basis_graph.verify_handoff(registry,graph)
+                basis.check_graph_sources(context,registry,graph)
             write(staged_spec, spec)
             graph['spec_sha256'] = nl0.sha(staged_spec)
             write(staged_graph, graph)

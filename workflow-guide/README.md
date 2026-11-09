@@ -349,7 +349,7 @@ The model adapter revise\_graph receives GraphRepair@1 and returns a named port 
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Give the located graph finding to the NL0 owner and assign the checked successor.
+Give the located finding to the global author. Validate revised labels and every consumer against the same frozen foundations.
 
 nl0-local/revise-graph pauses when visits exceed 8.
 
@@ -421,7 +421,7 @@ The model adapter basis\_outline receives Foundation@2 and returns a named port 
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Start NL0 from the existing structured seed under the frozen foundations.
+Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0.
 
 [basis\_outline implementation](#handler-basis_outline)
 
@@ -1144,7 +1144,7 @@ adapters.py · line 24
 
 ```python
 def basis_outline(ctx, data):
-    """Start NL0 from the existing structured seed under the frozen foundations."""
+    """Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0."""
     return dispatch(ctx, data, 'basis_outline')
 ```
 
@@ -1252,7 +1252,7 @@ adapters.py · line 32
 
 ```python
 def revise_graph(ctx, data):
-    """Give the located graph finding to the NL0 owner and assign the checked successor."""
+    """Give the located finding to the global author. Validate revised labels and every consumer against the same frozen foundations."""
     return dispatch(ctx, data, 'revise_graph')
 ```
 

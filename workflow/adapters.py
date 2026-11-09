@@ -22,7 +22,7 @@ def direct_outline(ctx, data):
     return dispatch(ctx, data, 'direct_outline')
 
 def basis_outline(ctx, data):
-    """Start NL0 from the existing structured seed under the frozen foundations."""
+    """Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0."""
     return dispatch(ctx, data, 'basis_outline')
 
 def freeze_basis(ctx, data):
@@ -30,7 +30,7 @@ def freeze_basis(ctx, data):
     return dispatch(ctx, data, 'freeze_basis')
 
 def revise_graph(ctx, data):
-    """Give the located graph finding to the NL0 owner and assign the checked successor."""
+    """Give the located finding to the global author. Validate revised labels and every consumer against the same frozen foundations."""
     return dispatch(ctx, data, 'revise_graph')
 
 def seal_audit(ctx, data):

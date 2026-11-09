@@ -1,5 +1,6 @@
 """The structured basis route seed, its active foundation DAG, and the NL0 handoff."""
 from copy import deepcopy
+from functools import lru_cache
 import re
 
 import artifact_protocol as p
@@ -10,6 +11,13 @@ PROP = {'type':'string','pattern':r'^(?:[HEMN]\d{3,}|P)$'}
 BASIS = {'type':'string','pattern':r'^B\d{3,}$'}
 
 
+@lru_cache(maxsize=1)
+def handoff():
+    from runtime_config import CORE
+    from workflow_execution import block_module
+    return block_module(CORE / 'workflow', 'foundation_handoff')
+
+
 def schema():
     return p.obj({'propositions':p.array(p.obj({'id':PROP,'statement':p.TEXT}),minItems=1),
         'inferences':p.array(p.obj({'id':{'type':'string','pattern':r'^R\d{3,}$'},
@@ -18,6 +26,8 @@ def schema():
 
 
 def indexed(rows):
+    if not isinstance(rows,list) or any(not isinstance(r,dict) or not isinstance(r.get('id'),str) for r in rows):
+        raise ValueError('Every graph record must supply its ID')
     result = {r['id']:r for r in rows}
     if len(rows)!=len(result):
         raise ValueError('Duplicate graph identifier')
@@ -47,7 +57,7 @@ def active(value, *, prune=False):
             raise ValueError('Unknown global input or basis dependency at '+key)
         expected = {by_port[k]['id'] for k in step['inputs'] if k in by_port}
         ported = {k for k in step['basis'] if rows[k]['port']}
-        if expected != ported or any(rows[k]['category']!=1 and not rows[k]['port'] for k in step['basis']):
+        if expected != ported:
             raise ValueError('Basis use and frozen input ports disagree at '+key)
         origins[out] = step
     if 'P' not in origins or set(origins)!={k for k in props if k=='P' or k.startswith('N')}:
@@ -115,7 +125,7 @@ def residual_scope(registry):
 def verify_handoff(registry, graph):
     """Compare mathematical roots to the frozen registry. NL0 owns derived N/R nodes."""
     ports = {row['port']:row for row in registry['dependencies'] if row['port']}
-    props = indexed(graph['propositions'])
+    props = indexed(graph.get('propositions'))
     if registry['version'] != VERSION:
         expected = {key:row['statement'] for key,row in ports.items() if key.startswith('E')}
         actual = {key:row.get('statement') for key,row in props.items() if key.startswith('E')}
@@ -123,6 +133,8 @@ def verify_handoff(registry, graph):
             raise ValueError('Basis NL0 changed the frozen E statements or external ports')
         return
     initial = indexed(registry['global_graph']['propositions'])
+    working = 'foundation_ports' in graph
+    effective = handoff().by_port(registry,graph) if working else ports
     originals = {k for k in initial if k=='P' or k.startswith('H')}
     if {k for k in props if k=='P' or k.startswith('H')} != originals:
         raise ValueError('SOURCE_CHANGE_REQUIRES_USER: original hypothesis or target set changed')
@@ -130,6 +142,8 @@ def verify_handoff(registry, graph):
         if key in originals and row.get('statement')!=initial[key]['statement']:
             raise ValueError('SOURCE_CHANGE_REQUIRES_USER: original statement changed at '+key)
         if key.startswith(('E','M')):
+            if working and key in effective:
+                continue
             if key not in initial or initial[key]['statement']!=row.get('statement'):
                 raise ValueError('Undeclared or changed frozen foundation at '+key)
             if key.startswith('E') and key not in ports:
