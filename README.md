@@ -6,20 +6,29 @@ Yui is a multi-agent harness for formalizing mathematical proofs in Lean 4. Give
 
 ## 1. Unconditional formalization
 
-Use this workflow when you want a Lean proof under the theorem’s original hypotheses. Yui first identifies the mathematical results it needs to establish the target.
+Use this workflow when you want a Lean proof under the theorem’s original hypotheses. Yui has two special features.
 
-- **Reusable strategy banks.** Authors can consult techniques from earlier formalizations when a problem calls for them. For example, to bound the cost of two successive subroutines, the proof may need a bound on the size of the first subroutine’s output, since that is the second subroutine’s input. The foundation bank covers proof choices like this. The Lean bank covers implementation techniques such as controlling expensive unfolding. [Foundation strategies](nl0/basis-bank/README.md) · [Lean strategies](nl02lean/bank/rule.md)
-- **Use classical textbook theorems to find a simpler proof.** While planning in natural language, Yui can look for a standard theorem that simplifies the main argument, even if the original proof never cites it. For example, a long estimate for exchanging a limit and an integral may give way to an application of the dominated convergence theorem. For a sequence of measurable functions, this route calls for almost-everywhere convergence and a common integrable bound. Yui then looks for Lean proofs of the results it uses in Mathlib or other public Lean libraries, or builds them from simpler lemmas. [Foundation planning](nl0/references/basis-planning.md)
+- **Reusable strategy banks.** Authors can consult techniques from earlier formalizations when a problem calls for them. One bank is for searching for proof graphs. Some difficult tasks like computational complexity theorem may benefit from it. Another bank is for translating to Lean code. [Foundation strategies](nl0/basis-bank/README.md) · [Lean strategies](nl02lean/bank/rule.md)
+- **Use classical textbook theorems to find a basis proof.** Yui first directly finds proof paths not rooted in mathlib but foundation theorems in classical textbooks to shorten the paths length and lower the difficulty of searching for a proof graph. Then it finds Lean proofs for these theorems. [Foundation planning](nl0/references/basis-planning.md)
 
-The proof route can change while the target and its original hypotheses stay fixed. Independent reviewers check that the Lean statements express the intended mathematics. Before accepting an unconditional result, Yui compares the actual exported theorem with the reviewed target, checks that every extra premise has been discharged, and inspects the axioms the proof uses. If a cited theorem is still needed as an extra premise, you can ask Yui to keep working, stop, or explicitly accept a conditional result.
+The proof route can change while the target and its original hypotheses stay fixed. The formalization author explains how the Lean expression matches the original theorem, and independent reviewers check that correspondence.
 
 ## 2. Fast conditional formalization
 
 Use this workflow when you are willing to assume named results from the literature. Yui reviews their Lean statements, fixes the inputs and output of each proof step, and assigns independent steps to parallel Lean authors. It then assembles the proof and checks the exported theorem against the reviewed statements in **Audit B**. The delivery lists the external theorems that remain as premises.
 
+The benchmark compares both methods on the complete natural-language proof of Theorem 1 in the paper on the Li–Wu KdV integrator (AIM problem 518). Both proofs keep the cited literature theorems as explicit assumptions.
+
+| Method | Elapsed time (hh:mm:ss) | Observed input + output tokens |
+| --- | ---: | ---: |
+| Yui | 04:09:26 | 282,760,473 |
+| Pure model, including repair and acceptance review | 11:06:03 | 248,548,201 |
+
+Yui completed this benchmark **2.67 times as fast**, using **13.8% more observed tokens**. Both methods requested **gpt-6.1-sol / high / Standard**. In this benchmark, Yui allowed up to 20 local workers, while pure-model construction used one author session per run. Token accounting was partial.
+
 ## 3. Natural-language audit
 
-Use this workflow to review a proof before investing in Lean formalization. Yui builds a proof graph (**NL0**) that records what each step assumes and what it establishes. In **Audit A**, independent reviewers check the overall argument and each local deduction. You receive the graph and the review outcome.
+You can use this workflow to review a proof just in natural language level with low time and tokens cost. Yui builds a proof graph (**NL0**) that records what each step assumes and what it establishes. In **Audit A**, independent reviewers check the overall argument and each local deduction. You receive the graph and the review outcome.
 
 ## 4. Installation and requirements
 
@@ -44,7 +53,13 @@ Open the folder containing your proof in Codex and ask, for example, `Use $rigor
   --track full --formalization unconditional
 ```
 
-For conditional formalization, use `--track full --formalization conditional`. For a natural-language audit alone, use `--track nl0`. The accepted artifacts and the recorded outcome are in `RUN/delivery/`. Use `yui.py verify-delivery RUN/delivery` to check them. [Operator guide](workflow/SKILL.md)
+For conditional formalization, use `--track full --formalization conditional`. For a natural-language audit alone, use `--track nl0`. [Operator guide](workflow/SKILL.md)
+
+Yui saves the outcome and its supporting files in the run’s `delivery/` directory. To check the files against the recorded outcome, run the following command from the root of your Yui installation. Replace the example path with your delivery directory.
+
+```sh
+.venv/bin/python -B nl0/scripts/yui.py verify-delivery "/path/to/your/run/delivery"
+```
 
 ### Final closure and recovery
 
