@@ -1,186 +1,70 @@
 # Yui
 
-<p align="center"><img src="assets/yui-guitar.png" alt="Anime-style sunburst electric guitar" width="320"></p>
+<p align="center"><img src="assets/yui-guitar.png" alt="Sunburst electric guitar" width="320"></p>
 
-Yui is a multi-agent harness designed to make natural-language mathematical proofs rigorous. Its core workflow has two parts, with an optional unconditional formalization route.
+Yui is a multi-agent harness for formalizing mathematical proofs in Lean 4. Give it a theorem and its natural-language proof, then choose unconditional formalization, fast conditional formalization or a natural-language audit. [Illustrated workflow](workflow-guide/README.md)
 
-## Public workflow
+## 1. Unconditional formalization
 
-[Explore the illustrated workflow](workflow-guide/README.md) to follow each entry through its proof stages and exits. Open the [interactive HTML guide](workflow-guide/index.html) in a local checkout to navigate between diagrams and contracts.
+Use this workflow when you want a Lean proof under the theorem’s original hypotheses. Yui first identifies the mathematical results it needs to establish the target.
 
-| Request | Command options | Accepted delivery |
-| --- | --- | --- |
-| Natural-language audit | `--track nl0` | The graph revision and local proofs accepted by Audit A |
-| Conditional Lean | `--track full --formalization conditional` | Audit B and the exported theorem under the listed external premises |
-| Unconditional Lean | `--track full --formalization unconditional` | Checked discharge, or the conditional result explicitly selected for retained foundations |
+- **Reusable strategy banks.** Authors can consult techniques from earlier formalizations when a problem calls for them. For example, to bound the cost of two successive subroutines, the proof may need a bound on the size of the first subroutine’s output, since that is the second subroutine’s input. The foundation bank covers proof choices like this. The Lean bank covers implementation techniques such as controlling expensive unfolding. [Foundation strategies](nl0/basis-bank/README.md) · [Lean strategies](nl02lean/bank/rule.md)
+- **Use classical textbook theorems to find a simpler proof.** While planning in natural language, Yui can look for a standard theorem that simplifies the main argument, even if the original proof never cites it. For example, a long estimate for exchanging a limit and an integral may give way to an application of the dominated convergence theorem. For a sequence of measurable functions, this route calls for almost-everywhere convergence and a common integrable bound. Yui then looks for Lean proofs of the results it uses in Mathlib or other public Lean libraries, or builds them from simpler lemmas. [Foundation planning](nl0/references/basis-planning.md)
 
-Use these options with `python nl0/scripts/yui.py run PROOF --target 'FULL STATEMENT' --use-config-profiles`. Create the Python environment once from the repository root with `python3 -m venv .venv` and `.venv/bin/python -m pip install -r workflow/requirements.txt`. Run the CLI with that interpreter. The workflow definition drives execution, diagrams and generated tests. The [operator instructions](workflow/SKILL.md) describe the shared graph, checkpoints, output and maintenance checks.
+The proof route can change while the target and its original hypotheses stay fixed. Independent reviewers check that the Lean statements express the intended mathematics. Before accepting an unconditional result, Yui compares the actual exported theorem with the reviewed target, checks that every extra premise has been discharged, and inspects the axioms the proof uses. If a cited theorem is still needed as an extra premise, you can ask Yui to keep working, stop, or explicitly accept a conditional result.
 
-The public result is in `RUN/delivery/`. It contains `formalization/`, `theorem_formalization_statement.json`, `nl0/` and `run.json`. A natural-language audit leaves the Lean directory and statement list empty. Use `yui.py verify-delivery RUN/delivery` for readback, and add `--comparator /path/to/comparator` for native proof comparison. Explicit `yui.py cleanup RUN --apply` preserves the delivery and checks it again after releasing owned resources.
+## 2. Fast conditional formalization
 
-## 1. How it works
+Use this workflow when you are willing to assume named results from the literature. Yui reviews their Lean statements, fixes the inputs and output of each proof step, and assigns independent steps to parallel Lean authors. It then assembles the proof and checks the exported theorem against the reviewed statements in **Audit B**. The delivery lists the external theorems that remain as premises.
 
-### Natural-language auditing
+## 3. Natural-language audit
 
-Yui organizes the original proof into a proof graph, **NL0**, with explicit external theorems and reviewed background mathematics. Each proof node has a prescribed format, inputs and outputs. Its argument is rewritten and audited for hidden dependencies, using only its available inputs and justified routine background facts. A fixed Mathlib version is used in the formalization stage; exact Mathlib bindings for routine background steps are resolved there.
-
-The completed NL0 is reviewed under **Audit A**. A pass produces an acceptance record and an NL0 proof considered rigorous within this natural-language auditing system. Audit A is model-based mathematical review, rather than a machine-checked proof.
-
-### Conditional formalization
-
-Yui assigns each local author a specific revision of the proof graph, returns missing edges to the NL0 graph author, independently reviews and freezes the formal statements of the external theorems and target, and supplies the global information needed for formalization. This forms the intermediate layer.
-
-The resulting proof nodes are then formalized concurrently. Workers can use NL0, the intermediate layer's global information, the optional [Mathlib library](library/README.md) and the [Lean strategy bank](nl02lean/bank/rule.md) to help with their proofs.
-
-Once all nodes are complete, the Python controller assembles the proof, runs Lean and performs **Audit B**. It checks proof closure and that the actual external premises, target and relevant definitions agree with the reviewed, frozen intermediate layer. The result is a conditional Lean proof whose literature theorems remain explicit assumptions.
-
-## 2. Efficiency and advantages
-
-### Optional unconditional formalization
-
-An explicit unconditional request uses
-`2basis → the same NL0/Audit A → the same nl02lean/Audit B → b2lean`.
-2basis rewrites the proof toward actual Mathlib/public Lean-library results and
-concrete internal derivations, preparing the used Lean proofs and version
-adapters. Before release, a separate reviewer compares the prepared statements
-with their actual Lean propositions, sources and intended uses in one batch.
-The checked foundations are frozen. NL0 starts with the supplied graph and can
-revise its intermediate claims and edges under the same foundations.
-The shared Audit A checks both the original target and the revised proof.
-b2lean applies the prepared proofs, then compiles and inspects the actual final
-export. Any remaining textbook premises must have explicit user approval and
-appear in the conditional result.
-See [the basis workflow](nl0/references/basis.md) for stages, records and errors.
-This route is under development; existing benchmark numbers concern the
-conditional workflow, not unconditional performance.
-
-### Fast conditional formalization
-
-Detailed tests and benchmark results are in [Yui-results](https://github.com/yuiyuiui/Yui-results). On a complete natural-language proof from a real research problem, the recorded end-to-end results were:
-
-| Method | Elapsed time | Observed tokens |
-| --- | ---: | ---: |
-| Yui | 4 h 9 min | 282,760,473 |
-| Pure model, including repair and acceptance review | 11 h 6 min | 248,548,201 |
-
-In this benchmark, Yui completed the task **2.67 times as fast**, using **1.14 times as many observed tokens**. Both were configured for **gpt-6.1-sol / high / Standard**. Yui allowed 20 local workers; pure-model construction used one author session per run. The figures include the recorded repairs and reviews, and usage accounting is partial.
-
-### Fast natural-language assurance
-
-On the same input, NL0 writing and Audit A, including local repair, used:
-
-| Stage | Elapsed time | Observed tokens |
-| --- | ---: | ---: |
-| Yui: NL0 + Audit A | About 34 min | 12,402,106 |
-
-This stage took about **1/19.6 of the elapsed time** and **0.05 times the tokens** of the pure model's complete Lean formalization above. It produces audited NL0; there is no measured pure-model NL0-only baseline here.
-
-If you do not want to spend as much effort on conditional formalization but are concerned about a proof's correctness, Yui's natural-language auditing system provides a quicker way to improve confidence in it.
-
-### Preserving external-theorem and target interfaces
-
-The benchmark showed that, for a long natural-language proof, a pure model can deliver substantially different external-theorem statements even when a strong model is explicitly asked to formalize the original external theorems with strict equivalence. In the author's experience, this has been a recurring problem, was more pronounced with GPT-5.6, and was not resolved simply by setting a goal. These are the author's observations, rather than a controlled comparison across models.
-
-Yui's approach is to review and freeze the formal external theorems and target during intermediate-layer construction, when the workload is smaller and the model can focus on those statements. Final machine checks compare the delivered proof against the frozen interfaces, so downstream drift is surfaced rather than silently accepted. Fidelity to the original natural-language statements still depends on the independent semantic review before freezing.
-
-## 3. Library and bank
-
-Foundation and Lean authors may consult two small strategy catalogs on demand.
-The [foundation bank](nl0/basis-bank/README.md) covers choices such as a cost-preserving
-representation or a subroutine specification. The [author lookup](nl02lean/references/obstacle-routing.md)
-also serves Lean implementation guidance. Looking up a card is optional at every stage.
-
-[library](library/README.md) stores entries, each linked to a theorem in a particular Mathlib version. If your formalization work focuses on a specific field, you can collect frequently used Mathlib theorems there after repeated conditional formalization runs with Yui, to speed up retrieval. We have not yet demonstrated that a larger library produces a substantial speedup.
-
-[bank](nl02lean/bank/rule.md) stores general strategies for writing Lean proofs and fixing errors. In the author's experience, some of these strategies have provided substantial speedups, but there is no guarantee that they will remain useful as models become stronger. After using Yui, users can try collecting the writing and repair strategies that the model spent time developing. So far, the author has curated only a small selection of broadly applicable strategies.
+Use this workflow to review a proof before investing in Lean formalization. Yui builds a proof graph (**NL0**) that records what each step assumes and what it establishes. In **Audit A**, independent reviewers check the overall argument and each local deduction. You receive the graph and the review outcome.
 
 ## 4. Installation and requirements
 
-Install the complete repository as the **rigorous-proof** skill, keeping its runtime files beside `SKILL.md`:
+Yui runs on macOS and uses an authenticated Codex CLI with its matching Code Mode helper, Python, ripgrep, and a pinned Lean and Mathlib toolchain. Install the complete repository as the `rigorous-proof` skill and check the environment. The setup guide covers the required tools and PDF support. [Local setup](docs/setup.md)
 
 ```sh
 mkdir -p "$HOME/.agents/skills"
 git clone https://github.com/yuiyuiui/Yui.git "$HOME/.agents/skills/rigorous-proof"
+cd "$HOME/.agents/skills/rigorous-proof"
+python3 -m venv .venv
+.venv/bin/python -m pip install -r workflow/requirements.txt
+.venv/bin/python -B nl0/scripts/yui.py doctor
 ```
-
-If you already have Yui installed under this skill name, use that installation instead of creating a duplicate. Restart Codex if the skill is not detected.
-
-### Runtime
-
-The current runtime requires:
-
-- macOS, with its `sandbox-exec` isolation mechanism.
-- An authenticated, compatible Codex CLI with its matching Code Mode helper.
-- Python and ripgrep; reading PDFs also requires `pdftotext` or Python's `pypdf` package.
-- Lean **4.32.2** and the matching pinned Mathlib environment described in [the toolchain configuration](toolchain/lock.json), installed separately.
-
-Set `YUI_LEAN_ROOT` and `YUI_MATHLIB_ROOT` if these tools are installed outside the default locations under your home directory. `YUI_CODEX_BINARY` can select a Codex executable outside the normal search locations. Check the installation with:
-
-```sh
-python3 -B "$HOME/.agents/skills/rigorous-proof/nl0/scripts/yui.py" doctor
-```
-
-For first-time Codex and pinned Lean/Mathlib installation, follow the [local setup guide](docs/setup.md).
 
 ### Use
 
-Open your proof's folder in local Codex and ask, for example:
+Open the folder containing your proof in Codex and ask, for example, `Use $rigorous-proof to formalize Theorem 1 in proof.pdf unconditionally.` You can also start the workflow from the repository root using the CLI.
 
-```text
-Use $rigorous-proof on proof.pdf through NL0/Audit A and Lean/Audit B.
-Use gpt-6.1-sol/high/Standard for both phases, with 20 local workers.
+```sh
+.venv/bin/python -B nl0/scripts/yui.py run /path/to/proof.pdf \
+  --target 'Full statement of the theorem' --use-config-profiles \
+  --track full --formalization unconditional
 ```
 
-For natural-language auditing alone, request **NL0 and Audit A only** and provide the model profile. When no worker count is specified, Yui uses one slot per R node for local Audit A review/repair, then one slot per T node for local Lean proofs, including shared lemmas and representation conversions. An explicit positive worker count caps each phase instead. Global authoring/review, preprocessing and postprocessing remain serial within a case; deduplication or checked reuse may reduce actual worker calls. Results are saved beside the input under `rigorous-proof/<run-id>/`. See the [operator guide](nl0/references/operation.md) for detailed configuration and controls, and [Yui-results](https://github.com/yuiyuiui/Yui-results) for test and benchmark reproduction prompts.
-
-## 5. Limitations and next steps
-
-1. **Unconditional formalization performance.** The optional basis/discharge route has software controls and native Lean regression fixtures. Its mathematical route selection, success rate and speed on substantial research proofs still require model-driven evaluation.
-
-2. **Evaluating the division into proof nodes.** There is not yet a suitable evaluator for how a proof should be split. In observed runs, much of the parallel formalization time is spent on one particularly difficult node. Building a stable evaluator-optimizer for this division is a next step.
-
-3. **Possible redundancy in NL0 and Audit A.** Strong models may not need all the information supplied by NL0. The older [nl0-detail branch](https://github.com/yuiyuiui/Yui/tree/nl0-detail) wrote a much more detailed NL0. In the author's development runs, substantially reducing the work spent on NL0 and Audit A was accompanied by a large reduction in intermediate-layer construction time, a small increase in node-formalization time, and a large decrease in total time. It may be possible to simplify NL0 and Audit A further. However, supplying less natural-language information could sharply increase the burden on weaker models. We do not yet have a good way to match model capability to the amount of natural-language detail it needs.
-
-4. **A lightweight natural-language auditing system.** Much of the current NL0 work supplies information for formalization. A lighter system could audit complete natural-language proofs and also serve as a skill invoked periodically while a model is reasoning, checking local progress and reducing hallucinations.
-
-## 6. References
-
-Workflow design was informed by Anthropic's [Building effective agents](https://www.anthropic.com/research/building-effective-agents).
-
-The logo and project name are inspired by Yui Hirasawa from *K-On!*.
-
-The [MIT license](LICENSE) applies to original Yui code, documentation, strategy descriptions and other original project content. It does not grant rights to third-party material.
-
-Lean, Mathlib, Codex and other external tools retain their own licenses and terms. They are not relicensed by Yui. Mathlib source excerpts and theorem-query output retain the applicable upstream attribution and license; see [Mathlib's license](https://github.com/leanprover-community/mathlib4/blob/master/LICENSE).
-
-Original Yui metadata and strategy advice do not grant additional rights to the external material they describe. A source citation or a successful proof check is not a redistribution license.
+For conditional formalization, use `--track full --formalization conditional`. For a natural-language audit alone, use `--track nl0`. The accepted artifacts and the recorded outcome are in `RUN/delivery/`. Use `yui.py verify-delivery RUN/delivery` to check them. [Operator guide](workflow/SKILL.md)
 
 ### Final closure and recovery
 
-Final basis discharge inspects the actual Lean declaration. It preserves levels
-in the remaining parameters, hypotheses, approved residual assumptions and
-conclusion, and instantiates only dependency-private levels at zero. Named
-public levels, including composite `max`/`imax` levels, remain named; inferred
-`Type*` levels are constrained by the actual arguments. The final standalone
-proof still requires native compilation, full-signature comparison and
-transitive axiom inspection. The v2 closure receipt uses this renderer; v1
-receipts are revalidated with their original renderer.
-
-After a verified software repair, an explicitly cancelled, exited, unlimited
-normal-policy unconditional run whose only remaining failure is
-`BASIS_FINAL_CLOSURE_FAILED` can reuse its accepted basis and Audit B:
+If a controller fault interrupted only the final discharge, Yui can reuse the checked foundations and Audit B after the fault has been fixed. For an explicitly cancelled, exited, unlimited normal-policy run with `BASIS_FINAL_CLOSURE_FAILED`, prepare a new run from that checkpoint and execute it.
 
 ```sh
-python3 -B nl0/scripts/yui.py resume OLD_RUN --repair-basis-closure --prepare-only
-python3 -B nl0/scripts/yui.py execute NEW_RUN --detach
+.venv/bin/python -B nl0/scripts/yui.py resume OLD_RUN --repair-basis-closure --prepare-only
+.venv/bin/python -B nl0/scripts/yui.py execute NEW_RUN --detach
 ```
 
-Preparation checks the original documents, target, prepared proofs, frozen
-interface, accepted Audit B and prior failure. It rejects live owners, pending
-incidents and changed evidence. Execution uses a fresh immutable runtime and
-only reruns the final native closure; no author or reviewer is called. It
-preserves the old run and its costs, records recovery provenance, and rechecks
-the authority before publishing. Source qualifications and approved residual
-assumptions remain conditional. Each fresh run can execute only once; an
-existing output is never overwritten. Use ordinary cancellation and owned
-cleanup for the new run.
+## Tests and benchmarks
+
+The three unconditional formalization tests, the three conditional formalization tests and the benchmarks are available at <https://github.com/yuiyuiui/Yui-results>.
+
+## Credits and license
+
+The name and guitar artwork are inspired by Yui Hirasawa from *K-On!*. Yui’s original code and documentation are available under the [MIT license](LICENSE).
+
+## References
+
+- The algorithm for pruning proof dependencies draws on [SHEAF](https://github.com/frenzymath/SHEAF).
+- The workflow scheduling design draws on [MIPStarRE](https://github.com/LionSR/MIPStarRE).
+- The agent workflow also draws on Anthropic’s [Building effective agents](https://www.anthropic.com/research/building-effective-agents).
