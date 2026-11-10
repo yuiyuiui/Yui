@@ -89,7 +89,7 @@ def suites(root):
     out = {}
     covered = set()
     for row in value["suites"]:
-        fields(row, {"id", "file", "timeout"}, {"covers"}, "suite")
+        fields(row, {"id", "file", "timeout"}, {"covers", "origin_cases"}, "suite")
         key, file = row["id"], row["file"]
         need(
             isinstance(key, str)
@@ -125,6 +125,17 @@ def suites(root):
             type(row["timeout"]) is int and row["timeout"] > 0,
             f"{key}: positive timeout required",
         )
+        if "origin_cases" in row:
+            cases = row["origin_cases"]
+            need(isinstance(cases, dict) and len(cases) >= 2,
+                 f"{key}: origin_cases needs at least two named input origins")
+            seen = {}
+            for origin, case in cases.items():
+                need(isinstance(origin, str) and origin.strip() and isinstance(case, str)
+                     and re.fullmatch(r"[A-Za-z_]\w*\.test_[A-Za-z0-9_]+", case),
+                     f"{key}/{origin}: expected Class.test_method")
+                need(case not in seen, f"{key}: {origin} and {seen.get(case)} share {case}; use distinct witnesses")
+                seen[case] = origin
         out[key] = {**row, "members": members}
     discovered = {
         p.relative_to(root).as_posix()
@@ -620,12 +631,18 @@ def audit(
                 def extensions():
                     result = []
                     for key, row in info["suites"].items():
+                        command = [sys.executable, "-B", str(src / row["file"])]
+                        if "origin_cases" in row:
+                            command = [sys.executable, "-B", str(src / "scripts/wfcore/origin_cases.py"),
+                                       str(src / row["file"]), json.dumps(row["origin_cases"])]
                         subprocess_check(
-                            [sys.executable, "-B", str(src / row["file"])],
+                            command,
                             src,
                             row["timeout"],
                         )
                         result.append(key)
+                        if "origin_cases" in row:
+                            report.setdefault("origin_cases", {})[key] = row["origin_cases"]
                     report["extension_suites"] = result
                     return True
 

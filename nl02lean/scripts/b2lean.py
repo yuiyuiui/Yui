@@ -32,7 +32,8 @@ def render(contract, context, conditional_source, levels, *, legacy=False, graph
         if premise['kind']=='mathlib':continue  # Already discharged by ordinary assembly.
         row=by_port.get(premise['id'])
         arguments.append('(@YuiBasis.'+row['id']+')' if row and basis.prepared(row) else 'h_'+premise['id'])
-    declarations,_,_=basis.declarations(artifact)
+    # The connected proof already contains exactly these checked declarations.
+    declarations,_,_=basis.declarations(artifact, omit=contract.get('prepared_instances',{}).get('included',()))
     source=conditional_source+'\n'+declarations
     source+='\nnamespace YuiClosed\nset_option autoImplicit false\n'
     if legacy:

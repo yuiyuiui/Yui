@@ -150,6 +150,7 @@ def prepare(cpath,ppath,bpath,out,**source):
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
              HERE/'scripts/local_helpers.py', HERE/'scripts/helper_modules.py', HERE/'scripts/dependency_instances.py',
+             ir.ROOT/'workflow/blocks/lean_input_instances.py',
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',

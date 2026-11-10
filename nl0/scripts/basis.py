@@ -151,11 +151,13 @@ def prepared(row):
     return row['category']!=4 and row['lean'] is not None
 
 
-def declarations(value):
+def declarations(value, *, omit=()):
     rows, order = validate(value, value['full_target'])
     source = '\nnamespace YuiBasis\nset_option autoImplicit false\n'
     checks = [];roots = []
     for key in order:
+        if key in omit:
+            continue
         row = rows[key]
         if prepared(row):
             source += f"set_option Elab.async false in\ntheorem {key} : {row['lean']['type']} := by\n{ir.proof_text(row['lean']['proof'])}\n"
@@ -574,8 +576,35 @@ def check_graph_sources(context, registry, graph):
             raise ValueError(f"{prop['id']}: {selector} is not the checked or cited Mathlib source of {row['id']}")
 
 
-def check_interface(context, contract, graph=None):
-    if context is None:return
+def universe_ports(ports, inspected):
+    """Read declaration-level universes from the verified kernel inspection."""
+    declarations_by_name = {d['name']: d for d in inspected['dependencies']['declarations']}
+    available = {}
+    for port, row in ports.items():
+        if prepared(row):
+            levels = declarations_by_name['YuiBasis.' + row['id']]['levels']
+            if levels:
+                available[port] = {'basis': row['id'], 'levels': levels}
+    return available
+
+
+def instance_evidence(artifact, ports, inspected, selected):
+    available = universe_ports({k: r for k, r in ports.items() if k in selected}, inspected)
+    if not available:
+        return None
+    rows, order = validate(artifact, artifact['full_target'])
+    needed = {v['basis'] for v in available.values()}
+    for key in reversed(order):
+        if key in needed:
+            needed.update(rows[key]['uses'])
+    return {'ports': available, 'included': [key for key in order if key in needed],
+            'source': declarations(artifact, omit=rows.keys() - needed)[0]}
+
+
+def check_interface(context, contract, graph=None, *, step_instances=None):
+    if context is None:
+        ir.need('prepared_instances' not in contract, 'Specialized foundation inputs require verified 2basis evidence')
+        return
     artifact = verify_context(context)
     ir.need(contract['header'].startswith(artifact['lean_header']),'Interface changed prepared basis definitions')
     ports=basis_graph.handoff().by_port(artifact,graph)
@@ -594,6 +623,23 @@ def check_interface(context, contract, graph=None):
     for key,row in actual.items():
         ir.need(row['type']==expected[key]['lean']['type'] and row['statement']==expected[key]['statement'],
             'Interface changed prepared basis type/context at '+key)
+    # Authoring binds only requested instances. Freeze and closure reproduce
+    # that evidence from the checked registry before trusting the connection.
+    if 'prepared_instances' in contract or (step_instances and set(step_instances) & actual.keys()):
+        native = ir.load(Path(context['native']['path']).parent / 'elaborated.json')
+        selected = step_instances
+        if selected is None:
+            previous = contract['prepared_instances']
+            ir.need(isinstance(previous,dict) and isinstance(previous.get('ports'),dict),
+                    'Invalid prepared universe input binding')
+            selected = previous['ports']
+        support = instance_evidence(artifact, {k: ports[k] for k in actual}, native, selected)
+        if step_instances is None:
+            ir.need(contract['prepared_instances'] == support, 'Prepared universe inputs differ from checked basis declarations')
+        elif support:
+            contract['prepared_instances'] = support
+        else:
+            contract.pop('prepared_instances',None)
 
 
 def foundation_record(job):

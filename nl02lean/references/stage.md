@@ -145,6 +145,13 @@ argument and a positive integer is a projection (e.g. 2 for `.2`). Optionally
 supply `expected` to check the resulting type, or `explicit:true` to use
 `@h_T005`. For an entire unapplied input use empty args with its expected type.
 
+On the 2basis route, a direct foundation in `working-foundation-ports.json`
+with `universe_params` supports the same `levels` and `uses` rows. Supply them
+when a call needs a particular level, including the universe of a type introduced
+inside the consumer. Lean checks the call against the frozen proposition and
+connects it to the checked foundation theorem. Hypotheses and unresolved or
+conditional assumptions keep their ordinary local binders.
+
 Preflight compiles these actual calls and the dependency connections together
 before dispatch. Its synthetic signature witnesses take a private `False`
 assumption; they are discarded, never provided to a worker, and never exported.

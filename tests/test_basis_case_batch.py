@@ -105,6 +105,17 @@ class BasisCaseBatchTests(unittest.TestCase):
                 self.assertTrue(author_ids.isdisjoint(reviewer_ids))
                 self.assertTrue(ir.load(run/'batch-result.json')['children_exited'])
 
+    def test_prepared_and_internal_universe_calls_reach_the_actual_unconditional_export(self):
+        with tempfile.TemporaryDirectory() as raw:
+            [(root,result)]=self.batch(Path(raw),['universe-use'])
+            self.assertEqual(result['status'],'WORKFLOW-PASSED',result)
+            self.assertEqual(result['closure']['remaining_premises'],['H001'])
+            proof=(root/'b2lean/Proof.lean').read_text()
+            self.assertIn('(@YuiBasis.B001.{u})',proof)
+            self.assertIn('@__connected_T003.{0}',proof)
+            import b2lean
+            b2lean.validate_receipt(root/'b2lean')
+
     def test_planned_foundation_worker_reaches_final_kernel_export(self):
         with tempfile.TemporaryDirectory() as raw:
             [(root,result)]=self.batch(Path(raw),['planned-closed'])

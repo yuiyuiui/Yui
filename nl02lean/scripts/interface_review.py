@@ -58,7 +58,7 @@ material (contract.json or plan.json); include other actual locations as useful.
 findings is a list of {verdict,explanation,locations} for concrete defects or
 uncertainties, empty if none. Do not repair the proposal or invent a PASS.
 Source proofs and completed local Lean proof bodies are not requested here.
-For a generic internal dependency compare the recorded input_instances with the
+For a specialized internal or prepared dependency compare the recorded input_instances with the
 source use: the right ambient/index types, all needed instances and the actual
 arguments or projections. Lean checks those declared calls; flag an omitted or
 irrelevant use even if its declaration compiles.

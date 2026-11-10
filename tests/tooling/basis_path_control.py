@@ -143,6 +143,10 @@ def scripted(stage):
         wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision','relabel-residual'} and revision=='0001'
         cat=4 if wants_residual else 2
         row=dependency(category=cat)
+        if mode=='universe-use':
+            row['statement']='In an additive structure with zero, adding zero on the right preserves each element.'
+            row['lean']={'type':'∀ (A : Type*) [AddZeroClass A] (x : A), x + 0 = x',
+                         'proof':'intro A _ x; exact add_zero x'}
         if mode in {'mismatch','first-pass','late','late-proof'} and revision=='0001':
             row['statement']='There exists one natural number n such that every natural number equals n.'
         if mode=='evidence-repair' and requests[stage.logs]==1:
@@ -201,8 +205,20 @@ def scripted(stage):
             value['premise_types'][row['port']]=row['lean']['type']
             value['steps'][-1]['inputs'].append(row['port'])
             value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
+        if mode=='universe-use':
+            consumer=value['steps'][-1]
+            consumer['inputs']=['T001','T003']
+            consumer['input_instances']={'T003':[{'levels':['0'],'uses':[{'args':['ℕ','a']}]}]}
+            value['steps'].insert(1,{'id':'T003','statement':'∀ (A : Type u) [AddZeroClass A] (x : A), x + 0 = x',
+                'source_steps':['S002'],'inputs':['E001'],'explanation':'Apply the frozen right identity at the current type.',
+                'universe_params':['u'],'input_instances':{'E001':[{'levels':['u'],'uses':[{
+                    'parameters':[{'name':'A','type':'Type u'},{'name':'inst','type':'AddZeroClass A','binder_kind':'instance'},
+                                  {'name':'x','type':'A'}],'args':['A','x'],'expected':'x + 0 = x'}]}]}})
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
+        if mode=='universe-use' and stage.step in ('T003','T002'):
+            proof='intro A _ x; exact h_E001 A x' if stage.step=='T003' else 'exact (h_T003 ℕ a).trans h_T001.symm'
+            return call('submit_transition',proof=proof)
         if mode.startswith('relabel-') and stage.step=='T002':
             return call('submit_transition',proof='exact (h_E014 a).trans (h_H001.trans (h_T001.trans h_H001))')
         if ir.contract(stage.cpath)['id']=='PrivateProof':

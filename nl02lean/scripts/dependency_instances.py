@@ -1,4 +1,5 @@
-"""Checked universe instances of internal Lean dependencies. No new graph premises."""
+"""Checked universe instances of direct Lean dependencies. No new graph premises."""
+from functools import lru_cache
 import json
 import re
 
@@ -44,25 +45,33 @@ def check_fields(step, location):
     ir.need(not extra, f'{location}: unsupported step fields {sorted(extra)}')
 
 
-def validate(step, nodes):
+@lru_cache(maxsize=1)
+def sources():
+    from workflow_execution import block_module
+    return block_module(ir.ROOT / 'workflow', 'lean_input_instances')
+
+
+def validate(step, nodes, prepared=None):
     sid = step['id']
     check_fields(step,sid)
     params = step.get('universe_params', [])
     ir.need(isinstance(params, list) and all(isinstance(p,str) and ir.IDENTIFIER.fullmatch(p) for p in params)
             and len(set(params)) == len(params), f'{sid}/universe_params: expected distinct universe names')
     instances = step.get('input_instances', {})
-    ir.need(isinstance(instances, dict) and set(instances) <= set(step['inputs']) & nodes.keys(),
-            f'{sid}/input_instances: use direct internal input IDs')
+    ir.need(isinstance(instances, dict) and set(instances) <= set(step['inputs']),
+            f'{sid}/input_instances: use direct input IDs')
     for dep, rows in instances.items():
         where = f'{sid} <- {dep}'
+        source = sources().resolve(dep, nodes, prepared or {})
+        ir.need(source is not None, f'{where}: specialization requires a direct internal input or a checked polymorphic foundation declaration')
         ir.need(isinstance(rows,list) and rows, f'{where}: declare at least one instance')
         for row in rows:
             ir.need(isinstance(row,dict) and set(row)=={'levels','uses'}, f'{where}: expected levels and uses')
             levels = row['levels']
-            ir.need(isinstance(levels,list) and len(levels)==len(nodes[dep].get('universe_params',[]))
+            ir.need(isinstance(levels,list) and len(levels)==len(source.levels)
                     and all(isinstance(s,str) and LEVEL.fullmatch(s) and s.strip()
                             and not re.search(r'\b_\b',s) for s in levels),
-                    f'{where}: levels must match the producer universe_params in order')
+                    f'{where}: levels must match the producer universe_params in order ({source.levels})')
             ir.need(isinstance(row['uses'],list) and row['uses'], f'{where}: supply actual consumer applications')
             for use in row['uses']:
                 ir.need(isinstance(use,dict) and {'args'} <= set(use) <= {'args','parameters','expected','explicit'},
@@ -102,7 +111,7 @@ def require_instances(nodes):
 
 
 def level_suffix(levels):
-    return '.{' + ', '.join(levels) + '}' if levels else ''
+    return sources().suffix(levels)
 
 
 def with_args(name, args):
@@ -115,6 +124,10 @@ def type_header(c, nodes, keys):
     context = ir.binder_text(c)
     lines = ['namespace YuiPortTypes']
     for key in sorted(keys):
+        if key not in nodes:
+            # Foundation signatures are closed over their own declaration levels.
+            lines.append(f"abbrev {key} : Prop :=\n  {ir.premises(c)[key]}")
+            continue
         step = nodes[key]
         levels = level_suffix(step.get('universe_params', []))
         lines.append(f"abbrev {key}{levels} {context} : Prop :=\n  {step['statement']}")
@@ -161,8 +174,9 @@ def ports(c, nodes, step):
         for i,row in enumerate(rows):
             suffix = level_suffix(row['levels'])
             name = 'h_'+key + (f'_{i+1}' if i else '')
-            bindings.append({'id':key,'binder':name,'type':with_args(f'@YuiPortTypes.{key}{suffix}',args),
-                             'producer_statement':nodes[key]['statement'],
+            inner = key in nodes
+            bindings.append({'id':key,'binder':name,'type':with_args(f'@YuiPortTypes.{key}{suffix}',args if inner else []),
+                             'producer_statement':nodes[key]['statement'] if inner else source_types[key],
                              'levels':row['levels'],'uses':row['uses']})
     return bindings
 
@@ -200,17 +214,21 @@ def connectors(c, nodes, order, terminal, *, preflight):
         step = nodes[key]
         used = set()
         for dep in step['inputs']:
-            used.update(needed[dep] if dep in nodes else [dep])
+            if dep in nodes:
+                used.update(needed[dep])
+            elif dep not in step.get('input_instances', {}):
+                used.add(dep)
         needed[key] = [p for p in roots if p in used]
         binders = ' '.join(f'(h_{p} : {roots[p]})' for p in needed[key])
         ins = []
         for port in ports(c, nodes, step):
             dep = port['id']
-            if dep not in nodes:
-                ins.append(port['binder'])
+            if dep in nodes or 'levels' in port:
+                source = sources().resolve(dep, nodes, c.get('prepared_instances', {}).get('ports', {}))
+                context_args = args + ['h_'+p for p in needed.get(dep, [])] + check_arg
+                ins.append(sources().application(source, port.get('levels', []), context_args))
             else:
-                name = '@__connected_'+dep+level_suffix(port.get('levels',[]))
-                ins.append('('+with_args(name,args+['h_'+p for p in needed[dep]]+check_arg)+')')
+                ins.append(port['binder'])
         levels = level_suffix(step.get('universe_params', []))
         theorem_name = '__preflight_'+key if preflight else key
         call = with_args('@'+theorem_name,args+ins+check_arg)

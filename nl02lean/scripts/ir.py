@@ -185,13 +185,17 @@ def validate(cpath, plan):
     shared = {s['id']: s for s in c.get('shared_obligations', [])}
     objects = {o['id']: o for o in c.get('objects', [])}
     import dependency_instances
+    support = c.get('prepared_instances', {})
+    prepared = support.get('ports', {})
+    selected = {key for step in steps for key in step.get('input_instances', {}) if key in prepared}
+    need(selected == set(prepared), 'Plan changed the selected prepared universe inputs')
     for s in steps:
         need(re.fullmatch(r'T\d{3}', s['id']) is not None, 'invalid transition id')
         type_text(s['statement'])
         need(isinstance(s['inputs'], list) and len(set(s['inputs'])) == len(s['inputs']), 'duplicate inputs')
         need(set(s['inputs']) <= roots | by_id.keys(), 'unregistered input')
         need(s['id'] not in s['inputs'], 'self-dependency')
-        dependency_instances.validate(s, by_id)
+        dependency_instances.validate(s, by_id, prepared)
         need(s['source_steps'] and set(s['source_steps']) <= source_ids, 'invalid NL correspondence')
         need(s['explanation'].strip(), 'missing transition mechanism')
         if 'background_notes' in s:
@@ -319,6 +323,7 @@ def proof_text(body):
 def render(cpath, plan, proofs=None, only=None, types_only=False):
     import dependency_instances as di
     c, nodes, order = validate(cpath, plan)
+    support = c.get('prepared_instances', {})
     if types_only: di.require_instances(nodes)
     if only:
         need(only in nodes, 'unknown transition')
@@ -366,6 +371,10 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
             text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(body)}\n\n"
         if s.get('universe_params'):
             text += 'end\n'
+    if support.get('source') and not only:
+        # Local authors only see proposition aliases. Introduce checked proof
+        # constants here, after every local body, for the actual connections.
+        text += 'end Translation\n'+support['source']+'\nnamespace Translation\nset_option autoImplicit false\n'
     if types_only and not only:
         ins = ' '.join(f"(h_{p['id']} : {p['type']})" for p in c['premises'])
         text += checked_expression('__signature_P', c['conclusion']['type'],

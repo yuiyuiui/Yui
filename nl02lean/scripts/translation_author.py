@@ -156,12 +156,18 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
         registry=basis.verify_context(basis_context)
         ports=basis.basis_graph.handoff().by_port(registry,data[1])
         write(inputs/'prepared-basis.json',registry)
-        write(inputs/'working-foundation-ports.json',{p:{'basis':r['id'],'type':r['lean']['type']} for p,r in ports.items()})
+        inspected=ir.load(Path(basis_context['native']['path']).parent/'elaborated.json')
+        polymorphic=basis.universe_ports(ports,inspected)
+        write(inputs/'working-foundation-ports.json',{p:{'basis':r['id'],'type':r['lean']['type'],
+            **({'universe_params':polymorphic[p]['levels']} if p in polymorphic else {})} for p,r in ports.items()})
         prompt+='''\nThis accepted source follows 2basis. Read prepared-basis.json.
 Use working-foundation-ports.json for this audited graph's public IDs and exact closed
 Lean types. Keep the registry lean_header as an exact prefix of your header. The prepared proofs/adapters have already
 been checked. Choose remaining target/representation/T details normally; prepared class 3 ports supply already checked derivations. Do not add E assumptions or re-prove
-the prepared dependencies. b2lean discharges all prepared ports after ordinary Audit B.
+the prepared dependencies. For a direct prepared port listing universe_params, use a step's existing
+input_instances to choose its levels and show its actual application when specialization is needed.
+For example, record a call at the universe of a type introduced inside the step. Keep the foundation type unchanged.
+b2lean discharges the remaining prepared ports after ordinary Audit B.
 '''
     if prior_interface:
         shutil.copyfile(prior_interface,inputs/'prior-interface.json')
@@ -273,9 +279,10 @@ class InterfaceContract:
             supplement=json.loads(supplement_file.read_text())
             contract['source'].update(background_supplement=supplement,
                 background_supplement_sha256=supplement['sha256'])
-        write(directory/'contract.json',contract)
         import basis
-        basis.check_interface(self.basis_context,contract,self.graph)
+        basis.check_interface(self.basis_context,contract,self.graph,
+            step_instances={key for step in value['steps'] for key in step.get('input_instances',{})})
+        write(directory/'contract.json',contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,
                   json.loads(supplement_file.read_text()) if supplement_file.is_file() else None),
