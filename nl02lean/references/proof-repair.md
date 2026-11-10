@@ -31,9 +31,9 @@ Each node has its own retained author. Ordinary compiler/API/tactic feedback sta
 with that author. A native wall timeout retains the candidate and receives a
 source-located diagnosis. Only a workload-only finding increases the next
 allowance by six minutes (maximum thirty). Code defects and uncertain causes
-return to the author at the current allowance. A failed proof check or heartbeat
-exhaustion eligible for ST020 receives the frozen advice in the tool result. Isolate the
-expensive application, repair and recheck the unchanged target. There is no total
+return to the author at the current allowance. Native wall or heartbeat exhaustion
+can attach ST020 as an optional reference. The author chooses how to repair the
+proof and rechecks the original target. There is no total
 case, token, call, repair-round or turn allowance by default.
 
 `report_proof_obstruction` requests a diagnosis; it does not itself finish the

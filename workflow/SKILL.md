@@ -15,6 +15,11 @@ For a basis entry the global author receives a numbered graph. Each directly use
 
 ## Operators
 
+Foundation planning and Lean authoring expose the optional `consult_strategy`
+tool. Omit `ids` to read a short catalog, then select any relevant IDs for
+complete guidance. The query and reply contracts live in the same workflow
+definition as the case. A zero-lookup run has the same proof and review gates.
+
 The Yui case owns the process group, budget, material requests, decisions, checkpoints, delivery and cleanup. Read `yui.py status RUN`, `observe RUN` or `errors RUN` for the live owner and exact incident. Supply source bytes with `supply-material RUN --incident ID --file FILE`. Use `resume-checkpoint RUN --id ID` at a requested stage boundary. When a user says they sent the requested reference, inspect attachments actually received in the owning chat. Bind the matching file to the open incident. If there are several plausible editions, ask which one to bind. Leave the request waiting while no matching file is available. `verify-delivery RUN/delivery` rechecks the portable graph, evidence and endpoint inventory. Supply `--comparator BINARY` to build and compare the theorem package. `cleanup RUN --apply` explicitly releases owned scratch and preserves the verified delivery.
 
 The standalone protocol CLI accepts a prepared job binding in `{"job":{"path":"…/job.json","sha256":"…"}}`. Run `python scripts/flow.py start PROTOCOL_DIR ENTRY @input.json` from this package with a fresh protocol directory, separate from the case. This runs the frozen case or reads its corresponding completed transitions. Use Yui controls against the case path for operational interaction.

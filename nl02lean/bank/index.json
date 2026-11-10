@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "source_sha256": "176505789ab208e2fd7b556204e178185e9ff3fc6ea6f937ae1d8b388473db58",
+  "source_sha256": "45d8a63aca5f2996e684a75e5edaaadd693e9ca0060f2d5e79c56a9894ac3c68",
   "metadata": {
     "ST001": {
       "title": "Transport a relation through an explicit conversion",
       "revision": 3,
       "family": "representation",
+      "obstacle": "The input and target use different representations of the same intended objects.",
       "domains": [
         "general"
       ],
@@ -31,6 +32,7 @@
       "title": "Distinguish quotient objects from their representatives",
       "revision": 3,
       "family": "representation",
+      "obstacle": "A statement about equivalence classes is being used as a statement about chosen representatives.",
       "domains": [
         "general"
       ],
@@ -56,6 +58,7 @@
       "title": "Isolate changes of convention in a reusable bridge",
       "revision": 3,
       "family": "representation",
+      "obstacle": "Two definitions express related constructions under different conventions.",
       "domains": [
         "general"
       ],
@@ -80,6 +83,7 @@
       "title": "Expose a suitable algebraic form before automation",
       "revision": 3,
       "family": "calculation",
+      "obstacle": "Arithmetic automation cannot match the current expression to its supported form.",
       "domains": [
         "algebra"
       ],
@@ -105,6 +109,7 @@
       "title": "Separate approximation from passage to a limit",
       "revision": 3,
       "family": "analysis",
+      "obstacle": "An infinite construction is easier to compare on finite or otherwise controlled approximants.",
       "domains": [
         "analysis"
       ],
@@ -131,6 +136,7 @@
       "title": "Prove domain and side conditions before applying a partial construction",
       "revision": 3,
       "family": "representation",
+      "obstacle": "A function or theorem is available only for data satisfying a specified domain condition.",
       "domains": [
         "general"
       ],
@@ -155,6 +161,7 @@
       "title": "Preserve quantifier order when strengthening convergence",
       "revision": 3,
       "family": "analysis",
+      "obstacle": "A pointwise statement is being used to support a conclusion uniform over a family.",
       "domains": [
         "analysis"
       ],
@@ -177,8 +184,9 @@
     },
     "ST012": {
       "title": "Track witness and constant dependencies before specialization",
-      "revision": 3,
+      "revision": 4,
       "family": "interface",
+      "obstacle": "A chosen witness or constant may depend on data that the target requires it to be independent of.",
       "domains": [
         "general"
       ],
@@ -198,12 +206,13 @@
       ],
       "status": "GENERAL_GUIDANCE",
       "path": "cards/ST012.json",
-      "sha256": "3e0317a6f7771aeb0cc247bee16b5cda3cf04b069ac9989d307b36d92347c0b0"
+      "sha256": "5869b06ed8cbe4be72ee2670295e1be5f27d865480a789760bbc59c9cc9c01f0"
     },
     "ST013": {
       "title": "Keep external statements faithful and derive local consequences internally",
       "revision": 3,
       "family": "provenance",
+      "obstacle": "A cited result is being packaged into a formal premise for a different setting.",
       "domains": [
         "general"
       ],
@@ -229,6 +238,7 @@
       "title": "Prove reindexing before transferring an aggregate",
       "revision": 3,
       "family": "representation",
+      "obstacle": "A sum, supremum or other indexed construction is being expressed using a different index type.",
       "domains": [
         "general"
       ],
@@ -252,8 +262,9 @@
     },
     "ST015": {
       "title": "Verify the actual exported theorem signature",
-      "revision": 3,
+      "revision": 4,
       "family": "interface",
+      "obstacle": "A convenient wrapper may hide extra premises or omit part of the requested conclusion.",
       "domains": [
         "general"
       ],
@@ -273,12 +284,13 @@
       ],
       "status": "GENERAL_GUIDANCE",
       "path": "cards/ST015.json",
-      "sha256": "a1af4dce1364fd32bd344bc730aba27449c70926dde8cea07cb9bd0779294841"
+      "sha256": "b263131786d140609ec130bfd20697a6911fbbd643098cdea895d428707e4885"
     },
     "ST016": {
       "title": "Freeze conditional interfaces before parallel proof construction",
       "revision": 3,
       "family": "interface",
+      "obstacle": "Independent proof bodies must be assembled without relying on hidden state.",
       "domains": [
         "general"
       ],
@@ -305,6 +317,7 @@
       "title": "Inspect the pinned library signature before integration",
       "revision": 3,
       "family": "representation",
+      "obstacle": "A remembered library call does not match its actual type or required instances.",
       "domains": [
         "general"
       ],
@@ -330,6 +343,7 @@
       "title": "Separate execution health from proof outcome",
       "revision": 3,
       "family": "execution",
+      "obstacle": "A run ended or stalled without enough evidence to identify the failed layer.",
       "domains": [
         "general"
       ],
@@ -355,6 +369,7 @@
       "title": "Export every fact needed by a downstream proof",
       "revision": 3,
       "family": "interface",
+      "obstacle": "A downstream proof requires a formula that appears only inside a producer proof body.",
       "domains": [
         "general"
       ],
@@ -380,6 +395,7 @@
       "title": "Localize native timeouts before expanding proof search",
       "revision": 2,
       "family": "execution",
+      "obstacle": "A recorded native Lean resource limit prevents a candidate from returning useful proof feedback.",
       "domains": [
         "general"
       ],
@@ -407,6 +423,35 @@
       "status": "GENERAL_GUIDANCE",
       "path": "cards/ST020.json",
       "sha256": "0e8e80bb98062f7065cebd0f7f34249da204d4b4ba457716be731d55ff119b0d"
+    },
+    "ST026": {
+      "title": "Share a checked low-level component across actual consumers",
+      "revision": 1,
+      "family": "representation",
+      "obstacle": "Several proof nodes separately reconstruct a scan, encoding, state update or connection that has the same observable contract.",
+      "domains": [
+        "algorithms"
+      ],
+      "tags": [
+        "reusable_component",
+        "library_construction",
+        "simulation",
+        "bounded_automation"
+      ],
+      "preconditions": [
+        "repeated_obligation_pattern_identified",
+        "common_component_contract_can_be_stated"
+      ],
+      "contraindications": [
+        "component_adds_unproved_mathematical_premise",
+        "abstraction_loses_required_resource_information"
+      ],
+      "lean_versions": [
+        "4.32.2"
+      ],
+      "status": "GENERAL_GUIDANCE",
+      "path": "cards/ST026.json",
+      "sha256": "48cbe81494556a8965dc20726242459ce0fd5cfb6216c7269830be4f38cf6de0"
     }
   },
   "postings": {
@@ -416,7 +461,8 @@
       "ST003",
       "ST008",
       "ST014",
-      "ST017"
+      "ST017",
+      "ST026"
     ],
     "tag:conversion": [
       "ST001"
@@ -565,6 +611,18 @@
     ],
     "tag:composition": [
       "ST020"
+    ],
+    "tag:reusable_component": [
+      "ST026"
+    ],
+    "tag:library_construction": [
+      "ST026"
+    ],
+    "tag:simulation": [
+      "ST026"
+    ],
+    "tag:bounded_automation": [
+      "ST026"
     ]
   }
 }

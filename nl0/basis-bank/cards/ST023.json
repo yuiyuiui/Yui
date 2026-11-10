@@ -1,0 +1,44 @@
+{
+  "id": "ST023",
+  "revision": 1,
+  "title": "Propagate intermediate sizes into component bounds",
+  "family": "calculation",
+  "domains": [
+    "algorithms"
+  ],
+  "tags": [
+    "size_bound",
+    "encoding",
+    "composition",
+    "bit_length",
+    "monotonicity"
+  ],
+  "obstacle": "A later call receives a larger encoding or longer operands than the original inputs used in a preliminary estimate.",
+  "preconditions": [
+    "size_measure_explicit",
+    "component_resource_contracts_available"
+  ],
+  "contraindications": [
+    "incompatible_size_measures"
+  ],
+  "procedure": [
+    "Specify the size measure at each boundary and bound the output of each relevant component.",
+    "Substitute that size into the next cost envelope where monotonicity or a uniform estimate permits it.",
+    "For a space bound, account for caller data still live, temporary storage and any recomputation."
+  ],
+  "verification": "Follow one complete composition and check all size substitutions and units at the actual calls.",
+  "positive_example": "If a component can double an operand length, charge the following multiplication for its new bit length.",
+  "negative_example": "Bounding each child by the original input length can lose a growing intermediate; adding net allocations does not bound peak live storage.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "status": "GENERAL_GUIDANCE",
+  "evidence": [
+    {
+      "kind": "design_rule",
+      "path": "evidence/resource-models.md",
+      "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+      "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+    }
+  ]
+}

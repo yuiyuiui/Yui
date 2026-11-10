@@ -85,6 +85,11 @@ Yui's approach is to review and freeze the formal external theorems and target d
 
 ## 3. Library and bank
 
+Foundation and Lean authors may consult two small strategy catalogs on demand.
+The [foundation bank](nl0/basis-bank/README.md) covers choices such as a cost-preserving
+representation or a subroutine specification. The [author lookup](nl02lean/references/obstacle-routing.md)
+also serves Lean implementation guidance. Looking up a card is optional at every stage.
+
 [library](library/README.md) stores entries, each linked to a theorem in a particular Mathlib version. If your formalization work focuses on a specific field, you can collect frequently used Mathlib theorems there after repeated conditional formalization runs with Yui, to speed up retrieval. We have not yet demonstrated that a larger library produces a substantial speedup.
 
 [bank](nl02lean/bank/rule.md) stores general strategies for writing Lean proofs and fixing errors. In the author's experience, some of these strategies have provided substantial speedups, but there is no guarantee that they will remain useful as models become stronger. After using Yui, users can try collecting the writing and repair strategies that the model spent time developing. So far, the author has curated only a small selection of broadly applicable strategies.

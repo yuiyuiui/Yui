@@ -208,6 +208,8 @@ The model adapter reduce receives Job@1 and returns a named port and its payload
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
+Select and check foundations. An author may consult the optional basis catalog while choosing the route.
+
 [reduce implementation](#handler-reduce)
 
 <details><summary>Diagram connections</summary>
@@ -471,7 +473,7 @@ The tool adapter translate receives Audited@2 and returns a named port and its p
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Check helper declarations incrementally, compile the combined proof and audit the export.  A native wall timeout triggers a source-located diagnosis. Only a workload-only finding raises the next allowance by six minutes, up to thirty minutes.
+Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  A native wall timeout triggers a source-located diagnosis. Only a workload-only finding raises the next allowance by six minutes, up to thirty minutes.
 
 [translate implementation](#handler-translate)
 
@@ -1047,6 +1049,352 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
+<a id="contract-StrategyQuery@1"></a>
+
+#### StrategyQuery@1
+
+```json
+{
+  "additionalProperties": false,
+  "properties": {
+    "bank": {
+      "enum": [
+        "basis",
+        "lean"
+      ],
+      "type": "string"
+    },
+    "ids": {
+      "items": {
+        "pattern": "^ST[0-9]{3,}$",
+        "type": "string"
+      },
+      "maxItems": 3,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "bank"
+  ],
+  "type": "object"
+}
+```
+
+<a id="contract-StrategyReply@1"></a>
+
+#### StrategyReply@1
+
+```json
+{
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "catalog": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^ST[0-9]{3,}$",
+                "type": "string"
+              },
+              "obstacle": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "title",
+              "family",
+              "obstacle"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "catalog"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "catalog"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "cards": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contraindications": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domains": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "evidence": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "note": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "note"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "family": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^ST[0-9]{3,}$",
+                "type": "string"
+              },
+              "lean_versions": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "negative_example": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "obstacle": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "positive_example": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "preconditions": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "procedure": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "status": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "tags": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "verification": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "title",
+              "family",
+              "obstacle",
+              "domains",
+              "tags",
+              "preconditions",
+              "contraindications",
+              "procedure",
+              "lean_versions",
+              "verification",
+              "positive_example",
+              "negative_example",
+              "status",
+              "evidence"
+            ],
+            "type": "object"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "omitted": {
+          "items": {
+            "pattern": "^ST[0-9]{3,}$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "cards"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "cards",
+        "omitted"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "unavailable"
+        }
+      },
+      "required": [
+        "bank",
+        "status",
+        "reason"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "ids": {
+          "items": {
+            "pattern": "^ST[0-9]{3,}$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "not_in_catalog"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "ids"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "invalid_query"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "type": "object"
+    }
+  ]
+}
+```
+
 <a id="contract-WorkingGraph@2"></a>
 
 #### WorkingGraph@2
@@ -1116,7 +1464,7 @@ Python excerpts and docstrings come from this checkout. Model reasoning, remote 
 
 #### audit
 
-adapters.py · line 48
+adapters.py · line 50
 
 ```python
 def audit(ctx, data):
@@ -1128,7 +1476,7 @@ def audit(ctx, data):
 
 #### audit\_exit
 
-adapters.py · line 40
+adapters.py · line 42
 
 ```python
 def audit_exit(ctx, data):
@@ -1140,7 +1488,7 @@ def audit_exit(ctx, data):
 
 #### basis\_outline
 
-adapters.py · line 24
+adapters.py · line 26
 
 ```python
 def basis_outline(ctx, data):
@@ -1152,7 +1500,7 @@ def basis_outline(ctx, data):
 
 #### close
 
-adapters.py · line 59
+adapters.py · line 61
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -1162,7 +1510,7 @@ def close(ctx, data): return dispatch(ctx, data, 'close')
 
 #### detail
 
-adapters.py · line 44
+adapters.py · line 46
 
 ```python
 def detail(ctx, data):
@@ -1174,7 +1522,7 @@ def detail(ctx, data):
 
 #### direct\_outline
 
-adapters.py · line 20
+adapters.py · line 22
 
 ```python
 def direct_outline(ctx, data):
@@ -1186,7 +1534,7 @@ def direct_outline(ctx, data):
 
 #### freeze\_basis
 
-adapters.py · line 28
+adapters.py · line 30
 
 ```python
 def freeze_basis(ctx, data):
@@ -1198,7 +1546,7 @@ def freeze_basis(ctx, data):
 
 #### publish
 
-adapters.py · line 60
+adapters.py · line 62
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1211,7 +1559,9 @@ def publish(ctx, data): return dispatch(ctx, data, 'publish')
 adapters.py · line 19
 
 ```python
-def reduce(ctx, data): return dispatch(ctx, data, 'reduce')
+def reduce(ctx, data):
+    """Select and check foundations. An author may consult the optional basis catalog while choosing the route."""
+    return dispatch(ctx, data, 'reduce')
 ```
 
 <a id="handler-request_audit"></a>
@@ -1248,7 +1598,7 @@ def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_uncond
 
 #### revise\_graph
 
-adapters.py · line 32
+adapters.py · line 34
 
 ```python
 def revise_graph(ctx, data):
@@ -1260,7 +1610,7 @@ def revise_graph(ctx, data):
 
 #### seal\_audit
 
-adapters.py · line 36
+adapters.py · line 38
 
 ```python
 def seal_audit(ctx, data):
@@ -1272,11 +1622,11 @@ def seal_audit(ctx, data):
 
 #### translate
 
-adapters.py · line 52
+adapters.py · line 54
 
 ```python
 def translate(ctx, data):
-    """Check helper declarations incrementally, compile the combined proof and audit the export.
+    """Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.
 
     A native wall timeout triggers a source-located diagnosis. Only a workload-only
     finding raises the next allowance by six minutes, up to thirty minutes.
@@ -1284,4 +1634,4 @@ def translate(ctx, data):
     return dispatch(ctx, data, 'translate')
 ```
 
-Workflow protocol 1 · Definition 2e65be121a581ad69e109b32b5fde8dd0400282e880486f2eadcddbef8e9558c
+Workflow protocol 1 · Definition 87a63855d0522345940929a1b1c994bc58db6ec6996fa15d242edbf71bce1daf

@@ -1,0 +1,219 @@
+[
+  {
+    "id": "ST021",
+    "revision": 1,
+    "title": "Choose a cost-preserving level of abstraction",
+    "family": "interface",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "resource_model",
+      "abstraction",
+      "refinement",
+      "scale_preservation"
+    ],
+    "obstacle": "The source counts a particular resource, but the proposed implementation creates extra obligations or omits costs required by that model.",
+    "preconditions": [
+      "resource_target_explicit",
+      "current_interface_boundary_known"
+    ],
+    "contraindications": [
+      "resource_claim_weakened_without_review"
+    ],
+    "procedure": [
+      "Identify the stated resource, input measure, fixed parameters and charged operations. Consider an abstraction that expresses the actual algorithm at that level.",
+      "Where the proof crosses an encoding, compilation or simulation boundary, substitute the quantitative overhead of a proved connection into the requested bound.",
+      "A missing connection can be recorded as an obligation. A change to a frozen interface belongs with its owner."
+    ],
+    "verification": "Check the model and the final rate, including uniform constants and encoding overhead, against the original statement.",
+    "positive_example": "For polynomial evaluation charged by scalar additions and multiplications, count the actual operations of the evaluation algorithm directly.",
+    "negative_example": "A polynomial-time simulation alone does not preserve a near-linear bound. Unit-cost scalar multiplication need not have constant bit cost.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-models.md",
+        "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+      }
+    ]
+  },
+  {
+    "id": "ST022",
+    "revision": 1,
+    "title": "Compose output and cost for the same subroutine execution",
+    "family": "interface",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "resource_contract",
+      "execution_semantics",
+      "primitive_cost",
+      "state_preservation"
+    ],
+    "obstacle": "The caller needs both a mathematical output and a resource bound, but the proposed component specifications describe different computations.",
+    "preconditions": [
+      "primitive_cost_model_explicit",
+      "execution_semantics_available"
+    ],
+    "contraindications": [
+      "annotation_treated_as_execution_proof"
+    ],
+    "procedure": [
+      "Identify the subroutine actually invoked and the inputs passed by its caller.",
+      "Consider one specification connecting its execution, output representation and cost. Include state preservation only for data still needed by a consumer.",
+      "Compose the proved specification through the actual calling convention and include any required conversion overhead."
+    ],
+    "verification": "Instantiate the contract at a real call and verify that the output used by the next step came from the execution whose cost was bounded.",
+    "positive_example": "A proved scan returns its computed sum and bounds the operations on that input, allowing an outer loop to reuse both facts.",
+    "negative_example": "Adding a cost field to a successful result without showing how the executed program produces that cost leaves the resource claim open.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-models.md",
+        "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+      }
+    ]
+  },
+  {
+    "id": "ST023",
+    "revision": 1,
+    "title": "Propagate intermediate sizes into component bounds",
+    "family": "calculation",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "size_bound",
+      "encoding",
+      "composition",
+      "bit_length",
+      "monotonicity"
+    ],
+    "obstacle": "A later call receives a larger encoding or longer operands than the original inputs used in a preliminary estimate.",
+    "preconditions": [
+      "size_measure_explicit",
+      "component_resource_contracts_available"
+    ],
+    "contraindications": [
+      "incompatible_size_measures"
+    ],
+    "procedure": [
+      "Specify the size measure at each boundary and bound the output of each relevant component.",
+      "Substitute that size into the next cost envelope where monotonicity or a uniform estimate permits it.",
+      "For a space bound, account for caller data still live, temporary storage and any recomputation."
+    ],
+    "verification": "Follow one complete composition and check all size substitutions and units at the actual calls.",
+    "positive_example": "If a component can double an operand length, charge the following multiplication for its new bit length.",
+    "negative_example": "Bounding each child by the original input length can lose a growing intermediate; adding net allocations does not bound peak live storage.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-models.md",
+        "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+      }
+    ]
+  },
+  {
+    "id": "ST024",
+    "revision": 1,
+    "title": "Count the actual calls before simplifying the bound",
+    "family": "calculation",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "cost_recurrence",
+      "finite_sum",
+      "coarse_bound",
+      "structural_induction"
+    ],
+    "obstacle": "An asymptotic estimate is available, but the connection to the program calls, repetitions or per-level costs is unclear.",
+    "preconditions": [
+      "counted_algorithm_fixed",
+      "compositional_cost_rules_available"
+    ],
+    "contraindications": [
+      "required_exact_count_discarded"
+    ],
+    "procedure": [
+      "Recover a finite sum or recurrence from the executed structure, including local work, base cases and repeated calls.",
+      "Group contributions only after checking coverage and multiplicity. Keep the parameters needed by the target.",
+      "Use uniform bounds and solve or simplify the resulting expression to the accuracy requested by the source."
+    ],
+    "verification": "Trace a small nontrivial input through the count and justify the general aggregation with the same program structure.",
+    "positive_example": "A divide-and-conquer evaluator charges both recursive calls and its local combine step before summing by depth.",
+    "negative_example": "Proving the price of a single call per level drops work if the program executes several; an upper estimate cannot supply a requested exact count.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-models.md",
+        "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+      }
+    ]
+  },
+  {
+    "id": "ST025",
+    "revision": 1,
+    "title": "Use a potential only for a compatible accumulated-cost claim",
+    "family": "analysis",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "amortized_analysis",
+      "potential",
+      "resource_invariant",
+      "telescoping"
+    ],
+    "obstacle": "A per-operation worst-case estimate is too coarse for a sequence whose occasional expensive steps use credits accumulated earlier.",
+    "preconditions": [
+      "additive_trace_cost_semantics",
+      "state_progression_explicit"
+    ],
+    "contraindications": [
+      "persistent_branching_without_accounted_sharing",
+      "peak_space_inferred_from_net_cost"
+    ],
+    "procedure": [
+      "Consider a state potential and a per-step inequality comparing actual charge plus the potential change with an amortized charge.",
+      "Sum along the actual execution and bound the initial and terminal potential terms.",
+      "For branching, persistence or shared states, justify how each credit is owned and consumed."
+    ],
+    "verification": "Check that the telescoped estimate bounds the requested resource over the required sequences, including both endpoints.",
+    "positive_example": "A nonnegative potential with a bounded initial value can pay for intermittent rebuilding along a single update sequence.",
+    "negative_example": "Credits from one shared predecessor cannot pay independently for every branch; an amortized bound by itself gives no per-call worst-case bound.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-models.md",
+        "sha256": "1ed30ec565f8a6af28211145fac0746a9f2127bd7737906b408a0ca25d8b8a6d",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+      }
+    ]
+  }
+]

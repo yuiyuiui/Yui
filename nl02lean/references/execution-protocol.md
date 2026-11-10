@@ -65,8 +65,8 @@ diagnostic, and returns exit code 124 with `error_kind: LEAN_TIMEOUT` to the sam
 worker. It does not cancel that worker or the case, accept the candidate, or
 establish a mathematical failure. In Yui proof workers, that result and actual
 heartbeat-exhaustion results automatically include frozen ST020 `repair_advice`.
-The original worker first follows the applicable diagnostic branch, isolates
-and repairs the expensive application, then checks the unchanged target again.
+The original worker can consult the suggestion or use its own repair method,
+then checks the unchanged target again.
 This requires no extra model call and is independent of optional free-form bank
 queries. Card hashes/revision and unavailable-advice reasons are retained with
 the original failed result. Explicit cancellation and actual execution failures

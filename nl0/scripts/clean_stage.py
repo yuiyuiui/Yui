@@ -239,6 +239,7 @@ class ArtifactStage(pilot.Stage):
                 ['incident','start','end']))
         import basis_defect
         basis_defect.enable(self)
+        pilot.strategy_bank.install_reference(self)
         self.tool_names = {t['name'] for t in self.tools}
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
@@ -481,7 +482,9 @@ class ArtifactStage(pilot.Stage):
                 raise PermissionError('Tool is not allowed')
             if self.accepted is not None:
                 raise ValueError('Stage is already complete')
-            if name in {'search_external_sources','read_external_source','defer_primary_source'}:
+            if name == 'consult_strategy':
+                result = pilot.strategy_bank.consult(self, args)
+            elif name in {'search_external_sources','read_external_source','defer_primary_source'}:
                 import source_access
                 base=self.validator.directory if self.artifact_kind=='nl0' else self.logs
                 if name=='search_external_sources':

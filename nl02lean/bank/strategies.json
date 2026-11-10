@@ -286,7 +286,7 @@
   },
   {
     "id": "ST012",
-    "revision": 3,
+    "revision": 4,
     "title": "Track witness and constant dependencies before specialization",
     "family": "interface",
     "domains": [
@@ -307,7 +307,8 @@
     "procedure": [
       "Record the order in which parameters and witnesses are chosen.",
       "Prove the quantified statement before substituting special values.",
-      "Inspect each specialization and the exported signature for additional dependencies."
+      "Inspect each specialization and the exported signature for additional dependencies.",
+      "For a resource bound, check whether one program and its overhead constants must work uniformly for all varying inputs."
     ],
     "verification": "Compare the complete binder order and dependency graph with the target.",
     "positive_example": "Choose a witness after the variables on which it is allowed to depend.",
@@ -322,6 +323,12 @@
         "path": "rule.md",
         "sha256": "824ba8b3b63e8520ac63412d2ed9a1b54662f84a1a470222b810298009e15a26",
         "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      },
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-contracts.md",
+        "sha256": "73e4808a0010622ff986b360da0065ade27cc3849e9972e065199cc376a57384",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
       }
     ]
   },
@@ -409,7 +416,7 @@
   },
   {
     "id": "ST015",
-    "revision": 3,
+    "revision": 4,
     "title": "Verify the actual exported theorem signature",
     "family": "interface",
     "domains": [
@@ -430,7 +437,8 @@
     "procedure": [
       "Inspect the actual exported declaration, including implicit and structure-valued arguments.",
       "Expand the proposition fields needed to compare it with the full target.",
-      "Derive necessary prerequisites from allowed inputs and assemble the intended theorem."
+      "Derive necessary prerequisites from allowed inputs and assemble the intended theorem.",
+      "For an implementation claim, inspect fields for execution, output, charging and any model conversion. Establish the obligations the source does not give to the caller."
     ],
     "verification": "Check the exported signature against every target hypothesis and conclusion, then inspect its trust dependencies.",
     "positive_example": "Derive an intermediate prerequisite inside the theorem from existing hypotheses.",
@@ -445,6 +453,12 @@
         "path": "rule.md",
         "sha256": "824ba8b3b63e8520ac63412d2ed9a1b54662f84a1a470222b810298009e15a26",
         "note": "Editorially generalized guidance under this maintenance policy; no independent effectiveness result or proof acceptance is claimed."
+      },
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-contracts.md",
+        "sha256": "73e4808a0010622ff986b360da0065ade27cc3849e9972e065199cc376a57384",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
       }
     ]
   },
@@ -665,6 +679,50 @@
         "path": "evidence/native-timeout-triage.md",
         "sha256": "e270c6ded73c8cef90470a53b3743ac65393489af6363d1f3b65b7d3e636c0c5",
         "note": "Bounded retrospective comparisons of completed implementations motivate this diagnostic procedure; individual edits were not all causally isolated and broader effectiveness is unestablished."
+      }
+    ]
+  },
+  {
+    "id": "ST026",
+    "revision": 1,
+    "title": "Share a checked low-level component across actual consumers",
+    "family": "representation",
+    "domains": [
+      "algorithms"
+    ],
+    "tags": [
+      "reusable_component",
+      "library_construction",
+      "simulation",
+      "bounded_automation"
+    ],
+    "obstacle": "Several proof nodes separately reconstruct a scan, encoding, state update or connection that has the same observable contract.",
+    "preconditions": [
+      "repeated_obligation_pattern_identified",
+      "common_component_contract_can_be_stated"
+    ],
+    "contraindications": [
+      "component_adds_unproved_mathematical_premise",
+      "abstraction_loses_required_resource_information"
+    ],
+    "procedure": [
+      "Inspect what the consumers actually need and look for a compatible checked component in the pinned library.",
+      "If useful, isolate the operation behind a small proved interface covering its output, relevant state and resource effects.",
+      "Instantiate that same interface at the consuming sites and verify the original obligations there."
+    ],
+    "verification": "Check which consumer obligations the component discharges and whether its representation and costs preserve the requested guarantees.",
+    "positive_example": "Multiple traversals reuse the same certified array-scan specification when their preconditions and charging model agree.",
+    "negative_example": "Introducing helpers that assume the missing implementation, or forget a cost needed by a caller, only moves the obligation.",
+    "lean_versions": [
+      "4.32.2"
+    ],
+    "status": "GENERAL_GUIDANCE",
+    "evidence": [
+      {
+        "kind": "design_rule",
+        "path": "evidence/resource-contracts.md",
+        "sha256": "73e4808a0010622ff986b360da0065ade27cc3849e9972e065199cc376a57384",
+        "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
       }
     ]
   }

@@ -68,6 +68,31 @@
           }
         ]
       },
+      "deliver an unconditional proof with zero strategy lookups or extra receipt": {
+        "entry": "unconditional",
+        "input": {
+          "job": {
+            "path": "closed",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "name": "deliver an unconditional proof with zero strategy lookups or extra receipt",
+        "steps": [
+          {
+            "expect": {
+              "data": {
+                "extra_premises": [],
+                "scope": "UNCONDITIONAL_LEAN"
+              },
+              "files": {
+                "inventory.json": "UNCONDITIONAL_LEAN"
+              },
+              "result": "unconditional",
+              "status": "completed"
+            }
+          }
+        ]
+      },
       "discharge prepared foundations on the selected route": {
         "entry": "unconditional",
         "input": {
@@ -332,6 +357,8 @@
       "Local@2": "f0cf030a46b4fc0a3ad63d4b3ab28ba3e17982632490991263c227910d31fcd4",
       "Outcome@1": "7416d8e8e50f4324ed56e1a315c0e95b43a95fe7c8caf01910f34a5704c3c3e4",
       "Request@1": "ea4b24f191f5785dd1962f19340a7b06c8e48514422b7de9c290f986833d834e",
+      "StrategyQuery@1": "d904955f91686cb00b32c569bab83e5a41f94e52a98c6b6514aa302b7444a5d7",
+      "StrategyReply@1": "5ceb773db3844ca18d916218e9d1f32de2b2f84bfea6a21fb289e7b028469918",
       "WorkingGraph@2": "20a530d2464f54dbbf6a120189325fe0e900190b54e6efd2e59dee61170bae7f",
       "blob@1": "696e2184f9b93283233b70851a67792b39033bca6af085a85fd880d88d69d291"
     },
@@ -363,21 +390,23 @@
     },
     "skill": "yui-workflow",
     "sources": {
-      "SKILL.md": "eae8e662e104e0c0fc09cb9ca61b912464bb860716d48c0786bf1d06b01311b7",
-      "acceptance.json": "b18ff4703652a6c5d00c07541f269cae90acbdb2099be1f752056dde13be8e11",
-      "adapters.py": "e03adabe9bd63111e3ea772d3e253102528f69e04dcad22e66e5bcf00f9af378",
+      "SKILL.md": "1ae500e585da7fb6042eb5af054e6bd0bf634ab0116ab5b68dda36516939c628",
+      "acceptance.json": "b055fafdc8c89c251c23133fd48c1d3bcb5bda057e63b54063677ef4aef74e34",
+      "adapters.py": "47cd4ce2747185c0c20b8adadf26ea1c7e7f388d4fa24042861ac93022c6b8bf",
       "blocks/foundation_handoff.py": "281a73ec59605319eae3a8bccf48272b8239bb89f6f31d0cb1d561e9f4cf6ad5",
       "blocks/lean_limits.py": "1276c2778bbf255cb65ab31d8aeef1318f769b09aebceac9c33cdfb45adb47b7",
       "blocks/native_case.py": "745368cffef7c6e6db0802075296d49404594bb6d4dec17196791b365583a00c",
       "blocks/prepared_case.py": "ac3a11a4a359e735ff9835cb09084871173a5d64195ec35c59fe750e2d9ae48d",
       "blocks/routing.py": "ba1a52c4377c1e23c7c951592045eee12d7f6d4a1c067a5a90834ce3474ece51",
-      "checks.json": "0924edcece2c27ad02e7db034bd1779c3560f985c60399b6422e8d2e3fa9da92",
+      "blocks/strategy_reference.py": "9976b414b54200d1552d78b7458654e547bedc5ee5d88593847be3feb65be918",
+      "checks.json": "dc9c835b6f70411afda07e7cf55925f6fa5171bc4e47a983aa198c0b7f178512",
       "fixtures.json": "479fdcf705fec1bd22a6504e93d904a456085d488d61ac77184463a37eaaef26",
       "test_adapters.py": "371cc807abd09262ee3fc08c1fed55fc0f8f6077d84c764e6a4be7ba4c2d3638",
       "tests/test_foundation_handoff.py": "4f157078badd337b51b2678231e3ddf84a660d8c3331af569a60f1f50451c6cd",
       "tests/test_lean_limits.py": "bc156bc862cc081469e31cd15f02ce4b08a7bb49c677218f69a12361d9ab1f16",
-      "tests/test_public_contract.py": "d298a776b5d57413f43e0aa35b009476c1a08e81456d276bb02d3633ada21bc6",
-      "workflow.json": "440370f2aff03be48b8ca4d039e94128bbf868f3c74d377a305e9a690feb9ea6"
+      "tests/test_public_contract.py": "3206d60f8245da595449c1767ec3bdd0002eb596d88091aca0f46c4a4efb985f",
+      "tests/test_strategy_reference.py": "110e3bc5fd17941842d31ed2bccc490c94453f38897c3f89b4f91ffd13b03f66",
+      "workflow.json": "cafac331c0ecfceaa778e864a93d7970a477592af07dfe0dd2a26799cf9d4272"
     },
     "standard": "workflow-repository/1",
     "suites": {
@@ -397,11 +426,19 @@
         },
         "timeout": 30
       },
+      "optional-strategy-reference": {
+        "file": "tests/test_strategy_reference.py",
+        "id": "optional-strategy-reference",
+        "members": {
+          "tests/test_strategy_reference.py": "110e3bc5fd17941842d31ed2bccc490c94453f38897c3f89b4f91ffd13b03f66"
+        },
+        "timeout": 30
+      },
       "public-contract": {
         "file": "tests/test_public_contract.py",
         "id": "public-contract",
         "members": {
-          "tests/test_public_contract.py": "d298a776b5d57413f43e0aa35b009476c1a08e81456d276bb02d3633ada21bc6"
+          "tests/test_public_contract.py": "3206d60f8245da595449c1767ec3bdd0002eb596d88091aca0f46c4a4efb985f"
         },
         "timeout": 30
       }
@@ -583,5 +620,5 @@
     }
   },
   "format": "workflow-acceptance/1",
-  "id": "e7eea5b826f1a2366851ade1cbc226cdfebcd7cdf7d75cc387a667ec39f4222d"
+  "id": "032dcaf998395a3ee7c75edeaa6fc11ef85af59487b886ca588f2c09062333a7"
 }

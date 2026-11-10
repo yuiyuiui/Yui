@@ -58,9 +58,10 @@ class LeanWritingGuidanceTests(unittest.TestCase):
         packet = ir.local_packet(self.cp, self.plan, 'T001')
         self.assertEqual(json.loads(proof.prompt())['packet'], packet)
         self.assertEqual(json.loads(direct.prompt())['packet'], packet)
-        self.assertEqual([t for t in proof.tools if t['name'] not in {'report_proof_obstruction','prove_independent_helpers'}], direct.tools)
-        self.assertNotIn('report_proof_obstruction',direct.tool_names)
-        self.assertNotIn('prove_independent_helpers',direct.tool_names)
+        author_tools = {'report_proof_obstruction', 'prove_independent_helpers', 'consult_strategy'}
+        self.assertEqual(proof.tool_names - direct.tool_names, author_tools)
+        self.assertTrue(direct.tool_names.isdisjoint(author_tools))
+        self.assertEqual([t for t in proof.tools if t['name'] not in author_tools], direct.tools)
         self.assertIsNone(proof.timeout)
         self.assertIsNone(proof.accepted)
         self.assertEqual((proof.api_calls, proof.lean_calls), (0, 0))

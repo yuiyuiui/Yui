@@ -150,7 +150,7 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
         current=destination/'proof-run' if round_number==1 else destination/'proof-repairs'/f'{round_number:04d}'
         progress(case,'FROZEN_LEAN_PROOF_WORK',directory=str(current),repair_round=round_number)
         proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),current,
-            timeout_seconds=stage_seconds(proof_budget),bank=False,budget=proof_budget,prior_run=prior_run,
+            timeout_seconds=stage_seconds(proof_budget),budget=proof_budget,prior_run=prior_run,
             repair_guidance=guidance,reviewed_interface=reviewed_interface,sessions=sessions,diagnostic_interface=interface,
             shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
         rounds.append(bind(current/'report.json'))

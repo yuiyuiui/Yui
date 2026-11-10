@@ -340,6 +340,10 @@ class InterfaceStage(ArtifactStage):
         self.tool_names={t['name'] for t in self.tools}
         self.native_tools=list(self.tools)
         if self.mode=='translation-source-preparation':
+            bank = pilot.strategy_bank.reference_policy()
+            available = bank.banks_for('interface-authoring', self.instruction_arm)
+            if available:
+                self.native_tools.append(bank.tool(available))
             self.input_prompt=initial_prompt
             self.tools=[t for t in self.tools if t['name'] not in {'save_interface_draft','read_interface_draft','check_lean_types'}]
             self.tool_names={t['name'] for t in self.tools}

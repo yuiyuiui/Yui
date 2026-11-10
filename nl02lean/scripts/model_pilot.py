@@ -65,7 +65,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.Trial):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.logs = Path(logs)
@@ -103,8 +103,7 @@ class Stage(carrier.Trial):
                     self.logs/'harness-snapshot/nl02lean/bank',
                     bank=timeout_policy['bank_root'] if timeout_policy is not None else None)
             self.system += (' A native resource failure may include repair_advice from frozen ST020. '
-                'Use its applicable diagnostic branch first, repair in this same stage and recheck '
-                'the unchanged target. Advice does not add assumptions or establish acceptance.')
+                'Its diagnostic suggestions are optional. Recheck a repair against the unchanged target.')
         if instruction_arm == 'direct':
             if bank_enabled:
                 raise ValueError('The direct arm cannot use the Yui strategy bank')
@@ -112,11 +111,7 @@ class Stage(carrier.Trial):
                            'Use only the declared library and checking tools. Submit a tactic proof body '
                            'through submit_transition; preserve the target and permitted assumptions.')
         if bank_enabled:
-            self.system += (' Strategy lookup is optional. Continue directly when the next repair is clear. '
-                'If repeated attempts make no progress, you may query find_strategies with an observed diagnostic. Families: representation, '
-                'analysis, calculation, interface, provenance, execution, unknown. Example tags: norm, '
-                'supremum, ENNReal, ae, representative, weight, Lp, measurability, coercion, API. '
-                'Only put established conditions in facts. Verify suggested preconditions; never assume a missing one.')
+            self.system += ' The optional tagged strategy query accepts observed diagnostics.'
         self.system += (' End this stage immediately when a submit tool reports stage_complete:true; '
                         'the controller handles later stages. Within a proof stage, checked helper attempts '
                         'are available through read_lean_draft. After a context reset, query its index '
@@ -176,6 +171,8 @@ class Stage(carrier.Trial):
                 'on that note or rebuilding a larger argument by default.')
         if bank_enabled:
             self.tools += [json_tool('find_strategies','Query the indexed bank using a JSON diagnostic. Fields: family, tags, facts, lean_version. Advice is not a premise.','query_json')]
+        if mode in {'interface','plan','proof'}:
+            strategy_bank.install_reference(self, strategy_banks)
         if self.private_sources:
             self.tools.append(carrier.tool('read_private_source','Read one bound source of this obligation, by document ID and inclusive line range.',
                 {'id':{'type':'string','enum':list(self.private_sources)},'start':{'type':'integer'},'end':{'type':'integer'},'column':{'type':'integer'}},['id','start','end']))
@@ -246,7 +243,9 @@ class Stage(carrier.Trial):
                 from read_views import read_page
                 source=self.private_sources[args['id']];verify_bindings([source])
                 result=read_page(Path(source['path']).read_text(),args['start'],args['end'],column=args.get('column',0))
-            elif name == 'find_strategies':
+            elif name == 'consult_strategy' and name in self.tool_names:
+                result = strategy_bank.consult(self, args)
+            elif name == 'find_strategies' and name in self.tool_names:
                 c=ir.contract(self.cpath)
                 if self.mode=='proof':
                     packet=ir.local_packet(self.cpath,self.plan,self.step)
@@ -255,7 +254,8 @@ class Stage(carrier.Trial):
                     goal=c['conclusion']['type'];context='\n'.join(p['type'] for p in c['premises'])
                 query,receipt=strategy_bank.grounded_query(json.loads(args['query_json']),goal,context,
                     c['pins']['lean_version'],self.last_diagnostic)
-                result = strategy_bank.search(query)
+                root, _, _ = strategy_bank.bound_bank_data(self.strategy_banks['lean'])
+                result = strategy_bank.search(query, root)
                 result['routing_receipt']=receipt
             elif name == 'read_background_note':
                 ir.need(self.background_note_policy == BACKGROUND_NOTE_POLICY,
@@ -372,7 +372,7 @@ class Stage(carrier.Trial):
                 if self.own_lean_drafts[x['kind']][x['candidate']]['check'].get('exit_code',0)!=0]
         if report['layer']!='source' and failed and all(proof_repair.resource_only(r) for r in failed):
             result={'accepted':False,'stage_complete':False,'repair_requested':False,
-                'next_action':'Resource exhaustion alone is not an interface/source defect. Continue the same author using ST020 and checked helpers.',
+                'next_action':'Continue the same author. ST020 and checked helpers are available for local repair.',
                 'diagnosis':{'route':'LOCAL_PROOF_REPAIR','basis':'RECORDED_RESOURCE_LIMIT_ONLY'}}
             ir.write(out/'diagnosis.json',result['diagnosis'])
             return result

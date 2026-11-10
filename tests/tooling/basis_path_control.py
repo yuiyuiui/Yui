@@ -11,6 +11,8 @@ from unittest.mock import patch
 job = json.loads(Path(sys.argv[1]).read_text())
 run = Path(job['root'])
 mode = sys.argv[2]
+read_strategies = mode.endswith('+reference')
+mode = mode.removesuffix('+reference')
 tests = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl02lean/scripts'),
                 str(tests.parent/'nl0/scripts'),str(tests.parent/'nl02lean/scripts')]
@@ -229,6 +231,12 @@ def respond(f,handler,number,payload):
             detail=(stage.logs/'tools.jsonl').read_text()[-12000:] if (stage.logs/'tools.jsonl').exists() else ''
             raise AssertionError('Repeated fixture request: '+stage.mode+' '+detail)
         code=scripted(stage)
+        if read_strategies:
+            selected = {'basis-authoring': ('basis','ST021'), 'basis-frontier': ('basis','ST024'),
+                        'interface-authoring': ('basis','ST022'), 'proof': ('lean','ST026')}
+            if stage.mode in selected:
+                bank, sid = selected[stage.mode]
+                code = call('consult_strategy', bank=bank)+call('consult_strategy', bank=bank, ids=[sid])+code
     except Exception as error:
         print(repr(error),flush=True)
         queue_controller.cancel_batch([run])

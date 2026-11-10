@@ -82,6 +82,8 @@ by six minutes, up to thirty. A code defect returns to its author at the current
 allowance. Whole-case and stage deadlines remain binding. Workers check helpers
 individually and submit the complete composition to Lean. Failed wall/heartbeat
 checks also receive the locally stored ST020 repair advice.
+Foundation and Lean authors can browse their respective strategy banks on demand
+or proceed directly to submission. See [strategy lookup](nl02lean/references/obstacle-routing.md).
 Follow [fault treatment and authorized exit](nl0/references/error-lifecycle.md).
 Local Python retries recognized temporary service/network faults every 60seconds,
 at most 30 times in the same carrier/thread. Other faults and exhausted retries

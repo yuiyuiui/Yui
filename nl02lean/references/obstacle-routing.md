@@ -1,18 +1,27 @@
 # Indexed obstacle diagnosis and strategy retrieval
 
-Free-form strategy lookup is optional and disabled in normal full workflows.
-Successful proof work pays no mandatory diagnosis or retrieval call. The bank contains
-generalized advice, not proof templates or automatically accepted premises;
-no performance benefit is established by its presence.
+An author may call `consult_strategy` at any point, including before the
+first Lean check. `{"bank":"lean"}` returns a short catalog. The author
+can select by meaning in their own language and request, for example,
+`{"bank":"lean","ids":["ST012"]}`. An empty selection is valid. Each read
+returns up to three whole cards and 16 KiB of card text; `omitted` identifies
+selections exceeding the byte limit. Preconditions remain to be checked in
+the current task. Submitting without any lookup requires no acknowledgement.
+
+Foundation planning and frontier authors can request the
+[foundation catalog](../../nl0/basis-bank/README.md). Lean interface authors
+can consult either catalog. Lean proof authors (including private foundation
+proof workers) have the implementation catalog. Independent reviews and the
+direct control arm receive neither tool. New cases bind the catalogs, cards
+and evidence with their runtime. The role's tool log records each actual read.
 
 ## Automatic native resource feedback
 
 Normal Yui proof queues separately freeze ST020 and its source/index/evidence
 hashes at entry. A failed main-proof or auxiliary check with actual structured
 `LEAN_TIMEOUT` metadata or a native heartbeat-exhaustion diagnostic receives
-`repair_advice` in that same tool result. The same worker first follows the
-applicable diagnostic branch, then checks a small fragment and the unchanged
-complete target. ST020 is retrieved locally. On an actual native wall timeout
+`repair_advice` in that same tool result. The worker chooses a local repair
+method and checks the unchanged complete target. ST020 is retrieved locally. On an actual native wall timeout
 a separate diagnostic reviewer inspects that source and compiler output under
 the translation timeout policy. The original proof author retains the node.
 
@@ -26,7 +35,7 @@ premise. Retained tool logs and stage manifests identify the policy and card.
 Checked shared theorem lookup is a separate mechanism described in
 [shared-lemmas.md](shared-lemmas.md). It does not query these advice cards.
 
-## Query a concrete implementation obstacle
+## Legacy tagged query for standalone queues
 
 First identify the failed local transition from its goal, exact context,
 compiler diagnostic and attempted application. If the local audited-note index

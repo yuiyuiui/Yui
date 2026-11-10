@@ -1,0 +1,44 @@
+{
+  "id": "ST026",
+  "revision": 1,
+  "title": "Share a checked low-level component across actual consumers",
+  "family": "representation",
+  "domains": [
+    "algorithms"
+  ],
+  "tags": [
+    "reusable_component",
+    "library_construction",
+    "simulation",
+    "bounded_automation"
+  ],
+  "obstacle": "Several proof nodes separately reconstruct a scan, encoding, state update or connection that has the same observable contract.",
+  "preconditions": [
+    "repeated_obligation_pattern_identified",
+    "common_component_contract_can_be_stated"
+  ],
+  "contraindications": [
+    "component_adds_unproved_mathematical_premise",
+    "abstraction_loses_required_resource_information"
+  ],
+  "procedure": [
+    "Inspect what the consumers actually need and look for a compatible checked component in the pinned library.",
+    "If useful, isolate the operation behind a small proved interface covering its output, relevant state and resource effects.",
+    "Instantiate that same interface at the consuming sites and verify the original obligations there."
+  ],
+  "verification": "Check which consumer obligations the component discharges and whether its representation and costs preserve the requested guarantees.",
+  "positive_example": "Multiple traversals reuse the same certified array-scan specification when their preconditions and charging model agree.",
+  "negative_example": "Introducing helpers that assume the missing implementation, or forget a cost needed by a caller, only moves the obligation.",
+  "lean_versions": [
+    "4.32.2"
+  ],
+  "status": "GENERAL_GUIDANCE",
+  "evidence": [
+    {
+      "kind": "design_rule",
+      "path": "evidence/resource-contracts.md",
+      "sha256": "73e4808a0010622ff986b360da0065ade27cc3849e9972e065199cc376a57384",
+      "note": "General design guidance. Check its conditions in the current argument; no comparative performance claim."
+    }
+  ]
+}

@@ -58,7 +58,9 @@ class PublicEntryTests(unittest.TestCase):
                 program=support.TESTS/'tooling/public_entry_control.py'
                 checkpoint_stage={'direct-external':'nl0','planned-closed':'2basis'}.get(mode)
                 if checkpoint_stage:argv+=['--stop-after',checkpoint_stage]
-                command=[sys.executable,'-B',str(program),mode,*argv[1:]]
+                reads_reference = mode in {'planned-closed', 'direct-external'}
+                fixture_mode = mode+'+reference' if reads_reference else mode
+                command=[sys.executable,'-B',str(program),fixture_mode,*argv[1:]]
                 with subprocess.Popen(command,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as child:
                     if checkpoint_stage:
                         import workflow_checkpoint
@@ -92,6 +94,20 @@ class PublicEntryTests(unittest.TestCase):
                     self.assertEqual(child.returncode,0,(stderr+stdout)[-2500:])
                 user=out/'delivery'
                 self.assertEqual(delivery.verify(user)['scope'],scope)
+                read_ids = set()
+                for tool_log in out.rglob('tools.jsonl'):
+                    rows = [json.loads(line) for line in tool_log.read_text().splitlines()]
+                    for position, event in enumerate(rows):
+                        if event.get('tool') != 'consult_strategy':
+                            continue
+                        self.assertTrue(reads_reference)
+                        result = event['result']
+                        self.assertIn(result.get('status'), {'catalog','cards'}, result)
+                        self.assertFalse(any(r.get('tool') in {'submit_draft','submit_transition',
+                                             'prepare_basis_graph'} for r in rows[:position]))
+                        read_ids.update(card['id'] for card in result.get('cards', []))
+                expected = {'ST021','ST024','ST022','ST026'} if goal=='unconditional' else {'ST022','ST026'}
+                self.assertEqual(read_ids, expected if reads_reference else set())
                 steps=[r['node'].split('/')[-1] for r in nl0.load(out/'protocol/work/state.json')['trace']]
                 self.assertEqual(steps.count('outline')+steps.count('basis-outline'),1)
                 self.assertEqual(steps.count('freeze-basis'),int(goal=='unconditional'))

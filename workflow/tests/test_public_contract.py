@@ -19,8 +19,11 @@ class PublicContractTests(unittest.TestCase):
         self.ref={'path':'owned/file','sha256':'3'*64}
 
     def test_same_binding_type_on_every_evidence_port(self):
-        for tag,contract in self.model.spec['contracts'].items():
+        public = {b['input'] for b in self.model.blocks.values()}
+        public.update(ref for b in self.model.blocks.values() for ref in b.get('outputs', {}).values())
+        for tag in public:
             if tag in ('Delivery@1','Binding@1'): continue
+            contract = self.model.contracts[tag]
             for name,field in contract['properties'].items():
                 if name!='goal':self.assertEqual(field,{'$ref':'urn:workflow:Binding@1'})
         for ref in ({'path':'owned/file'},{**self.ref,'sha256':'wrong'},{**self.ref,'extra':True}):

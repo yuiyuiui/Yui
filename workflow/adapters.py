@@ -16,7 +16,9 @@ def dispatch(ctx, data, name):
 def request_audit(ctx, data): return dispatch(ctx, data, 'request_audit')
 def request_conditional(ctx, data): return dispatch(ctx, data, 'request_conditional')
 def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_unconditional')
-def reduce(ctx, data): return dispatch(ctx, data, 'reduce')
+def reduce(ctx, data):
+    """Select and check foundations. An author may consult the optional basis catalog while choosing the route."""
+    return dispatch(ctx, data, 'reduce')
 def direct_outline(ctx, data):
     """Construct the first working graph from the original proof."""
     return dispatch(ctx, data, 'direct_outline')
@@ -50,7 +52,7 @@ def audit(ctx, data):
     return dispatch(ctx, data, 'audit')
 
 def translate(ctx, data):
-    """Check helper declarations incrementally, compile the combined proof and audit the export.
+    """Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.
 
     A native wall timeout triggers a source-located diagnosis. Only a workload-only
     finding raises the next allowance by six minutes, up to thirty minutes.
