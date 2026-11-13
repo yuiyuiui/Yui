@@ -1,5 +1,6 @@
 """Real Codex process with a deterministic test endpoint; no forwarding or login."""
 from contextlib import ExitStack
+from contextvars import copy_context
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -100,7 +101,8 @@ class NativeFixture:
                         with sessions.use(role):self.outcomes.append(self.stage.execute())
                     else:self.outcomes.append(self.stage.execute())
             except BaseException as error:self.exceptions.append(error)
-        self.worker=threading.Thread(target=run,daemon=True);self.worker.start();return self
+        context=copy_context()
+        self.worker=threading.Thread(target=lambda:context.run(run),daemon=True);self.worker.start();return self
 
     def wait(self, predicate=None, seconds=12):
         deadline=time.monotonic()+seconds;predicate=predicate or (lambda:bool(self.outcomes))

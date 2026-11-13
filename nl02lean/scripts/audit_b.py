@@ -45,8 +45,11 @@ def environment():
     dirty=subprocess.run(['git','-C',str(ml),'status','--porcelain','--untracked-files=no'],capture_output=True,text=True,check=True).stdout.strip()
     ir.need(revision==lock['mathlib']['rev'] and not dirty,'pinned mathlib source changed')
     ir.need(ir.digest(ml/'lake-manifest.json')==lock['mathlib']['manifest_sha256'],'pinned dependency manifest changed')
-    return {'lean_binary_sha256':ir.digest(lean),'mathlib_commit':revision,
+    environment = {'lean_binary_sha256':ir.digest(lean),'mathlib_commit':revision,
             'mathlib_tracked_changes':dirty,'dependency_manifest_sha256':ir.digest(ml/'lake-manifest.json')}
+    import lean_libraries
+    if lean_libraries.current():environment['lean_libraries']=lean_libraries.identity()
+    return environment
 
 
 def source_data(cpath, *, graph=None, spec=None, audit_a=None, incremental=None, fragment=None):
@@ -154,6 +157,9 @@ def prepare(cpath,ppath,bpath,out,**source):
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',
+             ir.ROOT/'nl0/scripts/native_workspace.py',ir.ROOT/'nl0/scripts/process_queries.py',
+             ir.ROOT/'nl0/scripts/lean_libraries.py',ir.ROOT/'workflow/blocks/lean_library_manifests.py',
+             ir.ROOT/'nl0/scripts/execution_state.py',ir.ROOT/'workflow/blocks/process_snapshots.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/lean_environment.py',
              ir.ROOT/'workflow/blocks/lean_environments.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
@@ -374,8 +380,8 @@ def build(out, *, frozen_contract=None):
     # metaprogramming cannot serve as administrative project definitions.
     forbidden_header = re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|initialize|elab|macro)\b',c['header'])
     local = {sid:ir.check(cpath,plan,{sid:proofs[sid]},only=sid) for sid in ir.validate(cpath,plan)[2]}
-    work = Path(tempfile.mkdtemp(prefix='audit-b-build-'))
-    try:
+    from native_workspace import temporary
+    with temporary('audit-b-build-',logs=out/'native-workspaces') as work:
         (work/'input').mkdir();(work/'output').mkdir()
         assembled = assembly.build(c,mapping,formal,out,work)
         inspected = {'status':'NOT_STARTED','compiler_exit_code':None}
@@ -448,8 +454,6 @@ def build(out, *, frozen_contract=None):
                 'errors':mechanical['errors'],'policy':correspondence.POLICY,
                 'assembly':assembled['status'],'inspection':inspected['status'],
                 'semantic_review':'UNVERIFIED'}
-    finally:
-        shutil.rmtree(work)
 
 
 def resolve(value,pointer):

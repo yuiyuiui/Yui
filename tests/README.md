@@ -301,3 +301,59 @@ version mismatches and incomplete native compatibility records; deliberate
 arbitrary-selection and timeout-acceptance mutations were rejected. Private-role
 and profile mutations were also rejected. All eight Builder audit gates and
 15 saved offline protocol replays passed; replay does not repeat theorem work.
+
+
+## Native cleanup, recovery delivery and imported Lean (2026-11-14)
+
+Owned native scratch now survives unconfirmed group shutdown, including a child
+launched before OS identity capture fails. The sibling checks cover IR, helpers,
+interfaces, Audit B assembly and shared modules. Process-table adapters share
+three fresh attempts for actual query timeouts; malformed/exhausted snapshots
+remain uncertainty and cannot authorize signals or source removal.
+
+Final-only basis recovery uses the ordinary export and delivery verifier before
+completion. Native proof acceptance survives packaging-only retry/cancellation.
+Historical jobs retain actual Audit A evidence and explicitly label an absent
+pre-local global freeze. Successful recovery delivery remains readable after
+owned cleanup. The software controls use real Lean and synthetic review records.
+
+New internal V4 jobs freeze their external-library scope; V2/V3 readers remain.
+Public Job@1 and Delivery@1 still carry the same path/hash and inventory contracts.
+Explicit source/compiler manifests include module-system companion artifacts.
+Library identities bind native checks, helper/shared caches, recovery and public
+source exports without treating availability as semantic approval.
+
+The imported-code tool checks original source in the current pair first, checks
+a declared original environment and import context only after failure, and
+requires a completed current recheck of any port. Source boundaries, native
+timeout/cancellation, failed ports, cache mutation and pre-freeze publication
+have independent controls. The actual native-client public entry also uses a
+checked imported module through private proof work, Audit B, final closure and
+delivery on 4.35.0, followed by cleanup and a fresh public-source Lake build.
+Provider responses and semantic judgments are local fixtures, not a new live
+model run or a rerun of the research theorem.
+
+All eight deliberately incorrect process/library/import rules were rejected
+after tightening a shadowing example that previously failed for another reason.
+The first complete regression found a minimal scientific-environment caller
+incorrectly requiring a job root, plus a native routing fixture exhausting its
+30-second allowance under concurrency. The exporter again accepts that caller
+and clears unrelated inherited import roots. Routing fixtures now allow 120
+seconds without changing production limits or timeout/cancellation rejection.
+All 18 affected-component checks passed before the complete rerun.
+
+Final frozen-tree discovery passed **1,326 tests** in **1,890.075 seconds**, with
+zero failures or skips. Each test was assigned once to one of three independent
+owned-cleanup processes; all three reported CLEANED. A fresh file enumeration
+and source fingerprints matched the complete tested checkout. No active patch
+was excluded. A 5.5 MB imported document also passed actual native checking and
+exact range selection; its padding tests input-size handling, not theorem-scale
+elaboration performance. The larger assembly/inspection optimizations remain
+separate work.
+
+The final registered Builder audit passed all eight gates, retained all 15
+independent business cases and replayed all 15 saved protocol histories. Its
+accepted checkpoint is
+`d65963a96ee414582dfb7393e4b02012f9f143b7638565d23f28dc8c552ad45e`.
+The public definition remains unchanged. Protocol replay checks compatibility
+without repeating external proof actions.

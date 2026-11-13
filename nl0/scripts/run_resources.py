@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 import uuid
 import hashlib
+from copy import deepcopy
 
 from execution_state import atomic, identity, capture_process
 
@@ -48,13 +49,14 @@ def register_workspace(work, logs):
     return row
 
 
-def register_child(work, process, kind, *, private_group=False):
+def register_child(work, process, kind, *, private_group=False, identity_record=None):
     """Persist identity even when a stage has no case-level Recorder."""
     marker = Path(work).resolve()/MARKER
     if not marker.is_file():
         return
     row = json.loads(marker.read_text())
-    child = capture_process(process, private_group=private_group)
+    child = capture_process(process, private_group=private_group) if identity_record is None else deepcopy(identity_record)
+    if child.get('pid')!=process.pid:raise ValueError('Child ownership belongs to another process')
     atomic(Path(row['logs'])/'resources'/('process-'+uuid.uuid4().hex+'.json'),
            {'schema_version': 'yui-owned-process-1', 'workspace_token': row['token'],
             'kind': kind, 'process': child})

@@ -8,9 +8,12 @@ from pathlib import Path
 from controller_common import bind, write, verify_bindings
 import ir
 
+from jobs import prior_context
+
 VERSION='yui-basis-closure-recovery-1'
 
 
+@prior_context
 def qualify(previous):
     import basis
     import basis_native
@@ -76,13 +79,11 @@ def validate_descriptor(job):
         raise ValueError('Missing bound final closure evidence')
 
 
+@prior_context
 def prepare(previous):
     import jobs
     old,descriptor,bindings=qualify(previous)
-    problem=Path(old['problem']);materials=[]
-    for row in old['documents'][1:]:
-        p=Path(row['original']['path'])
-        if row['id']!='target-selection.json' and p!=problem and p not in materials:materials.append(p)
+    problem=Path(old['problem']);materials=jobs.resume_materials(old)
     job=jobs.prepare(problem,track='full',profiles=old['profiles'],max_concurrency=old['max_concurrency'],
         policy=old['policy'],materials=materials,source=Path(descriptor['source_authority']['graph']).parent,
         resume=descriptor,resume_bindings=bindings,target=old['target_selection'],formalization='unconditional')
@@ -114,5 +115,23 @@ def run(job, progress):
         'prior_case_result':bind(Path(job['resume']['prior_run'])/'case-result.json'),
         'job':bind(root/'job.json'),'new_model_calls':result.get('timeout_diagnostic_model_called',False),
         'prior_costs_preserved':True}
+    provenance['prior_observed_usage']=ir.load(Path(job['resume']['prior_run'])/'case-result.json')['result'].get('usage',{'status':'UNKNOWN'})
     write(root/'closure-recovery.json',provenance)
-    return {**result,'recovery':provenance}
+    write(root/'source-selection.json',frozen['authority'])
+    prior_global=Path(job['resume']['prior_run'])/'global-selection.json'
+    if prior_global.is_file():
+        from frozen_graph import read_working,check_assignment
+        import source_preparation
+        selected=ir.load(prior_global)
+        data=source_preparation.read_source(**frozen['authority'])[0]
+        check_assignment(read_working(selected),data[2],data[1])
+        write(root/'global-selection.json',selected)
+    import delivery
+    from execution_state import current
+    from runtime_snapshot import root_for
+    from workflow_execution import block_module
+    routes=block_module(root_for(job)/'workflow','routing')
+    result={**result,'recovery':provenance}
+    _,scope=routes.classify('unconditional',result['status'],closed=result.get('closure',{}).get('kernel_closed',False),
+        qualified=result.get('source_conditional',False))
+    return delivery.finalize(job,result,scope,current()[0])[0]

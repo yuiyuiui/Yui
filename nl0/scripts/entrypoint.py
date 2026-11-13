@@ -18,6 +18,8 @@ def parsers(commands):
         p.add_argument('--formalization',choices=['conditional','unconditional'],default='conditional',
                        help='Lean goal; unconditional adds 2basis and final b2lean closure to track=full')
         p.add_argument('--material',action='append',type=Path,default=[])
+        p.add_argument('--lean-library',action='append',type=Path,default=[],
+                       help='Freeze an explicit public source/compiled-module library for the selected environment')
         p.add_argument('--lean-root',type=Path,help='Explicit local Lean installation for this run')
         p.add_argument('--mathlib-root',type=Path,help='Explicit compatible Mathlib checkout for this run')
         p.add_argument('--lean-version',help='Select one installed exact Lean release')
@@ -214,7 +216,7 @@ def dispatch(args):
         from basis import validate_mode
         selected_mode=getattr(args,'formalization','conditional')
         validate_mode(selected_mode,args.track)
-        if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output)):
+        if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output,getattr(args,'lean_library',[]))):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
         import target_selection
         chosen=profiles(args);workers=proof_workers(args);prepared=[]
@@ -235,7 +237,7 @@ def dispatch(args):
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
                 target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None),
-                lean_environment=selected_environment))
+                lean_environment=selected_environment,lean_libraries=getattr(args,'lean_library',[])))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),

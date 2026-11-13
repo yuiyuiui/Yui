@@ -259,7 +259,9 @@ def execute(job, root=None):
     import lean_environment
     selected = job.get('lean_environment') if 'lean_environment' in job else (
         lean_environment.legacy() if job['track'] != 'nl0' else None)
-    with use_profiles(job['profiles']), use_environment(selected):
+    import lean_libraries
+    with use_profiles(job['profiles']), use_environment(selected), lean_libraries.use(job.get('lean_libraries',[])), \
+            lean_libraries.generated(root/'imported-lean'):
         recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job['max_concurrency']),
             phase='nl0-authoring' if job['track'] in {'nl0','full'} else 'translation-preparation',
             time_budget_seconds=job['time_budget_seconds'],
@@ -308,6 +310,8 @@ def execute(job, root=None):
                             context=ir_context(job),intermediate=result)
         except execution.Cancelled as error:
             result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','error':str(error)}
+            if (root/'pending-delivery.json').is_file():
+                result['delivery_pending']=bind(root/'pending-delivery.json')
         except execution.CaseDeadlineExceeded as error:
             result=recorder.deadline_result(error)
         except StageFailure as error:result=error.result
@@ -330,8 +334,9 @@ def execute(job, root=None):
                                    if saved.get('status')=='PROOF_REVIEW_REQUIRED' else {})})
                 except execution.Cancelled:
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
-            passed=result.get('status') in case_outcomes.PASSED
-            conditional=result.get('status') in case_outcomes.CONDITIONAL
+            terminal=case_outcomes.terminal(root,result)
+            passed=result.get('status') in case_outcomes.PASSED and terminal
+            conditional=result.get('status') in case_outcomes.CONDITIONAL and terminal
             accepted_with_warning=bool(result.get('audit_b',{}).get('freeze_deviation') and not result['audit_b'].get('source_conditional',True))
             result.update(elapsed_case_seconds=__import__('time').monotonic()-recorder.started,
                 completion={'acceptance_target_satisfied':passed or accepted_with_warning,'accepted_with_warning':accepted_with_warning,'workflow_completed':passed or conditional,

@@ -18,7 +18,7 @@ class NativeCleanupRecoveryTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=(Path(self.temp.name)/'prior').resolve();self.root.mkdir()
         self.stage=self.root/'nl0-to-lean/0001/workflow/proof-run/workers/T002'
         self.workflow=self.stage.parents[2];self.interface=self.workflow.parent/'interface'
-        self.old={'policy':'normal','time_budget_seconds':None,'case':'synthetic',
+        self.old={'root':str(self.root),'policy':'normal','time_budget_seconds':None,'case':'synthetic',
                   'profiles':{'nl0':'synthetic-profile','lean':'synthetic-profile'},'max_concurrency':2,
                   'documents':[{'sha256':'input-hash'}]}
         write(self.root/'job.json',self.old)
@@ -49,7 +49,7 @@ class NativeCleanupRecoveryTests(unittest.TestCase):
         old,descriptor,files=recovery.qualify(self.root)
         self.assertEqual(descriptor['failed_steps'],['T002'])
         self.assertIn(str(self.stage/'result.json'),{r['path'] for r in files})
-        job={**old,'track':'translate','resume':descriptor,'authority_bindings':files}
+        job={**old,'root':str(self.root.parent/'new'),'track':'translate','resume':descriptor,'authority_bindings':files}
         recovery.validate_descriptor(job)
         job['max_concurrency']=3
         with self.assertRaisesRegex(ValueError,'max_concurrency'):recovery.validate_descriptor(job)

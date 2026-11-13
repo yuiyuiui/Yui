@@ -5,10 +5,13 @@ import json
 from controller_common import bind
 import execution_state
 
+from jobs import prior_context
+
 VERSION='yui-native-cleanup-recovery-1'
 FAULT='RuntimeError: Native process cleanup could not be confirmed'
 
 
+@prior_context
 def qualify(previous):
     import full_workflow
     import ir
@@ -75,13 +78,11 @@ def validate_descriptor(job):
         raise ValueError('Missing bound partial proof or own-draft evidence')
 
 
+@prior_context
 def prepare(previous):
     import jobs
     old,descriptor,bindings=qualify(previous)
-    problem=Path(old['problem']);materials=[]
-    for row in old['documents'][1:]:
-        p=Path(row['original']['path'])
-        if row['id']!='target-selection.json' and p!=problem and p not in materials:materials.append(p)
+    problem=Path(old['problem']);materials=jobs.resume_materials(old)
     job=jobs.prepare(problem,track='translate',profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],materials=materials,
         source=Path(descriptor['source_authority']['graph']).parent,resume=descriptor,resume_bindings=bindings,

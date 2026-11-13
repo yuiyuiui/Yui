@@ -88,6 +88,11 @@ def describe(lean_root, mathlib_root):
     return deepcopy(_describe(str(lean), str(library), _stamp(lean, library)))
 
 
+def identity(value):
+    return {'lean_version':value['lean']['version_number'],'lean_binary_sha256':value['lean']['binary_sha256'],
+            'mathlib_commit':value['mathlib']['rev'],'dependency_manifest_sha256':value['mathlib']['manifest_sha256']}
+
+
 def verify(value):
     """Recheck frozen files and source revisions without changing a run's selection."""
     rules.validate(value)
@@ -121,7 +126,8 @@ def _checked(serialized):
         (work/'output').mkdir()
         source = work/'output/Environment.lean'
         source.write_text(PROBE)
-        with runtime_config.use_environment(value, checked=False):
+        import lean_libraries
+        with runtime_config.use_environment(value, checked=False),lean_libraries.use([]),lean_libraries.generated(None):
             result = run_lean(source, work, timeout=360)
     except BaseException as error:
         (work/'environment-probe-retained.json').write_text(json.dumps({

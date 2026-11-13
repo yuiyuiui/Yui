@@ -6,6 +6,7 @@ evidence that a host schedule was registered or a foreground turn ended.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -88,15 +89,18 @@ def handoff(runs):
 
 
 def process_table():
-    raw = subprocess.run(['ps', '-axo', 'pid=,pgid=,lstart='],
-                         capture_output=True, text=True, check=True, timeout=10)
-    table = {}
-    for line in raw.stdout.splitlines():
-        parts = line.split(None, 2)
-        if len(parts) == 3:
-            table[int(parts[0])] = {'pid': int(parts[0]), 'pgid': int(parts[1]),
-                                    'started': ' '.join(parts[2].split())}
-    return table
+    from process_queries import query, started
+    def parse(raw):
+        table = {}
+        for line in raw.stdout.splitlines():
+            parts = line.split(None, 2)
+            if len(parts)!=3:raise ValueError('Incomplete observed process identity')
+            pid,pgid=map(int,parts[:2])
+            if pid in table or min(pid,pgid)<0:raise ValueError('Invalid observed process identity')
+            table[pid]={'pid':pid,'pgid':pgid,'started':started(parts[2])}
+        if os.getpid() not in table:raise ValueError('Incomplete observed process snapshot')
+        return table
+    return query(['ps','-axo','pid=,pgid=,lstart='],parse,timeout=10)
 
 
 def matches(record, table):
@@ -128,7 +132,7 @@ def snapshot(runs):
     try:
         table = process_table()
         process_error = None
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         table = {}
         process_error = type(error).__name__+': '+str(error)
     cases = []
@@ -177,4 +181,5 @@ def snapshot(runs):
             'all_terminal': terminal, 'all_process_exits_verified': exited,
             'process_inspection_error': process_error,
             'next_check_seconds': None if terminal and exited else settings['interval_seconds'],
+            'process_query_recoveries':__import__('process_queries').history(),
             'scope': 'One read-only snapshot. Use proof_total and proof_counts for nodes in the current plan; counts also includes diagnosis and review tasks. After a terminal result, task counts are history. Acceptance requires the bound gate reports.'}

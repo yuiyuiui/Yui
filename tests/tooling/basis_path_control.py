@@ -3,6 +3,7 @@ from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 import json
+import hashlib
 import time
 import subprocess
 import sys
@@ -10,9 +11,9 @@ from unittest.mock import patch
 
 job = json.loads(Path(sys.argv[1]).read_text())
 run = Path(job['root'])
-mode = sys.argv[2]
-read_strategies = mode.endswith('+reference')
-mode = mode.removesuffix('+reference')
+options=sys.argv[2].split('+');mode=options[0]
+read_strategies='reference' in options[1:]
+imported_code='imported-lean' in options[1:]
 tests = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl02lean/scripts'),
                 str(tests.parent/'nl0/scripts'),str(tests.parent/'nl02lean/scripts')]
@@ -153,11 +154,20 @@ def scripted(stage):
             row['origin']['evidence']=[{'path':'external-sources/misspelled.pdf','sha256':'0'*64}]
         if mode.startswith('planned-'):
             base=dependency(category=2);base['port']=None
+            prefix=''
+            if imported_code:
+                source=stage.task_inputs['material-001.lean']
+                module='YuiImported'+hashlib.sha256(source.encode()).hexdigest()[:24]
+                base['lean']['proof']='exact ImportedExample.add_zero'
+                base['origin'].update(reference='material-001.lean: ImportedExample.add_zero',
+                                      evidence=[{'input':'material-001.lean'}])
+                prefix=call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
             derived=dependency('B002',3)
             rows=[base,derived]
             if mode!='planned-closed' and (mode!='planned-continue' or requests[stage.logs]==1):
                 rows.append(dependency('B003',4,port='E003'))
             value=active_artifact(artifact(*rows))
+            if imported_code:value['lean_header']='import Mathlib\nimport '+module+'\n'
             target=value['dependencies'][1]
             target['lean']['proof']=None
             frontier=''
@@ -165,7 +175,7 @@ def scripted(stage):
                 frontier=call('investigate_basis_frontier',obligations=[
                     {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
                     for r in value['dependencies']])
-            return frontier+call('submit_draft',artifact=value)
+            return prefix+frontier+call('submit_draft',artifact=value)
         value=active_artifact(artifact(row))
         if mode=='stalled-graph' or (mode=='global-revision' and revision=='0001'):
             next(p for p in value['global_graph']['propositions'] if p['id']=='N001')['statement']='Both numbers vanish.'
@@ -199,6 +209,7 @@ def scripted(stage):
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
+        if imported_code:value['header']=ir.load(registry)['lean_header']
         for row in rows:
             if mode.startswith('relabel-'):row['port']='E014'
             if not row['port'] or (mode=='planned-unused-residual' and row['port']=='E003'):continue
@@ -250,7 +261,9 @@ def respond(f,handler,number,payload):
         # Read its oracle's contract under the declared job environment. Actual
         # worker manifests below still independently expose inherited settings.
         from runtime_config import use_environment, use_profiles
-        with use_environment(job.get('lean_environment')), use_profiles(job['profiles']):
+        import lean_libraries
+        with use_environment(job.get('lean_environment')), use_profiles(job['profiles']), lean_libraries.use(job.get('lean_libraries',[])), \
+                lean_libraries.generated(run/'imported-lean'):
             code=scripted(stage)
         if read_strategies:
             selected = {'basis-authoring': ('basis','ST021'), 'basis-frontier': ('basis','ST024'),

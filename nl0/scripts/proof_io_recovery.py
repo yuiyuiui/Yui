@@ -13,6 +13,8 @@ import tempfile
 
 from controller_common import bind, write, verify_bindings
 
+from jobs import prior_context
+
 VERSION = 'yui-proof-io-recovery-1'
 MODE = 'native-proof-io'
 
@@ -41,6 +43,7 @@ def candidate_context(result):
             and isinstance(result.get('submission_completion'), dict))
 
 
+@prior_context
 def qualify(previous):
     import jobs
     import ir
@@ -179,11 +182,11 @@ def validate_descriptor(job):
         raise ValueError('Recovery omitted actual retained evidence')
 
 
+@prior_context
 def prepare(previous):
     import jobs
     old, descriptor, bindings = qualify(previous)
-    materials = [Path(r['original']['path']) for r in old['documents'][1:]
-                 if r['id'] != 'target-selection.json']
+    materials = jobs.resume_materials(old)
     job = jobs.prepare(old['problem'], track='full', formalization='unconditional',
                        profiles=old['profiles'], max_concurrency=old['max_concurrency'],
                        policy=old['policy'], materials=materials,

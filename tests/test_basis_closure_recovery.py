@@ -3,6 +3,10 @@ import harness_support
 from pathlib import Path
 from copy import deepcopy
 import tempfile
+import os
+import json
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -17,12 +21,20 @@ import b2lean
 import case_runner
 import ir
 import jobs
+import delivery
+import cleanup
 import owner_observation
 import target_selection
 import workflow
 
 
 class FinalOnlyRecovery(unittest.TestCase):
+    def setUp(self):
+        import fault_control
+        guard=patch.object(fault_control.Gate,'pause',side_effect=lambda error,**kwargs:
+                           self.fail('Unexpected retained pause: '+json.dumps(error,default=str)))
+        guard.start();self.addCleanup(guard.stop)
+
     @classmethod
     def setUpClass(cls):
         cls.temp=tempfile.TemporaryDirectory();cls.base=Path(cls.temp.name).resolve()
@@ -60,7 +72,12 @@ class FinalOnlyRecovery(unittest.TestCase):
 
     def test_real_owned_case_repeats_only_native_closure(self):
         before={p:ir.digest(p) for p in self.root.rglob('*') if p.is_file()}
-        job=recovery.prepare(self.root)
+        import runtime_config
+        from contextlib import nullcontext
+        selected=os.environ.get('YUI_TEST_ALTERNATE_ENVIRONMENT')
+        context=(runtime_config.use_environment(ir.load(selected)) if selected else nullcontext())
+        with context:job=recovery.prepare(self.root)
+        self.assertEqual(job['lean_environment'],self.old['lean_environment'])
         with patch.object(basis,'run',side_effect=AssertionError('unexpected basis author')) as author, \
                 patch.object(case_runner,'nl0_work',side_effect=AssertionError('unexpected NL0')) as nl0, \
                 patch.object(case_runner,'translation_work',side_effect=AssertionError('unexpected proof generation')) as lean:
@@ -68,12 +85,72 @@ class FinalOnlyRecovery(unittest.TestCase):
         author.assert_not_called();nl0.assert_not_called();lean.assert_not_called()
         self.assertEqual(result['status'],'WORKFLOW-PASSED')
         self.assertTrue(result['completion']['acceptance_target_satisfied'])
+        self.assertEqual(delivery.verify(Path(job['root'])/'delivery')['scope'],'UNCONDITIONAL_LEAN')
         out=Path(job['root']);b2lean.validate_receipt(out/'b2lean');jobs.validate(job)
         self.assertFalse(result['recovery']['new_model_calls'])
         self.assertEqual(ir.load(out/'closure-recovery.json')['prior_case_result'],bind(self.root/'case-result.json'))
         self.assertEqual(before,{p:ir.digest(p) for p in self.root.rglob('*') if p.is_file()})
         self.assertFalse((out/'nl0-to-lean').exists())
         with self.assertRaisesRegex(ValueError,'Preserve this run'):case_runner.execute(job)
+
+    def test_recovered_native_delivery_survives_owned_cleanup_and_standalone_readback(self):
+        code=("import sys;sys.path.insert(0,"+repr(str(harness_support.TESTS))+ ");import harness_support;"
+              "import basis_closure_recovery as r,case_runner,json,fault_control;"
+              "fault_control.Gate.pause=lambda self,error,**kwargs:(_ for _ in ()).throw(AssertionError(json.dumps(error,default=str)));"
+              "job=r.prepare("+repr(str(self.root))+");result=case_runner.execute(job);"
+              "print(json.dumps({'root':job['root'],'result':result}))")
+        child=subprocess.run([sys.executable,'-B','-c',code],text=True,capture_output=True,timeout=150)
+        self.assertEqual(child.returncode,0,(child.stdout+child.stderr)[-5000:])
+        value=json.loads(child.stdout);root=Path(value['root'])
+        self.assertTrue(value['result']['completion']['workflow_completed'])
+        anchor=delivery.finalization_anchor(root)
+        record=ir.load(root/'delivery/run.json')
+        self.assertEqual(record['recovery']['prior_observed_usage']['confirmed_tokens'],1234)
+        result=cleanup.clean(apply=True,grace=0,outputs=[root])
+        self.assertEqual(result['status'],'CLEANED',result)
+        self.assertEqual({p.name for p in root.iterdir()},{'delivery'})
+        self.assertEqual(delivery.verify(root/'delivery',anchor=anchor)['scope'],'UNCONDITIONAL_LEAN')
+        self.assertTrue((self.root/'case-result.json').is_file())
+
+    def test_packaging_retry_reuses_the_checked_native_closure(self):
+        import fault_control
+        original=delivery.publish
+        calls=[];writes=[];original_write=delivery.write
+        def storage(path,value):
+            if Path(path).name in {'delivery-input.json','pending-delivery.json'} and Path(path).name not in writes:
+                writes.append(Path(path).name);raise OSError('Synthetic checkpoint storage interruption')
+            return original_write(path,value)
+        def flaky(*args,**kwargs):
+            calls.append(True)
+            if len(calls)==1:raise OSError('Synthetic publication storage interruption')
+            return original(*args,**kwargs)
+        job=recovery.prepare(self.root)
+        with patch.object(delivery,'publish',side_effect=flaky),patch.object(delivery,'write',side_effect=storage), \
+                patch.object(fault_control.Gate,'pause',return_value=None) as pause, \
+                patch.object(b2lean,'finish',wraps=b2lean.finish) as native:
+            result=case_runner.execute(job)
+        self.assertTrue(result['completion']['workflow_completed'],result)
+        self.assertEqual(native.call_count,1);self.assertEqual(len(calls),2)
+        self.assertEqual(writes,['delivery-input.json','pending-delivery.json']);self.assertEqual(pause.call_count,2)
+        self.assertTrue(pause.call_args.kwargs['resumable'])
+        self.assertFalse((Path(job['root'])/'pending-delivery.json').exists())
+        delivery.verify(Path(job['root'])/'delivery')
+
+    def test_cancelled_packaging_preserves_proof_without_claiming_workflow_completion(self):
+        import execution_state
+        import fault_control
+        job=recovery.prepare(self.root)
+        with patch.object(delivery,'publish',side_effect=OSError('Synthetic publication failure')), \
+                patch.object(fault_control.Gate,'pause',side_effect=execution_state.Cancelled('Explicit packaging stop')), \
+                patch.object(b2lean,'finish',wraps=b2lean.finish) as native:
+            result=case_runner.execute(job)
+        self.assertEqual(native.call_count,1)
+        self.assertEqual(result['status'],'CANCELLED')
+        self.assertFalse(result['completion']['workflow_completed'])
+        root=Path(job['root']);pending=ir.load(root/'pending-delivery.json')
+        self.assertEqual(pending['proof_component_status'],'WORKFLOW-PASSED')
+        self.assertFalse(pending['workflow_completed'])
+        b2lean.validate_receipt(root/'b2lean')
 
     def test_failed_recovery_pauses_then_cancels_without_false_success(self):
         import execution_state

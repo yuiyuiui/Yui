@@ -43,6 +43,10 @@ dependencies: [dependency, ...]
 replacements: [{original_dependency, replacement:[B IDs], explanation}, ...]
 ```
 
+With an [explicitly attached Lean library](lean-libraries.md), listed entry
+imports may follow `import Mathlib` before the object definitions. Unattached
+imports remain rejected; this does not grant semantic or foundation acceptance.
+
 Each dependency has exactly:
 
 ```text

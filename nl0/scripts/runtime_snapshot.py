@@ -71,6 +71,11 @@ def root_for(job):
 def environment(job):
     import os
     env=dict(os.environ)
+    if job.get('root') is not None:
+        env['YUI_LEAN_IMPORT_ROOT']=str(Path(job['root'])/'imported-lean')
+    else:
+        env.pop('YUI_LEAN_IMPORT_ROOT',None)
+    env['YUI_LEAN_LIBRARIES']=json.dumps(job.get('lean_libraries',[]),sort_keys=True)
     if 'lean_environment' in job:
         env['YUI_LEAN_ENVIRONMENT']=json.dumps(job['lean_environment'],sort_keys=True)
     if 'runtime_snapshot' in job:

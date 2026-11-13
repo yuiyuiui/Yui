@@ -48,7 +48,9 @@ class SelectedEnvironment(unittest.TestCase):
             exposed = runtime_config.load_lock()
             exposed['mathlib']['rev'] = 'altered returned copy'
             self.assertEqual(runtime_config.load_lock()['mathlib']['rev'], original['mathlib']['rev'])
-        env = runtime_snapshot.environment({'lean_environment': original})
+        with patch.dict(os.environ, {'YUI_LEAN_IMPORT_ROOT': '/unrelated-case/imported-lean'}):
+            env = runtime_snapshot.environment({'lean_environment': original})
+        self.assertNotIn('YUI_LEAN_IMPORT_ROOT', env)
         self.assertEqual(json.loads(env['YUI_LEAN_ENVIRONMENT']), original)
         command = [sys.executable, '-B', '-c',
                    'import json,runtime_config;print(json.dumps(runtime_config.scientific_pins()))']
@@ -82,7 +84,7 @@ class SelectedEnvironment(unittest.TestCase):
             problem.write_text('If P then P.')
             job = jobs.prepare(problem, track='full', profiles=harness_support.PROFILES,
                                lean_environment=self.selected)
-            self.assertEqual(job['version'],'yui-case-job-3')
+            self.assertEqual(job['version'],'yui-case-job-4')
             self.assertEqual(job['lean_environment'], self.selected)
             jobs.validate(job)
             with patch.object(environments, 'resolve', side_effect=AssertionError('no reselection')):
@@ -95,6 +97,15 @@ class SelectedEnvironment(unittest.TestCase):
             missing.pop('lean_environment')
             with self.assertRaises(ValueError):
                 jobs.validate(missing)
+
+    def test_v3_frozen_jobs_remain_readable_without_an_attachment_field(self):
+        with tempfile.TemporaryDirectory() as raw:
+            problem=Path(raw)/'proof.md';problem.write_text('If P then P.')
+            job=jobs.prepare(problem,track='full',profiles=harness_support.PROFILES,lean_environment=self.selected)
+            job['version']='yui-case-job-3';job.pop('lean_libraries')
+            root=Path(job['root']);(root/'job.json').write_text(json.dumps(job))
+            marker=json.loads((root/jobs.MARKER).read_text());marker.update(version=job['version'],job=bind(root/'job.json'))
+            (root/jobs.MARKER).write_text(json.dumps(marker));jobs.validate(job)
 
     def test_translate_and_audit_tracks_freeze_the_same_explicit_pair(self):
         import source_preparation
@@ -173,12 +184,37 @@ class SelectedEnvironment(unittest.TestCase):
                          '--max-concurrency','1','--output',str(run),
                          '--lean-root',selected['lean']['local_path'],
                          '--mathlib-root',selected['mathlib']['local_path']]
+                if goal=='unconditional':
+                    from lean_library_fixtures import library
+                    with runtime_config.use_environment(selected):
+                        specification=library(root/'external-library',modern=True)
+                    command+=['--lean-library',str(specification)]
+                    imported=root/'imported.lean'
+                    imported.write_text('import Mathlib\nimport FixtureLib.Leaf\nnamespace ImportedExample\n'
+                        'theorem add_zero (n : Nat) : n + 0 = n := by\n'
+                        '  have _ : True := FixtureLib.witness\n  rfl\nend ImportedExample\n')
+                    command[3]=mode+'+imported-lean'
+                    command+=['--material',str(imported)]
                 result=subprocess.run(command,capture_output=True,text=True,timeout=300)
                 self.assertEqual(result.returncode,0,(result.stdout+'\n'+result.stderr)[-12000:])
                 job=json.loads((run/'job.json').read_text())
                 record=json.loads((run/'delivery/run.json').read_text())
                 self.assertEqual(job['lean_environment']['lean']['version_number'],selected['lean']['version_number'])
                 self.assertEqual(record['lean_environment'],job['lean_environment'])
+                if goal=='unconditional':
+                    self.assertEqual(job['lean_libraries'][0]['name'],'FixtureLib')
+                    self.assertTrue((run/'delivery/formalization/lean-libraries/FixtureLib/source/FixtureLib/Leaf.lean').is_file())
+                    self.assertFalse(list((run/'delivery').rglob('*.olean')))
+                    endpoints=json.loads((run/'delivery/nl0/lean-endpoints.json').read_text())
+                    self.assertEqual(endpoints['lean_libraries'][0]['manifest_sha256'],
+                                     job['lean_libraries'][0]['manifest']['sha256'])
+                    self.assertEqual(len(endpoints['lean_libraries']),2)
+                    self.assertTrue(any(row['name'].startswith('YuiImported') for row in endpoints['lean_libraries']))
+                    imports=list(run.glob('2basis/*/stage/imported-lean/request-*/result.json'))
+                    self.assertTrue(imports)
+                    imported_check=json.loads(imports[0].read_text())
+                    self.assertEqual(imported_check['status'],'LOCAL_REUSED')
+                    self.assertFalse(imported_check['semantic_acceptance'])
                 self.assertEqual(delivery.verify(run/'delivery')['scope'],scope)
                 profiles=[]
                 for path in run.rglob('execution-manifest.json'):
@@ -198,6 +234,20 @@ class SelectedEnvironment(unittest.TestCase):
                 report=cleanup.clean(apply=True,grace=1,outputs=[run])
                 self.assertEqual(report['status'],'CLEANED',report)
                 self.assertEqual(delivery.verify(run/'delivery')['scope'],scope)
+                if goal=='unconditional':
+                    # Rebuild only public delivered sources after controller and
+                    # worker cleanup; no copied olean from the imported registry.
+                    package=root/'fresh-package';shutil.copytree(run/'delivery/formalization',package)
+                    packages=package/'.lake/packages';packages.mkdir(parents=True)
+                    ml=Path(selected['mathlib']['local_path'])
+                    (packages/'mathlib').symlink_to(ml,target_is_directory=True)
+                    for row in json.loads((ml/'lake-manifest.json').read_text())['packages']:
+                        (packages/row['name']).symlink_to(ml/'.lake/packages'/row['name'],target_is_directory=True)
+                    binary=Path(selected['lean']['local_path'])/'bin/lake'
+                    built=subprocess.run([str(binary),'build','+Solution:olean'],cwd=package,
+                        capture_output=True,text=True,timeout=120,
+                        env={**os.environ,'PATH':str(binary.parent)+os.pathsep+os.environ.get('PATH',''),'LEAN_NUM_THREADS':'2'})
+                    self.assertEqual(built.returncode,0,(built.stdout+built.stderr)[-6000:])
 
 
 if __name__ == '__main__':

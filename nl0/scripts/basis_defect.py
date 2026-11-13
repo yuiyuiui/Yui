@@ -7,6 +7,8 @@ from controller_common import bind, verify_bindings
 from execution_health import StageFailure, record_qualification
 import ir
 
+from jobs import prior_context
+
 STATUS = 'BASIS_REVISION_REQUIRED'
 PHASES = {'nl0-global-from-basis','basis-global-metadata', 'nl0-local-authoring', 'nl0-authoring', 'audit-a-global', 'translation-source-preparation', 'translation-cut-review',
           'interface-authoring', 'interface-semantic-review', 'interface-dispute-review',
@@ -163,6 +165,7 @@ def is_revision_program(out,previous):
     return True
 
 
+@prior_context
 def qualify(previous):
     import basis
     import jobs
@@ -230,10 +233,11 @@ def validate_descriptor(job):
         raise ValueError('The basis repair cannot reset the case budget')
 
 
+@prior_context
 def prepare(previous):
     import jobs
     old,descriptor,bindings=qualify(previous)
-    materials=[Path(r['original']['path']) for r in old['documents'][1:] if r['id']!='target-selection.json']
+    materials=jobs.resume_materials(old)
     return jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],max_concurrency=old['max_concurrency'],
         policy=old['policy'],materials=materials,target=old['target_selection'],formalization='unconditional',
         time_budget_seconds=remaining(descriptor),resume=descriptor,resume_bindings=bindings)

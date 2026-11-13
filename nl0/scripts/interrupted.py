@@ -204,6 +204,7 @@ def bookkeeping_boundary(prior,old,result):
     return author,source,campaigns,faults
 
 
+@jobs.prior_context
 def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False,
             after_access_restored=False, output=None):
     """No model calls; reuse only explicit, unchanged, completed review scopes."""
@@ -304,7 +305,7 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False,
             output=prior.parent/(datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:10])
     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],
-        materials=[row['original']['path'] for row in old['documents'][1:] if row.get('extraction')!='target-selection'],
+        materials=jobs.resume_materials(old),
         time_budget_seconds=remaining,resume=descriptor,
         resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'),
         formalization=old.get('formalization','conditional'),

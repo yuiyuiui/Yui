@@ -31,7 +31,9 @@ def obligation(cpath, plan, sid):
     ir.need('shared_lemma' in step, 'step has no reviewed shared export')
     packet = ir.local_packet(cpath, plan, sid)
     record = next(x for x in c['shared_obligations'] if x['id'] == step['shared_lemma'])
+    import lean_libraries
     return {'pins': c['pins'], 'header': packet['header'], 'parameters': c['parameters'],
+            **({'lean_libraries':lean_libraries.identity()} if lean_libraries.current() else {}),
             'inputs': packet['inputs'], 'target': step['statement'],
             'objects': packet.get('objects', []),
             'representations': packet.get('representations', []),
@@ -55,6 +57,7 @@ def signature_key(value):
                  'target': normalize(value['target']),
                  'objects': value['objects'], 'representations': value['representations'],
                  'bridges': value['bridges'], 'route': value['route']}
+    if value.get('lean_libraries'):canonical['lean_libraries']=value['lean_libraries']
     kinds=[p.get('binder_kind','explicit') for p in value['parameters']]
     if any(kind!='explicit' for kind in kinds):canonical['parameter_binders']=kinds
     if any('uses' in p for p in value['inputs']):
@@ -170,8 +173,8 @@ class Store:
         module = value['header'] + '\nnamespace Shared\nset_option autoImplicit false\n\n'
         binders = ir.binder_text(c) + ' ' + ' '.join(f"({p['binder']} : {p['type']})" for p in value['inputs'])
         module += f"theorem L{key} {binders} : {value['target']} := by\n{ir.proof_text(proof)}\n\nend Shared\n"
-        with tempfile.TemporaryDirectory(prefix='shared-module-') as temp_work:
-            work = Path(temp_work)
+        from native_workspace import temporary
+        with temporary('shared-module-') as work:
             (work/'input').mkdir()
             (work/'output').mkdir()
             file = work/'output'/'Shared.lean'

@@ -120,6 +120,16 @@ class Stage(carrier.Trial):
         self.tools = [dict(t) for t in carrier.TOOLS[:2]]
         self.tools[0]['description']='Search the pinned mathlib Lean source using a regular expression; at most 100 lines.'
         self.tools[1]['description']='Read specified lines of a Mathlib/*.lean source file from the pinned checkout.'
+        import lean_libraries
+        self.tools += lean_libraries.tools()
+        if mode in {'proof','interface','plan'}:
+            import lean_imports
+            self.tools += lean_imports.tools()
+            self.system += (' Check substantial imported Lean units locally with check_imported_lean before porting. '
+                'Only after a definite failure check the declared original environment and imports. '
+                'This frozen role can check retained public sources but cannot publish new context imports.')
+        if lean_libraries.current():
+            self.system += '\nExplicit bound Lean libraries (not semantic approval): '+json.dumps(lean_libraries.summary())
         if mode == 'interface':
             self.tools += [json_tool('check_interface','Check a proposed typed interface. JSON string has parameters [{name,type}], premises [{id,type}], conclusion_type, representation_notes.','interface_json'),
                            json_tool('submit_interface','Submit the same typed interface after checking.','interface_json')]
@@ -235,7 +245,13 @@ class Stage(carrier.Trial):
         try:
             if self.accepted or self.repair_request:
                 raise ir.Invalid('stage already closed; no overwrite')
-            if self.mode=='proof' and self.instruction_arm=='yui' and name=='report_proof_obstruction':
+            if name=='check_imported_lean' and name in self.tool_names:
+                import lean_imports
+                result=lean_imports.check(self,allow_publish=False,**args)
+            elif name in {'read_lean_library','search_lean_library'} and name in self.tool_names:
+                import lean_libraries
+                result=lean_libraries.dispatch(name,args,self.logs)
+            elif self.mode=='proof' and self.instruction_arm=='yui' and name=='report_proof_obstruction':
                 report=proof_repair.obstruction(self,args)
                 result=self.request_proof_repair(report)
             elif name=='read_private_source' and name in self.tool_names:

@@ -50,4 +50,16 @@ def terminal(root, outcome):
         except (KeyError, TypeError, ValueError, OSError):
             return False
         return True
-    return status in PASSED or status in CONDITIONAL or status in {'CANCELLED', 'DIFFERENT_RESULT_DELIVERED'}
+    if status in PASSED or status in CONDITIONAL or status=='DIFFERENT_RESULT_DELIVERED':
+        try:
+            root=Path(root)
+            job=json.loads((root/'job.json').read_text()) if (root/'job.json').is_file() else {}
+            recovery=job.get('resume',{}).get('mode')=='basis-final-closure'
+            if job.get('workflow_protocol') or recovery:
+                import delivery
+                if outcome.get('delivery')!=str(root/'delivery'):return False
+                if job.get('workflow_protocol'):delivery.cleanup_anchor(root)
+                else:delivery.finalization_anchor(root)
+        except (OSError,ValueError,KeyError,TypeError):return False
+        return True
+    return status=='CANCELLED'

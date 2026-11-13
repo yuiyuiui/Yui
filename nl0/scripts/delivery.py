@@ -105,9 +105,14 @@ def lean_project(directory, contract, retained, name, solution):
     write(directory/'config.json',comparator_config(name))
     (directory/'lean-toolchain').write_text(lock['lean']['toolchain']+'\n')
     lib=lock['mathlib']
+    import lean_libraries
+    attached=lean_libraries.export_sources(directory)
+    extra=''.join('\n[[lean_lib]]\nname = '+json.dumps(row['name'])+
+                  '\nsrcDir = '+json.dumps('lean-libraries/'+row['name']+'/source')+'\n'
+                  for row in attached)
     (directory/'lakefile.toml').write_text('name = "YuiDelivery"\n\n[[require]]\nname = "mathlib"\n'
         +'git = '+json.dumps(lib['url'])+'\nrev = '+json.dumps(lib['rev'])
-        +'\n\n[[lean_lib]]\nname = "Challenge"\n\n[[lean_lib]]\nname = "Solution"\n')
+        +extra+'\n\n[[lean_lib]]\nname = "Challenge"\n\n[[lean_lib]]\nname = "Solution"\n')
     manifest=nl0.load(Path(lib['local_path'])/'lake-manifest.json')
     manifest['name']='YuiDelivery'
     for dep in manifest['packages']: dep['inherited']=True
@@ -150,6 +155,8 @@ def export_lean(result,scope,source,directory):
     frozen_endpoint.update(retained=retained,export=export,
                            source_contract_sha256=nl0.sha(frozen['contract']),
                            semantic_review_sha256=receipt['gate']['semantic_review']['sha256'])
+    attached=nl0.load(native/'audit-b/manifest.json')['environment'].get('lean_libraries',[])
+    if attached:frozen_endpoint['lean_libraries']=attached
     evidence=directory.parent/'nl0/lean-evidence'
     evidence.mkdir()
     for name,path in [('contract',frozen['contract']),('semantic-review',receipt['gate']['semantic_review']['path']),
@@ -198,6 +205,8 @@ def verify_lean_evidence(directory,endpoint,record,expected):
         proofs=[row['sha256'] for row in native['bindings'] if Path(row['path']).name=='Proof.lean']
         if not native['passed'] or proofs!=[solution] or native['checks']!=[['P',endpoint['export'],expected]]:
             raise ValueError('The solution differs from its actual checked discharge')
+        if native.get('environment',{}).get('lean_libraries',[])!=endpoint.get('lean_libraries',[]):
+            raise ValueError('Delivered Lean libraries differ from actual closed native evidence')
     elif machine['artifacts']['Proof.lean']!=solution:
         raise ValueError('The solution differs from its actual checked Audit B export')
 
@@ -265,9 +274,24 @@ def verify(directory, *, anchor=None):
     if scope in LEAN:
         if not record.get('audit_b') or record.get('requested_goal')=='audit':
             raise ValueError('A Lean result requires an actual Audit B receipt and a formalization request')
-        if {p.name for p in (directory/'formalization').iterdir()}!={'Challenge.lean','Solution.lean','lakefile.toml','config.json','lean-toolchain','lake-manifest.json'}:
-            raise ValueError('Incomplete Comparator package')
         endpoint=nl0.load(directory/'nl0/lean-endpoints.json')
+        import lean_libraries
+        names=lean_libraries.verify_export(directory/'formalization',endpoint.get('lean_libraries',[]))
+        allowed={'Challenge.lean','Solution.lean','lakefile.toml','config.json','lean-toolchain','lake-manifest.json'}
+        if names:allowed.add('lean-libraries')
+        if {p.name for p in (directory/'formalization').iterdir()}!=allowed:
+            raise ValueError('Incomplete Comparator package')
+        if names:
+            import tomllib
+            lake=tomllib.loads((directory/'formalization/lakefile.toml').read_text())
+            if lake.get('leanOptions') is not None:
+                raise ValueError('Delivered Lean libraries must retain the native compiler defaults')
+            libs=lake.get('lean_lib',[])
+            if [v.get('name') for v in libs]!=[*names,'Challenge','Solution']:
+                raise ValueError('Delivered Lake libraries differ from the bound source inventory')
+            for lib,name in zip(libs,names):
+                if lib!={'name':name,'srcDir':'lean-libraries/'+name+'/source'}:
+                    raise ValueError('Delivered Lake library source path changed')
         selected=record.get('lean_environment')
         if selected is not None:
             import lean_environment
@@ -364,6 +388,15 @@ def publish(job,result,scope,recorder):
             else:
                 from nl0_review_loop import copy_source
                 copy_source(Path(nl0.load(selected['path'])['graph']['path']).parent,natural/'frozen')
+        elif audit_a and job.get('resume',{}).get('mode')=='basis-final-closure':
+            # Old accepted jobs may predate global-selection receipts. Project
+            # the actual reviewed graph and label its origin; do not claim a
+            # new pre-local freeze or rerun any proof/reviewer.
+            from frozen_graph import LEGACY_BASIS,shape
+            write(natural/'global.json',{'owner':LEGACY_BASIS,'graph':shape(data[1]),
+                'spec_sha256':nl0.sha(natural/'spec.json'),
+                'origin':'retained-audit-a-final-closure-recovery',
+                'pre_local_global_freeze':'NOT_RECORDED_BY_PRIOR_JOB'})
         if scope=='DIFFERENT_RESULT':
             from translation_reset import authorization
             authorization(result['user_decision'],'deliver-actual')
@@ -400,7 +433,7 @@ def publish(job,result,scope,recorder):
             if block['elapsed_seconds'] is None:
                 block['elapsed_seconds']=(end-datetime.fromisoformat(block['started_utc'])).total_seconds()
         record={'version':'yui-delivery-1','blocks':blocks,'outcome_sha256':outcome_digest,
-                'lean_environment':job.get('lean_environment'),
+                'lean_environment':job.get('lean_environment'),'recovery':result.get('recovery'),
                 'last_phase':recorder.state.get('phase'),'elapsed_scope':'case start through delivery checks','run_id':job['run_id'],'requested_goal':'audit' if job['track']=='nl0' else job['formalization'],
                 'actual_result':scope,'case_status':result['status'],'entry':entry,'exit':exit_name,
                 'unresolved_foundations':[row['id'] for row in unresolved],
@@ -417,6 +450,59 @@ def publish(job,result,scope,recorder):
             if final.is_dir():return existing()
             raise
         return anchor,extra
+
+def finalize(job,result,scope,recorder):
+    """Return a completed case only after ordinary export and independent readback."""
+    from fault_control import Gate
+    root=Path(job['root']);selected=root/'delivery-input.json'
+    packet={'version':'yui-delivery-input-1','scope':scope,'result':result}
+    gate=Gate(root/'logs/delivery-errors',recorder=recorder,task='case-controller',stage='delivery-finalization')
+    while True:
+        try:
+            if selected.is_file():
+                if nl0.load(selected)!=packet:raise ValueError('Another proof outcome owns this delivery attempt')
+            else:write(selected,packet)
+            inventory,extra=publish(job,result,scope,recorder)
+            verify(root/'delivery',anchor=inventory)
+            write(root/'delivery-finalization.json',{'version':'yui-delivery-finalization-1',
+                'job':bind(root/'job.json'),'input':bind(selected),'scope':scope,'inventory':inventory})
+            (root/'pending-delivery.json').unlink(missing_ok=True)
+            return {**result,'delivery':str(root/'delivery'),'public_result':scope},inventory,extra
+        except OSError as error:
+            pending={'version':'yui-pending-delivery-1',
+                'proof_component_status':result['status'],'workflow_completed':False,
+                'error':type(error).__name__+': '+str(error),
+                'retry_scope':'ordinary delivery export and readback only','new_model_or_lean_call':False}
+            try:pending['input']=bind(selected)
+            except OSError:pending['input_snapshot_pending']=True
+            try:write(root/'pending-delivery.json',pending)
+            except OSError:pass  # Retain the proof and resumable checkpoint in the live owner.
+            recorder.update(phase='DELIVERY_PENDING',delivery_pending=pending)
+            gate.pause(error,resumable=True,checkpoint=pending)
+
+
+def finalization_anchor(root):
+    """Bind a successful nonprotocol recovery to its verified permanent package."""
+    root=Path(root).resolve()
+    stamp=nl0.load(root/'delivery-finalization.json')
+    job=nl0.load(root/'job.json')
+    selected=root/'delivery-input.json'
+    if (stamp.get('version')!='yui-delivery-finalization-1'
+            or stamp['job']!=bind(root/'job.json') or stamp['input']!=bind(selected)):
+        raise ValueError('Changed recovery delivery finalization')
+    packet=nl0.load(selected)
+    inventory=stamp['inventory']
+    if (packet['version']!='yui-delivery-input-1' or packet['scope']!=stamp['scope']
+            or inventory['run_id']!=job['run_id']):
+        raise ValueError('Another run or scope owns this delivery')
+    verified=verify(root/'delivery',anchor=inventory)
+    record=nl0.load(root/'delivery/run.json')
+    import hashlib
+    digest=hashlib.sha256(json.dumps(packet['result'],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    if record['outcome_sha256']!=digest or verified['scope']!=stamp['scope']:
+        raise ValueError('Recovery package differs from the accepted proof outcome')
+    return inventory
+
 
 def cleanup_anchor(root):
     """Verify the same blob released by the terminal protocol transition."""

@@ -46,11 +46,11 @@ def atomic(path, value):
 def identity(pid):
     """PID plus OS process-start identity; never authorize a signal by PID alone."""
     try:
-        result = subprocess.run(['ps', '-p', str(int(pid)), '-o', 'lstart='],
-                                capture_output=True, text=True, timeout=2)
-        started = result.stdout.strip()
-        if not started or result.returncode: return None
-        return {'pid': int(pid), 'started': started, 'pgid': os.getpgid(int(pid))}
+        from process_queries import query, started
+        def parse(result):
+            if result.returncode or not result.stdout.strip():return None
+            return {'pid':int(pid),'started':started(result.stdout),'pgid':os.getpgid(int(pid))}
+        return query(['ps', '-p', str(int(pid)), '-o', 'lstart='],parse,timeout=2,check=False)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return None
 
@@ -68,17 +68,19 @@ def matches_identity(record, current):
 
 
 def process_table():
-    """One bounded OS snapshot; a failed query is never an empty process set."""
-    result = subprocess.run(['ps', '-ax', '-o', 'pid=,pgid=,stat=,lstart='],
-                            capture_output=True, text=True, check=True, timeout=2)
-    rows = {}
-    for line in result.stdout.splitlines():
-        parts = line.split(None, 3)
-        if len(parts) != 4: raise ValueError('Incomplete OS process identity')
-        pid, pgid = map(int, parts[:2])
-        rows[pid] = {'pid':pid, 'pgid':pgid, 'stat':parts[2], 'started':parts[3]}
-    if os.getpid() not in rows: raise ValueError('Incomplete OS process snapshot')
-    return rows
+    """A fresh bounded snapshot; only transient query timeouts are retried."""
+    from process_queries import query, started
+    def parse(result):
+        rows = {}
+        for line in result.stdout.splitlines():
+            parts = line.split(None, 3)
+            if len(parts) != 4: raise ValueError('Incomplete OS process identity')
+            pid, pgid = map(int, parts[:2])
+            if pid in rows or pid < 0 or pgid < 0:raise ValueError('Invalid OS process identity')
+            rows[pid] = {'pid':pid, 'pgid':pgid, 'stat':parts[2], 'started':started(parts[3])}
+        if os.getpid() not in rows: raise ValueError('Incomplete OS process snapshot')
+        return rows
+    return query(['ps','-ax','-o','pid=,pgid=,stat=,lstart='],parse,timeout=2)
 
 
 def remaining_processes(record, table):

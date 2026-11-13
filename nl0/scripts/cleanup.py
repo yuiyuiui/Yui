@@ -28,17 +28,19 @@ from run_resources import MARKER, SCHEMA
 
 
 def process_table():
-    result = subprocess.run(['ps', '-axww', '-o', 'pid=,ppid=,pgid=,stat=,lstart=,command='],
-                            capture_output=True, text=True, check=True, timeout=10)
-    rows = {}
-    for line in result.stdout.splitlines():
-        parts = line.split(None, 9)
-        if len(parts) != 10:
-            continue
-        pid, ppid, pgid = map(int, parts[:3])
-        rows[pid] = {'pid': pid, 'ppid': ppid, 'pgid': pgid, 'stat': parts[3],
-                     'started': ' '.join(parts[4:9]), 'command': parts[9]}
-    return rows
+    from process_queries import query, started
+    def parse(result):
+        rows = {}
+        for line in result.stdout.splitlines():
+            parts = line.split(None, 9)
+            if len(parts) != 10:raise ValueError('Incomplete cleanup process identity')
+            pid, ppid, pgid = map(int, parts[:3])
+            if pid in rows or min(pid,ppid,pgid)<0:raise ValueError('Invalid cleanup process identity')
+            rows[pid] = {'pid':pid,'ppid':ppid,'pgid':pgid,'stat':parts[3],
+                         'started':started(' '.join(parts[4:9])),'command':parts[9]}
+        if os.getpid() not in rows:raise ValueError('Incomplete cleanup process snapshot')
+        return rows
+    return query(['ps','-axww','-o','pid=,ppid=,pgid=,stat=,lstart=,command='],parse,timeout=10)
 
 
 def matching(record, table):
@@ -152,6 +154,20 @@ def inventory(repo, outputs=None):
                                 workspaces[work.resolve()] = str(path)
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     errors.append(str(error))
+    # A launch can succeed before OS identity capture fails. Retain that group
+    # as uncertainty even when no ordinary child-registration receipt exists.
+    import native_workspace
+    for work in workspaces:
+        if not (work/native_workspace.FENCE).exists():continue
+        try:
+            fence=native_workspace.read_cleanup(work)
+            if fence['cleanup_confirmed']:continue
+            child=fence.get('process')
+            if (not isinstance(child,dict) or type(child.get('pid')) is not int
+                    or child['pid']<=0 or child.get('pgid')!=child['pid']):
+                raise ValueError('Native launch identity is unconfirmed; retain '+str(work))
+            records.append(child)
+        except (OSError,ValueError,TypeError) as error:errors.append(str(error))
     records.extend(member for record in list(records) for member in record.get('group_members',[]))
     return {'roots': roots, 'records': records, 'workspaces': workspaces,
             'snapshots': snapshots, 'batches': batches, 'errors': errors}
@@ -264,10 +280,11 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
         def verified_anchor(root,job):
             if delivery.verify(root/'delivery')['scope']=='INTERRUPTED':
                 return delivery.partial(job)
-            return delivery.cleanup_anchor(root)
+            return (delivery.cleanup_anchor(root) if job.get('workflow_protocol')
+                    else delivery.finalization_anchor(root))
         for root in roots:
             job=json.loads((root/'job.json').read_text())
-            if job.get('workflow_protocol') and (root/'delivery').exists():
+            if (job.get('workflow_protocol') or (root/'delivery-finalization.json').is_file()) and (root/'delivery').exists():
                 anchors[root]=verified_anchor(root,job)
         inv = inventory(repo, outputs)
         table = process_table(); owned = discover(inv, table, repo)
@@ -277,7 +294,8 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
                   'matching_processes': [{k: row[k] for k in ('pid', 'started', 'pgid')}
                                          for row in owned.values()],
                   'errors': inv['errors'], 'warnings': [], 'removed_roots': [], 'removed_temporary_directories': 0,
-                  'scope': 'Explicit owned runs and verifiably owned temporary resources only; no model calls.'}
+                  'scope': 'Explicit owned runs and verifiably owned temporary resources only; no model calls.',
+                  'process_query_recoveries':__import__('process_queries').history()}
         if not apply or inv['errors']:
             report['status'] = 'BLOCKED' if inv['errors'] else 'PREVIEW'
             return report
@@ -328,7 +346,7 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
             return report  # Keep every ownership record if shutdown is not confirmed.
         for root in roots:
             job=json.loads((root/'job.json').read_text())
-            if job.get('workflow_protocol') and (root/'delivery').exists():
+            if (job.get('workflow_protocol') or (root/'delivery-finalization.json').is_file()) and (root/'delivery').exists():
                 anchors[root]=verified_anchor(root,job)
             elif job.get('workflow_protocol') and (root/'execution-status.json').is_file():
                 anchors[root]=delivery.partial(job)
@@ -355,7 +373,8 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
                     caches.append(Path(directory)/'__pycache__'); dirs.remove('__pycache__')
         for path in caches:
             shutil.rmtree(path)
-        report.update(status='CLEANED', residual_pids=[], removed_python_caches=len(caches))
+        report.update(status='CLEANED', residual_pids=[], removed_python_caches=len(caches),
+                      process_query_recoveries=__import__('process_queries').history())
         return report
 
 
@@ -368,7 +387,8 @@ def main():
     try:
         result = clean(apply=args.apply, grace=args.grace_seconds, outputs=args.output)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
-        result = {'status': 'BLOCKED', 'error': str(error)}
+        result = {'status':'BLOCKED','error':str(error),
+                  'process_query_recoveries':__import__('process_queries').history()}
     print(json.dumps(result, indent=2))
     return 1 if result['status'] == 'BLOCKED' else 0
 

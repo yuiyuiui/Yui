@@ -401,8 +401,8 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
 
 def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=None):
     lean = render(cpath, plan, proofs, only, types_only)
-    work = Path(tempfile.mkdtemp(prefix='nl0-ir-check-')).resolve()
-    try:
+    from native_workspace import temporary
+    with temporary('nl0-ir-check-') as work:
         (work / 'input').mkdir()
         file = work / 'output' / 'Check.lean'
         file.parent.mkdir()
@@ -444,8 +444,6 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
             (out / 'Check.lean').write_text(lean)
             write(out / 'result.json', result)
         return result
-    finally:
-        shutil.rmtree(work)
 
 
 def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=False):
@@ -492,8 +490,9 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
         fast=None
     required=local_helpers.required(rows, statement+'\n'+proof)
     source=render_auxiliary(cpath,plan,step,statement,proof,helpers=required,validated=True)
-    work=Path(tempfile.mkdtemp(prefix='yui-auxiliary-')).resolve();(work/'input').mkdir();(work/'output').mkdir()
-    try:
+    from native_workspace import temporary
+    with temporary('yui-auxiliary-') as work:
+        (work/'input').mkdir();(work/'output').mkdir()
         path=work/'output/Auxiliary.lean';path.write_text(source)
         result=run_lean(path,work,timeout=timeout)
         match=re.search(r"'YuiAuxiliary.checked' depends on axioms: \[([^]]*)\]",result['stdout'])
@@ -507,8 +506,6 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
         if fast is not None:result.update(native_calls=fast['native_calls']+1,fallback='original_file_scope')
         out=Path(out);out.mkdir(parents=True,exist_ok=fast is not None);(out/'Auxiliary.lean').write_text(source);write(out/'result.json',result)
         return result
-    finally:
-        shutil.rmtree(work)
 
 
 def interface_draft_schema():
@@ -550,8 +547,8 @@ def check_interface(cpath, draft, timeout=None):
     for p, q in zip(c['premises'], draft['premises']):
         lean += f"\nexample {binder_text(c)} : ({p['type']}) = ({q['type']}) := by\n  rfl\n"
     lean += f"\nexample {binder_text(c)} : ({c['conclusion']['type']}) = ({draft['conclusion_type']}) := by\n  rfl\n"
-    work = Path(tempfile.mkdtemp(prefix='nl0-interface-check-')).resolve()
-    try:
+    from native_workspace import temporary
+    with temporary('nl0-interface-check-') as work:
         (work/'input').mkdir()
         (work/'output').mkdir()
         file = work/'output/Interface.lean'
@@ -560,8 +557,6 @@ def check_interface(cpath, draft, timeout=None):
         result['status'] = 'DEVELOPMENT-INTERFACE-MATCHED' if result['exit_code'] == 0 else 'INTERFACE-MISMATCH'
         result['boundary'] = 'Definitional equality to owner-reviewed development oracle, not automatic NL semantic verification.'
         return result
-    finally:
-        shutil.rmtree(work)
 
 
 def main():

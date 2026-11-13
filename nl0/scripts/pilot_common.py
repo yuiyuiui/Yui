@@ -17,10 +17,11 @@ from execution_state import current, Cancelled, terminate_owned, capture_process
 
 
 def lean_paths(extra: list[Path] = ()) -> list[str]:
+    import lean_libraries
     __import__('runtime_config').require_environment()
     lock = load_lock()
     ml = Path(lock['mathlib']['local_path'])
-    paths = [str(p) for p in extra] + [str(ml / '.lake/build/lib/lean')]
+    paths = [str(p) for p in extra] + lean_libraries.paths() + [str(ml / '.lake/build/lib/lean')]
     paths += [str((ml / '.lake/packages' / p['name']).resolve() / '.lake/build/lib/lean')
               for p in lock['dependencies']]
     return paths
@@ -34,9 +35,11 @@ def lean_env(work: Path, extra: list[Path] = ()) -> dict[str, str]:
 
 
 def sandbox_profile(work: Path) -> str:
+    import lean_libraries
     lock = load_lock()
     ml = Path(lock['mathlib']['local_path'])
     roots = [Path(lock['lean']['local_path']), ml]
+    roots += [Path(p) for p in lean_libraries.paths()]
     roots += [(ml / '.lake/packages' / p['name']).resolve() for p in lock['dependencies']]
     roots += [work / 'input', work / 'output', work / 'tmp', work / 'home']
     read = ' '.join('(subpath ' + json.dumps(str(p.resolve())) + ')' for p in roots)
@@ -103,6 +106,8 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
 
 
 def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False):
+    import native_workspace
+    native_workspace.record(work, confirmed=True, phase='not-started')
     config = __import__('runtime_config')
     config.require_environment()
     timeout = config.time_limit(timeout) if reviewed_policy else config.native_timeout(timeout)
@@ -131,23 +136,33 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         work.resolve().parent == Path(__import__('tempfile').gettempdir()).resolve()):
         register_workspace(work, recorder.root)
     check = recorder.lean_started(task,file) if recorder else None
-    process = None; owner = None
+    process = None; owner = None; launched = None
+    observed_stdout = observed_stderr = ''
     try:
+        native_workspace.record(work, confirmed=False, phase='launching')
         process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
+        launched={'pid':process.pid,'pgid':process.pid,'started':None,
+                  'cleanup_uncertainty':'Native child launched; OS start identity not yet confirmed'}
+        native_workspace.record(work,confirmed=False,phase='capturing-child',process=launched)
         owner = recorder.register_process(process,'lean',task,private_group=True) if recorder else capture_process(process,private_group=True)
-        register_child(work, process, 'lean',private_group=True)
+        register_child(work, process, 'lean',private_group=True,identity_record=owner)
         while True:
             try:
                 stdout,stderr=process.communicate(timeout=.1)
+                observed_stdout,observed_stderr=stdout,stderr
                 result={'exit_code':process.returncode,'stdout':stdout,'stderr':stderr,'wall_seconds':time.monotonic()-started}
                 break
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as interruption:
+                def decoded(value):
+                    return value.decode(errors='replace') if isinstance(value,bytes) else value or ''
+                observed_stdout,observed_stderr=decoded(interruption.output),decoded(interruption.stderr)
                 cancelled=recorder is not None and recorder.cancelled(task)
                 if cancelled or (timeout is not None and time.monotonic()-started>=timeout):
                     stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
-                    if not stopped: raise RuntimeError('Native process cleanup could not be confirmed')
+                    if not stopped: raise native_workspace.unconfirmed('Native process cleanup could not be confirmed',work)
                     stdout,stderr=process.communicate()
+                    observed_stdout,observed_stderr=stdout,stderr
                     diagnostic = ('\nExternal cancellation' if cancelled else
                         '\nThe explicit whole-case budget expired; preserve this interrupted native check.' if case_limited else
                         f'\nLean timeout: this native check exceeded {timeout:g} seconds. '
@@ -165,17 +180,27 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         result['selected_environment'] = {'lean_version':lock['lean']['version_number'],
             'lean_binary_sha256':lock['lean']['binary_sha256'],'mathlib_commit':lock['mathlib']['rev'],
             'dependency_manifest_sha256':lock['mathlib']['manifest_sha256']}
+        import lean_libraries
+        if lean_libraries.current():result['selected_environment']['lean_libraries']=lean_libraries.identity()
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
         if recorder:recorder.check(task)
         return result
     finally:
+        stopped = process is None
         if process is not None:
             if owner:
-                stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
-                if not stopped and sys.exc_info()[0] is None:
-                    raise RuntimeError('Native process group cleanup could not be confirmed')
-            if recorder: recorder.process_finished(process)
+                try:stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+                except (OSError,ValueError,subprocess.SubprocessError):stopped=False
+            if recorder and stopped: recorder.process_finished(process)
+        native_workspace.record(work,confirmed=bool(stopped),
+            phase='exited' if process is not None and stopped else 'not-started' if stopped else 'cleanup-unconfirmed',
+            process=owner or launched,exit_code=process.returncode if process is not None else None)
+        if not stopped:
+            (work/'output/native-retained.stdout').write_text(observed_stdout)
+            (work/'output/native-retained.stderr').write_text(observed_stderr)
+            if sys.exc_info()[0] is None:
+                raise native_workspace.unconfirmed('Native process group cleanup could not be confirmed',work)
 
 
 def sha256(path: Path) -> str:

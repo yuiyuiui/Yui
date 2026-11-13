@@ -77,8 +77,9 @@ def context(cpath, plan, step):
     if preamble is None:
         return None
     pins = runtime_config.load_lock()
+    import lean_libraries
     identity = local_helpers.digest([VERSION, ir.digest(__file__), ir.AUXILIARY_PARSER, packet,
-                                     {k:pins[k] for k in ('lean','mathlib','dependencies')}])
+                                     {k:pins[k] for k in ('lean','mathlib','dependencies')},lean_libraries.identity()])
     binders = ' '.join([ir.binder_text(ir.contract(cpath))] +
                        [f"({p['binder']} : {p['type']})" for p in packet['inputs']]).strip()
     return identity, packet['header'], preamble, binders

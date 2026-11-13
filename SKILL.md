@@ -82,6 +82,11 @@ no repository example/support directory or old test result is required.
 New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
+Fresh jobs may attach explicitly bound non-Mathlib source/olean libraries through
+[`--lean-library`](nl0/references/lean-libraries.md). Native availability never
+replaces independent source/interface review or final dependency discharge.
+For substantial imported code, use the executable [local-first check and port
+workflow](nl0/references/imported-lean.md) before rewriting it.
 Historical jobs without snapshots retain their original binding checks.
 Local proof and helper checks start at six minutes; a workload-only diagnosis
 raises the next allowance by six minutes, up to thirty. Complete-file nl02lean

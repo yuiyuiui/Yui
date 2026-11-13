@@ -409,17 +409,14 @@ class InterfaceStage(ArtifactStage):
             for index, expression in enumerate(types):
                 ir.type_text(expression)
                 source+=ir.checked_expression('__probe_'+str(index),expression,binders)
-            self.type_probes+=1;work=Path(tempfile.mkdtemp(prefix='yui-interface-types-'))
-            (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
-            from run_resources import register_workspace
-            register_workspace(work, self.logs)
-            try:
+            self.type_probes+=1
+            from native_workspace import temporary
+            with temporary('yui-interface-types-',logs=self.logs) as work:
+                (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
                 native=ir.run_lean(file,work,timeout=self.lean_timeout());self.lean_calls+=1
                 destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
                 write(destination/'input.json',args)
                 shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
-            finally:
-                shutil.rmtree(work)
             result={'stage_complete':False,'scope':'STRICT_EXPRESSION_DECLARATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
                 'type_check_policy':'strict-declaration-1',
                 'types_checked':native['exit_code']==0,'exit_code':native['exit_code'],

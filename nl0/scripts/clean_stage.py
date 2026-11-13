@@ -98,6 +98,19 @@ class ArtifactStage(pilot.Stage):
         if self.acceptance_authority:
             self.system += '\n\n'+self.acceptance_authority.instructions()
         self.tools = [dict(t) for t in pilot.carrier.TOOLS[:2]] if library else []
+        self.imported_lean_publication=phase in {'basis-authoring','basis-frontier','interface-authoring'}
+        if library:
+            import lean_libraries
+            self.tools += lean_libraries.tools(force=self.imported_lean_publication)
+            if self.imported_lean_publication:
+                import lean_imports
+                self.tools += lean_imports.tools()
+                self.system += (' Before rewriting a substantial imported Lean unit, use check_imported_lean '
+                    'on its complete retained source. Reuse a current pass directly; on failure check the declared '
+                    'source-project versions and imports before porting. A published checked import establishes '
+                    'availability only; ordinary basis, interface, dependency and source review still apply.')
+            if lean_libraries.current():
+                self.input_prompt += '\nExplicit bound Lean libraries (not semantic approval): '+json.dumps(lean_libraries.summary())
         if library:
             self.tools += [pilot.carrier.tool('search_external_sources',
                 'Follow source-retrieval.md: arxiv first (default; an exact arXiv ID is allowed), then google title/author search, then google title/author DOI search, then scihub with a confirmed DOI. Use browser:true for normal local-browser readback of JavaScript/verification pages. Results and DOI strings are locators, not source/theorem approval. Record failed access and continue conditionally when the original stays unavailable.',
@@ -480,7 +493,13 @@ class ArtifactStage(pilot.Stage):
                 raise PermissionError('Tool is not allowed')
             if self.accepted is not None:
                 raise ValueError('Stage is already complete')
-            if name == 'consult_strategy':
+            if name=='check_imported_lean':
+                import lean_imports
+                result=lean_imports.check(self,allow_publish=self.imported_lean_publication,**args)
+            elif name in {'read_lean_library','search_lean_library'}:
+                import lean_libraries
+                result=lean_libraries.dispatch(name,args,self.logs)
+            elif name == 'consult_strategy':
                 result = pilot.strategy_bank.consult(self, args)
             elif name in {'search_external_sources','read_external_source','defer_primary_source'}:
                 import source_access

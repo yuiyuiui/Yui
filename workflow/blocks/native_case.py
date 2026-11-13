@@ -195,8 +195,7 @@ class Case:
                 result=self.read(data['outcome'])
                 port,scope=routes.classify(goal,result['status'],closed=result.get('closure',{}).get('kernel_closed',False),
                     qualified=result.get('source_conditional',False))
-                inventory,extra=delivery.publish(self.job,result,scope,self.recorder)
-                self.result={**result,'delivery':str(self.root/'delivery'),'public_result':scope}
+                self.result,inventory,extra=delivery.finalize(self.job,result,scope,self.recorder)
                 return routes.outcome(port,{'scope':scope,'extra_premises':extra,
                     'inventory':ctx.put_file(json.dumps(inventory,sort_keys=True).encode())})
             raise ValueError('Missing Yui handler '+name)
