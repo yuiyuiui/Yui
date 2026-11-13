@@ -252,3 +252,23 @@ retains all existing tests. A final OS process/cwd inspection found no live case
 or delivery controllers and no native clients in Yui stage workspaces.
 The independent benchmark's 14 startup tests also passed; its installed-skill
 preflight remained metadata-only, with no model or proof job started.
+
+## Proof-round handoff validation (2026-11-14)
+
+The task-only Git export passed 1,262 parent tests with no failures or
+skips and confirmed owned-resource cleanup. The 25 new parent controls cover
+all four graph statuses, real selector/reader/preparation handoffs, retained
+local-body reuse and basis revision, malformed or stale selection evidence,
+and actual Lean whole-file failure followed by checked connection repair and
+final acceptance. The original failed report remains unchanged. A missing body
+or successful-looking timed-out native record still cannot pass acceptance.
+
+Builder audit registers 19 independent cases against the same portable
+state/reader operation used by production, with distinct default and selected
+origins. The cases reject deliberate old-whitelist, partial-admission and
+ignored-digest mutations. All 89 executable lines were observed during a
+standard-library line trace; this does not establish exhaustive branch or
+semantic coverage. All 15 saved pre-change offline protocol scenarios replayed
+successfully, and the public routing plan stayed unchanged. These traces and
+review judgments are synthetic software controls; actual pinned Lean is used,
+without live model inference or a research-theorem benchmark rerun.

@@ -473,7 +473,7 @@ The tool adapter translate receives Audited@2 and returns a named port and its p
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  Every native wall timeout receives a source-located diagnosis. Local checks start at six minutes and rise by six to thirty only for workload findings. Complete-file assembly/export/inspection and final basis closure start at thirty minutes and rise by fifteen to sixty. Code repair retains its current allowance; partial output from a timed-out check cannot pass acceptance.
+Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  Every native wall timeout receives a source-located diagnosis. Local checks start at six minutes and rise by six to thirty only for workload findings. Complete-file assembly/export/inspection and final basis closure start at thirty minutes and rise by fifteen to sixty. Code repair retains its current allowance; partial output from a timed-out check cannot pass acceptance. A complete local round may retain GRAPH\_ASSEMBLY\_REPAIR\_REQUIRED while selection, reading and assembly preparation pass its exact bound files to connection repair. Incomplete rounds remain available to diagnosis/reuse under their own gates. Final acceptance requires actual compiled evidence.
 
 [translate implementation](#handler-translate)
 
@@ -1500,7 +1500,7 @@ def basis_outline(ctx, data):
 
 #### close
 
-adapters.py · line 64
+adapters.py · line 68
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -1546,7 +1546,7 @@ def freeze_basis(ctx, data):
 
 #### publish
 
-adapters.py · line 65
+adapters.py · line 69
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1633,6 +1633,10 @@ def translate(ctx, data):
     Complete-file assembly/export/inspection and final basis closure start at
     thirty minutes and rise by fifteen to sixty. Code repair retains its current
     allowance; partial output from a timed-out check cannot pass acceptance.
+    A complete local round may retain GRAPH_ASSEMBLY_REPAIR_REQUIRED while
+    selection, reading and assembly preparation pass its exact bound files to
+    connection repair. Incomplete rounds remain available to diagnosis/reuse
+    under their own gates. Final acceptance requires actual compiled evidence.
     """
     return dispatch(ctx, data, 'translate')
 ```

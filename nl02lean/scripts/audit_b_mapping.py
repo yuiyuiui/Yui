@@ -70,7 +70,7 @@ def prepare(directory,out):
     directory,out=[Path(p).resolve() for p in (directory,out)]
     frozen=workflow.bound(directory)
     selected=workflow.proof_run(directory)
-    if ir.load(selected/'report.json')['status'] not in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:raise ValueError('All actual local proof bodies required')
+    if not workflow.proof_rounds.locally_complete(ir.load(selected/'report.json').get('status')):raise ValueError('All actual local proof bodies required')
     if not (directory/'audit-b').exists():workflow.prepare_audit(directory)
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     for name in ['mapping.json','source-inventory.json']:

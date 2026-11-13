@@ -21,6 +21,7 @@ import source_preparation as source
 import execution_state
 import background
 import background_inputs
+import proof_round_policy as proof_rounds
 
 VERSION = 'nl0-lean-workflow-1'
 INTERFACE_CHECKS = {'source_route_and_coverage', 'parameters_and_allowed_inputs',
@@ -128,6 +129,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'nl0/scripts').glob('*.py'),
                    *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
         ir.ROOT/'SKILL.md',ir.ROOT/'config.json',ir.ROOT/'toolchain/lock.json',
+        ir.ROOT/'workflow/blocks/proof_rounds.py',
         *(ir.ROOT/'nl0/references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
         *(ir.ROOT/'nl0/templates').glob('*.md'),*(ir.HERE/'templates').glob('*.md')]
     tools = [source.binding(p) for p in sorted(set(runtime_paths))]
@@ -169,30 +171,21 @@ def bound(directory):
 
 
 def select_proof_run(directory,selected):
-    """Select a successful retained round without overwriting earlier evidence."""
+    """Select complete local proofs for assembly or repair, retaining their status."""
     out=Path(directory).resolve();selected=Path(selected).resolve()
     ir.need(selected.is_relative_to(out) and selected!=out,'Proof selection must be owned by this workflow')
     manifest=bound(out)
-    ir.need(ir.load(selected/'report.json')['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'},'Cannot select missing local proof bodies')
+    selection=proof_rounds.selection(out,selected,VERSION)
     for key in ['contract','plan']:
         ir.need(ir.digest(selected/f'inputs/{key}.json')==ir.digest(manifest[key]),'Selected proof interface differs from freeze')
-    path=out/'proof-selection.json';ir.need(not path.exists(),'Preserve the existing proof selection')
-    ir.write(path,{'version':VERSION,'directory':str(selected.relative_to(out)),
-        'evidence':[source.binding(selected/name) for name in ['report.json','proofs.json','inputs/contract.json','inputs/plan.json']],
-        'scope':'Current compiled round only; previous proof/diagnostic rounds and their costs remain retained.'})
+    path=out/'proof-selection.json';ir.need(not path.exists() and not path.is_symlink(),'Preserve the existing proof selection')
+    ir.write(path,selection)
     return proof_run(out)
 
 
 def proof_run(directory):
-    out=Path(directory).resolve();selection=out/'proof-selection.json'
-    if not selection.exists():return out/'proof-run'
-    value=ir.load(selection);relative=Path(value['directory']);selected=(out/relative).resolve()
-    ir.need(value['version']==VERSION and not relative.is_absolute() and '..' not in relative.parts
-            and selected.is_relative_to(out) and selected!=out,'Unsafe proof-round selection')
-    expected={selected/name for name in ['report.json','proofs.json','inputs/contract.json','inputs/plan.json']}
-    ir.need({source.unchanged(item) for item in value['evidence']}==expected,'Missing proof-round selection evidence')
-    ir.need(ir.load(selected/'report.json')['status']=='FRAGMENT_ASSEMBLED','Selected proof round is unfinished')
-    return selected
+    """Resolve the current round; complete selected inputs may still need assembly repair."""
+    return proof_rounds.read(directory,VERSION)
 
 
 def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
@@ -213,7 +206,7 @@ def prepare_audit(directory):
     out = Path(directory).resolve(); manifest = bound(out)
     selected=proof_run(out)
     result = ir.load(selected/'report.json')
-    ir.need(result['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}, 'proof graph is unfinished')
+    ir.need(proof_rounds.locally_complete(result.get('status')), 'proof graph is unfinished')
     cpath = selected/'inputs/contract.json'; ppath = selected/'inputs/plan.json'
     ir.need(ir.digest(cpath) == ir.digest(manifest['contract']) and ir.digest(ppath) == ir.digest(manifest['plan']),
             'proof run uses a different frozen interface or plan')

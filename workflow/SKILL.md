@@ -26,4 +26,16 @@ The standalone protocol CLI accepts a prepared job binding in `{"job":{"path":"â
 
 ## Maintenance
 
+The private [proof-round policy](blocks/proof_rounds.py) owns graph outcomes and
+retained-round reading. `FRAGMENT_ASSEMBLED` and
+`GRAPH_ASSEMBLY_REPAIR_REQUIRED` both contain complete local bodies and may
+enter assembly preparation; the latter keeps its failed whole-file status.
+`GRAPH_REPAIR_REQUIRED` and `GRAPH_UNFINISHED` expose only partial work for
+diagnosis or individually bound reuse. With no explicit selection the reader
+returns the default location, including before a report exists; each consumer
+still applies its own readiness gate. Final acceptance always checks actual
+standalone compilation, kernel closure and the semantic authority. Portable
+reader/state cases are registered in [checks.json](checks.json); the parent
+repository also tests the actual frozen-interface handoff and native repair.
+
 Install [requirements](requirements.txt) in the local Yui Python environment. Use `python scripts/flow.py check`, `plan`, `diagram` and `test` to inspect the same definition the cases execute. Edit a consumer contract at its owner, version incompatible changes, and add an independent expectation to [acceptance.json](acceptance.json) before regenerating path tests. Audit the package with the registered workflow-builder before and after a change. Run the parent Yui regression suite, including native CLI and Lean tests, before recording a new maintenance baseline. The protocol fixtures exercise every declared route using offline adapters. Real proof acceptance comes from the corresponding native reviews, Lean checks and actual output.

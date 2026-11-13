@@ -140,7 +140,7 @@ def previous_program(stage,root):
     current=current or workflow.proof_run(scope)
     if not (current/'report.json').is_file():return None,[]
     report=ir.load(current/'report.json')
-    if report['status'] not in {'GRAPH_REPAIR_REQUIRED','GRAPH_UNFINISHED','FRAGMENT_ASSEMBLED'} or not report.get('proofs'):
+    if not workflow.proof_rounds.retains_bodies(report.get('status')) or not report.get('proofs'):
         return None,[]
     files=[scope/'manifest.json',scope/'freeze-seal.json',current/'report.json',
            *(p for p in (current/'inputs').rglob('*') if p.is_file())]

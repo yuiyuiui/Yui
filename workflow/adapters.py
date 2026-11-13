@@ -59,6 +59,10 @@ def translate(ctx, data):
     Complete-file assembly/export/inspection and final basis closure start at
     thirty minutes and rise by fifteen to sixty. Code repair retains its current
     allowance; partial output from a timed-out check cannot pass acceptance.
+    A complete local round may retain GRAPH_ASSEMBLY_REPAIR_REQUIRED while
+    selection, reading and assembly preparation pass its exact bound files to
+    connection repair. Incomplete rounds remain available to diagnosis/reuse
+    under their own gates. Final acceptance requires actual compiled evidence.
     """
     return dispatch(ctx, data, 'translate')
 def close(ctx, data): return dispatch(ctx, data, 'close')

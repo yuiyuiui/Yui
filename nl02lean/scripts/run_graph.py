@@ -14,6 +14,7 @@ import scheduler
 import concurrency
 import execution_state
 import proof_repair
+import proof_round_policy as proof_rounds
 from shared_lemmas import Store
 
 
@@ -93,6 +94,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/usage.py',ir.ROOT/'nl0/scripts/exposure.py',
              ir.ROOT/'nl0/scripts/execution_health.py']
     files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__),
+                  Path(proof_rounds.__file__),ir.ROOT/'workflow/blocks/proof_rounds.py',
                   Path(__file__).with_name('local_helpers.py'),Path(__file__).with_name('proof_diagnosis.py')])
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
@@ -158,7 +160,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
-    if result['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
+    if proof_rounds.locally_complete(result.get('status')):
         ir.write(out/'proofs.json', {'contract_sha256': ir.digest(cpath), 'plan_sha256': ir.digest(out/'inputs/plan.json'), 'proofs': result['proofs']})
     ir.write(out/'report.json',result)
     from usage import aggregate
@@ -186,7 +188,7 @@ def main():
                  max_concurrency=args.workers if args.workers is not None else args.max_concurrency,
                  timeout_seconds=args.timeout_seconds, bank=args.bank, arm=args.arm)
     print(result['status'])
-    return 0 if result['status'] == 'FRAGMENT_ASSEMBLED' else 1
+    return 0 if proof_rounds.compiler_accepted(result.get('status')) else 1
 
 
 if __name__ == '__main__': raise SystemExit(main())

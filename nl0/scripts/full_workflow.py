@@ -162,7 +162,7 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
             prior_run=current
             continue
         if proof['status']!='GRAPH_REPAIR_REQUIRED':
-            if proof['status'] in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
+            if workflow.proof_rounds.locally_complete(proof.get('status')):
                 ir.write(destination/'proof-repair-history.json',{'rounds':rounds,'diagnoses':diagnostic_reports,
                     'wall_seconds':time.monotonic()-started,'prior_run':str(initial_prior_run) if initial_prior_run else None,
                     'scope':'All rounds and serial diagnoses in this workflow; inherited earlier attempts remain separate in their original ledgers.'})
@@ -253,7 +253,7 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
     # Free-form strategy queries remain optional; native timeout advice is automatic.
     proof,proof_directory=prove_with_repair(case,frozen,destination,interface,budget,proof_budget,progress,
         prior_run=prior_run,reviewed_interface=review_directory/'review.json',sessions=sessions)
-    if proof['status'] not in {'FRAGMENT_ASSEMBLED','GRAPH_ASSEMBLY_REPAIR_REQUIRED'}:
+    if not workflow.proof_rounds.locally_complete(proof.get('status')):
         raise StageFailure('PROOF_UNFINISHED','Actual Lean proof queue unfinished; preserve each node outcome',phase='proof',evidence=proof_directory/'report.json')
     import audit_b,final_acceptance
     workflow.prepare_audit(destination)

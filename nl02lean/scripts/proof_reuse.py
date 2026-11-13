@@ -6,6 +6,7 @@ import json
 import shutil
 import textwrap
 import ir
+import proof_round_policy as proof_rounds
 
 
 def same_port(oldc,oldplan,cpath,plan,step):
@@ -43,14 +44,14 @@ def candidate(previous, cpath, plan, step, *, reviewed_interface=None, basis_rev
     oldplan=ir.load(oldp);oldcontract=ir.contract(oldc);current=ir.contract(cpath)
     if oldcontract['id']!=current['id']:return None
     if oldcontract['source']['sha256']!=current['source']['sha256'] and not basis_revision:return None
-    if report['status']=='FRAGMENT_ASSEMBLED':
+    if proof_rounds.locally_complete(report.get('status')):
         proofs=ir.load(previous/'proofs.json')
         ir.need(report['contract_sha256']==proofs['contract_sha256']==ir.digest(oldc)
                 and proofs['plan_sha256']==ir.digest(oldp),'Stale prior proof-run evidence')
         evidence=previous/'proofs.json'
     else:
         import shared_lemmas
-        ir.need(report['status'] in {'GRAPH_UNFINISHED','GRAPH_REPAIR_REQUIRED'}
+        ir.need(proof_rounds.retains_bodies(report.get('status'))
                 and report.get('contract_sha256')==ir.digest(oldc)
                 and report.get('plan_digest')==shared_lemmas.hashed(oldplan)
                 and isinstance(report.get('proofs'),dict),'Stale prior proof-run evidence')

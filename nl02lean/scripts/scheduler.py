@@ -11,6 +11,7 @@ import execution_state
 import ir
 import shared_lemmas
 import proof_repair
+import proof_round_policy as proof_rounds
 
 
 def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, execution=None):
@@ -167,7 +168,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
     assembly = ir.check(cpath, plan, proofs, out=out/'assembly' if out else None) if complete else None
     fresh = ir.check(cpath, plan, proofs, out=out/'fresh-verifier' if out else None) if complete else None
     accepted = complete and assembly['exit_code'] == fresh['exit_code'] == 0
-    report = {'status': 'FRAGMENT_ASSEMBLED' if accepted else 'GRAPH_REPAIR_REQUIRED' if requests else 'GRAPH_ASSEMBLY_REPAIR_REQUIRED' if complete else 'GRAPH_UNFINISHED',
+    report = {'status': proof_rounds.state_for(complete=complete, accepted=accepted, repair_requested=bool(requests)),
               'repair_requests':requests,
               'contract_sha256': initial_contract, 'plan_digest': initial_plan,
               'max_workers': max_workers, 'mathematical_nodes': len(nodes),

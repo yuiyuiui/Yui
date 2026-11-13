@@ -68,6 +68,15 @@ background notes; retain their node-local reference locations.
 
 ## Repair and handoff
 
+`GRAPH_ASSEMBLY_REPAIR_REQUIRED` means that all local bodies were retained but
+the graph's whole-file check did not pass. Selection, retained-round reading,
+Audit B preparation and mapping preparation accept it as repair input, using
+the same policy as `FRAGMENT_ASSEMBLED`. Keep the original report and its
+compiler feedback unchanged. This input eligibility does not grant compiler
+or final acceptance. Partial `GRAPH_REPAIR_REQUIRED` / `GRAPH_UNFINISHED`
+rounds stay with local diagnosis/recovery; they cannot supply a complete
+assembly merely through their status labels.
+
 Use `check_draft` for actual feedback and keep the saved candidate. The result
 identifies the candidate and failing layer; compiler errors precede long
 printed types. `read_assembly_feedback` reads only this author's candidate,
