@@ -42,7 +42,7 @@ class LocalHelperTests(unittest.TestCase):
         result=ir.check(self.cp,self.plan,bundle,out=self.root/'assembled')
         self.assertEqual(result['exit_code'],0,result)
         self.assertEqual(result['native_limits']['max_heartbeats'],20000000)
-        self.assertEqual(result['native_limits']['timeout_seconds'],360)
+        self.assertEqual(result['native_limits']['timeout_seconds'],1800)
         c=ir.contract(self.cp)
         with tempfile.TemporaryDirectory() as raw:
             work=Path(raw);(work/'output').mkdir();out=work/'result';out.mkdir()

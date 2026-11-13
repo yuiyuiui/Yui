@@ -207,10 +207,10 @@ def inherited_machine_evidence(out):
         ir.need(ir.digest(out/name)==sha,'changed original machine artifact: '+name)
     ir.need(m['passed'] and not m['errors'] and m['compiler_exit_code']==0,'original mechanical gate did not pass')
     ir.need(m['assembly']['status']=='ASSEMBLY-PASSED' and m['inspection']['status']=='KERNEL_INSPECTION_PASSED','original assembly/inspection incomplete')
-    ir.need(all(v['exit_code']==0 for v in m['local_checks'].values()),'original local check incomplete')
+    ir.need(all(ir.native_succeeded(v) for v in m['local_checks'].values()),'original local check incomplete')
     native=ir.load(out/'compiler.json');evidence=ir.load(out/'elaborated.json')
     emitted=re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',native['stdout'])
-    ir.need(native['exit_code']==0 and emitted and json.loads(emitted[-1])==evidence,'native output/elaborated evidence mismatch')
+    ir.need(ir.native_succeeded(native) and emitted and json.loads(emitted[-1])==evidence,'native output/elaborated evidence mismatch')
     ir.need(evidence['dependencies']['truncated'] is False and all(r['definitionally_equal'] for r in evidence['comparisons']),'original inspection/signature check incomplete')
     for d in evidence['dependencies']['declarations']:
         ir.need(not (set(d['axioms'])-AXIOMS),'unexpected original axiom')
@@ -380,8 +380,10 @@ def build(out, *, frozen_contract=None):
         if assembled['status']=='ASSEMBLY-PASSED':
             source = (out/'Proof.lean').read_text()+'\n'+probe
             file = work/'output/Audit.lean';file.write_text(source)
-            result = ir.run_lean(file,work)
-            inspected = {'status':'KERNEL_INSPECTION_PASSED' if result['exit_code']==0 else 'KERNEL_INSPECTION_FAILED',
+            import lean_timeout_policy
+            with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='audit-inspection'):
+                result = ir.run_lean(file,work)
+            inspected = {'status':'KERNEL_INSPECTION_PASSED' if ir.native_succeeded(result) else 'KERNEL_INSPECTION_FAILED',
                          'compiler_exit_code':result['exit_code'],'wall_seconds':result['wall_seconds']}
             if result['exit_code'] and 'maximum number of heartbeats' in result['stdout']:
                 inspected['status']='INSPECTION_HEARTBEAT_EXHAUSTED'
@@ -398,8 +400,8 @@ def build(out, *, frozen_contract=None):
         if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
         if assembled['status']!='ASSEMBLY-PASSED': errors.append('SOURCE_FACING_ASSEMBLY_FAILED')
         if inspected['status']=='INSPECTION_HEARTBEAT_EXHAUSTED': errors.append('INSPECTION_HEARTBEAT_EXHAUSTED')
-        if result['exit_code'] != 0 or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
-        if any(r['exit_code'] for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
+        if not ir.native_succeeded(result) or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')
+        if any(not ir.native_succeeded(r) for r in local.values()): errors.append('LOCAL_INPUT_CLOSURE_FAILED')
         if evidence:
             if not all(r['definitionally_equal'] for r in evidence['comparisons']):
                 errors.append('ELABORATED_SIGNATURE_MISMATCH')

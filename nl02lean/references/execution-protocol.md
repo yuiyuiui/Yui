@@ -53,10 +53,14 @@ output ownership. User cancellation remains an explicit terminal outcome. No ada
 Omitted or null `time_budget_seconds` means unlimited whole-case execution.
 Configuration also leaves stage time limits and the total token budget null. The
 runtime does not cap model-call count or stop a healthy task because tool-result
-idle time exceeded a threshold. Native translation calls start at 360 seconds.
+idle time exceeded a threshold. Local proof/helper checks start at 360 seconds.
 After each wall timeout, a source-located workload-only diagnosis permits one
-six-minute increase up to thirty minutes. An identified code problem returns
-to its author at the current allowance. A shorter configured native limit or a
+six-minute increase up to thirty minutes. Complete-file fragment, assembly,
+export, Audit B inspection and final b2lean checks start at 1,800 seconds;
+each workload-only diagnosis permits one fifteen-minute increase, up to 3,600.
+No obvious code defect after an actual whole-file examination can support that
+workload diagnosis; incomplete examination cannot. An identified code problem
+returns for repair at the current allowance. A shorter configured check limit or a
 case/stage deadline bounds the check. Each call uses the configured 20,000,000
 heartbeat budget and has no artificial per-process heap quota. A shorter
 explicit caller or remaining case/stage deadline takes precedence. A native

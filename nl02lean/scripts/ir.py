@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Typed local obligations and final proof assembly. No model calls."""
+"""Typed obligations and assembly; native wall timeouts use scoped diagnosis."""
 from __future__ import annotations
 
 import argparse
@@ -10,12 +10,13 @@ import re
 import sys
 import tempfile
 import textwrap
+from contextlib import nullcontext
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / 'nl0/scripts'))
-from pilot_common import run_lean, load_lock  # noqa: E402
+from pilot_common import run_lean, load_lock, native_succeeded  # noqa: E402
 
 VERSION = 1
 SUPPORTED_VERSIONS = {1, 2}
@@ -406,7 +407,11 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
         file = work / 'output' / 'Check.lean'
         file.parent.mkdir()
         file.write_text(lean)
-        result = run_lean(file, work, timeout=timeout)
+        import lean_timeout_policy
+        whole = lean_timeout_policy.whole_file_scope(
+            (Path(out).parent if out else Path(cpath).parent)/'lean-timeouts', key='fragment')
+        with whole if not only and not types_only else nullcontext():
+            result = run_lean(file, work, timeout=timeout)
         result.update({'status': 'IR-TYPES-CHECKED' if types_only else
                        'LOCAL-PROOF-CHECKED' if only else 'FRAGMENT-ASSEMBLED',
                        'contract_sha256': digest(cpath),
@@ -417,9 +422,11 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
                 import dependency_instances
                 result['type_check_policy'] = 'strict-declaration-and-dependency-uses-1'
                 result['failed_input_uses'] = dependency_instances.failed_uses(lean,result['stdout']+result['stderr'])
-        if result['exit_code'] != 0:
+        if not native_succeeded(result):
             result['status'] = 'LEAN-CHECK-FAILED'
-        if result['exit_code'] == 0 and not types_only:
+            if result['exit_code'] == 0:
+                result.update(compiler_exit_code=0, exit_code=124 if result.get('timed_out') else 1)
+        if native_succeeded(result) and not types_only:
             name = only or 'P'
             m = re.search(r"'Translation\." + name + r"' depends on axioms: \[([^]]*)\]", result['stdout'])
             if m:

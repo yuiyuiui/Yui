@@ -27,6 +27,21 @@ class FinalAcceptanceTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):cls.temp.cleanup()
 
+    def test_timeout_flags_in_native_records_cannot_be_overridden_by_passed_summaries(self):
+        out=self.normal/'audit-b';mechanical=out/'mechanical.json'
+        original=mechanical.read_bytes()
+        for name in ('compiler.json','assembly-inputs-compiler.json','assembly-compiler.json'):
+            path=out/name;raw=path.read_bytes()
+            try:
+                native=ir.load(path);native.update(timed_out=True,error_kind='LEAN_TIMEOUT')
+                ir.write(path,native)
+                summary=ir.load(mechanical);summary['artifacts'][name]=ir.digest(path)
+                ir.write(mechanical,summary)
+                with self.subTest(name=name),self.assertRaises(ValueError):
+                    final.proof_integrity(out)
+            finally:
+                path.write_bytes(raw);mechanical.write_bytes(original)
+
     def test_normal_gate_inherits_review_and_uses_no_final_model_or_native_rerun(self):
         with patch.object(ir,'run_lean',side_effect=AssertionError('No new native run')),patch.object(audit_b_review,'run',side_effect=AssertionError('No final model')):
             gate=final.check(self.normal)

@@ -35,6 +35,19 @@ These are software tests. Synthetic reviewer judgments and deterministic
 provider replies do not certify a mathematical proof or a model's capability.
 The full mathematical test cases/results are maintained separately.
 
+## Whole-file timeout policy validation (2026-11-13)
+
+Full discovery exercised 1,237 tests with actual Lean and deterministic native
+clients. One existing composed-fragment test still expected the old 360-second
+whole-file limit; its expectation was updated to 1,800 seconds and the complete
+eight-test local-helper module then passed. All other full-discovery checks
+passed, with no skips. Runtime source bytes were identical between discovery
+and that corrected-expectation rerun. New controls cover local versus whole-file
+initial limits, 30/45/60-minute escalation, code repair at the current allowance,
+shorter deadlines, the sixty-minute ceiling, actual diagnostic/native handoff,
+and rejection of successful-looking partial output after a timeout in assembly,
+Audit B and final b2lean closure. No live model inference was used.
+
 Submission protocol ownership and intentional draft-language boundaries are in
 [interface-contracts.md](../docs/interface-contracts.md). `test_artifact_protocol.py`
 checks the schema actually advertised to producers against saved/direct
@@ -78,7 +91,7 @@ their obstruction and may close only with the accepted final replacement.
 | Parallel local A and global escalation | test_nl0_review_loop.py, test_parallel_audit.py | Node-local modifications, shared active slots, exact merged reviewed versions, restored global role and affected-scope rechecks. |
 | Shared extraction and interface preparation | test_source_refactor_driver.py, test_source_preparation.py, test_workflow_handoffs.py, test_interface_controls.py | Skip unchanged incremental review; retain the approved author/reviewer pair and recheck actual changed scope before freeze. |
 | Frozen interfaces and parallel Lean | test_interface_gate.py, test_shared_parallel.py, test_graph_runner.py, test_proof_repair.py | No unreviewed worker dispatch, no E/P mutation, local repair stays with its author; global connection work preserves the frozen authority. |
-| Native Lean limits and advice | test_translation_timeout_policy.py, test_native_resource_limits.py, test_native_timeout_advice.py, test_execution_queue.py | Source-bound diagnosis and six-minute increases through thirty minutes, real native-client handoff, shorter deadlines, heartbeat limits, case isolation and same-author repair. |
+| Native Lean limits and advice | test_translation_timeout_policy.py, test_whole_file_timeouts.py, test_native_resource_limits.py, test_native_timeout_advice.py, test_execution_queue.py | Source-bound diagnosis; local 6/12/18/24/30-minute and whole-file 30/45/60-minute limits; unchanged-allowance code repair; partial-output rejection; real native-client handoff; shorter deadlines, heartbeat limits and case isolation. |
 | Local Lean helpers | test_incremental_and_storage.py, test_local_helpers.py | Compiled imports, exact transitive file-local context, targeted replacement, invalidated receipts, rollback, final composition and machine Audit B. |
 | Checked local helper modules | test_local_helpers.py | Real helper chains, same-node binding, changed/missing/cyclic helper rejection, whole-file compilation and actual kernel dependency inspection. |
 | Diagnosis within a retained proof session | test_live_proof_diagnosis.py, test_native_proof_diagnosis.py | All occupied slots may request review without deadlock; original native author resumes after its tool response. Only qualified substantive defects permit handoff; resource-only and uncertain reports keep the author. |

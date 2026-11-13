@@ -18,11 +18,13 @@ def proof_integrity(directory):
     ir.need(not set(m['errors'])-INTERFACE_ERRORS,'Proof integrity failed; semantic review cannot override it')
     ir.need(m['compiler_exit_code']==0 and m['assembly']['status']=='ASSEMBLY-PASSED' and
         m['inspection']['status']=='KERNEL_INSPECTION_PASSED','Actual standalone compilation/inspection required')
-    ir.need(all(row['exit_code']==0 for row in m['local_checks'].values()),'Internal proof closure failed')
+    ir.need(all(ir.native_succeeded(row) for row in m['local_checks'].values()),'Internal proof closure failed')
     compiler=ir.load(out/'compiler.json');evidence=ir.load(out/'elaborated.json')
     import json,re
     emitted=re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',compiler['stdout'])
-    ir.need(compiler['exit_code']==0 and emitted and json.loads(emitted[-1])==evidence,'Native inspection output differs from saved evidence')
+    ir.need(ir.native_succeeded(compiler) and emitted and json.loads(emitted[-1])==evidence,'Native inspection output differs from saved evidence')
+    for name in ('assembly-inputs-compiler.json', 'assembly-compiler.json'):
+        ir.need(ir.native_succeeded(ir.load(out/name)), 'Actual standalone compilation required: '+name)
     deps=evidence['dependencies'];ir.need(not deps['truncated'],'Incomplete dependency inspection')
     for row in deps['declarations']:
         ir.need(not set(row['axioms'])-audit_b.AXIOMS,'Unpermitted axiom in actual proof')

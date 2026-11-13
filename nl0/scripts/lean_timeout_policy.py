@@ -12,6 +12,7 @@ import time
 import runtime_config
 
 active = ContextVar('translation_lean_check', default=None)
+suppressed = ContextVar('translation_lean_check_suppressed', default=False)
 REVIEW_PHASE = 'interface-lean-timeout-diagnosis'
 
 
@@ -22,13 +23,31 @@ def rules():
 
 
 @contextmanager
-def scope(root, budget, *, key='', deadline=None):
-    binding = (Path(root), budget, key, deadline) if root is not None else None
+def scope(root, budget, *, key='', deadline=None, kind='local'):
+    binding = (Path(root), budget, key, deadline, kind) if root is not None else None
     token = active.set(binding)
+    suppression = suppressed.set(root is None)
     try:
         yield
     finally:
         active.reset(token)
+        suppressed.reset(suppression)
+
+
+@contextmanager
+def whole_file_scope(root, *, key):
+    """Use a separate whole-file ladder, retaining the enclosing budget/deadline.
+
+    A stable operation key keeps the allowance after a code repair. Explicitly
+    disabled/direct and diagnostic contexts must not acquire new model work.
+    """
+    if suppressed.get():
+        yield
+        return
+    parent = active.get()
+    with scope(parent[0] if parent else root, parent[1] if parent else None,
+               key=key, deadline=parent[3] if parent else None, kind='whole_file'):
+        yield
 
 
 def stage_scope(stage, key=''):
@@ -40,9 +59,13 @@ def stage_scope(stage, key=''):
     return scope(stage.logs / 'lean-timeouts', stage.budget, key=key, deadline=end)
 
 
-def ceiling():
-    configured = runtime_config.configured_timeout('native')
-    return configured if configured is not None and configured < rules().INITIAL_SECONDS else rules().MAX_SECONDS
+def ceiling(kind='local'):
+    initial, _, maximum = rules().limits(kind)
+    try:
+        configured = runtime_config.configured_timeout('whole_file' if kind == 'whole_file' else 'native')
+    except KeyError:
+        configured = initial  # Older frozen configurations have no whole-file field.
+    return configured if configured is not None and configured < initial else maximum
 
 
 PROMPT = """Inspect the exact Candidate.lean and native.json (including the compiler output) for
@@ -72,7 +95,7 @@ def review_contract(source, native):
     return protocol.Contract(schema, validate)
 
 
-def inspect_source(directory, source, native, budget, remaining):
+def inspect_source(directory, source, native, budget, remaining, *, kind='local'):
     from clean_stage import ArtifactStage
     from controller_common import manifest
     from execution_health import require_review_execution
@@ -86,7 +109,16 @@ def inspect_source(directory, source, native, budget, remaining):
     if recorder:
         recorder.task(task, parent_task=parent, state='PENDING')
     with budget.suspended() if budget is not None else nullcontext(), activate(recorder, task), scope(None, None):
-        stage = ArtifactStage(directory/'review', PROMPT, phase=REVIEW_PHASE, inputs=inputs/'inputs.json',
+        prompt = PROMPT
+        if kind == 'whole_file':
+            prompt += ('\nThis is a complete-file assembly, inspection or final basis-closure check. '
+                       'Its allowance starts at 30 minutes and can increase by 15 minutes to 60. '
+                       'Use workload_only after inspecting the actual source and compiler output '
+                       'when no obvious repairable code issue was found and a long valid check is '
+                       'plausible. This is a diagnosis of the next action, not a complexity proof. '
+                       'Use uncertain if the examination itself is incomplete or its evidence '
+                       'is unusable. A code_issue must return for repair at the current allowance.')
+        stage = ArtifactStage(directory/'review', prompt, phase=REVIEW_PHASE, inputs=inputs/'inputs.json',
                               library=False, timeout=remaining, budget=budget,
                               validator=review_contract(source, native))
         with sessions.use('native-timeout-review'):
@@ -103,20 +135,21 @@ def run(file, requested, invoke):
     from controller_common import write
     from execution_state import current
     from strategy_bank import native_timeout_kind
-    root, budget, key, deadline = active.get()
+    root, budget, key, deadline, kind = active.get()
     rule = rules()
-    hard = min(ceiling(), runtime_config.time_limit(requested) or rule.MAX_SECONDS)
+    initial, _, maximum = rule.limits(kind)
+    hard = min(ceiling(kind), runtime_config.time_limit(requested) or maximum)
     recorder, task = current()
     if recorder:
         recorder.check(task)
-    identity = (key or task or 'mechanical', Path(file).name if not key else '')
+    identity = (kind, key or task or 'mechanical', Path(file).name if not key else '')
     directory = root / hashlib.sha256(json.dumps(identity).encode()).hexdigest()
     state = directory / 'allowance.json'
-    level = min(rule.INITIAL_SECONDS, hard)
+    level = min(initial, hard)
     if state.is_file():
         stored = json.loads(state.read_text())
         saved = stored['seconds']
-        if type(saved) not in (int, float) or not 0 < saved <= rule.MAX_SECONDS:
+        if stored.get('kind') != kind or type(saved) not in (int, float) or not 0 < saved <= maximum:
             raise ValueError('Invalid saved native allowance')
         unchanged = stored['source_sha256'] == hashlib.sha256(Path(file).read_bytes()).hexdigest()
         if unchanged or key:
@@ -153,14 +186,14 @@ def run(file, requested, invoke):
         remaining = deadline - time.monotonic() if deadline is not None else None
         if remaining is not None and remaining <= 0:
             raise TimeoutError('Translation stage deadline expired before timeout diagnosis')
-        diagnosis = inspect_source(attempt, source, result, budget, remaining)
+        diagnosis = inspect_source(attempt, source, result, budget, remaining, kind=kind)
         review_contract(source, result)(diagnosis)
-        action, following = rule.decision(level, diagnosis['category'], ceiling=hard)
-        decision = dict(action=action, seconds=level, next_seconds=following,
+        action, following = rule.decision(level, diagnosis['category'], ceiling=hard, kind=kind)
+        decision = dict(action=action, kind=kind, seconds=level, next_seconds=following,
                         diagnosis=diagnosis, evidence=str(attempt))
         write(attempt/'decision.json', decision)
         reviews.append(decision)
-        allowance = dict(seconds=following, ceiling=hard, source_sha256=hashlib.sha256(source.encode()).hexdigest())
+        allowance = dict(kind=kind, seconds=following, ceiling=hard, source_sha256=hashlib.sha256(source.encode()).hexdigest())
         if action != 'retry':
             result['timeout_reviews'] = reviews
             result['stderr'] += (f'\nNative timeout diagnosis ({action}, {level:g} seconds): '

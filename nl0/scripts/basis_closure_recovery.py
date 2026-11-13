@@ -104,13 +104,15 @@ def run(job, progress):
     active=root/'active-inputs';active.mkdir()
     write(active/basis.CONTEXT,frozen['basis_context']);manifest(active)
     write(root/'basis-selection.json',{'context':bind(active/basis.CONTEXT),'inputs':bind(active/'inputs.json')})
-    progress(job['case'],'BASIS_FINAL_CLOSURE',workflow=str(directory),new_model_calls=False)
+    progress(job['case'],'BASIS_FINAL_CLOSURE',workflow=str(directory),new_proof_or_semantic_model_calls=False,
+             timeout_diagnosis_on_native_timeout=True)
     # Check the job again immediately before publication, including the old
     # failure, authority bindings and confirmed process exits.
     result=b2lean.finish(directory,root/'b2lean',context=frozen['basis_context'],
         intermediate=ir.load(directory/'report.json'),before_publish=lambda:jobs.validate(job))
     provenance={'version':VERSION,'prior_run':job['resume']['prior_run'],
         'prior_case_result':bind(Path(job['resume']['prior_run'])/'case-result.json'),
-        'job':bind(root/'job.json'),'new_model_calls':False,'prior_costs_preserved':True}
+        'job':bind(root/'job.json'),'new_model_calls':result.get('timeout_diagnostic_model_called',False),
+        'prior_costs_preserved':True}
     write(root/'closure-recovery.json',provenance)
     return {**result,'recovery':provenance}

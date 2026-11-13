@@ -11,6 +11,7 @@ import re
 import time
 
 import ir
+import lean_timeout_policy
 
 
 LEVEL_PROBE = '''
@@ -73,23 +74,26 @@ def build(c, mapping, formal, out, work):
     prefile = work / 'output/AssemblyInputs.lean'
     prefile.write_text(prelude)
     (out / 'AssemblyInputs.lean').write_text(prelude)
-    native = ir.run_lean(prefile, work)
+    with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='assembly-inputs'):
+        native = ir.run_lean(prefile, work)
     ir.write(out / 'assembly-inputs-compiler.json', native)
     found = re.findall(r'YUI_ASSEMBLY_LEVELS_JSON:(\{[^\n]*\})', native['stdout'])
     levels = json.loads(found[-1]) if found else None
     report = {'status': 'ASSEMBLY-FAILED', 'failed_layer': 'MATHLIB_DISCHARGE_OR_LEVEL_INSPECTION',
               'universe_parameters': levels, 'standalone_proof': 'NOT_STARTED'}
-    if (native['exit_code'] == 0 and isinstance(levels, dict)
+    if (ir.native_succeeded(native) and isinstance(levels, dict)
             and all(isinstance(levels.get(k), list) and all(isinstance(x, str) for x in levels[k])
                     for k in ('parameters', 'export_used_parameters'))):
         source = formal + export_source(c, mapping, levels)
         file = work / 'output/Proof.lean'
         file.write_text(source)
         (out / 'Proof.lean').write_text(source)
-        native = ir.run_lean(file, work)
-        report.update(status='ASSEMBLY-PASSED' if native['exit_code'] == 0 else 'ASSEMBLY-FAILED',
-                      failed_layer=None if native['exit_code'] == 0 else 'SOURCE_FACING_EXPORT',
-                      standalone_proof='KERNEL_CHECKED' if native['exit_code'] == 0 else 'FAILED',
+        with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='assembly-export'):
+            native = ir.run_lean(file, work)
+        passed = ir.native_succeeded(native)
+        report.update(status='ASSEMBLY-PASSED' if passed else 'ASSEMBLY-FAILED',
+                      failed_layer=None if passed else 'SOURCE_FACING_EXPORT',
+                      standalone_proof='KERNEL_CHECKED' if passed else 'FAILED',
                       proof_sha256=ir.digest(out / 'Proof.lean'))
     ir.write(out / 'assembly-compiler.json', native)
     report.update(compiler_exit_code=native['exit_code'], wall_seconds=time.monotonic() - start,

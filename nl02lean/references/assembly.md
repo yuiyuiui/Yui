@@ -7,6 +7,14 @@ conversation and checked candidates, separate from pre-freeze review. Normal
 final Audit B is machine-only and inherits that frozen semantic authority.
 Only a proof-valid interface deviation opens an independent B-final review.
 
+Complete-file fragment, assembly-input, export and Audit B inspection checks
+start at thirty minutes. Each actual wall timeout receives a source-located
+diagnosis. Workload-only findings allow 45 and then 60 minutes; no further
+increase is permitted. Code defects return for repair at the current allowance.
+Final b2lean closure uses the same separate whole-file policy. Local node and
+helper checks retain their six-minute increments through thirty minutes.
+Case/stage deadlines and shorter explicit check limits remain binding.
+
 ## Entry and immutable inputs
 
 Require all planned proof bodies, exact interface/plan/source bindings and the

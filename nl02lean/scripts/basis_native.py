@@ -50,7 +50,7 @@ def inspector(checks, roots):
 
 def errors(native, evidence, checks, roots):
     problems = []
-    if native.get('exit_code') != 0:
+    if not ir.native_succeeded(native):
         problems.append('LEAN_RESOURCE_LIMIT' if native.get('exit_code') == 124 else 'LEAN_COMPILE_FAILED')
     if not isinstance(evidence, dict):return problems+['KERNEL_INSPECTION_MISSING']
     comparisons = evidence.get('comparisons', [])
@@ -98,6 +98,7 @@ def check(source, checks, roots, out):
     write(out/'elaborated.json', evidence)
     problems = errors(native, evidence, checks, roots)
     result = {'version':'yui-basis-native-1', 'passed':not problems, 'errors':problems,
+        'timeout_diagnostic_model_called':bool(native.get('timeout_reviews')),
         'checks':checks, 'roots':roots, 'environment':environment,
         'bindings':[bind(out/name) for name in ('Proof.lean','Inspection.lean','compiler.json','elaborated.json')],
         'scope':'Native types, signatures and proof trust only; no mathematical source review.'}

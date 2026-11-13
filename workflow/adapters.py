@@ -54,8 +54,11 @@ def audit(ctx, data):
 def translate(ctx, data):
     """Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.
 
-    A native wall timeout triggers a source-located diagnosis. Only a workload-only
-    finding raises the next allowance by six minutes, up to thirty minutes.
+    Every native wall timeout receives a source-located diagnosis. Local checks
+    start at six minutes and rise by six to thirty only for workload findings.
+    Complete-file assembly/export/inspection and final basis closure start at
+    thirty minutes and rise by fifteen to sixty. Code repair retains its current
+    allowance; partial output from a timed-out check cannot pass acceptance.
     """
     return dispatch(ctx, data, 'translate')
 def close(ctx, data): return dispatch(ctx, data, 'close')

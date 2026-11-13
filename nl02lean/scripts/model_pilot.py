@@ -274,13 +274,13 @@ class Stage(carrier.Trial):
                 value = ir.load_json_text(args['interface_json']) if hasattr(ir,'load_json_text') else json.loads(args['interface_json'],object_pairs_hook=ir.unique)
                 result = ir.check_interface(self.cpath,value,timeout=self.lean_timeout())
                 self.lean_calls += 1
-                if result['exit_code'] == 0 and name.startswith('submit'):
+                if ir.native_succeeded(result) and name.startswith('submit'):
                     self.accepted = value
             elif self.mode == 'plan' and name in ('check_plan','submit_plan'):
                 value = json.loads(args['plan_json'],object_pairs_hook=ir.unique)
                 result = ir.check(self.cpath,value,types_only=True,timeout=self.lean_timeout())
                 self.lean_calls += 1
-                if result['exit_code'] == 0 and name.startswith('submit'):
+                if ir.native_succeeded(result) and name.startswith('submit'):
                     self.accepted = value
             elif name in ('check_transition','submit_transition'):
                 value = args['proof']
@@ -292,7 +292,7 @@ class Stage(carrier.Trial):
                 self.own_lean_drafts['proof'][number]=record;record_path=self.logs/'lean-drafts'/f'proof-{number:04d}.json'
                 result = ir.check(self.cpath,self.plan,{self.step:packaged},only=self.step,timeout=self.lean_timeout())
                 self.lean_calls += 1
-                if result['exit_code'] == 0 and name.startswith('submit'):
+                if ir.native_succeeded(result) and name.startswith('submit'):
                     self.accepted = {'proof':packaged}
             elif self.mode=='proof' and name=='prove_independent_helpers' and name in self.tool_names:
                 import proof_obligations
@@ -328,7 +328,7 @@ class Stage(carrier.Trial):
             else:
                 raise PermissionError('tool not allowed for this stage')
             if 'exit_code' in result:
-                result['accepted'] = result['exit_code']==0
+                result['accepted'] = ir.native_succeeded(result)
                 result['stage_complete'] = bool(self.accepted)
                 from compiler_feedback import excerpt
                 self.last_diagnostic = excerpt(result.get('stdout','')+'\n'+result.get('stderr',''),14000)[0] if result['exit_code'] else ''

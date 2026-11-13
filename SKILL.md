@@ -76,10 +76,14 @@ New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
 Historical jobs without snapshots retain their original binding checks.
-Native translation checks start at six minutes. Each native wall timeout gets
-a source-located diagnosis. Only a workload-only finding raises the next check
-by six minutes, up to thirty. A code defect returns to its author at the current
-allowance. Whole-case and stage deadlines remain binding. Workers check helpers
+Local proof and helper checks start at six minutes; a workload-only diagnosis
+raises the next allowance by six minutes, up to thirty. Complete-file nl02lean
+assembly/export/inspection and final b2lean checks start at thirty minutes;
+a workload-only diagnosis raises that allowance by fifteen minutes, up to sixty.
+Each native wall timeout receives a source-located diagnosis. A code defect
+returns for repair at the current allowance; an incomplete diagnosis grants no
+increase. Timed-out checks remain unaccepted even if partial output looks valid.
+Whole-case and stage deadlines remain binding. Workers check helpers
 individually and submit the complete composition to Lean. Failed wall/heartbeat
 checks also receive the locally stored ST020 repair advice.
 Foundation and Lean authors can browse their respective strategy banks on demand
@@ -124,8 +128,10 @@ After verified software repair, the explicit `--repair-basis-closure` route
 repeats only final native closure from accepted basis and Audit B artifacts.
 It requires an unlimited normal unconditional job, explicit cancellation and
 verified process exits, and unchanged bound evidence. It writes a fresh owned
-run, calls no model, and preserves all residual assumptions and source
+run, repeats no proof authoring or semantic audit, and preserves all residual assumptions and source
 qualifications. See [final closure recovery](README.md#final-closure-and-recovery).
+An actual native wall timeout can invoke the source-located diagnostic role
+before a bounded retry; its model usage is recorded separately from semantic review.
 
 Normal translation requires a separate independent semantic interface review
 before freezing and proof dispatch. Normal final Audit B is machine-only: verify

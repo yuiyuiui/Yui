@@ -25,6 +25,22 @@ class LeanLimits(unittest.TestCase):
     def test_stop_for_a_shorter_explicit_ceiling(self):
         self.assertEqual(lean_limits.decision(360, 'workload_only', ceiling=400), ('limit', 360))
 
+    def test_whole_file_starts_at_thirty_and_increases_by_fifteen_to_sixty(self):
+        self.assertEqual(lean_limits.limits('whole_file'), (1800, 900, 3600))
+        self.assertEqual(lean_limits.decision(1800, 'workload_only', kind='whole_file'), ('retry', 2700))
+        self.assertEqual(lean_limits.decision(2700, 'workload_only', kind='whole_file'), ('retry', 3600))
+        self.assertEqual(lean_limits.decision(3600, 'workload_only', kind='whole_file'), ('limit', 3600))
+
+    def test_whole_file_code_repair_does_not_increase_time(self):
+        for seconds in (1800, 2700, 3600):
+            self.assertEqual(lean_limits.decision(seconds, 'code_issue', kind='whole_file'), ('repair', seconds))
+            self.assertEqual(lean_limits.decision(seconds, 'uncertain', kind='whole_file'), ('inspect', seconds))
+
+    def test_whole_file_cannot_exceed_sixty_or_a_shorter_ceiling(self):
+        with self.assertRaises(ValueError):
+            lean_limits.decision(3601, 'workload_only', kind='whole_file')
+        self.assertEqual(lean_limits.decision(1800, 'workload_only', ceiling=2000, kind='whole_file'), ('limit', 1800))
+
 
 if __name__ == '__main__':
     unittest.main()

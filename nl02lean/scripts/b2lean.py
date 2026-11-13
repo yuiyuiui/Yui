@@ -72,7 +72,9 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
     conditional=directory/'audit-b/Proof.lean';contract=ir.contract(frozen['contract'])
     source,expected,retained=render(contract,context,conditional.read_text(),
         ir.load(directory/'audit-b/assembly.json')['universe_parameters'],graph=ir.load(frozen['authority']['graph']))
-    checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out)
+    import lean_timeout_policy
+    with lean_timeout_policy.whole_file_scope(out.parent/'lean-timeouts', key='basis-closure'):
+        checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out)
     if not checked['passed']:
         raise StageFailure('BASIS_FINAL_CLOSURE_FAILED','Prepared proofs did not close the actual frozen target',
             phase='basis-final-closure',evidence=out/'check.json',details={'errors':checked['errors']})
@@ -93,6 +95,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
         'bindings':[*intermediate.get('bindings',[]),bind(directory/'manifest.json'),bind(directory/'audit-b/Proof.lean'),
             bind(intermediate['audit_b']['receipt_path']),context['basis'],context['native']],
         'source_conditional':receipt['source_conditional'],
+        'timeout_diagnostic_model_called':checked.get('timeout_diagnostic_model_called',False),
         'final_semantic_model_called':False,
         'acceptance_basis':'SHARED_AUDIT_A_AND_FROZEN_INTERFACE_WITH_FINAL_NATIVE_BASIS_DISCHARGE'}
     write(out/'report.json',result)

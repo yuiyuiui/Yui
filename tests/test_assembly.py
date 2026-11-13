@@ -11,6 +11,8 @@ import assembly
 import audit_b
 import ir
 import lean_names
+import lean_timeout_policy
+import pilot_common
 from audit_b_fixtures import fixture
 
 
@@ -20,6 +22,69 @@ class AssemblyTests(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.base)
+
+    def test_real_local_and_whole_file_calls_start_with_their_separate_limits(self):
+        cp,pp,bp,ip=fixture(self.base/'case','mathlib')
+        out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
+        mapping=ir.load(out/'mapping.json');mapping['library_terms']['M001']='exact Nat.add_comm a b'
+        ir.write(out/'mapping.json',mapping)
+        actual=pilot_common._run_lean;calls=[]
+        def controlled(file,work,**kwargs):
+            native=actual(file,work,**kwargs)
+            calls.append((Path(file).name,native['native_limits']['timeout_seconds']))
+            return native
+        with patch.object(pilot_common,'_run_lean',side_effect=controlled):
+            result=audit_b.build(out)
+        self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED')
+        self.assertIn(('Check.lean',360),calls)
+        for name in ('AssemblyInputs.lean','Proof.lean','Audit.lean'):
+            self.assertIn((name,1800),calls)
+
+    def test_valid_partial_inspector_output_cannot_pass_after_timeout(self):
+        cp,pp,bp,ip=fixture(self.base/'case','mathlib')
+        def prepare(name):
+            out=self.base/name;audit_b.prepare(cp,pp,bp,out,fragment=ip)
+            mapping=ir.load(out/'mapping.json');mapping['library_terms']['M001']='exact Nat.add_comm a b'
+            ir.write(out/'mapping.json',mapping)
+            return out
+        good=prepare('good');audit_b.build(good)
+        partial=ir.load(good/'compiler.json')
+        out=prepare('timed-out');actual=pilot_common._run_lean
+        def controlled(file,work,**kwargs):
+            if Path(file).name=='Audit.lean':
+                return {**partial,'exit_code':124,'timed_out':True,'error_kind':'LEAN_TIMEOUT','timeout_scope':'native_call'}
+            return actual(file,work,**kwargs)
+        def located(directory,source,native,budget,remaining,**kwargs):
+            line,quote=next((i,s) for i,s in enumerate(source.splitlines(),1) if s.strip())
+            return {'category':'code_issue','line':line,'quote':quote,
+                    'reason':'Synthetic located timeout in the retained source.',
+                    'next_action':'Return to the connection author at the same allowance.'}
+        with patch.object(pilot_common,'_run_lean',side_effect=controlled), \
+                patch.object(lean_timeout_policy,'inspect_source',side_effect=located):
+            result=audit_b.build(out)
+        self.assertEqual(result['assembly'],'ASSEMBLY-PASSED')
+        self.assertEqual(result['inspection'],'KERNEL_INSPECTION_FAILED')
+        self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-FAILED')
+        self.assertFalse(ir.load(out/'mechanical.json')['passed'])
+        self.assertTrue(ir.load(out/'compiler.json')['timed_out'])
+        self.assertEqual(ir.load(out/'compiler.json')['timeout_reviews'][-1]['next_seconds'],1800)
+        import final_acceptance
+        with self.assertRaisesRegex(ValueError,'Proof integrity failed'):
+            final_acceptance.proof_integrity(out)
+
+    def test_unfinished_assembly_cannot_pass_using_early_universe_output(self):
+        cp,pp,bp,_=fixture(self.base/'case')
+        c=ir.load(cp);mapping={'library_terms':{}}
+        for code in (0,124):
+            out=self.base/str(code);out.mkdir()
+            work=out/'native';(work/'output').mkdir(parents=True)
+            native={'exit_code':code,'stdout':'YUI_ASSEMBLY_LEVELS_JSON:{"parameters":[],"export_used_parameters":[]}\n',
+                    'stderr':'','timed_out':True,'wall_seconds':0}
+            with patch.object(ir,'run_lean',return_value=native) as run:
+                result=assembly.build(c,mapping,'-- synthetic incomplete source\n',out,work)
+            self.assertEqual(run.call_count,1)
+            self.assertEqual(result['status'],'ASSEMBLY-FAILED')
+            self.assertFalse((out/'Proof.lean').exists())
 
     def run_assembly(self, *, generic=False, invalid_library=False):
         cp, pp, bp, _ = fixture(self.base / 'case')

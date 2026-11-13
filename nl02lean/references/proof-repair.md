@@ -36,6 +36,14 @@ can attach ST020 as an optional reference. The author chooses how to repair the
 proof and rechecks the original target. There is no total
 case, token, call, repair-round or turn allowance by default.
 
+Complete-file fragment/assembly/export, Audit B inspection and final b2lean
+checks use a separate 30/45/60-minute ladder. Every wall timeout retains the
+exact source and compiler output for a located diagnosis. A workload-only
+finding permits the next fifteen-minute increase; a located code defect returns
+for repair and retains the current allowance. An incomplete diagnosis does not
+permit an increase. Sixty minutes is final. Partial successful-looking compiler
+or inspector output never makes a timed-out check pass.
+
 `report_proof_obstruction` requests a diagnosis; it does not itself finish the
 node. The original author waits for this tool result, releases its active model
 slot, and retains its native conversation, checked helpers and drafts. A separate

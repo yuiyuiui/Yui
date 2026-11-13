@@ -14,6 +14,8 @@ import basis_native
 import b2lean
 import final_acceptance
 import ir
+import lean_timeout_policy
+import pilot_common
 import workflow
 from controller_common import bind,write
 
@@ -65,6 +67,38 @@ class BasisDischargeTests(unittest.TestCase):
         self.assertEqual(self.result['concurrency'],self.intermediate['concurrency'])
         self.assertEqual(self.result['proof_phase_wall_seconds'],self.intermediate['proof_phase_wall_seconds'])
         b2lean.validate_receipt(self.out)
+
+    def test_real_final_closure_uses_thirty_minutes_on_its_first_native_check(self):
+        actual=pilot_common._run_lean;limits=[]
+        def controlled(file,work,**kwargs):
+            limits.append(kwargs['timeout'])
+            return actual(file,work,**kwargs)
+        with patch.object(pilot_common,'_run_lean',side_effect=controlled):
+            result=b2lean.finish(self.workflow,self.root/'whole-limit',context=self.context,intermediate=self.intermediate)
+        self.assertEqual(limits,[1800])
+        self.assertEqual(result['status'],'WORKFLOW-PASSED')
+
+    def test_partial_valid_closure_output_after_timeout_cannot_publish_success(self):
+        from execution_health import StageFailure
+        partial=ir.load(self.out/'compiler.json')
+        def located(directory,source,native,budget,remaining,**kwargs):
+            line,quote=next((i,s) for i,s in enumerate(source.splitlines(),1) if s.strip())
+            return {'category':'code_issue','line':line,'quote':quote,
+                    'reason':'Synthetic located expensive elaboration in this source.',
+                    'next_action':'Repair the code and recheck at the same allowance.'}
+        for code in (0,124):
+            out=self.root/f'partial-timeout-{code}'
+            native={**partial,'exit_code':code,'timed_out':True,'error_kind':'LEAN_TIMEOUT','timeout_scope':'native_call'}
+            with lean_timeout_policy.scope(self.root/f'timeout-evidence-{code}',None), \
+                    patch.object(pilot_common,'_run_lean',return_value=native) as run, \
+                    patch.object(lean_timeout_policy,'inspect_source',side_effect=located), \
+                    self.assertRaises(StageFailure) as caught:
+                b2lean.finish(self.workflow,out,context=self.context,intermediate=self.intermediate)
+            self.assertEqual(caught.exception.result['status'],'BASIS_FINAL_CLOSURE_FAILED')
+            self.assertEqual(run.call_args.kwargs['timeout'],1800)
+            self.assertTrue(ir.load(out/'compiler.json')['timed_out'])
+            self.assertFalse(ir.load(out/'check.json')['passed'])
+            self.assertFalse((out/'report.json').exists())
 
     def test_closed_kernel_proof_does_not_promote_source_qualification(self):
         receipt=final_acceptance.validate_receipt(self.intermediate['audit_b']['receipt_path'])

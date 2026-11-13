@@ -473,7 +473,7 @@ The tool adapter translate receives Audited@2 and returns a named port and its p
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  A native wall timeout triggers a source-located diagnosis. Only a workload-only finding raises the next allowance by six minutes, up to thirty minutes.
+Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  Every native wall timeout receives a source-located diagnosis. Local checks start at six minutes and rise by six to thirty only for workload findings. Complete-file assembly/export/inspection and final basis closure start at thirty minutes and rise by fifteen to sixty. Code repair retains its current allowance; partial output from a timed-out check cannot pass acceptance.
 
 [translate implementation](#handler-translate)
 
@@ -1500,7 +1500,7 @@ def basis_outline(ctx, data):
 
 #### close
 
-adapters.py · line 61
+adapters.py · line 64
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -1546,7 +1546,7 @@ def freeze_basis(ctx, data):
 
 #### publish
 
-adapters.py · line 62
+adapters.py · line 65
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1628,8 +1628,11 @@ adapters.py · line 54
 def translate(ctx, data):
     """Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.
 
-    A native wall timeout triggers a source-located diagnosis. Only a workload-only
-    finding raises the next allowance by six minutes, up to thirty minutes.
+    Every native wall timeout receives a source-located diagnosis. Local checks
+    start at six minutes and rise by six to thirty only for workload findings.
+    Complete-file assembly/export/inspection and final basis closure start at
+    thirty minutes and rise by fifteen to sixty. Code repair retains its current
+    allowance; partial output from a timed-out check cannot pass acceptance.
     """
     return dispatch(ctx, data, 'translate')
 ```

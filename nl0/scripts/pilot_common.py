@@ -80,6 +80,13 @@ def transport_sandbox_profile(work: Path) -> str:
     ]) + '\n'
 
 
+def native_succeeded(result):
+    """Completed compilation only; partial output and timeout flags cannot pass."""
+    return (type(result.get('exit_code')) is int and result['exit_code'] == 0
+            and not result.get('timed_out') and not result.get('cancelled')
+            and result.get('error_kind') not in {'LEAN_TIMEOUT', 'CASE_DEADLINE', 'STAGE_DEADLINE'})
+
+
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
              output: Path | None = None, timeout: float | None = None) -> dict:
     import lean_timeout_policy
