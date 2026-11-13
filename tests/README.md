@@ -272,3 +272,32 @@ semantic coverage. All 15 saved pre-change offline protocol scenarios replayed
 successfully, and the public routing plan stayed unchanged. These traces and
 review judgments are synthetic software controls; actual pinned Lean is used,
 without live model inference or a research-theorem benchmark rerun.
+
+
+## Per-run environment and private worker settings (2026-11-14)
+
+The new stable environment was installed alongside existing toolchains: Lean
+4.35.0 and Mathlib v4.35.0 (56a005855ea17e0b0958f73ec801ae140b0a1679).
+Before running changed-code regressions, an actual isolated import/proof verified
+selection, a frozen job, nested/thread and subprocess propagation, incompatible
+pairs, ambiguity and a Lean-free NL0 context. Existing pinned projects were not
+upgraded. Historical controls still explicitly select their original 4.32.2 pair.
+
+The focused suite passed 110 tests, including actual 4.35.0 conditional and
+unconditional public-entry delivery, independent readback after owned cleanup,
+and requested Max/xhigh worker profiles. Provider replies and semantic review
+judgments are loopback fixtures, not new live-model mathematical acceptance.
+
+All 1,276 discovered parent tests then ran exactly once in three owned-cleanup
+processes, with unchanged source during the run. One existing standalone prompt
+preparation test failed because explicit environment paths unnecessarily invoked
+module discovery. After restoring those defaults, its complete 14-test component
+passed. All three full-suite processes and the component reported CLEANED.
+No active patch was excluded from the full run.
+
+Builder retains its 15 business cases, 28 edges, three entries and seven exits.
+The new eight-case portable environment suite rejects ambiguous selection,
+version mismatches and incomplete native compatibility records; deliberate
+arbitrary-selection and timeout-acceptance mutations were rejected. Private-role
+and profile mutations were also rejected. All eight Builder audit gates and
+15 saved offline protocol replays passed; replay does not repeat theorem work.

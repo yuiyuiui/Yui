@@ -65,6 +65,39 @@ class RoleSessionTests(unittest.TestCase):
         self.assertIsNot(self.sessions.roles['author']['stage'],self.sessions.roles['reviewer']['stage'])
         self.assertEqual(self.budget.report()['observed_peak_model_stages'],1)
 
+    def test_private_parallel_workers_do_not_reenter_the_running_parent_role(self):
+        import proof_obligations
+        import role_sessions
+        import runtime_config
+        profiles={key:{'id':'gpt-6.1-sol','reasoning_effort':effort,
+                       'speed':'standard','automatic_fallback':False}
+                  for key,effort in [('nl0','max'),('lean','xhigh')]}
+        with runtime_config.use_profiles(profiles):
+            parent=self.stage('parent')
+            def solve(item,budget):
+                child=ArtifactStage(self.root/f'child-{item}','Synthetic private task.',
+                    phase='basis-frontier',budget=budget,library=False)
+                self.stages.append(child)
+                child.execute()
+                self.assertIsNone(role_sessions.current())
+                self.assertEqual(child.model_selection['reasoning_effort'],'max')
+                self.assertEqual(child.model_selection['selection_origin'],'explicit_run')
+                self.assertFalse(hasattr(child,'role_session'))
+                return item
+            def execute(stage):
+                if stage is parent:
+                    self.assertFalse(getattr(parent,'submission_closed',False))
+                    self.assertEqual(proof_obligations.parallel(parent,[1,2],solve),[1,2])
+                    self.assertEqual(role_sessions.current(),(self.sessions,'parent'))
+                return self.complete(stage)
+            def fail_fault(stage,error,**kwargs):
+                raise error
+            with patch.object(ArtifactStage,'_execute',execute), \
+                    patch.object(ArtifactStage,'pause_error',fail_fault):
+                with self.sessions.use('parent'):parent.execute()
+        self.assertEqual(set(self.sessions.roles),{'parent'})
+        self.assertIs(self.sessions.roles['parent']['stage'],parent)
+
     def test_changed_prior_evidence_cannot_be_reused(self):
         first=self.stage('first')
         with patch.object(ArtifactStage,'_execute',self.complete):

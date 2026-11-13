@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 import uuid
 
 from controller_common import bind, write
-from runtime_config import auth_home, load_lock
+from runtime_config import auth_home, host_tools as load_lock
 import remote_retry
 
 VERSION = 'yui-restored-provider-access-1'

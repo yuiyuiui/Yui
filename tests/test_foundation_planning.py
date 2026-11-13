@@ -130,6 +130,49 @@ class FrozenRoute(unittest.TestCase):
 
 
 class ParallelWork(unittest.TestCase):
+    def test_parent_profile_and_role_restore_after_private_failure_or_cancellation(self):
+        import execution_state
+        import role_sessions
+        from runtime_config import model_profile, use_profiles
+        selected={phase:{'id':'gpt-6.1-sol','reasoning_effort':'max','speed':'standard',
+                         'automatic_fallback':False} for phase in ('nl0','lean')}
+        sessions=role_sessions.Sessions()
+        owner=SimpleNamespace(budget=None,logs=Path('/synthetic-parent'))
+        for exception in (OSError('private failure'),execution_state.Cancelled('explicit cancel')):
+            with self.subTest(error=type(exception).__name__),use_profiles(selected),sessions.use('basis-author'):
+                parent=role_sessions.current()
+                def fail(item,budget):
+                    self.assertIsNone(role_sessions.current())
+                    self.assertEqual(model_profile('basis-frontier')['reasoning_effort'],'max')
+                    raise exception
+                with self.assertRaises(type(exception)):
+                    proof_obligations.parallel(owner,[1],fail,requested=1)
+                self.assertEqual(role_sessions.current(),parent)
+                self.assertEqual(model_profile('basis-authoring')['reasoning_effort'],'max')
+        self.assertIsNone(role_sessions.current())
+
+    def test_explicit_phase_profiles_reach_parallel_and_nested_foundations(self):
+        import runtime_config
+        profiles={key:{'id':'gpt-6.1-sol','reasoning_effort':effort,
+                       'speed':'standard','automatic_fallback':False}
+                  for key,effort in [('nl0','max'),('lean','xhigh')]}
+        def selected():
+            return [runtime_config.model_profile(phase)
+                    for phase in ['basis-frontier','proof']]
+        def solve(item,budget):
+            if item==0:
+                return proof_obligations.parallel(SimpleNamespace(budget=budget),[1],
+                    lambda _item,_budget:selected(),requested=1)[0]
+            return selected()
+        with runtime_config.use_profiles(profiles):
+            results=proof_obligations.parallel(SimpleNamespace(budget=None),[0,1],solve)
+        for result in results:
+            for profile,expected in zip(result,['max','xhigh']):
+                self.assertEqual(profile['reasoning_effort'],expected)
+                self.assertEqual(profile['selection_origin'],'explicit_run')
+        self.assertEqual(runtime_config.model_profile('proof')['selection_origin'],
+                         'installation_defaults')
+
     def test_private_task_cancellation_does_not_cancel_its_siblings(self):
         import execution_state
         with tempfile.TemporaryDirectory() as raw:

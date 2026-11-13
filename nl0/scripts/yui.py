@@ -16,7 +16,8 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     import entrypoint
     entrypoint.parsers(commands)
-    commands.add_parser('doctor')
+    doctor=commands.add_parser('doctor')
+    doctor.add_argument('--no-lean',action='store_true',help='Check the host carrier/isolation for pure NL0 without selecting Lean')
     delivered=commands.add_parser('verify-delivery',help='Recheck a retained public delivery directory')
     delivered.add_argument('directory',type=Path)
     delivered.add_argument('--comparator',type=Path,help='Also run this compatible upstream Comparator executable on a disposable copy')
@@ -49,7 +50,7 @@ def main():
         except (ValueError,KeyError,OSError,subprocess.SubprocessError) as error:
             print(json.dumps({'status':'VALIDATION_FAILED','error':str(error)}));return 1
         print(json.dumps(result,indent=2));return 0
-    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision'}:
+    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision','lean-environments'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))
@@ -57,10 +58,16 @@ def main():
             if args.command in {'run','execute','resume'} and result.get('outcomes'):
                 return 0 if all(r.get('completion',{}).get('workflow_completed',r.get('completion',{}).get('acceptance_target_satisfied')) for r in result['outcomes'].values()) else 1
             return 0
-        except (OSError,ValueError,KeyError) as error:
-            print(json.dumps({'status':'REQUEST_NOT_STARTED_OR_BLOCKED','error':str(error)},indent=2));return 1
+        except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:
+            print(json.dumps(getattr(error,'request',{'status':'REQUEST_NOT_STARTED_OR_BLOCKED','error':str(error)}),indent=2));return 1
     elif args.command == 'doctor':
-        print(json.dumps({'status': 'ENVIRONMENT-CHECKED', 'resolved_environment': verify()}, indent=2))
+        try:
+            from contextlib import nullcontext
+            from runtime_config import use_environment
+            with use_environment(None) if args.no_lean else nullcontext():
+                print(json.dumps({'status': 'ENVIRONMENT-CHECKED', 'resolved_environment': verify()}, indent=2))
+        except (OSError,ValueError,subprocess.SubprocessError) as error:
+            print(json.dumps(getattr(error,'request',{'status':'ENVIRONMENT_CHECK_FAILED','error':str(error)}),indent=2));return 1
     elif args.command == 'selftest':
         directory = CORE / 'tests'
         result = subprocess.run([sys.executable, '-B', str(directory/'run_tests.py'), 'discover', '-s', str(directory), '-v'],

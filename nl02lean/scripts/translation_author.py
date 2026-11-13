@@ -267,7 +267,7 @@ class InterfaceContract:
         contract={'version':2,'id':self.spec['case_id'].replace('-','_'),
             'source':{'path':'nl0.json','sha256':ir.digest(directory/'nl0.json'),
                       'background_mode':background_inputs.REFERENCE_ONLY},
-            'source_steps':self.source['source_steps'],'pins':self.spec['pins'],
+            'source_steps':self.source['source_steps'],'pins':__import__('runtime_config').scientific_pins(),
             'header':header,'parameters':value['parameters'],
             'premises':[{**p,'type':value['premise_types'][p['id']]} for p in self.source['roots'] if p['id'] in value['premise_types']],
             'endpoint_correspondence':value['endpoint_correspondence'],

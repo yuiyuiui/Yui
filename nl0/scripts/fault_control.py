@@ -92,8 +92,8 @@ def queue_notification(thread, message):
     binary = os.environ.get('YUI_CODEX_BINARY') or os.environ.get('CODEX_CLI_PATH') or shutil.which('codex')
     if not binary:
         try:
-            from runtime_config import load_lock
-            binary = load_lock()['codex']['binary_path']
+            from runtime_config import host_tools
+            binary = host_tools()['codex']['binary_path']
         except (OSError, ValueError, KeyError):pass
     if not binary:return {'status': 'PENDING', 'reason': 'No local Codex queue executable'}
     try:

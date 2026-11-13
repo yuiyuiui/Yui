@@ -71,6 +71,8 @@ def root_for(job):
 def environment(job):
     import os
     env=dict(os.environ)
+    if 'lean_environment' in job:
+        env['YUI_LEAN_ENVIRONMENT']=json.dumps(job['lean_environment'],sort_keys=True)
     if 'runtime_snapshot' in job:
         validate(job);env['YUI_LIBRARY_ROOT']=job['runtime_snapshot']['library_root']
     return env

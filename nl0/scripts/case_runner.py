@@ -13,7 +13,7 @@ import nl0_author
 from clean_stage import ArtifactStage
 from execution_health import StageFailure
 import execution_state as execution
-from runtime_config import use_profiles
+from runtime_config import use_profiles, use_environment
 import source_preparation
 import source_refactor
 import basis
@@ -256,7 +256,10 @@ def execute(job, root=None):
     jobs.validate(job);root=Path(job['root'])
     if (root/'execution-status.json').exists():raise ValueError('Preserve this run; prepare a new explicit run')
     resume=job.get('resume') or {}
-    with use_profiles(job['profiles']):
+    import lean_environment
+    selected = job.get('lean_environment') if 'lean_environment' in job else (
+        lean_environment.legacy() if job['track'] != 'nl0' else None)
+    with use_profiles(job['profiles']), use_environment(selected):
         recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job['max_concurrency']),
             phase='nl0-authoring' if job['track'] in {'nl0','full'} else 'translation-preparation',
             time_budget_seconds=job['time_budget_seconds'],

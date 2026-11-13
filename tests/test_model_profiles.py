@@ -13,6 +13,27 @@ from clean_stage import ArtifactStage
 
 
 class ModelProfileTests(unittest.TestCase):
+    def test_requested_and_exposed_effective_settings_are_saved_and_mismatches_reject(self):
+        from types import SimpleNamespace
+        import native_client
+        with tempfile.TemporaryDirectory() as raw:
+            logs=Path(raw)
+            selection={'id':'gpt-6.1-sol','reasoning_effort':'max','speed':'standard',
+                       'automatic_fallback':False,'selection_origin':'explicit_run'}
+            stage=SimpleNamespace(model='gpt-6.1-sol',model_selection=selection,logs=logs)
+            expected={'model':'gpt-6.1-sol','modelProvider':'yui-native',
+                      'reasoningEffort':'max','serviceTier':'default'}
+            (logs/'native-client.json').write_text(json.dumps({'profile':selection}))
+            native_client.verify_thread(stage,expected)
+            observed=json.loads((logs/'native-client.json').read_text())['configuration_verification']
+            self.assertEqual(observed['requested'],expected)
+            self.assertEqual(observed['effective_exposed'],expected)
+            for field in expected:
+                with self.subTest(field=field),self.assertRaisesRegex(ValueError,'differs from selection'):
+                    native_client.verify_thread(stage,{**expected,field:'unexpected'})
+            observed=json.loads((logs/'native-client.json').read_text())['configuration_verification']
+            self.assertEqual(observed['status'],'MISMATCH')
+
     def test_all_production_phases_select_the_declared_model(self):
         for phase in ['nl0-authoring', 'audit-a-global', 'audit-a-packet-replay', 'audit-a-behavior']:
             self.assertEqual(runtime_config.model_profile(phase)['id'], 'gpt-6.1-sol')

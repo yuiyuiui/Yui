@@ -134,8 +134,8 @@ def consult(stage, query):
     try:
         version = stage.native_timeout_lean_version
         if version is None:
-            lock = json.loads((HERE.parent/'toolchain/lock.json').read_bytes())
-            version = lock['lean']['toolchain'].split(':v')[-1]
+            from runtime_config import scientific_pins
+            version = scientific_pins()['lean_version']
         result = _consult_bank(name, binding, version, query.get('ids'))
     except (OSError, ValueError, TypeError, KeyError) as error:
         result = {'bank':name, 'status':'unavailable',

@@ -419,6 +419,7 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
     if module is not None and not re.fullmatch(r'Mathlib(?:\.[A-Za-z][A-Za-z0-9_]*)+', module):
         raise ValueError('Expected a dotted Mathlib module name, for example Mathlib.Topology.Basic; '
                          'received '+repr(module)+'. Omit this optional locator hint to resolve the actual native module. Paths and Lean code are not accepted.')
+    __import__('runtime_config').require_environment()
     lock = load_lock()
     out = reserve_probe_directory(case, identifier, sequence)
     if use_catalog:
@@ -617,12 +618,11 @@ class NL0Contract:
                 document['case_id']=self.case_id
         errors=[] if self.global_only else preflight(spec,graph)
         if errors:raise ValueError('STRUCTURAL_PREFLIGHT:\n'+'\n'.join(errors))
-        lock = load_lock()
         # Bind reproducibility metadata and explicitly omitted duplicate aliases.
         # The author's primary statements and all proof text remain unchanged.
         spec['inputs'] = self.expected_inputs
-        spec['pins'] = {'lean_version': '4.32.2', 'mathlib_commit': lock['mathlib']['rev'],
-                        'mathlib_root': lock['mathlib']['local_path']}
+        spec['pins'] = __import__('runtime_config').scientific_pins()
+        lock = load_lock()
         # The author selects a declaration and writes its mathematical meaning.
         # Exact Lean printer output and evidence hashes come from actual probes,
         # rather than an error-prone model transcription of thousands of bytes.
@@ -670,6 +670,7 @@ class NL0Contract:
                 self.bind_external_source(identifier,source,ports.get(identifier),context,working='foundation_ports' in graph)
             if kind != 'mathlib':
                 continue
+            __import__('runtime_config').require_environment()
             identifier, source = proposition.get('id'), proposition.get('source', {})
             if not isinstance(source, dict):
                 raise ValueError('FIELDS: a mathlib source must be an object')

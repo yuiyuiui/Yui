@@ -1,7 +1,8 @@
-"""Explicit portable job preparation. Preparation calls neither a model nor Lean."""
+"""Explicit portable job preparation; formal jobs verify their selected Lean pair."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
@@ -16,7 +17,8 @@ from runtime_config import validate_profile
 import library_catalog
 from variant import OUTPUT_DIRECTORY
 
-VERSION = 'yui-case-job-2'
+VERSION = 'yui-case-job-3'
+LEGACY_VERSION = 'yui-case-job-2'
 MARKER = '.yui-run.json'
 TRACKS = {'nl0','full','translate','audit-b'}
 
@@ -57,7 +59,8 @@ def stage_document(source, destination):
 
 def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
-            resume=None, resume_bindings=(), target=None, formalization='conditional', stop_after=None):
+            resume=None, resume_bindings=(), target=None, formalization='conditional', stop_after=None,
+            lean_environment=None):
     import concurrency
     from runtime_config import time_limit
     if track not in TRACKS or policy not in {'normal','first-pass'}:
@@ -72,6 +75,18 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
     profiles = {key:validate_profile(row) for key,row in profiles.items()}
     concurrency.resolve(max_concurrency)
     time_limit(time_budget_seconds)
+    import lean_environment as environments
+    if resume:
+        prior = json.loads((Path(resume['prior_run'])/'job.json').read_text())
+        selected = (prior.get('lean_environment') if 'lean_environment' in prior else
+                    environments.legacy() if prior['track'] != 'nl0' else None)
+        if lean_environment is not None and lean_environment != selected:
+            raise ValueError('Recovery cannot change the frozen Lean environment')
+    else:
+        selected = lean_environment if lean_environment is not None else (
+            environments.resolve() if track != 'nl0' else None)
+    if selected is not None:
+        selected = environments.verify(selected)
     problem = input_file(problem)
     extra = [input_file(p) for p in materials]
     if len({problem,*extra}) != len(extra)+1:
@@ -129,6 +144,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         job={'version':VERSION,'id':case_id+'-'+run_id,'case':case_id,'run_id':run_id,
              'track':track,'policy':policy,'problem':str(problem),'root':str(root),
              'profiles':profiles,'max_concurrency':max_concurrency,'documents':documents,
+             'lean_environment':selected,
              'source':str(Path(source).resolve()) if source else None,
              'audit':str(Path(audit).resolve()) if audit else None,
              'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
@@ -139,8 +155,8 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         if (any(r['path']==str(root/'runtime/workflow/workflow.json') for r in runtime)
                 and track in {'nl0','full'} and (not resume or resume.get('mode')=='basis-revision')):
             job['workflow_protocol']='yui-workflow-1'
-        from runtime_config import load_lock
-        job['native_components']=load_lock()['codex']
+        from runtime_config import host_tools
+        job['native_components']=deepcopy(host_tools()['codex'])
         if target:job['target_selection']=target
         if resume:
             job['resume']=resume
@@ -160,8 +176,10 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
 
 
 def validate(job, *, verify_runtime=True):
-    if job.get('version')!=VERSION or job.get('track') not in TRACKS:
+    if job.get('version') not in {VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
         raise ValueError('Unsupported explicit case job')
+    if job['version']==VERSION and 'lean_environment' not in job:
+        raise ValueError('A v3 job must freeze its Lean selection or explicit NL0 null')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'stop_after' in job:
@@ -179,8 +197,16 @@ def validate(job, *, verify_runtime=True):
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
     if 'formalization' in job:expected.add('formalization')
+    if 'lean_environment' in job:expected.add('lean_environment')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
+    if 'lean_environment' in job:
+        selected = job['lean_environment']
+        if selected is None and job['track'] != 'nl0':
+            raise ValueError('Formalization requires a frozen Lean environment')
+        if selected is not None:
+            import lean_environment as environments
+            environments.verify(selected)
     from basis import validate_mode
     validate_mode(job.get('formalization','conditional'),job['track'],resume=job.get('resume'))
     if 'native_components' in job:
@@ -228,6 +254,8 @@ def validate(job, *, verify_runtime=True):
         validate_descriptor(job)
         import basis
         prior=json.loads((Path(job['resume']['prior_run'])/'job.json').read_text())
+        if 'lean_environment' in prior and job.get('lean_environment') != prior['lean_environment']:
+            raise ValueError('Recovery changed the frozen Lean environment')
         if basis.mode(prior)!=basis.mode(job):raise ValueError('Recovery changed formalization goal')
         if not all(r in job['authority_bindings'] for r in basis.recovery_bindings(prior)):
             raise ValueError('Recovery omitted prepared basis bindings')

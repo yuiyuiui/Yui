@@ -274,12 +274,19 @@ class ManualResumeTests(unittest.TestCase):
 
     def test_access_is_rechecked_at_actual_launch_without_a_model_start(self):
         job = interrupted.prepare(self.run, after_access_restored=True)
+        import subprocess
+        original_popen=subprocess.Popen
+        launch=Mock()
+        def host_reads_only(command,*args,**kwargs):
+            if any(str(part).endswith('queue_controller.py') for part in command):
+                return launch(command,*args,**kwargs)
+            return original_popen(command,*args,**kwargs)
         with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
              patch.object(access, 'confirm_exit', return_value={'process_exit_verified': True}), \
              patch.object(access, 'check', side_effect=ValueError('Provider access failed again')), \
-             patch.object(entrypoint.subprocess, 'Popen') as process:
+             patch.object(entrypoint.subprocess, 'Popen',side_effect=host_reads_only):
             with self.assertRaisesRegex(ValueError, 'failed again'): entrypoint.launch([job], detached=True)
-            process.assert_not_called()
+            launch.assert_not_called()
         self.assertFalse((Path(job['root'])/'launch.json').exists())
 
 

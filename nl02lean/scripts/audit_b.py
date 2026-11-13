@@ -154,6 +154,8 @@ def prepare(cpath,ppath,bpath,out,**source):
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
              ir.ROOT/'nl0/scripts/pilot_common.py',ir.ROOT/'nl0/scripts/background.py',
+             ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/lean_environment.py',
+             ir.ROOT/'workflow/blocks/lean_environments.py',
              Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
     inputs = out/'input-bytes';inputs.mkdir()
     bound = []

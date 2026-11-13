@@ -246,7 +246,12 @@ def respond(f,handler,number,payload):
         if requests[stage.logs]>2:
             detail=(stage.logs/'tools.jsonl').read_text()[-12000:] if (stage.logs/'tools.jsonl').exists() else ''
             raise AssertionError('Repeated fixture request: '+stage.mode+' '+detail)
-        code=scripted(stage)
+        # The HTTP fixture is a separate server thread, not a Yui proof worker.
+        # Read its oracle's contract under the declared job environment. Actual
+        # worker manifests below still independently expose inherited settings.
+        from runtime_config import use_environment, use_profiles
+        with use_environment(job.get('lean_environment')), use_profiles(job['profiles']):
+            code=scripted(stage)
         if read_strategies:
             selected = {'basis-authoring': ('basis','ST021'), 'basis-frontier': ('basis','ST024'),
                         'interface-authoring': ('basis','ST022'), 'proof': ('lean','ST026')}

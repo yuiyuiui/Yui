@@ -282,6 +282,7 @@ class Trial:
             elif name == 'check_auxiliary':
                 result = self.check_auxiliary(args['statement'], args['proof'])
             elif name == 'search_mathlib':
+                __import__('runtime_config').require_environment()
                 ml = Path(load_lock()['mathlib']['local_path']) / 'Mathlib'
                 rg = load_lock()['tools']['ripgrep']['binary_path']
                 p = subprocess.run([rg, '--no-config', '-n', '--max-count', '5', '--glob', '*.lean',
@@ -290,6 +291,7 @@ class Trial:
                 result = {'matches': '\n'.join(p.stdout.replace(str(ml) + '/', 'Mathlib/').splitlines()[:100])[:16000],
                           'exit_code': p.returncode, 'stderr': p.stderr[-2000:]}
             elif name == 'read_mathlib':
+                __import__('runtime_config').require_environment()
                 ml = Path(load_lock()['mathlib']['local_path'])
                 path = (ml / args['path']).resolve()
                 if not path.is_relative_to(ml / 'Mathlib') or path.suffix != '.lean':
@@ -444,7 +446,7 @@ class Trial:
         return msg.get('result', {})
 
     def start_process(self) -> None:
-        lock=load_lock()
+        lock=__import__('runtime_config').host_tools()
         from native_runtime import for_stage
         for_stage(self.logs,lock['codex'])
         state=self.work/'state'

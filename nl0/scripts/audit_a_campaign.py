@@ -51,7 +51,8 @@ def global_location(directory, locator):
     if not match:raise ValueError('AUDIT-LOCATION: use document.json#/exact/pointer or document:start-end; no commentary suffix')
     document,start,end=match.groups();start,end=int(start),int(end)
     if document.startswith('Mathlib/') and document.endswith('.lean'):
-        from runtime_config import load_lock
+        from runtime_config import load_lock, require_environment
+        require_environment()
         root=Path(load_lock()['mathlib']['local_path']).resolve();path=(root/document).resolve()
         if not path.is_relative_to(root/'Mathlib'):raise ValueError('AUDIT-LOCATION: library path escapes pin')
     else:

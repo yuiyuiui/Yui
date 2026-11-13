@@ -215,21 +215,25 @@ def prepare_prompt(work,paper,lean,mathlib,renderer):
 
 
 def main(default_work=None,*,prompt_factory=None,default_paper=None,argv=None):
-    shared=Path.home()/'formalization-tools/lean-mathlib-v4.32.2'
-    lean_root=Path(os.environ['YUI_LEAN_ROOT']).expanduser() if os.environ.get('YUI_LEAN_ROOT') else (
-        shared/'lean' if (shared/'lean').exists() else Path.home()/'.elan/toolchains/leanprover--lean4---v4.32.2')
     codex=os.environ.get('YUI_CODEX_BINARY') or shutil.which('codex') or next((p for p in [
         '/Applications/Codex.app/Contents/Resources/codex',
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'] if Path(p).is_file()),
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex')
     ap=argparse.ArgumentParser();ap.add_argument('--work',type=Path,default=default_work or Path.cwd())
     ap.add_argument('--codex',type=Path,default=Path(codex))
-    ap.add_argument('--lean',type=Path,default=lean_root/'bin/lean')
-    ap.add_argument('--mathlib',type=Path,default=Path(os.environ.get('YUI_MATHLIB_ROOT') or str(shared/'mathlib')))
+    ap.add_argument('--lean',type=Path,default=(Path(os.environ['YUI_LEAN_ROOT']).expanduser()/'bin/lean'
+                                               if os.environ.get('YUI_LEAN_ROOT') else None))
+    ap.add_argument('--mathlib',type=Path,default=(Path(os.environ['YUI_MATHLIB_ROOT']).expanduser()
+                                                  if os.environ.get('YUI_MATHLIB_ROOT') else None))
     if prompt_factory:
         ap.add_argument('--paper',type=Path,default=default_paper,required=default_paper is None)
         ap.add_argument('--prepare-only',action='store_true',help='Generate and display prompt paths without starting a model')
     args=ap.parse_args(argv)
+    if args.lean is None or args.mathlib is None:
+        import lean_environment
+        selected=lean_environment.resolve(lean_root=args.lean,mathlib_root=args.mathlib)
+        args.lean=Path(selected['lean']['local_path'])/'bin/lean'
+        args.mathlib=Path(selected['mathlib']['local_path'])
     for key in ('work','codex','lean','mathlib'):setattr(args,key,getattr(args,key).expanduser().resolve())
     if prompt_factory:
         prepared=prepare_prompt(args.work,args.paper,args.lean,args.mathlib,prompt_factory)

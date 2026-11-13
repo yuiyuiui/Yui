@@ -18,6 +18,10 @@ def parsers(commands):
         p.add_argument('--formalization',choices=['conditional','unconditional'],default='conditional',
                        help='Lean goal; unconditional adds 2basis and final b2lean closure to track=full')
         p.add_argument('--material',action='append',type=Path,default=[])
+        p.add_argument('--lean-root',type=Path,help='Explicit local Lean installation for this run')
+        p.add_argument('--mathlib-root',type=Path,help='Explicit compatible Mathlib checkout for this run')
+        p.add_argument('--lean-version',help='Select one installed exact Lean release')
+        p.add_argument('--mathlib-version',help='Select an installed Mathlib release tag or full commit')
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
         p.add_argument('--target',help='Complete requested statement or semicolon-separated theorem labels')
         p.add_argument('--target-file',type=Path,help='Source-bound, reviewed target-selection JSON')
@@ -31,6 +35,10 @@ def parsers(commands):
         for phase in ('nl0','lean'):
             p.add_argument('--'+phase+'-model');p.add_argument('--'+phase+'-effort');p.add_argument('--'+phase+'-speed')
         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
+    p=commands.add_parser('lean-environments',help='Discover checked local pairs or explicitly install selected versions')
+    p.add_argument('--install',action='store_true',help='Download the exact requested versions to a new shared directory')
+    p.add_argument('--lean-version');p.add_argument('--mathlib-version')
+    p.add_argument('--directory',type=Path,help='New shared directory for explicit installation')
     p=commands.add_parser('execute',help='Execute already prepared, unchanged run jobs')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int);p.add_argument('--detach',action='store_true')
     p=commands.add_parser('targets',help='Inspect theorem candidates without starting mathematical work')
@@ -114,8 +122,12 @@ def preflight_profiles(job):
 
 def launch(prepared, *, detached=False, case_concurrency=None):
     for job in prepared:jobs.validate(job);preflight_profiles(job)
-    from runtime_config import verify
-    verify()
+    from runtime_config import verify, use_environment
+    import lean_environment
+    for job in prepared:
+        selected = job.get('lean_environment') if 'lean_environment' in job else (
+            lean_environment.legacy() if job['track'] != 'nl0' else None)
+        with use_environment(selected):verify()
     import access_recovery
     for job in prepared:access_recovery.before_launch(job)
     if detached:
@@ -142,6 +154,22 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command=='lean-environments':
+        import lean_environment
+        if args.install:
+            if not args.lean_version or not args.mathlib_version:
+                raise ValueError('Installation needs both --lean-version and --mathlib-version')
+            selected=lean_environment.install(lean_version=args.lean_version,
+                mathlib_ref=args.mathlib_version,directory=args.directory)
+            return {'status':'LEAN_ENVIRONMENT_INSTALLED','environment':selected}
+        if args.directory is not None:
+            raise ValueError('--directory is only used for explicit installation')
+        if args.lean_version or args.mathlib_version:
+            return {'status':'LEAN_ENVIRONMENT_SELECTED','environment':lean_environment.resolve(
+                lean_version=args.lean_version,mathlib_ref=args.mathlib_version)}
+        choices,failures=lean_environment.discover()
+        return {'status':'LEAN_ENVIRONMENTS_DISCOVERED','candidates':choices,'discovery_errors':failures,
+                'selection_required':len(choices)!=1}
     if args.command in {'final-decision','basis-decision'}:
         import fault_control
         return fault_control.final_decision(args.run,args.incident,args.action)
@@ -190,6 +218,12 @@ def dispatch(args):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
         import target_selection
         chosen=profiles(args);workers=proof_workers(args);prepared=[]
+        import lean_environment
+        explicit = any(getattr(args,key,None) is not None for key in (
+            'lean_root','mathlib_root','lean_version','mathlib_version'))
+        selected_environment = (lean_environment.resolve(lean_root=getattr(args,'lean_root',None),
+            mathlib_root=getattr(args,'mathlib_root',None),lean_version=getattr(args,'lean_version',None),
+            mathlib_ref=getattr(args,'mathlib_version',None)) if args.track!='nl0' or explicit else None)
         selections={}
         if args.track in {'nl0','full'}:
             for problem in args.problems:
@@ -200,12 +234,14 @@ def dispatch(args):
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
-                target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None)))
+                target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None),
+                lean_environment=selected_environment))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),
                  'concurrent_cases':args.case_concurrency or len(prepared)}
         summary['formalization']=selected_mode
+        summary['lean_environment']=selected_environment
         summary['source_policy_notice']='Unavailable primary sources can produce only an explicitly conditional result with warn.json/warn.md, never an unqualified PASS.'
         summary['audit_r_concurrency']=__import__('concurrency').resolve(workers) if args.track in {'nl0','full'} else None
         if args.command=='prepare':return summary

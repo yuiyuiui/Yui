@@ -107,7 +107,7 @@ def contract(path):
         need(background.digest({k:v for k,v in supplement.items() if k!='sha256'})==supplement.get('sha256')
              ==c['source'].get('background_supplement_sha256'),'changed background supplement')
     lock = load_lock()
-    need(c['pins']['lean_version'] == '4.32.2' and
+    need(c['pins']['lean_version'] == lock['lean']['version_number'] and
          c['pins']['mathlib_commit'] == lock['mathlib']['rev'], 'toolchain mismatch')
     names = [p['name'] for p in c['parameters']]
     need(len(names) == len(set(names)), 'duplicate parameter')

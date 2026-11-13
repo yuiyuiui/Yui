@@ -244,7 +244,7 @@ class ArtifactStage(pilot.Stage):
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
         source_files = [*CORE.glob('nl0/scripts/*.py'), *CORE.glob('nl02lean/scripts/*.py'),
-                        CORE/'workflow/blocks/foundation_handoff.py',
+                        *CORE.glob('workflow/blocks/*.py'),
                         CORE/'toolchain/lock.json', CORE/'config.json']
         files = []
         for path in source_files:
@@ -359,9 +359,7 @@ class ArtifactStage(pilot.Stage):
                 'A successful check_artifact is structural validation, not Audit A acceptance.')
             self.input_prompt += ('\nFrozen structural contract: spec.format_version=2; graph.format_version=2; '
                 'Omit spec.case_id and graph.case_id; the controller supplies the bound case identity. '
-                'The controller-bound pins are '+json.dumps({'lean_version':'4.32.2',
-                    'mathlib_commit':pilot.load_lock()['mathlib']['rev'],
-                    'mathlib_root':pilot.load_lock()['mathlib']['local_path']})+'. '
+                'The controller-bound pins are '+json.dumps(__import__('runtime_config').scientific_pins())+'. '
                 'These are provided configuration facts, not guessed mathematical premises. '
                 'Spec.inputs, spec.pins and graph.spec_sha256 are rebound deterministically, so their placeholder values '
                 'are not an input conflict. All other required schema fields must be supplied normally.')

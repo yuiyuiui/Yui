@@ -72,9 +72,18 @@ def verify_thread(stage, response):
     """Reject exposed native configuration drift before any work is dispatched."""
     expected={'model':stage.model,'modelProvider':'yui-native',
         'reasoningEffort':stage.model_selection['reasoning_effort'],'serviceTier':'default'}
-    for key,value in expected.items():
-        if response.get(key) is not None and response[key]!=value:
-            raise ValueError('Native thread configuration differs from selection: '+key)
+    effective={key:response[key] for key in expected if response.get(key) is not None}
+    mismatched=[key for key,value in effective.items() if value!=expected[key]]
+    path=stage.logs/'native-client.json'
+    if path.is_file():
+        receipt=json.loads(path.read_text())
+        receipt['configuration_verification']={'requested':expected,'effective_exposed':effective,
+            'not_exposed':[key for key in expected if key not in effective],
+            'status':'MISMATCH' if mismatched else 'MATCHED_EXPOSED_FIELDS',
+            'mismatched':mismatched,'boundary':'before proof/model turn dispatch'}
+        path.write_text(json.dumps(receipt,indent=2)+'\n')
+    if mismatched:
+        raise ValueError('Native thread configuration differs from selection: '+', '.join(mismatched))
 
 
 def append(stage, name, row):

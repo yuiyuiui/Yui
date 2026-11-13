@@ -268,6 +268,18 @@ def verify(directory, *, anchor=None):
         if {p.name for p in (directory/'formalization').iterdir()}!={'Challenge.lean','Solution.lean','lakefile.toml','config.json','lean-toolchain','lake-manifest.json'}:
             raise ValueError('Incomplete Comparator package')
         endpoint=nl0.load(directory/'nl0/lean-endpoints.json')
+        selected=record.get('lean_environment')
+        if selected is not None:
+            import lean_environment
+            lean_environment.rules.validate(selected)
+            manifest=nl0.load(directory/'formalization/lake-manifest.json')
+            libraries=[row for row in manifest['packages'] if row['name']=='mathlib']
+            contract=nl0.load(directory/'nl0/lean-evidence/contract.json')
+            if ((directory/'formalization/lean-toolchain').read_text().strip()!=selected['lean']['toolchain']
+                    or len(libraries)!=1 or libraries[0]['rev']!=selected['mathlib']['rev']
+                    or contract['pins']['lean_version']!=selected['lean']['version_number']
+                    or contract['pins']['mathlib_commit']!=selected['mathlib']['rev']):
+                raise ValueError('Public Lean package differs from the selected run environment')
         if nl0.load(directory/'formalization/config.json')!=comparator_config(endpoint['export']):
             raise ValueError('Comparator must check the published theorem and allowed axioms')
         challenge,expected=challenge_source(endpoint,endpoint['retained'],endpoint['export'])
@@ -388,6 +400,7 @@ def publish(job,result,scope,recorder):
             if block['elapsed_seconds'] is None:
                 block['elapsed_seconds']=(end-datetime.fromisoformat(block['started_utc'])).total_seconds()
         record={'version':'yui-delivery-1','blocks':blocks,'outcome_sha256':outcome_digest,
+                'lean_environment':job.get('lean_environment'),
                 'last_phase':recorder.state.get('phase'),'elapsed_scope':'case start through delivery checks','run_id':job['run_id'],'requested_goal':'audit' if job['track']=='nl0' else job['formalization'],
                 'actual_result':scope,'case_status':result['status'],'entry':entry,'exit':exit_name,
                 'unresolved_foundations':[row['id'] for row in unresolved],
@@ -449,19 +462,30 @@ def compare(directory, executable):
 def compare_package(package, executable):
     import os
     import subprocess
-    from runtime_config import load_lock
+    import lean_environment
+    package=Path(package)
+    toolchain=(package/'lean-toolchain').read_text().strip()
+    libraries=[row for row in nl0.load(package/'lake-manifest.json')['packages'] if row['name']=='mathlib']
+    if not toolchain.startswith('leanprover/lean4:v') or len(libraries)!=1:
+        raise ValueError('Comparator package needs an exact Lean/Mathlib selection')
+    choices,_=lean_environment.discover()
+    selected=lean_environment.rules.select(choices,lean_version=toolchain.split(':v',1)[1],
+                                           mathlib_ref=libraries[0]['rev'])
     executable=Path(executable).resolve(strict=True)
     if not os.access(executable,os.X_OK):raise ValueError('Comparator is not executable')
     with tempfile.TemporaryDirectory(prefix='yui-comparator-') as raw:
         project=Path(raw)/'project'
         shutil.copytree(package,project)
-        lib=Path(load_lock()['mathlib']['local_path'])
+        lib=Path(selected['mathlib']['local_path'])
         (project/'.lake').mkdir()
         packages=project/'.lake/packages'
         packages.mkdir()
         (packages/'mathlib').symlink_to(lib,target_is_directory=True)
         for row in nl0.load(lib/'lake-manifest.json')['packages']:
             (packages/row['name']).symlink_to(lib/'.lake/packages'/row['name'],target_is_directory=True)
-        cp=subprocess.run(['lake','env',str(executable),'config.json'],cwd=project,timeout=360,capture_output=True,text=True)
+        binary=Path(selected['lean']['local_path'])/'bin/lake'
+        env=dict(os.environ,PATH=str(binary.parent)+os.pathsep+os.environ.get('PATH',''))
+        cp=subprocess.run([str(binary),'env',str(executable),'config.json'],cwd=project,env=env,
+                          timeout=360,capture_output=True,text=True)
         if cp.returncode:raise ValueError('Comparator failed: '+(cp.stdout+'\n'+cp.stderr)[-2400:])
     return {'status':'COMPARATOR_PASSED','executable_sha256':nl0.sha(executable)}

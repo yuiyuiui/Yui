@@ -47,6 +47,13 @@ ask for a worker count or fall back to two. An explicit positive integer N caps
 both separate phases. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
+For formalization, follow [per-run Lean/Mathlib selection](nl0/references/lean-environments.md).
+Use a verified unambiguous local pair, or retain the user's explicit paths or
+version choice. Ask for matched paths or desired versions when discovery is
+ambiguous, missing or incompatible. Install only the explicitly chosen versions.
+Freeze the actual selected environment with the job; pure NL0 requires no Lean
+selection. Parallel and nested private workers inherit the selected profiles
+and environment while owning independent role conversations.
 The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md).
 Dispatch with `--detach`, verify process identities and report the initial
 phase. Prefer a host-permitted ten-minute scheduled wakeup and record its

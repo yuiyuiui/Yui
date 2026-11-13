@@ -51,6 +51,12 @@ transmitted/observed settings are recorded. No fallback or automatic upgrade.
 Collect the following settings before preparing or dispatching a new run.
 A phase profile means model, reasoning effort and speed:
 
+Formal tracks also use [per-run Lean/Mathlib selection](lean-environments.md).
+Discover and verify local pairs, preserve explicit user paths/versions and ask
+once when the choice is missing, incompatible or ambiguous. Pure NL0 needs no
+Lean selection. Every private worker inherits its run's profiles and scientific
+environment while owning a separate role conversation.
+
 | Requested track | Required user settings |
 | --- | --- |
 | NL0 and Audit A only (`nl0`) | NL0 phase profile; optional worker cap N |
@@ -91,7 +97,8 @@ python3 -B /path/to/Yui/nl0/scripts/yui.py run /papers/example/proof.md \
 
 Supply several problem paths to run independent cases together. For different
 per-case sources, materials or profiles, `prepare` each separately, then use
-`execute RUN_A RUN_B`. `prepare` makes no model/Lean calls. `--detach` starts
+`execute RUN_A RUN_B`. `prepare` makes no model calls; formal tracks perform an
+isolated native environment-compatibility check before freezing the job. `--detach` starts
 owned background case processes and returns their exact run paths; a parent
 chat Stop is not a verified cancellation of these processes.
 

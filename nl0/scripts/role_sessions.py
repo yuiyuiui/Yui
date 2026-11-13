@@ -17,6 +17,16 @@ def current():
     return _active.get()
 
 
+@contextmanager
+def independent():
+    """Give a private worker its own lifecycle without entering its parent's role."""
+    token = _active.set(None)
+    try:
+        yield
+    finally:
+        _active.reset(token)
+
+
 class Sessions:
     """One conversation per assigned role; idle roles do not acquire model slots."""
     def __init__(self):

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 from functools import lru_cache
 import json
 import math
@@ -15,6 +16,49 @@ from contextvars import ContextVar
 
 CORE = Path(__file__).resolve().parents[2]
 _profiles = ContextVar('yui_phase_profiles', default=None)
+_UNSELECTED = object()
+_environment = ContextVar('yui_scientific_environment', default=_UNSELECTED)
+
+
+@contextmanager
+def use_environment(environment, *, checked=True):
+    """Freeze the run's choice, including an explicitly Lean-free NL0 context."""
+    if environment is not None:
+        import lean_environment
+        lean_environment.rules.validate(environment, checked=checked)
+    token = _environment.set(deepcopy(environment))
+    try:
+        yield
+    finally:
+        _environment.reset(token)
+
+
+def selected_environment():
+    selected = _environment.get()
+    if selected is _UNSELECTED:
+        raw = os.environ.get('YUI_LEAN_ENVIRONMENT')
+        if raw is not None:
+            selected = json.loads(raw)
+            if selected is not None:
+                import lean_environment
+                lean_environment.rules.validate(selected)
+        else:
+            import lean_environment
+            selected = lean_environment.resolve()
+    return deepcopy(selected)
+
+
+def require_environment():
+    selected = selected_environment()
+    if selected is None:
+        from lean_environment import SelectionRequired
+        raise SelectionRequired(reason='This NL0-only run has no Lean environment. Select one explicitly before using native library tools.')
+    return selected
+
+
+def scientific_pins():
+    import lean_environment
+    return lean_environment.rules.pins(selected_environment())
 
 
 def validate_profile(profile):
@@ -101,19 +145,16 @@ def auth_home():
 
 
 @lru_cache(maxsize=1)
-def load_lock():
+def host_tools():
+    """Native carrier/host tools do not require a scientific installation."""
     lock = json.loads((CORE / 'toolchain/lock.json').read_text())
-    shared = Path.home() / 'formalization-tools/lean-mathlib-v4.32.2'
-    ml = choose('YUI_MATHLIB_ROOT', [shared / 'mathlib'])
-    lean = choose('YUI_LEAN_ROOT', [shared / 'lean', Path.home() / '.elan/toolchains/leanprover--lean4---v4.32.2'])
     codex = choose('YUI_CODEX_BINARY', [shutil.which('codex'),
         '/Applications/Codex.app/Contents/Resources/codex',
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'])
     rg = choose('YUI_RG_BINARY', [shutil.which('rg'),
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path/rg'])
-    lock['lean']['local_path'] = str(lean)
-    lock['mathlib']['local_path'] = str(ml)
-    lock['lean']['binary_sha256'] = digest(lean / 'bin/lean')
+    for name in ('lean', 'mathlib', 'dependencies'):
+        lock.pop(name, None)
     from native_runtime import resolve
     lock['codex'] = resolve(codex,subprocess.check_output([str(codex), '--version'], text=True).strip())
     lock['tools'] = {'ripgrep': {'binary_path': str(rg), 'sha256': digest(rg)},
@@ -121,23 +162,20 @@ def load_lock():
     return lock
 
 
+def load_lock():
+    lock = deepcopy(host_tools())
+    selected = selected_environment()
+    lock.update({key: deepcopy(selected[key]) if selected is not None else ([] if key == 'dependencies' else None)
+                 for key in ('lean', 'mathlib', 'dependencies')})
+    lock['scientific_environment'] = selected
+    return lock
+
+
 def verify():
-    lock = load_lock()
-    actual = subprocess.check_output(['git', '-C', lock['mathlib']['local_path'], 'rev-parse', 'HEAD'], text=True).strip()
-    if actual != lock['mathlib']['rev']:
-        raise ValueError('mathlib revision differs from the frozen pin')
-    library = Path(lock['mathlib']['local_path'])
-    if digest(library/'lake-manifest.json') != lock['mathlib']['manifest_sha256']:
-        raise ValueError('mathlib dependency manifest differs from the frozen pin')
-    for path, revision in [(library, lock['mathlib']['rev']),
-            *((library/'.lake/packages'/d['name'], d['rev']) for d in lock['dependencies'])]:
-        observed = subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip()
-        dirty = subprocess.run(['git','-C',str(path),'diff','--quiet','HEAD','--'],capture_output=True)
-        if observed != revision or dirty.returncode:
-            raise ValueError('A pinned library/dependency has changed tracked sources: '+path.name)
-    version = subprocess.check_output([str(Path(lock['lean']['local_path']) / 'bin/lean'), '--version'], text=True)
-    if 'version 4.32.2,' not in version:
-        raise ValueError('Lean version differs from the frozen pin')
+    selected = selected_environment()
+    if selected is not None:
+        import lean_environment
+        lean_environment.verify(selected)
     if sys.platform != 'darwin' or not Path('/usr/bin/sandbox-exec').is_file():
         raise RuntimeError('Strong isolation currently requires macOS sandbox-exec; no silent unrestricted fallback')
-    return lock
+    return load_lock()

@@ -17,6 +17,7 @@ from execution_state import current, Cancelled, terminate_owned, capture_process
 
 
 def lean_paths(extra: list[Path] = ()) -> list[str]:
+    __import__('runtime_config').require_environment()
     lock = load_lock()
     ml = Path(lock['mathlib']['local_path'])
     paths = [str(p) for p in extra] + [str(ml / '.lake/build/lib/lean')]
@@ -55,7 +56,7 @@ def sandbox_profile(work: Path) -> str:
 
 def transport_sandbox_profile(work: Path) -> str:
     """Restrict native Codex files/processes; Codex owns outbound model connections."""
-    native=load_lock()['codex']
+    native=__import__('runtime_config').host_tools()['codex']
     binary = Path(native['binary_path']).resolve()
     helper=Path(native['code_mode_host']['path']).resolve()
     roots = [binary.parent,helper.parent,work.resolve()]
@@ -103,6 +104,7 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
 
 def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False):
     config = __import__('runtime_config')
+    config.require_environment()
     timeout = config.time_limit(timeout) if reviewed_policy else config.native_timeout(timeout)
     heartbeats = config.native_heartbeats()
     lock = load_lock()
@@ -160,6 +162,9 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
                                       timeout_seconds=timeout,timeout_scope='whole_case' if case_limited else 'native_call')
                     break
         result['native_limits'] = {'timeout_seconds': timeout, 'max_heartbeats': heartbeats}
+        result['selected_environment'] = {'lean_version':lock['lean']['version_number'],
+            'lean_binary_sha256':lock['lean']['binary_sha256'],'mathlib_commit':lock['mathlib']['rev'],
+            'dependency_manifest_sha256':lock['mathlib']['manifest_sha256']}
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
         if recorder:recorder.check(task)

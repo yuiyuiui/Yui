@@ -32,7 +32,7 @@ You can use this workflow to review a proof just in natural language level with 
 
 ## 4. Installation and requirements
 
-Yui runs on macOS and uses an authenticated Codex CLI with its matching Code Mode helper, Python, ripgrep, and a pinned Lean and Mathlib toolchain. Install the complete repository as the `rigorous-proof` skill and check the environment. The setup guide covers the required tools and PDF support. [Local setup](docs/setup.md)
+Yui runs on macOS and uses an authenticated Codex CLI with its matching Code Mode helper, Python, ripgrep, and a Lean/Mathlib pair selected and frozen for each formalization run. Install the complete repository as the `rigorous-proof` skill and check the environment. The setup guide covers the required tools and PDF support. [Local setup](docs/setup.md) · [Environment selection](nl0/references/lean-environments.md)
 
 ```sh
 mkdir -p "$HOME/.agents/skills"

@@ -78,11 +78,14 @@ def displayed_progress(tool,result):
 def source_index(stage):
     root=stage.logs.resolve();case=stage.validator.directory.resolve()
     manifest=json.loads((root/'execution-manifest.json').read_text())
-    pin=manifest['resolved_environment']['mathlib']['rev']
+    selected=manifest['resolved_environment']['mathlib']
+    pin=selected['rev'] if selected is not None else None
     entries=[];seen=set()
     paths=sorted((case/'library').glob('*/library-sources.json'),
                  key=lambda p:p.stat().st_mtime_ns,reverse=True)
     for path in paths:
+        if pin is None:
+            raise ValueError('OWN_STATE: native source evidence has no selected Lean environment')
         if path.is_symlink() or not path.resolve().is_relative_to(case):
             raise ValueError('OWN_STATE: source probe escapes the current author stage')
         report=json.loads(path.read_text())

@@ -1,6 +1,7 @@
 """Schedule independent private proofs and return source that the consumer can recheck."""
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from contextvars import copy_context
 from pathlib import Path
 import tempfile
 
@@ -26,16 +27,18 @@ def parallel(owner, items, work, *, requested='auto', role='foundation'):
     parent_task=getattr(owner,'execution_task',None)
     def run(item):
         from execution_state import activate
-        if not recorder:return work(item,budget)
-        key='private-'+local_helpers.digest([str(owner.logs),role,item])[:24]
-        recorder.task(key,parent_task=parent_task,role=role,state='PENDING')
-        with activate(recorder,key):
-            recorder.check(key)
-            return work(item,budget)
+        from role_sessions import independent
+        with independent():
+            if not recorder:return work(item,budget)
+            key='private-'+local_helpers.digest([str(owner.logs),role,item])[:24]
+            recorder.task(key,parent_task=parent_task,role=role,state='PENDING')
+            with activate(recorder,key):
+                recorder.check(key)
+                return work(item,budget)
     with parent.suspended() if parent else nullcontext():
         expansion=budget.private_batch(len(items)) if budget is parent else nullcontext(limit)
         with expansion as width, ThreadPoolExecutor(max_workers=width) as pool:
-            futures = [pool.submit(run,item) for item in items]
+            futures = [pool.submit(copy_context().run,run,item) for item in items]
             return [f.result() for f in futures]
 
 
@@ -69,7 +72,7 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
     steps=[{'id':'S001','text':route}]
     cpath=attempt/'contract.json'
     write(cpath,{'version':1,'id':'PrivateProof','source':{'path':source.name,'sha256':ir.digest(source)},
-        'source_steps':steps,'pins':{'lean_version':'4.32.2','mathlib_commit':packet['pins']},
+        'source_steps':steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':packet['pins']},
         'header':header,'parameters':parameters,'premises':premises,'conclusion':{'statement':statement,'type':target},
         'representation':{'scope':'Private conditional proof under the listed ports'},
         'review':{'mode':'development_owner_review','scope':'Local implementation; full parent acceptance required'}})
