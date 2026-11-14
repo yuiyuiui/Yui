@@ -296,13 +296,8 @@ def global_overview(directory):
 def verify_global_overview(out,plan):
     """A canonical projection is checkable data; its presence grants no PASS."""
     recorded=plan.get('global_overview')
-    if recorded is None:return  # Preserve explicitly legacy prepared campaigns.
     path=Path(out).resolve()/'global/global-overview.json'
     actual=json.loads(path.read_text());expected=global_overview(path.parent)
-    if actual.get('schema')=='yui-global-overview-1':
-        expected['schema']='yui-global-overview-1'
-        expected['inventory'].pop('unused_original_hypotheses')
-        expected['inventory'].pop('reachability_basis')
     bound=(isinstance(recorded,dict) and set(recorded)=={'path','sha256'}
         and Path(recorded['path']).resolve()==path
         and recorded['sha256']==bind(path)['sha256'])
@@ -401,7 +396,7 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
     def execute(job):
         directory=out/job['id']
         inherited=plan.get('inherited',{})
-        if ('packet:'+job['id'] in inherited or (job['library'] and not job.get('required_scopes',['legacy-full']))):
+        if ('packet:'+job['id'] in inherited or (job['library'] and not job.get('required_scopes',['full']))):
             return {'id':job['id'],'model_worker_called':False,'status':'INHERITED_QUALIFIED_ITEMS'}
         if (directory/'stage/result.json').is_file():
             result=json.loads((directory/'stage/result.json').read_text())
@@ -493,7 +488,7 @@ def collect(out, controls):
             evidence[job['id']]=inherited_evidence(inherited,cached)
             qualifications.append(cached['record']['qualification'])
             continue
-        if job['library'] and not job.get('required_scopes',['legacy-full']):
+        if job['library'] and not job.get('required_scopes',['full']):
             reports['global']={'definition_reviews':{},'source_reviews':{},'findings':[]}
             continue
         result=json.loads((directory/'result.json').read_text())

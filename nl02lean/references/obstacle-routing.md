@@ -50,8 +50,7 @@ A compact query describes the implementation family and observed obstacle:
   "family": "representation",
   "tags": ["conversion", "congruence"],
   "facts": ["source_relation"],
-  "contraindications": [],
-  "lean_version": "4.32.2"
+  "contraindications": []
 }
 ```
 
@@ -79,7 +78,7 @@ Run from the Yui repository root:
 
 ```sh
 python3 -B nl02lean/scripts/strategy_bank.py query --json \
-  '{"family":"representation","tags":["conversion","congruence"],"facts":[],"lean_version":"4.32.2"}'
+  '{"family":"representation","tags":["conversion","congruence"],"facts":[]}'
 ```
 
 `PRECONDITIONS_REPORTED` means that the query lists every prerequisite; it does

@@ -71,12 +71,12 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
     source=attempt/'source.json';write(source,packet)
     steps=[{'id':'S001','text':route}]
     cpath=attempt/'contract.json'
-    write(cpath,{'version':1,'id':'PrivateProof','source':{'path':source.name,'sha256':ir.digest(source)},
+    write(cpath,{'version':2,'id':'PrivateProof','source':{'path':source.name,'sha256':ir.digest(source)},
         'source_steps':steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':packet['pins']},
         'header':header,'parameters':parameters,'premises':premises,'conclusion':{'statement':statement,'type':target},
         'representation':{'scope':'Private conditional proof under the listed ports'},
         'review':{'mode':'development_owner_review','scope':'Local implementation; full parent acceptance required'}})
-    plan={'version':1,'contract_sha256':ir.digest(cpath),'representation_notes':'Use the exact enclosing types and binders.',
+    plan={'version':2,'contract_sha256':ir.digest(cpath),'representation_notes':'Use the exact enclosing types and binders.',
           'steps':[{'id':'T001','statement':target,'inputs':[p['id'] for p in premises],
                     'source_steps':['S001'],'explanation':route}],'terminal':'T001'}
     from jobs import stage_document

@@ -7,8 +7,6 @@ Lean/Mathlib pair, optional external libraries and actual consumer qualification
 
 Machine defaults and reports live in the ignored .runtime directory. New jobs
 freeze their own context; changing a default does not update existing jobs.
-The historical scientific baseline is [legacy data](../toolchain/legacy/lean-mathlib.json),
-not a requirement for new work.
 
 Current execution requires macOS isolation. See [environment semantics](../nl0/references/lean-environments.md),
 [explicit external libraries](../nl0/references/lean-libraries.md), and

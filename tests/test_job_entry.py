@@ -62,38 +62,27 @@ class JobEntryTests(unittest.TestCase):
         job=self.job();job['library_catalog']={'path':'/obsolete/foundations.json','files':[]}
         with self.assertRaisesRegex(ValueError,'Unsupported explicit job fields'):jobs.validate(job)
 
-    def test_v5_catalog_free_job_remains_readable_without_local_configuration(self):
-        from controller_common import bind
-        job=self.job();job['version']='yui-case-job-5';job.pop('local_configuration')
-        root=Path(job['root']);(root/'job.json').write_text(json.dumps(job))
-        marker=json.loads((root/jobs.MARKER).read_text())
-        marker.update(version=job['version'],job=bind(root/'job.json'))
-        (root/jobs.MARKER).write_text(json.dumps(marker));jobs.validate(job)
 
     def test_current_job_cannot_select_a_retired_snapshot_format(self):
         job=self.job();job['runtime_snapshot']['library_root']=str(Path(job['root'])/'runtime/library')
-        with self.assertRaisesRegex(ValueError,'catalog-free runtime snapshot'):jobs.validate(job)
+        with self.assertRaisesRegex(ValueError,'current executable snapshot format'):jobs.validate(job)
 
-    def test_old_job_catalog_is_only_an_immutable_legacy_binding(self):
-        from controller_common import bind
-        job=self.job();root=Path(job['root']);frozen=root/'runtime/library';frozen.mkdir()
-        catalog=frozen/'foundations.json';catalog.write_text('{"version":1,"entries":[]}')
-        manifest=root/'runtime-manifest.json';value=json.loads(manifest.read_text())
-        value['version']='yui-runtime-snapshot-2'
-        value['files'].append({'relative_path':'library/foundations.json','sha256':bind(catalog)['sha256'],
-                               'original':dict(bind(catalog),path='/old/installation/library/foundations.json')})
-        manifest.write_text(json.dumps(value))
-        job.pop('local_configuration');job.update(version='yui-case-job-4',library_catalog={'path':str(catalog),'files':[bind(catalog)]})
-        job['runtime'].append(bind(catalog))
-        job['runtime_snapshot'].update(manifest=bind(manifest),library_root=str(frozen))
-        def save():
-            (root/'job.json').write_text(json.dumps(job))
-            marker=json.loads((root/jobs.MARKER).read_text())
-            marker.update(version=job['version'],job=bind(root/'job.json'))
-            (root/jobs.MARKER).write_text(json.dumps(marker))
-        save();jobs.validate(job)
-        job['library_catalog']['files']=[];save()
-        with self.assertRaisesRegex(ValueError,'binding changed'):jobs.validate(job)
+
+    def test_old_job_formats_are_rejected_without_environment_lookup(self):
+        import lean_environment
+        for version in ('yui-case-job-2','yui-case-job-3','yui-case-job-4','yui-case-job-5'):
+            job=self.job();job['version']=version
+            job.pop('lean_environment')
+            with self.subTest(version=version), patch.object(lean_environment,'resolve',side_effect=AssertionError('No old environment lookup')):
+                with self.assertRaisesRegex(ValueError,'Unsupported task format'):
+                    jobs.validate(job)
+
+    def test_current_job_needs_no_historical_environment_file(self):
+        job=self.job()
+        self.assertFalse((CORE/'toolchain/legacy').exists())
+        self.assertFalse(any('/toolchain/' in row['path'] for row in job['runtime']))
+        self.assertFalse((Path(job['root'])/'runtime/toolchain').exists())
+        jobs.validate(job)
 
     def test_job_binds_original_inputs_and_cannot_write_into_installation(self):
         job=self.job();self.problem.write_text('Changed after freeze')

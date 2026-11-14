@@ -88,7 +88,7 @@ def diagnose(error):
 
 
 def classify(error):
-    """Compatibility predicate for historical remote-only recovery guards."""
+    """Return diagnostics only for a positively identified retryable provider fault."""
     result=diagnose(error)
     return result if result['retryable'] else None
 

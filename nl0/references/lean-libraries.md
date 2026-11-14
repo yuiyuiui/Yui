@@ -13,7 +13,7 @@ The operator supplies the exact source and compiled module inventory:
 {
   "version": "yui-lean-library-1",
   "name": "ExampleLibrary",
-  "lean_version": "4.35.0",
+  "lean_version": "<actual selected Lean version>",
   "mathlib_commit": "<exact installed pin>",
   "source_root": "/absolute/source/root",
   "build_root": "/absolute/olean/root",

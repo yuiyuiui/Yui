@@ -9,7 +9,6 @@ Select the complete original unit from an explicit stage document:
 ```json
 {
   "source": {"document": "material-001.lean"},
-  "upstream": {"lean_version": "4.32.2", "mathlib_ref": "v4.32.2"},
   "publish": true
 }
 ```

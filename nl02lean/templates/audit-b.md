@@ -53,5 +53,5 @@ No extra unproved assumptions, hidden target assumptions or local axioms.
 - Actual independent semantic outcome and unresolved findings:
 - Whole-proof/development scope, inherited qualifications and invalidation:
 
-Retain version-1 historical verdicts under their original policy. Never promote
+Use the current review format. Never promote
 an explanation, pending receipt or conditional fragment to an Audit B PASS.

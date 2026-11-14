@@ -20,9 +20,8 @@ Each carries its complete Lean type, direct inputs, source-paragraph mapping
 and mechanism. A changed source claim or new external assumption returns to
 the source graph/Audit A; direct use of pinned Mathlib does not.
 
-The current runner consumes one frozen contract/plan. The legacy model pilot
-can generate interfaces/plans for its three prepared development extracts, using
-an owner-reviewed interface oracle. It is not a general semantic NL0 compiler.
+The runner consumes one frozen contract and plan. Interface authoring and
+independent review precede proof generation.
 A whole-paper controller that automatically discovers every representation,
 converts all source R nodes and joins arbitrary dependent witness interfaces is
 not implemented. Audit B can cover a whole structured graph only when the
@@ -129,12 +128,6 @@ the assembly adapter proves that port using any applicable pinned library result
 exports AuditBExport.P without that extra unproved argument. Source E remains
 an explicitly declared external input and is not claimed proved by Lean.
 Unresolved internal N ports are permitted only in a disclosed fragment scope.
-
-The earlier six-run norm pilot measured frozen-port proof work, with no full
-Audit B acceptance. Version-1 inspection identified unregistered direct uses of ofReal_norm and
-iSup_congr; retain that historical finding under its original policy. Version 2
-permits such Mathlib use, but it does not retrospectively certify old proofs or
-make their timings measurements of fully audited formalization.
 
 Include source/interface authoring, shared first construction, kernel/tool work,
 assembly, Audit B review and failures in an end-to-end speed claim. Per-stage

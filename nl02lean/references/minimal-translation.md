@@ -22,7 +22,7 @@ there is no requirement to preload the entire skill or all note bodies.
    hash-bound receipt passes. Repair located failures with the interface author
    and have the same separate reviewer assess changed output. Final machine Audit B
    inherits that review only if the actual complete artifact preserves the freeze. The
-   lower-level legacy mechanical freeze can record `PENDING_AUDIT_B`; it does
+   lower-level development mechanical freeze can record `PENDING_AUDIT_B`; it does
    not satisfy this normal-workflow pre-proof gate.
 4. Run local proof workers on frozen conditional obligations. Each gets its
    input statements, matched source paragraphs and own compact note index.
@@ -45,10 +45,7 @@ there is no requirement to preload the entire skill or all note bodies.
 New contracts select `source.background_mode: node_local_reference`. Original
 H/E/M/N/P entries remain unchanged; Audit A's verified supplement remains
 hash-bound. Do not turn every note into a new M root, retype its entire library
-signature, or require an extra theorem merely to restate it. The frozen
-stage-one text's historical `background.effective` expansion is still supported
-as `promoted_inputs` for old contracts; it is not the new translation default.
-
+signature, or require an extra theorem merely to restate it.
 At the pre-freeze semantic review and final Audit B, notes are guidance, not library permissions. All proved results in
 the pinned Mathlib environment are available without registration. Review every
 external E and complete P against its actual Lean type using the concise author

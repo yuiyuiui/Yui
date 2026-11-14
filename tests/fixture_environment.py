@@ -12,5 +12,5 @@ def prepare(source, destination, selected):
         value['pins']={'lean_version':selected['lean']['version_number'],
                        'mathlib_commit':selected['mathlib']['rev']}
         path.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
-    # Historical NL0 and original source evidence remain byte-for-byte copies.
+    # Other fixture files remain byte-for-byte copies.
     return destination

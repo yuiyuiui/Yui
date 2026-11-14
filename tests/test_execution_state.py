@@ -36,19 +36,20 @@ class ExecutionTests(unittest.TestCase):
             time.sleep(1.15)
             self.assertEqual(json.loads(self.r.path.read_text())['tasks']['T001']['sequence'],49)
             self.assertLessEqual(writer.call_count,1)
-        self.r.request_started('stage',1);self.r.flush(force=True)
+        self.r.native_event('T001','stage','turn/started');self.r.flush(force=True)
         self.assertIsNone(json.loads(self.r.path.read_text())['usage']['confirmed_tokens'])
-        event={'type':'response.completed','response':{'id':'actual-neutral-response','usage':{'input_tokens':10,'output_tokens':3,'total_tokens':13}}}
-        self.r.model_event('T001','stage',1,event);self.r.model_event('T001','stage',1,event)
+        counts={'input_tokens':10,'output_tokens':3,'total_tokens':13,'cached_input_tokens':0,'reasoning_tokens':0}
+        self.r.native_event('T001','stage','thread/tokenUsage/updated',counts)
+        self.r.native_event('T001','stage','thread/tokenUsage/updated',counts)
         self.r.flush(force=True)
         value=json.loads(self.r.path.read_text())
         self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],13)
-        self.assertEqual(value['usage']['requests_with_usage'],1)
+        self.assertIsNone(value['usage']['requests_with_usage'])
         observed=value['usage']['usage_last_observed_at_utc']
-        self.r.request_started('stage',2);self.r.close('CONTROL_FINISHED')
+        self.r.close('CONTROL_FINISHED')
         value=json.loads(self.r.path.read_text())
         self.assertEqual(value['usage']['status'],'PARTIAL')
-        self.assertEqual(value['usage']['in_flight_or_unreported_requests'],1)
+        self.assertIsNone(value['usage']['in_flight_or_unreported_requests'])
         self.assertEqual(value['usage']['usage_last_observed_at_utc'],observed)
 
     def test_concurrent_updates_are_atomic_and_preserve_all_tasks(self):
@@ -89,42 +90,30 @@ class ExecutionTests(unittest.TestCase):
         f=self.root/'Proof.lean';f.write_text('example : True := True.intro\n')
         self.r.task('T001',role='proof')
         self.r.lean_started('T001',f)
-        self.r.model_event('T001','stage',1,{'type':'response.output_item.done'})
+        self.r.native_event('T001','stage','item/completed')
         self.assertEqual(self.r.state['tasks']['T001']['activity'],'LEAN_CHECKING')
         self.assertIn('last_model_event_at_utc',self.r.state['tasks']['T001'])
 
     def test_keepalive_is_transport_activity_and_not_proof_progress(self):
         self.r.task('T001',state='RUNNING',activity='AWAITING_PROVIDER_TERMINAL',
                     last_activity_at_utc='actual-old-tool-result')
-        self.r.model_event('T001','stage',1,{'type':'keepalive'})
+        self.r.native_event('T001','stage','turn/started')
         row=self.r.state['tasks']['T001']
         self.assertEqual(row['last_activity_at_utc'],'actual-old-tool-result')
         self.assertEqual(row['activity'],'AWAITING_PROVIDER_TERMINAL')
         self.assertIn('last_transport_event_at_utc',row)
-        self.r.model_event('T001','stage',1,{'type':'response.output_text.delta','delta':'New output'})
-        self.assertEqual(row['activity'],'MODEL_RUNNING')
+        self.r.native_event('T001','stage','item/agentMessage/delta')
+        self.assertEqual(row['activity'],'AWAITING_PROVIDER_TERMINAL')
         self.assertIn('last_substantive_model_event_at_utc',row)
 
-    def test_usage_conflicts_remain_partial_and_do_not_recount_response(self):
-        self.r.request_started('stage',1)
-        base={'type':'response.completed','response':{'id':'synthetic','usage':{'input_tokens':10,'output_tokens':2,'total_tokens':12}}}
-        self.r.model_event(None,'stage',1,base)
-        changed=json.loads(json.dumps(base));changed['response']['usage'].update(input_tokens=11,total_tokens=13)
-        self.r.model_event(None,'stage',1,changed);self.r.close('CONTROL_FINISHED')
-        value=json.loads(self.r.path.read_text())
-        self.assertEqual(value['usage']['status'],'PARTIAL')
-        self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],12)
-        self.assertTrue(value['usage']['errors'])
 
     def test_retained_task_revisions_keep_every_ledger_and_reconcile_distinct_responses_once(self):
         paths=[]
         for number in (1,2):
             stage=self.root/f'stage-{number}';stage.mkdir();usage=stage/'usage.json';paths.append(str(usage))
-            self.r.request_started(str(stage),1)
-            response='synthetic-revision-'+str(number)
-            self.r.model_event('retained-author',str(stage),1,{'type':'response.completed',
-                'response':{'id':response,'usage':{'input_tokens':10,'output_tokens':3,'total_tokens':13}}})
-            (stage/'usage-ledger.jsonl').write_text(json.dumps({'response_id':response,'usage':self.r._responses[response]})+'\n')
+            counts={'input_tokens':10,'output_tokens':3,'total_tokens':13,'cached_input_tokens':0,'reasoning_tokens':0}
+            self.r.native_event('retained-author',str(stage),'thread/tokenUsage/updated',counts)
+            (stage/'usage-ledger.jsonl').write_text(json.dumps({'record_id':'native-stage:'+str(stage.resolve()),'usage':counts})+'\n')
             self.r.task('retained-author',usage_ledger=str(usage))
             self.r.task('retained-author',usage_ledger=str(usage))
         self.r.close('CONTROL_FINISHED');value=json.loads(self.r.path.read_text())
@@ -133,7 +122,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual(set(reconciled['stage_usage_files']),set(paths))
         self.assertEqual(value['archived_usage_ledgers'],paths[:1])
         self.assertEqual(value['usage']['confirmed_tokens']['total_tokens'],26)
-        self.assertEqual(value['usage']['status'],'COMPLETE')
+        self.assertEqual(value['usage']['status'],'PARTIAL')
 
     def test_queued_model_slot_can_be_cancelled_without_starting_model(self):
         b=concurrency.Budget(concurrency.resolve(1),execution=self.r)

@@ -2,7 +2,7 @@
 
 Preserve the given mathematical proof route, target, hypotheses and allowed
 external results. Keep the original NL0/Audit A artifacts immutable. Treat
-legacy fragments as development inputs, not newly Audit-A-approved packages.
+standalone development fragments as inputs without inherited Audit A approval.
 
 Start with [the minimal translation procedure](minimal-translation.md).
 Read [architecture](architecture.md) and [translation rules](translation-rules.md)
@@ -22,7 +22,6 @@ Use [obstacle routing](obstacle-routing.md) when a transition stalls.
 Use [local audited-note guidance](translation-rules.md#use-local-audit-a-notes-when-they-can-shorten-an-implementation-route)
 when its current goal needs a premise or transport already explained by a note;
 familiar direct proof work requires no note lookup.
-Read [the experiment protocol](experiments.md) before a model run.
 Read [shared lemmas](shared-lemmas.md) when freezing a reusable
 interface or supplying a shared store. [The skill entry](../../SKILL.md)
 connects this translation module to the NL0/Audit A stage.
@@ -32,7 +31,7 @@ explicit structure and renders Lean; Lean proves transitions and assembly.
 Neither component establishes natural-language fidelity automatically. The normal entry obtains full external/target fidelity review independently
 before freeze. Final machine Audit B checks that actual E/P, their defining
 environment and complete native proof still match that reviewed authority.
-Only proof-valid interface drift opens exceptional B-final semantic review. Lower-level legacy mechanical
+Only proof-valid interface drift opens exceptional B-final semantic review. Lower-level development mechanical
 freezes may still record `PENDING_AUDIT_B`; that is not the normal pre-proof gate.
 
 Use the scripts described in those references. Keep

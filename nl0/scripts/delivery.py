@@ -215,13 +215,13 @@ def verify_route(directory, record, scope, qualified):
     """Read back the public exit from the evidence that survived cleanup."""
     from controller_common import CORE
     from workflow_execution import block_module
-    from frozen_graph import BASIS, DIRECT, LEGACY_BASIS
+    from frozen_graph import BASIS, DIRECT
     goal=record['requested_goal']
     entry='2basis' if goal=='unconditional' else 'nl0'
     if goal not in {'audit','conditional','unconditional'} or record['entry']!=entry:
         raise ValueError('Published entry differs from the requested goal')
     natural=directory/'nl0'
-    if record['audit_a'] and nl0.load(natural/'global.json')['owner'] not in ((BASIS,LEGACY_BASIS) if entry=='2basis' else (DIRECT,)):
+    if record['audit_a'] and nl0.load(natural/'global.json')['owner'] not in ((BASIS,) if entry=='2basis' else (DIRECT,)):
         raise ValueError('Published entry differs from the frozen graph producer')
     discharged=(natural/'lean-evidence/discharge.json').is_file()
     alternate=(natural/'alternative/Actual.lean').is_file() and (natural/'alternative/findings.json').is_file()
@@ -388,15 +388,6 @@ def publish(job,result,scope,recorder):
             else:
                 from nl0_review_loop import copy_source
                 copy_source(Path(nl0.load(selected['path'])['graph']['path']).parent,natural/'frozen')
-        elif audit_a and job.get('resume',{}).get('mode')=='basis-final-closure':
-            # Old accepted jobs may predate global-selection receipts. Project
-            # the actual reviewed graph and label its origin; do not claim a
-            # new pre-local freeze or rerun any proof/reviewer.
-            from frozen_graph import LEGACY_BASIS,shape
-            write(natural/'global.json',{'owner':LEGACY_BASIS,'graph':shape(data[1]),
-                'spec_sha256':nl0.sha(natural/'spec.json'),
-                'origin':'retained-audit-a-final-closure-recovery',
-                'pre_local_global_freeze':'NOT_RECORDED_BY_PRIOR_JOB'})
         if scope=='DIFFERENT_RESULT':
             from translation_reset import authorization
             authorization(result['user_decision'],'deliver-actual')

@@ -29,7 +29,8 @@ class MetricsTests(unittest.TestCase):
                 '{"event":"TOOL_RESULT_DELIVERED","call_id":"a"}\n'
                 '{"event":"PROVIDER_TERMINAL","request_number":1,"at_utc":"2026-01-01T09:00:02"}\n')
             value=summarize(raw);row=value['stages'][0]
-            self.assertEqual(row['request_observations'],[{'request_number':1,'forward_to_terminal_seconds':2}])
+            self.assertEqual(row['request_observations'],[])
+            self.assertIsNone(row['requests'])
             self.assertEqual(row['wall_seconds'],10)
             self.assertEqual(row['tool_wall_seconds_by_name']['check_transition'],3)
             self.assertIsNone(row['usage']);self.assertIsNone(value['pure_internal_model_reasoning_seconds'])

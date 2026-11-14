@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import jobs
 import local_config
@@ -178,6 +178,87 @@ class LocalSetupTests(unittest.TestCase):
                     __import__('os').environ.pop('YUI_FROZEN_LOCAL_CONFIG')
                     with self.assertRaises(local_config.rules.SetupRequired):local_config.current()
             finally:local_config._selected.reset(token)
+
+
+
+
+
+class ProviderMetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
+        self.secret = 'synthetic-secret-that-must-never-be-logged'
+        (self.root/'auth.json').write_text(json.dumps({'tokens': {
+            'access_token': self.secret, 'account_id': 'synthetic-account'}}))
+        self.profiles={role:{'id':'fixture-model','reasoning_effort':'high','speed':'standard'} for role in ('nl0','lean')}
+        self.model = {'slug': 'fixture-model', 'supported_reasoning_levels': [{'effort': 'high'}]}
+        self.connection = Mock(); self.response = Mock(status=200)
+        self.response.getheader.side_effect = lambda k: {'Content-Type': 'application/json',
+                                                       'x-request-id': 'synthetic-request'}.get(k)
+        self.response.read.return_value = json.dumps({'models': [self.model]}).encode()
+        self.connection.getresponse.return_value = self.response
+        self.stack = ExitStack(); self.addCleanup(self.stack.close); self.addCleanup(self.temp.cleanup)
+        self.stack.enter_context(patch.object(setup_checks, 'auth_home', return_value=self.root))
+        self.stack.enter_context(patch.object(setup_checks, 'host_tools', return_value={'codex': {'version': 'codex-cli 0.1.0'}}))
+        self.proxy = self.stack.enter_context(patch('run_pilot.system_https_proxy', return_value=None))
+        self.factory = self.stack.enter_context(patch.object(setup_checks.http.client, 'HTTPSConnection', return_value=self.connection))
+
+
+    def test_authenticated_metadata_get_preserves_profiles_and_redacts_credentials(self):
+        receipt = setup_checks.provider_metadata(self.profiles)
+        self.assertEqual(receipt['verified_profiles'], self.profiles)
+        self.assertEqual(receipt['inference_calls'], 0)
+        self.assertNotIn(self.secret, json.dumps(receipt))
+        self.assertNotIn('synthetic-account', json.dumps(receipt))
+        self.connection.request.assert_called_once()
+        args, kwargs = self.connection.request.call_args
+        self.assertEqual(args[:2], ('GET', '/backend-api/codex/models?client_version=0.1.0'))
+        self.assertNotIn('body', kwargs)
+        self.response.read.assert_called_once_with(setup_checks.METADATA_MAX_BYTES+1)
+        self.connection.close.assert_called_once()
+
+    def test_same_system_proxy_and_tls_tunnel_as_the_carrier(self):
+        self.proxy.return_value = ('synthetic-proxy', 7890)
+        setup_checks.provider_metadata(self.profiles)
+        self.factory.assert_called_once_with('synthetic-proxy', 7890, timeout=25)
+        self.connection.set_tunnel.assert_called_once_with('chatgpt.com', 443)
+
+    def test_denial_redirect_and_service_failure_never_infer_or_follow_redirects(self):
+        for status in [301, 302, 400, 401, 403, 429, 503]:
+            with self.subTest(status=status):
+                self.response.status = status; self.connection.request.reset_mock(); self.response.read.reset_mock()
+                with self.assertRaisesRegex(ValueError, 'metadata HTTP '+str(status)):
+                    setup_checks.provider_metadata(self.profiles)
+                self.connection.request.assert_called_once(); self.response.read.assert_not_called()
+
+    def test_html_malformed_oversized_and_wrong_model_catalogs_are_rejected(self):
+        cases = [b'invalid json', b'[]', b'{"models":[]}',
+                 json.dumps({'models': [{**self.model, 'slug': 'another-model'}]}).encode(),
+                 json.dumps({'models': [{**self.model, 'supported_reasoning_levels': [{'effort': 'low'}]}]}).encode(),
+                 json.dumps({'models': [self.model, self.model]}).encode(), b'x'*(setup_checks.METADATA_MAX_BYTES+1)]
+        for body in cases:
+            with self.subTest(bytes=len(body)):
+                self.response.read.return_value = body
+                with self.assertRaises(ValueError): setup_checks.provider_metadata(self.profiles)
+        self.response.getheader.side_effect = lambda k: 'text/html' if k == 'Content-Type' else None
+        with self.assertRaisesRegex(ValueError, 'model JSON'): setup_checks.provider_metadata(self.profiles)
+
+    def test_network_failure_does_not_leak_tokens_and_closes_the_connection(self):
+        self.connection.getresponse.side_effect = OSError(self.secret)
+        with self.assertRaisesRegex(ValueError, 'OSError') as caught: setup_checks.provider_metadata(self.profiles)
+        self.assertNotIn(self.secret, str(caught.exception)); self.connection.close.assert_called_once()
+
+    def test_provider_uses_the_installation_metadata_check_before_a_model_probe(self):
+        with patch.object(setup_checks,'provider_metadata',side_effect=ValueError('metadata unavailable')) as metadata, \
+                patch('clean_stage.ArtifactStage',side_effect=AssertionError('No model probe before metadata')):
+            with self.assertRaisesRegex(ValueError,'metadata unavailable'):
+                setup_checks.provider(self.root,self.profiles)
+        metadata.assert_called_once_with(self.profiles)
+
+    def test_malformed_credentials_are_rejected_before_network_access(self):
+        (self.root/'auth.json').write_text(json.dumps({'tokens':{'access_token':'invalid\nsecret','account_id':'test'}}))
+        with self.assertRaisesRegex(ValueError,'Malformed subscription') as error:
+            setup_checks.provider_metadata(self.profiles)
+        self.assertNotIn('secret',str(error.exception));self.factory.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

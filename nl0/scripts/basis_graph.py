@@ -126,12 +126,7 @@ def verify_handoff(registry, graph):
     """Compare mathematical roots to the frozen registry. NL0 owns derived N/R nodes."""
     ports = {row['port']:row for row in registry['dependencies'] if row['port']}
     props = indexed(graph.get('propositions'))
-    if registry['version'] != VERSION:
-        expected = {key:row['statement'] for key,row in ports.items() if key.startswith('E')}
-        actual = {key:row.get('statement') for key,row in props.items() if key.startswith('E')}
-        if expected != actual:
-            raise ValueError('Basis NL0 changed the frozen E statements or external ports')
-        return
+    if registry['version'] != VERSION:raise ValueError('Only the current basis format is supported')
     initial = indexed(registry['global_graph']['propositions'])
     working = 'foundation_ports' in graph
     effective = handoff().by_port(registry,graph) if working else ports

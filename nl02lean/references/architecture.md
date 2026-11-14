@@ -1,8 +1,7 @@
-# Typed interface and transition IR, versions 1 and 2
+# Typed interface and transition IR
 
-Version 1 remains readable without rewriting historical inputs. Version 2 adds
-explicit object views and reviewed shared exports; it does not change NL0's
-mathematical authority. This is Yui's implemented translation module.
+The current interface format is version 2, with explicit object views and
+reviewed shared exports. It does not change NL0's mathematical authority.
 
 ## Two layers of authority
 
@@ -33,17 +32,17 @@ that path still requires actual semantic review and does not satisfy normal admi
 also contain prepared interfaces for deterministic controls. Those fixtures and
 their reference ports are never model-visible inputs to a mathematical test.
 Reports include interface authoring/review costs; unmeasured owner work is labeled.
-Legacy extracts do not inherit current Audit A status.
+Development fragments do not inherit Audit A status.
 
 ## Contract file
 
-`contract.json` contains `version: 1` or `2`, `id`, `source` (relative file and SHA256),
+`contract.json` contains `version: 2`, `id`, `source` (relative file and SHA256),
 `source_steps` (the fragment's complete NL argument), `pins`, `header`,
 `parameters` (`name`, `type`), `premises` (`id`, `type`, `kind`, `statement`),
 `conclusion` (`statement`, `type`), `representation` and `review`. New whole-source
 authors also supply `endpoint_correspondence`: a short direct/equivalent
-explanation for each E and P, including all target hypotheses. Older contracts
-may omit these notes; postprocessing then supplies them without editing proofs.
+explanation for each E and P, including all target hypotheses. When a development interface omits these notes, postprocessing supplies them
+without editing proofs; normal admission still requires their semantic review.
 `header` holds the frozen imports/definitions selected during interface authoring;
 proof workers cannot edit it. `review` records reviewer/exposure and pending issues;
 it cannot grant Audit A/B. `representation` records equality/convergence mode,
@@ -118,8 +117,8 @@ All local proof bodies may be developed concurrently after the contract and
 plan interfaces are frozen: an input T is a local theorem parameter, not an
 axiom. Mathematical dependencies govern final assembly, not necessarily worker
 launch order. Shared definition changes invalidate every affected interface;
-statement/input changes invalidate their downstream closure. Version 1 binds
-the entire contract/plan hash conservatively. Cached results with stale hashes
+statement/input changes invalidate their downstream closure. The frozen record binds
+the complete contract and plan. Cached results with stale hashes
 must fail before compilation.
 
 The current `scheduler.py` executes bodies within one graph concurrently,
@@ -163,7 +162,7 @@ Bind its supplement hash in `contract.source.background_supplement_sha256`
 before interface freeze. New contracts use `source.background_mode:
 node_local_reference`: original M references remain available, but notes are node-local
 implementation references rather than extra typed premise ports. Elementary
-notes inform local Lean work. Legacy contracts retain `promoted_inputs`.
+notes inform local Lean work. The source argument remains unchanged.
 Do not create new assumptions or forget notes when constructing task packets.
 Audit B requires actual Lean closure; these notes do not restrict Mathlib use.
 

@@ -7,7 +7,6 @@ import shutil
 from controller_common import CORE,bind,write,verify_bindings
 
 VERSION='yui-runtime-snapshot-3'
-LEGACY_VERSION='yui-runtime-snapshot-2'
 
 
 def capture(run,rows,*,core=CORE):
@@ -34,18 +33,15 @@ def capture(run,rows,*,core=CORE):
 
 def validate(job):
     descriptor=job['runtime_snapshot'];run=Path(job['root']).resolve()
-    legacy='library_root' in descriptor
-    fields={'root','manifest'}|({'library_root'} if legacy else set())
+    fields={'root','manifest'}
     if (set(descriptor)!=fields
             or Path(descriptor['root'])!=run/'runtime'
-            or (legacy and Path(descriptor['library_root'])!=run/'runtime/library')
-            or (legacy and Path(descriptor['library_root']).is_symlink())
             or Path(descriptor['manifest']['path'])!=run/'runtime-manifest.json'
             or (run/'runtime').is_symlink() or (run/'runtime-manifest.json').is_symlink()):
         raise ValueError('Runtime snapshot escapes its owned run')
     verify_bindings([descriptor['manifest']])
     manifest=json.loads((run/'runtime-manifest.json').read_text())
-    if (manifest.get('version')!=(LEGACY_VERSION if legacy else VERSION)
+    if (manifest.get('version')!=VERSION
             or manifest.get('runtime_root')!=descriptor['root']):
         raise ValueError('Invalid executable snapshot manifest')
     expected=[];seen=set()
@@ -63,28 +59,8 @@ def validate(job):
     return descriptor
 
 
-def validate_retired_catalog_binding(job):
-    """Check v2-v4 metadata as inert frozen bytes, without a catalog reader."""
-    if 'library_catalog' not in job:return
-    binding=job['library_catalog']
-    if (not isinstance(binding,dict) or set(binding)!={'path','files'}
-            or not isinstance(binding['path'],str) or not isinstance(binding['files'],list)):
-        raise ValueError('Invalid historical catalog binding')
-    path=Path(binding['path'])
-    if not path.is_absolute() or path.name!='foundations.json':
-        raise ValueError('Invalid historical catalog path')
-    if 'runtime_snapshot' in job and path!=Path(job['root'])/'runtime/library/foundations.json':
-        raise ValueError('Historical catalog escapes its frozen runtime')
-    expected=sorted((row for row in job['runtime'] if Path(row['path']).is_relative_to(path.parent)),
-                    key=lambda row:row['path'])
-    if (binding['files']!=expected
-            or path.is_file()!=any(row['path']==str(path) for row in expected)):
-        raise ValueError('Frozen historical catalog binding changed')
-    verify_bindings(expected)
-
-
 def root_for(job):
-    return Path(validate(job)['root']) if 'runtime_snapshot' in job else CORE
+    return Path(validate(job)['root'])
 
 
 def environment(job):
@@ -100,8 +76,5 @@ def environment(job):
     if 'lean_environment' in job:
         env['YUI_LEAN_ENVIRONMENT']=json.dumps(job['lean_environment'],sort_keys=True)
     if 'runtime_snapshot' in job:
-        descriptor=validate(job)
-        if 'library_root' in descriptor:
-            # Only old frozen executables still consume this retired setting.
-            env['YUI_LIBRARY_ROOT']=descriptor['library_root']
+        validate(job)
     return env

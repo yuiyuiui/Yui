@@ -170,7 +170,7 @@ class SourceQualificationTests(unittest.TestCase):
                 sid=f'S{len(source_steps)+1:03d}'
                 source_steps.append({'id':sid,'text':p['text']})
                 mapping[sid]={'inference':r['id'],'paragraph':p['id']}
-        c={'version':1,'id':'conditional_software_control',
+        c={'version':2,'id':'conditional_software_control',
            'source':{'path':'nl0.json','sha256':ir.digest(self.root/'nl0.json')},
            'source_steps':source_steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
            'header':'import Mathlib\n','parameters':[{'name':n,'type':'ℕ'} for n in ['a','b']],
@@ -181,7 +181,7 @@ class SourceQualificationTests(unittest.TestCase):
            'representation':{'scope':'Natural-number equality.'},
            'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B'}}
         cp=self.root/'contract.json';ir.write(cp,c)
-        plan={'version':1,'contract_sha256':ir.digest(cp),'representation_notes':'Natural numbers with exact equality.',
+        plan={'version':2,'contract_sha256':ir.digest(cp),'representation_notes':'Natural numbers with exact equality.',
               'steps':[{'id':'T001','statement':'b = a','inputs':['E001'],'source_steps':['S001'],
                         'explanation':'Symmetry of the supplied equality.'},
                        {'id':'T002','statement':'a + 0 = b','inputs':['T001'],'source_steps':['S002','S003'],

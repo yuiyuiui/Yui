@@ -162,7 +162,7 @@ def prepare(cpath,ppath,bpath,out,**source):
              ir.ROOT/'nl0/scripts/execution_state.py',ir.ROOT/'workflow/blocks/process_snapshots.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/lean_environment.py',
              ir.ROOT/'workflow/blocks/lean_environments.py',
-             Path(background_inputs.__file__),ir.ROOT/'toolchain/legacy/lean-mathlib.json']
+             Path(background_inputs.__file__)]
     inputs = out/'input-bytes';inputs.mkdir()
     bound = []
     for i,p in enumerate(dict.fromkeys(originals)):
@@ -179,14 +179,14 @@ def prepare(cpath,ppath,bpath,out,**source):
     return {'status':'AUDIT-B-PREPARED','semantic_review':'UNVERIFIED','directory':str(out)}
 
 
-def _bound_inputs(out, *, historical_tools=False):
+def _bound_inputs(out, *, frozen_tools=False):
     manifest = ir.load(out/'manifest.json')
     ir.need(manifest['version']==VERSION,'unsupported Audit B manifest')
     for item in manifest['inputs']:
         ir.need(ir.digest(item['path'])==item['sha256'],'stale audit input: '+item['path'])
         ir.need(ir.digest(out/item['snapshot'])==item['sha256'],'changed audit snapshot')
     for path,sha in manifest['tool_sha256'].items():
-        tool = out/'tool-snapshot'/Path(path).name if historical_tools else Path(path)
+        tool = out/'tool-snapshot'/Path(path).name if frozen_tools else Path(path)
         ir.need(tool.is_file() and ir.digest(tool)==sha,'changed audit tool/snapshot; start a new audit run')
     ir.need(ir.digest(out/'source-inventory.json')==manifest['source_inventory_sha256'],'changed source inventory')
     ir.need(environment()==manifest['environment'],'changed audit environment')
@@ -200,15 +200,15 @@ def bound_inputs(out):
     out=Path(out)
     if (out/'review-reuse.json').exists():
         bound_review_reuse(out)
-        return _bound_inputs(out,historical_tools=True)
+        return _bound_inputs(out,frozen_tools=True)
     return _bound_inputs(out)
 
 
 def inherited_machine_evidence(out):
-    """Validate an old completed machine run, using its exact tool snapshots."""
+    """Validate the completed machine run using its exact tool snapshots."""
     out=Path(out).resolve()
     ir.need(not (out/'review-reuse.json').exists(),'reuse must start from original native evidence, not another continuation')
-    manifest=_bound_inputs(out,historical_tools=True)
+    manifest=_bound_inputs(out,frozen_tools=True)
     m=ir.load(out/'mechanical.json')
     ir.need(m['manifest_sha256']==ir.digest(out/'manifest.json') and m['mapping_sha256']==ir.digest(out/'mapping.json'),'changed original machine bindings')
     for name,sha in m['artifacts'].items():

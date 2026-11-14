@@ -143,15 +143,15 @@ class IsolationTests(unittest.TestCase):
 
     def test_duplicate_json_and_unsupported_gap_status_are_rejected(self):
         self.assertFalse(self.worker.dispatch('submit_artifact',{'artifact_json':'{"x":1,"x":2}'})['accepted'])
-        self.assertFalse(self.worker.dispatch('report_obstacle',{'obstacle_json':json.dumps({
+        self.assertFalse(self.worker.dispatch('report_obstacle',{
             'status':'THEOREM_FALSE','location':'R001','explanation':'took too long',
-            'basis':'time','partial_progress':'none'})})['accepted'])
+            'basis':'time','partial_progress':'none'})['accepted'])
 
     def test_gap_report_stops_without_claiming_proof_acceptance(self):
-        value=self.worker.dispatch('report_obstacle',{'obstacle_json':json.dumps({
+        value=self.worker.dispatch('report_obstacle',{
             'status':'SUSPECTED_GAP','location':'R001','explanation':'The implication is unestablished.',
             'basis':'The supplied bound does not control the required quantity.',
-            'partial_progress':'The earlier inputs remain intact.'})})
+            'partial_progress':'The earlier inputs remain intact.'})
         self.assertTrue(value['stage_complete'])
         self.assertFalse(value['mathematical_acceptance'])
 
@@ -171,11 +171,11 @@ class IsolationTests(unittest.TestCase):
         self.assertTrue(value['stage_complete']);self.assertFalse(value['mathematical_acceptance'])
 
     def test_unfinished_registration_does_not_create_a_report_or_mathematical_gap(self):
-        value=self.worker.dispatch('report_obstacle',{'obstacle_json':json.dumps({
+        value=self.worker.dispatch('report_obstacle',{
             'status':'TASK_INCOMPLETE','location':'source inventory',
             'explanation':'A conventional source application still needs registration.',
             'basis':'Actual draft feedback, not evidence against the theorem.',
-            'partial_progress':'The source was found and the draft is retained.'})})
+            'partial_progress':'The source was found and the draft is retained.'})
         self.assertFalse(value['accepted'])
         self.assertNotIn('progress_recorded',value)
         self.assertNotIn('next_action',value)
@@ -191,9 +191,9 @@ class IsolationTests(unittest.TestCase):
         stage=ArtifactStage(self.root/'nl0-report-stage','Neutral author control.',phase='nl0-authoring',
             library=False,kind='nl0',case_id='neutral',inputs=manifest)
         try:
-            result=stage.dispatch('report_obstacle',{'obstacle_json':json.dumps({
+            result=stage.dispatch('report_obstacle',{
                 'status':'TASK_INCOMPLETE','location':'draft','explanation':'Not finished yet.',
-                'basis':'No actual mathematical gap.','partial_progress':'A source was read.'})})
+                'basis':'No actual mathematical gap.','partial_progress':'A source was read.'})
             self.assertFalse(result['accepted'])
             self.assertIn('AUTHOR_ACTION_REQUIRED',result['error'])
             self.assertIsNone(stage.accepted)

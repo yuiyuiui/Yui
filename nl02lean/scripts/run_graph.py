@@ -178,14 +178,12 @@ def main():
     ap.add_argument('--out',type=Path,required=True)
     ap.add_argument('--shared-store',type=Path)
     ap.add_argument('--max-concurrency', default='auto')
-    ap.add_argument('--workers',type=int, help='Compatibility alias for --max-concurrency; explicit integers only.')
     ap.add_argument('--timeout-seconds',type=int,default=None)
     ap.add_argument('--bank',action='store_true')
     ap.add_argument('--arm',choices=['direct','yui'],default='yui')
     args = ap.parse_args()
-    ir.need(args.workers is None or args.max_concurrency == 'auto', 'choose --workers or --max-concurrency')
     result = run(args.contract, args.plan, args.out, shared_store=args.shared_store,
-                 max_concurrency=args.workers if args.workers is not None else args.max_concurrency,
+                 max_concurrency=args.max_concurrency,
                  timeout_seconds=args.timeout_seconds, bank=args.bank, arm=args.arm)
     print(result['status'])
     return 0 if proof_rounds.compiler_accepted(result.get('status')) else 1

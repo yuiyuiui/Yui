@@ -3,7 +3,7 @@ import json
 import re
 from pathlib import Path
 
-from usage import events, json_rows
+from usage import json_rows
 import remote_retry
 
 
@@ -129,49 +129,6 @@ def inspect(directory):
         faults.extend({'kind':'CARRIER_READER_ERROR','details':row.get('message')} for row in read_rows(root/'carrier-reader-errors.jsonl'))
         return {'status':'FAULT' if faults else 'NO_RECORDED_FAULT','faults':faults,'uncertainty':[],
             'scope':'Native Codex error and stdio-reader events; HTTP transport and actual service tier are not intercepted.'}
-    requests={row['request_number'] for row in read_rows(root/'requests.jsonl')}
-    http=list(read_rows(root/'http.jsonl'))
-    faults=[]
-    for row in read_rows(root/'relay-errors.jsonl'):
-        faults.append({'kind':'LOCAL_RELAY_ERROR' if row.get('category')=='harness_bug' else 'RELAY_ERROR',
-                       'request_number':row.get('request_number'), 'origin':row.get('origin'),
-                       'category':row.get('category'),'details':row.get('error'),'at_utc':row.get('timestamp_utc')})
-    for row in read_rows(root/'carrier-reader-errors.jsonl'):
-        faults.append({'kind':'CARRIER_READER_ERROR','details':row.get('message'),
-                       'at_utc':row.get('timestamp_utc')})
-    for row in read_rows(root/'tools.jsonl'):
-        if row.get('result',{}).get('infrastructure_error') is True:
-            faults.append({'kind':'TOOL_SERVICE_ERROR','tool':row.get('tool'),
-                           'details':row['result'].get('error')})
-    for row in http:
-        if isinstance(row.get('status'),int) and not 200<=row['status']<300:
-            faults.append({'kind':'HTTP_ERROR','request_number':row.get('request_number'),'status':row['status']})
-    uncertain=[]
-    for row in read_rows(root/'model-output-events.jsonl'):
-        if row.get('event')=='PROVIDER_TERMINAL_WAIT_EXCEEDED':
-            uncertain.append({'kind':'PROVIDER_TERMINAL_WAIT_EXCEEDED',
-                'request_number':row.get('request_number'),'call_ids':row.get('call_ids'),
-                'details':'Recorded post-tool nonterminal wait; cause UNVERIFIED, not a mathematical failure.',
-                'idle_seconds':row.get('idle_seconds')})
-    for path in root.glob('response-*.sse'):
-        for event in events(path):
-            response=event.get('response') or {}
-            error=response.get('error') or event.get('error')
-            if event.get('type')=='error' and not error:
-                error={'code':event.get('code'),'message':event.get('message')}
-            if error:
-                code=error.get('code') if isinstance(error,dict) else None
-                match=re.fullmatch(r'response-(\d+)\.sse',path.name)
-                row={'kind':'PROVIDER_ERROR','source':path.name,'code':code,'details':error,
-                     'request_number':int(match.group(1)) if match else None}
-                if remote_retry.classify(error):
-                    faults.append(row)
-                else:
-                    uncertain.append(row)
-    known={r.get('request_number') for r in http if r.get('path','').rstrip('/')=='/responses'}
-    missing=sorted(requests-known)
-    if not requests or missing:
-        uncertain.append({'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':missing})
-    status='FAULT' if faults else 'UNVERIFIED' if uncertain else 'NO_RECORDED_FAULT'
-    return {'status':status,'faults':faults,'uncertainty':uncertain,
-            'scope':'Recorded HTTP/provider health and delivered-tool protocol waits; rejected mathematical/tool candidates are ordinary feedback.'}
+    return {'status':'UNVERIFIED','faults':[],
+            'uncertainty':[{'kind':'NATIVE_RECORD_MISSING'}],
+            'scope':'A current native-client record is required for execution health.'}

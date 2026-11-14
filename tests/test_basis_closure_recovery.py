@@ -3,6 +3,7 @@ import harness_support
 from pathlib import Path
 from copy import deepcopy
 import tempfile
+import shutil
 import os
 import json
 import subprocess
@@ -56,8 +57,22 @@ class FinalOnlyRecovery(unittest.TestCase):
                 'T002':'have h := h_E001 (ULift.{u} Unit) (ULift.{v} Unit)\ncases h\nsimpa only [Nat.add_zero] using h_T001.symm'})
         build(cls.workflow);cls.intermediate=workflow.finish(cls.workflow,machine=True)
         frozen=workflow.bound(cls.workflow)
+        # The global owner record contains the graph before local proof bodies.
+        import frozen_graph
+        authority=frozen['authority']
+        global_root=cls.root/'nl0/global'
+        shutil.copytree(Path(authority['graph']).parent,global_root)
+        graph=ir.load(global_root/'nl0.json')
+        graph['inferences']=[{key:row[key] for key in frozen_graph.GLOBAL_FIELDS}
+                             for row in graph['inferences']]
+        write(global_root/'nl0.json',graph)
+        working=global_root/'working.json'
+        write(working,{'version':'yui-working-graph-2','owner':frozen_graph.BASIS,
+            'previous':None,'spec':bind(global_root/'spec.json'),'graph':bind(global_root/'nl0.json')})
+        write(cls.root/'global-selection.json',bind(working))
         source,expected,_=b2lean.render(ir.contract(frozen['contract']),cls.context,
-            (cls.workflow/'audit-b/Proof.lean').read_text(),ir.load(cls.workflow/'audit-b/assembly.json')['universe_parameters'],legacy=True)
+            (cls.workflow/'audit-b/Proof.lean').read_text(),ir.load(cls.workflow/'audit-b/assembly.json')['universe_parameters'])
+        source += '\nexample : False := by decide\n'
         native=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],cls.root/'b2lean')
         assert not native['passed']
         cls.failure={'status':'BASIS_FINAL_CLOSURE_FAILED','phase':'basis-final-closure',

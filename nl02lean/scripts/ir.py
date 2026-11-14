@@ -18,8 +18,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / 'nl0/scripts'))
 from pilot_common import run_lean, load_lock, native_succeeded  # noqa: E402
 
-VERSION = 1
-SUPPORTED_VERSIONS = {1, 2}
+VERSION = 2
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
 FORBIDDEN = re.compile(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|set_option|initialize|elab|macro|syntax|import|namespace|section|end|theorem|lemma|instance|attribute)\b|(^|\n)\s*#')
 AUXILIARY_PARSER = '''
@@ -96,7 +95,7 @@ def contract(path):
     c = load(path)
     import background_inputs
     background_inputs.mode(c)
-    need(c['version'] in SUPPORTED_VERSIONS, 'unsupported contract version')
+    need(c['version'] == VERSION, 'unsupported contract version')
     need(IDENTIFIER.fullmatch(c['id']) is not None, 'invalid contract id')
     source = (path.parent / c['source']['path']).resolve()
     need(source.is_file() and digest(source) == c['source']['sha256'], 'stale source bytes')

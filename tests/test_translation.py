@@ -113,7 +113,7 @@ class LeanBoundaryTests(unittest.TestCase):
 
     def test_ae_equality_does_not_supply_pointwise_without_inputs(self):
         c=harness_support.FIXTURES/'lean/examples/case2_continuous_representatives/contract.json'
-        p={'version':1,'contract_sha256':ir.digest(c),
+        p={'version':2,'contract_sha256':ir.digest(c),
            'representation_notes':'Negative control omits both continuity inputs.',
            'steps':[{'id':'T001','statement':'f = g','inputs':['H003'],
                      'source_steps':['S001'],'explanation':'Intentionally invalid attempt to evaluate an a.e. equality.'}],

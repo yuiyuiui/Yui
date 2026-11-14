@@ -811,7 +811,7 @@ class Trial:
             result['failure_phase'] = self.phase
         finally:
             if result.get('status') not in {'SMOKE_COMPLETED','PROOF_ACCEPTED','CANCELLED'}:
-                try:self.pause_error({'code':'harness_bug','message':'Legacy carrier did not complete',
+                try:self.pause_error({'code':'harness_bug','message':'Native carrier did not complete',
                     'outcome':dict(result)},resumable=False)
                 except __import__('execution_state').Cancelled:
                     result.update(status='CANCELLED',stop_reason='EXTERNAL_CANCEL')
@@ -830,4 +830,3 @@ class Trial:
                 (self.work / 'state' / name).unlink(missing_ok=True)
             (self.logs / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
         return result
-

@@ -87,7 +87,7 @@ class LocalAdaptation(unittest.TestCase):
     def test_none_and_current_requirements_do_not_imply_a_fixed_version(self):
         self.assertEqual(rules.test_requirement({'lean':'none'},None),'RUN')
         self.assertEqual(rules.test_requirement({'lean':'current'},None),'ENVIRONMENT_REQUIRED')
-        for version in ('4.32.2','4.35.0','4.99.0'):
+        for version in ('0.0.1','0.0.2','0.0.3'):
             selected={'lean':{'version_number':version},'mathlib':{'rev':'f'*40}}
             self.assertEqual(rules.test_requirement({'lean':'current'},selected),'RUN')
 

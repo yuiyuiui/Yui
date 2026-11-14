@@ -1,6 +1,9 @@
 """Real setup qualification through the ordinary carrier and native consumers."""
 from pathlib import Path
 import hashlib
+import http.client
+from datetime import datetime, timezone
+from urllib.parse import urlencode
 import json
 import re
 import shutil
@@ -8,7 +11,7 @@ import tempfile
 import uuid
 
 from controller_common import CORE, bind, write
-from runtime_config import use_environment
+from runtime_config import use_environment, auth_home, host_tools
 
 
 def record(directory, name, data):
@@ -42,13 +45,77 @@ def source_readers(directory):
     return {'source':bind(file),'expected_text_found':True}
 
 
+PROVIDER_HOST='chatgpt.com'
+METADATA_MAX_BYTES=8 * 1024 * 1024
+
+
+def provider_metadata(profiles):
+    """One authenticated GET, using the same verified-TLS/system-proxy route."""
+    from run_pilot import system_https_proxy
+    auth = json.loads((auth_home()/'auth.json').read_text())
+    tokens = auth.get('tokens') or {}
+    token, account = tokens.get('access_token'), tokens.get('account_id')
+    if not isinstance(token, str) or not token or not isinstance(account, str) or not account:
+        raise ValueError('Provider metadata check requires existing subscription authentication')
+    if any(c in token+account for c in '\r\n'):
+        raise ValueError('Malformed subscription credential header; value withheld')
+    lock = host_tools()
+    match = re.search(r'\b(\d+\.\d+\.\d+[A-Za-z0-9.+_-]*)\b', lock['codex']['version'])
+    if not match:
+        raise ValueError('Cannot establish the actual native client version')
+    path = '/backend-api/codex/models?' + urlencode({'client_version': match[1]})
+    proxy = system_https_proxy()
+    connection = None
+    try:
+        if proxy:
+            connection = http.client.HTTPSConnection(*proxy, timeout=25)
+            connection.set_tunnel(PROVIDER_HOST, 443)
+        else:
+            connection = http.client.HTTPSConnection(PROVIDER_HOST, timeout=25)
+        connection.request('GET', path, headers={'Authorization': 'Bearer '+token,
+            'ChatGPT-Account-Id': account, 'Accept': 'application/json',
+            'Accept-Encoding': 'identity', 'User-Agent': 'codex_cli_rs/'+match[1],
+            'originator': 'codex_cli_rs'})
+        response = connection.getresponse()
+        if response.status != 200:
+            raise ValueError('Provider metadata unavailable: metadata HTTP '+str(response.status))
+        if 'application/json' not in (response.getheader('Content-Type') or '').lower():
+            raise ValueError('Provider access check did not return model JSON')
+        body = response.read(METADATA_MAX_BYTES+1)
+        if len(body) > METADATA_MAX_BYTES:
+            raise ValueError('Provider metadata exceeds the bounded access check')
+        try:
+            catalog = json.loads(body)
+        except (ValueError, UnicodeError) as error:
+            raise ValueError('Malformed provider model metadata') from error
+        models = catalog.get('models') if isinstance(catalog, dict) else None
+        if not isinstance(models, list) or any(not isinstance(row, dict) for row in models):
+            raise ValueError('Provider metadata has no model catalog')
+        for profile in profiles.values():
+            matched = [row for row in models if row.get('slug') == profile['id']]
+            if len(matched) != 1 or profile['reasoning_effort'] not in {
+                    r.get('effort') for r in matched[0].get('supported_reasoning_levels', []) if isinstance(r, dict)}:
+                raise ValueError('Provider does not advertise the selected model/effort')
+        return {'at_utc': datetime.now(timezone.utc).isoformat(), 'method': 'GET',
+                'host': PROVIDER_HOST, 'path': path, 'http_status': 200,
+                'request_id': (response.getheader('x-request-id') or '')[:256] or None,
+                'catalog_sha256': hashlib.sha256(body).hexdigest(),
+                'verified_profiles': profiles, 'system_https_proxy': proxy,
+                'inference_calls': 0, 'credential_values_logged': False,
+                'scope': 'Authenticated metadata access, not a guarantee of future inference health'}
+    except (OSError, http.client.HTTPException) as error:
+        raise ValueError('Provider access check failed: '+type(error).__name__) from None
+    finally:
+        if connection:
+            connection.close()
+
+
 def provider(directory, profiles):
     """Check each distinct active profile through the actual isolated carrier."""
-    import access_recovery
     from clean_stage import ArtifactStage
     from execution_state import Cancelled
     from runtime_config import use_profiles
-    metadata=access_recovery.check(profiles)
+    metadata=provider_metadata(profiles)
     completed=[];seen=set()
     for role,profile in profiles.items():
         identity=json.dumps(profile,sort_keys=True)

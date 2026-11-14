@@ -10,7 +10,7 @@ from blocks import strategy_reference as reference
 from wfcore.model import Model
 
 
-ENVIRONMENT = {'lean_version': '4.32.2', 'mathlib_commit': 'a'*40,
+ENVIRONMENT = {'lean_version': '0.0.1', 'mathlib_commit': 'a'*40,
                'basis': 'historical_configuration'}
 
 
@@ -71,7 +71,7 @@ class PairedReference(unittest.TestCase):
                     self.model.check('StrategyReply@2', value, 'invalid source pair')
 
     def test_multiple_recorded_pairs_remain_provenance(self):
-        environments = [ENVIRONMENT, dict(ENVIRONMENT, lean_version='4.35.0', mathlib_commit='b'*40)]
+        environments = [ENVIRONMENT, dict(ENVIRONMENT, lean_version='0.0.2', mathlib_commit='b'*40)]
         reference.validate_environments(environments)
         for kind in ('catalog', 'cards'):
             value = reply(kind);value[kind][0]['reference_environments'] = environments
@@ -93,13 +93,12 @@ class PairedReference(unittest.TestCase):
             with self.subTest(port=port), self.assertRaises(ValueError):
                 self.model.check(port, value, 'reference offered as proof')
 
-    def test_historical_reply_contract_remains_separate_from_current_disclosure(self):
+    def test_reply_without_current_disclosure_is_rejected(self):
         legacy = reply('cards')
         for key in ('reference_only', 'current_environment_verification_required', 'usage_notice'):
             del legacy[key]
         del legacy['cards'][0]['reference_environments']
-        legacy['cards'][0]['lean_versions'] = ['4.32.2']
-        self.model.check('StrategyReply@1', legacy, 'historical reply')
+        legacy['cards'][0]['lean_versions'] = ['0.0.1']
         with self.assertRaises(ValueError):
             self.model.check('StrategyReply@2', legacy, 'historical data is not a current reply')
 

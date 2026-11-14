@@ -28,10 +28,11 @@ def mixed():
 
 
 class FrozenRoute(unittest.TestCase):
-    def test_current_and_legacy_interpret_the_same_category_by_version(self):
+    def test_only_current_category_rules_are_accepted(self):
         old=artifact(dependency(),dependency('B002',3));new=mixed()
-        basis.validate(old,TARGET);basis.validate(new,TARGET)
-        self.assertFalse(basis.prepared(old['dependencies'][1]))
+        old['version']='yui-basis-1'
+        with self.assertRaises(ValueError):basis.validate(old,TARGET)
+        basis.validate(new,TARGET)
         self.assertTrue(basis.prepared(new['dependencies'][1]))
         source,checks,roots=basis.declarations(new)
         self.assertEqual(roots,['YuiBasis.B001','YuiBasis.B002'])
@@ -85,7 +86,8 @@ class FrozenRoute(unittest.TestCase):
         with self.assertRaises(ValueError):basis.validate(v,TARGET)
         with tempfile.TemporaryDirectory() as raw:
             c=basis.BasisContract(Path(raw),TARGET,version=basis_graph.VERSION)
-            with self.assertRaisesRegex(ValueError,'submit yui-basis-2'):c(artifact())
+            old=artifact();old['version']='yui-basis-1'
+            with self.assertRaisesRegex(ValueError,'submit yui-basis-2'):c(old)
             self.assertIsNone(c.selected)
 
     def test_preflight_checks_the_proposition_value_and_rejects_changed_types(self):

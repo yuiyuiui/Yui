@@ -257,8 +257,7 @@ def execute(job, root=None):
     if (root/'execution-status.json').exists():raise ValueError('Preserve this run; prepare a new explicit run')
     resume=job.get('resume') or {}
     import lean_environment
-    selected = job.get('lean_environment') if 'lean_environment' in job else (
-        lean_environment.legacy() if job['track'] != 'nl0' else None)
+    selected = job['lean_environment']
     import lean_libraries
     with use_profiles(job['profiles']), use_environment(selected), lean_libraries.use(job.get('lean_libraries',[])), \
             lean_libraries.generated(root/'imported-lean'):

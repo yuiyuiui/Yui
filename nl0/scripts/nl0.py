@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NL0 v2 accounting and audit receipts; explicit legacy v1 inspection. Not a prover."""
+"""Current NL0 accounting and audit receipts. Not a prover."""
 from __future__ import annotations
 
 import argparse
@@ -101,22 +101,19 @@ RULES = {
     "exists_elimination", "natural_induction",
 }
 CHECKS = closure.acceptance.current().check_ids('inference')
-LEGACY_CHECKS = {'inputs', 'argument', 'dependency_accounting', 'output', 'scope', 'applicability'}
 EXTERNAL_CHECKS = {"literature_identity", "result_location", "statement_fidelity",
                    "context_completeness", "version_and_eligibility"}
 VERDICTS = {"PASS", "FAIL", "UNVERIFIED"}
 
 
-def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, legacy=False, global_only=False):
+def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, global_only=False):
     graph_path, spec_path = Path(graph_path), Path(spec_path)
     base = graph_path.parent
     graph, spec = load(graph_path), load(spec_path)
     record(spec, {"format_version", "case_id", "full_target", "conclusion", "parameters",
                   "hypotheses", "definitions", "logic", "pins", "inputs"}, "spec")
-    require(type(spec["format_version"]) is int and spec["format_version"] in {1, 2}, "VERSION", "spec version")
-    current = spec["format_version"] == 2
-    require(current or legacy, "LEGACY-CONTRACT", "v1 is historical; use --legacy for inspection, not current acceptance")
-    require(not current or not legacy, "VERSION", "--legacy is only for historical v1 artifacts")
+    require(type(spec["format_version"]) is int and spec["format_version"] == 2,
+            "VERSION", "Only the current NL0 format is supported")
     for key in ("case_id", "full_target", "conclusion"):
         string(spec[key], f"spec.{key}")
     record(graph, {"format_version", "case_id", "spec_sha256", "propositions", "inferences"}, "graph",
@@ -150,7 +147,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         globals_.add(item["symbol"])
     for key, item in definitions.items():
         record(item, {"id", "symbol", "definition", "type", "depends_on", "requires"}
-               | ({"binders", "objects"} if current else set()), key)
+               | ({"binders", "objects"}), key)
         for field in ("symbol", "definition", "type"):
             string(item[field], f"{key}.{field}")
         require(item["symbol"] not in globals_, "GLOBAL-NAME", f"global symbol repeated: {item['symbol']}")
@@ -170,7 +167,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         return result
 
     definition_closure(list(definitions))
-    record(spec["logic"], {"classical", "rules", "calculations"} | ({"primitives"} if current else set()), "logic")
+    record(spec["logic"], {"classical", "rules", "calculations"} | ({"primitives"}), "logic")
     require(type(spec["logic"]["classical"]) is bool, "TYPE", "logic.classical must be Boolean")
     strings(spec["logic"]["rules"], "logic.rules")
     strings(spec["logic"]["calculations"], "logic.calculations")
@@ -188,7 +185,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(kind in prefixes and key.startswith(prefixes[kind]), "KIND", f"invalid proposition kind/ID {key}")
         extra = {"source"} if kind in {"external", "mathlib"} else {"origin"} if kind == "internal" else set()
         record(item, {"id", "kind", "statement", "definitions"} | extra
-               | ({"binders", "objects"} if current else set()), key)
+               | ({"binders", "objects"}), key)
         string(item["statement"], key)
         strings(item["definitions"], f"{key}.definitions")
         definition_closure(item["definitions"])
@@ -261,7 +258,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 "DEFINITION-PREREQUISITE", f"invalid proof guard in {key}")
 
     if global_only:
-        require(current and audit_path is None, "GLOBAL", "Only a current, unaudited global graph can be frozen")
+        require(audit_path is None, "GLOBAL", "Only a current, unaudited global graph can be frozen")
     interface = {"id", "inputs", "output", "definitions"}
     detail = {"rules", "locals", "argument", "applications"}
     producer = {}
@@ -282,7 +279,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(isinstance(item["locals"], list), "TYPE", f"{key}.locals")
         bindings = set()
         for binder in item["locals"]:
-            local_extra = {"start", "end", "kind", "declaration", "from_inputs", "from_local", "objects"} if current else set()
+            local_extra = {"start", "end", "kind", "declaration", "from_inputs", "from_local", "objects"}
             record(binder, {"symbol", "type", "scope"} | local_extra, f"{key}.local")
             for field in {"symbol", "type", "scope"} | (local_extra - {"from_inputs", "from_local", "objects"}):
                 string(binder[field], f"{key}.local.{field}")
@@ -294,7 +291,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         used, introduced, active = set(), set(), set()
         for step in item["argument"]:
             record(step, {"text", "uses", "introduces", "discharges"}
-                   | ({"id", "objects", "uses_local", "produces"} if current else set()), f"{key}.step")
+                   | ({"id", "objects", "uses_local", "produces"}), f"{key}.step")
             string(step["text"], f"{key}.text")
             for field in ("uses", "introduces", "discharges"):
                 strings(step[field], f"{key}.{field}")
@@ -313,7 +310,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(isinstance(item["applications"], list), "TYPE", f"{key}.applications")
         app_ids, applied_sources = set(), set()
         for app in item["applications"]:
-            record(app, {"input", "bindings", "hypothesis_checks"} | ({"at"} if current else set()),
+            record(app, {"input", "bindings", "hypothesis_checks"} | ({"at"}),
                    f"{key}.application", optional={"id"})
             aid = app["input"]
             require(aid in sources and aid in item["inputs"], "APPLICATION", f"invalid application {key}/{aid}")
@@ -361,12 +358,11 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         for did in definition_closure(refs):
             require(set(definitions[did]["requires"]) <= available, "DEFINITION-PREREQUISITE", f"{key} uses {did} before its proof guard")
 
-    if current:
-        closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
+    closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
     if global_only:
         return {"status":"GLOBAL-GRAPH-STRUCTURALLY-VALID", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
-    result = {"status": "STRUCTURE-PASSED" if current else "LEGACY-STRUCTURE-PASSED", "case_id": spec["case_id"],
+    result = {"status": "STRUCTURE-PASSED", "case_id": spec["case_id"],
               "contract_version": spec["format_version"], "current_standard_receipt_valid": False,
               "propositions": len(propositions), "inferences": len(inferences),
               "kinds": dict(Counter(p["kind"] for p in propositions.values())),
@@ -383,10 +379,8 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                        "definition_reviews", "source_reviews", "inference_reviews"}, "audit", optional={"structure_review", "background_policy"})
         if 'background_policy' in audit:
             require(audit['background_policy'] == background.POLICY, 'BACKGROUND-POLICY', 'unsupported supplement policy')
-        require(type(audit["format_version"]) is int and audit["format_version"] in ({AUDIT_FORMAT} if current else {1, 2}),
+        require(type(audit["format_version"]) is int and audit["format_version"] == AUDIT_FORMAT,
                 "AUDIT-VERSION", "Yui requires its audit v4; another variant's receipt cannot establish current acceptance")
-        has_external = any(p["kind"] == "external" for p in propositions.values())
-        require(not has_external or audit["format_version"] >= 2, "AUDIT-VERSION", "external theorems require audit version >=2")
         require(audit["graph_sha256"] == sha(graph_path) and audit["spec_sha256"] == sha(spec_path), "STALE-AUDIT", "audit is bound to different bytes")
         record(audit["reviewer"], {"identity", "mode", "independent", "disclosure"}, "reviewer")
         for field in ("identity", "mode", "disclosure"):
@@ -406,13 +400,13 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
             fields = {"verdict", "notes", "evidence"} | ({"checks"} if inference else set())
             if external:
                 fields.add("citation_checks")
-            if inference and audit["format_version"] >= 2:
+            if inference:
                 fields.add("external_applications")
-            if inference and current:
+            if inference:
                 fields.add("replay")
             if located_packet is not None:
                 fields.add("locations")
-            record(entry, fields, where, optional=({'inheritance', 'background_notes'} if inference else {'inheritance'}) if current else ())
+            record(entry, fields, where, optional={'inheritance', 'background_notes'} if inference else {'inheritance'})
             inherited=None
             if 'inheritance' in entry:
                 import audit_reuse
@@ -429,56 +423,51 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 for pointer in entry["locations"]:
                     closed_call(closure.resolve, located_packet, pointer)
             if inference:
-                record(entry["checks"], (CHECKS | closure.CLOSURE_CHECKS) if current else LEGACY_CHECKS, where + ".checks")
+                record(entry["checks"], CHECKS | closure.CLOSURE_CHECKS, where + ".checks")
                 for name, value in entry["checks"].items():
-                    if current:
-                        review(value, f"{where}.checks.{name}", located_packet=packet(data, where))
+                    review(value, f"{where}.checks.{name}", located_packet=packet(data, where))
+                notes = entry.get('background_notes', [])
+                require(not notes or audit.get('background_policy') == background.POLICY,
+                        'BACKGROUND-POLICY', 'notes require their declared acceptance policy')
+                closed_call(background.validate, notes, packet(data, where), base)
+                replay = entry["replay"]
+                record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence','review_trace'})
+                if 'review_trace' in replay:
+                    evidence(base,[replay['review_trace']])
+                expected = inherited['previous_packet_sha256'] if inherited else packet(data, where)["packet_sha256"]
+                require(replay["packet_sha256"] == expected, "STALE-PACKET", where)
+                require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only", background.MODE}, "REPLAY-BOUNDARY", where)
+                string(replay["carrier"], where + ".carrier")
+                strings(replay["prior_exposure"], where + ".prior_exposure")
+                strings(replay["read_materials"], where + ".read_materials")
+                if entry["verdict"] == "PASS" or entry["checks"]["packet_replay"]["verdict"] == "PASS":
+                    refs = replay.get('library_evidence', [])
+                    if replay['mode'] == background.MODE:
+                        require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
+                        if refs:evidence(base, refs)
+                        materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
+                        require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
+                                'REPLAY-BOUNDARY', 'background source not in reviewed material list')
+                        native_refs=[e for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']]
+                        require(all(e in native_refs for e in refs),'REPLAY-BOUNDARY',
+                                'Non-native tool traces are review_trace metadata, not library evidence')
                     else:
-                        verdict(value, f"{where}.checks.{name}")
-                if current:
-                    notes = entry.get('background_notes', [])
-                    require(not notes or audit.get('background_policy') == background.POLICY,
-                            'BACKGROUND-POLICY', 'notes require their declared acceptance policy')
-                    closed_call(background.validate, notes, packet(data, where), base)
-                    replay = entry["replay"]
-                    record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence','review_trace'})
-                    if 'review_trace' in replay:
-                        evidence(base,[replay['review_trace']])
-                    expected = inherited['previous_packet_sha256'] if inherited else packet(data, where)["packet_sha256"]
-                    require(replay["packet_sha256"] == expected, "STALE-PACKET", where)
-                    require(replay["mode"] in {"unperformed", "same_context_diagnostic", "fresh_packet_only", background.MODE}, "REPLAY-BOUNDARY", where)
-                    string(replay["carrier"], where + ".carrier")
-                    strings(replay["prior_exposure"], where + ".prior_exposure")
-                    strings(replay["read_materials"], where + ".read_materials")
-                    if entry["verdict"] == "PASS" or entry["checks"]["packet_replay"]["verdict"] == "PASS":
-                        refs = replay.get('library_evidence', [])
-                        if replay['mode'] == background.MODE:
-                            require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
-                            if refs:evidence(base, refs)
-                            materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
-                            require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
-                                    'REPLAY-BOUNDARY', 'background source not in reviewed material list')
-                            native_refs=[e for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']]
-                            require(all(e in native_refs for e in refs),'REPLAY-BOUNDARY',
-                                    'Non-native tool traces are review_trace metadata, not library evidence')
-                        else:
-                            require(not notes and not refs, 'REPLAY-BOUNDARY', 'old packet-only replay cannot import background notes')
-                            materials = ['packet:'+expected]
-                        require(replay["mode"] in {"fresh_packet_only", background.MODE} and not replay["prior_exposure"]
-                                and replay["read_materials"] == materials
-                                and replay["carrier"] != "UNASSIGNED", "REPLAY-BOUNDARY", where)
+                        require(not notes and not refs, 'REPLAY-BOUNDARY', 'old packet-only replay cannot import background notes')
+                        materials = ['packet:'+expected]
+                    require(replay["mode"] in {"fresh_packet_only", background.MODE} and not replay["prior_exposure"]
+                            and replay["read_materials"] == materials
+                            and replay["carrier"] != "UNASSIGNED", "REPLAY-BOUNDARY", where)
             if external:
                 record(entry["citation_checks"], EXTERNAL_CHECKS, where + ".citation_checks")
                 for name, value in entry["citation_checks"].items():
                     review(value, f"{where}.citation_checks.{name}")
-            if inference and audit["format_version"] >= 2:
+            if inference:
                 actual = {a["id"]: a for a in inferences[where]["applications"]
                           if propositions[a["input"]]["kind"] == "external"}
                 require(isinstance(entry["external_applications"], dict)
                         and set(entry["external_applications"]) == set(actual),
                         "AUDIT-APPLICATION-COVERAGE", f"missing/extra E actual-use review {where}")
-                available = set(inferences[where]["inputs"]) if current else (
-                    set().union(*(ancestors(p) for p in inferences[where]["inputs"])) if inferences[where]["inputs"] else set())
+                available = set(inferences[where]["inputs"])
                 for application_id, app_review in entry["external_applications"].items():
                     location = f"{where}.external_applications.{application_id}"
                     record(app_review, {"input", "verdict", "notes", "evidence", "bindings_review",
@@ -511,23 +500,22 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                      {'same_context_self_audit','unperformed','targeted_adjudication'} and
                      audit['reviewer']['identity'].strip() not in {'','UNASSIGNED'})
         result.update({"audit_record_complete": True, "audit_receipt_valid": independent and not unresolved,
-                       "current_standard_receipt_valid": current and independent and not unresolved,
+                       "current_standard_receipt_valid": independent and not unresolved,
                        "independent_review_accepted":independent,
                        "audit_status": "AUDIT-REVIEW-UNQUALIFIED" if not independent else "AUDIT-NOT-PASSED" if unresolved else (
-                           "AUDIT-RECEIPT-VALID" if current else "LEGACY-AUDIT-RECEIPT-VALID"),
+                           "AUDIT-RECEIPT-VALID"),
                        "unresolved_reviews": unresolved, "audit_format_version": audit["format_version"],
                        "reviewer": audit["reviewer"]})
         import source_qualification
         conditional,warnings=source_qualification.classify(unresolved,propositions,base)
-        result.update(current_conditional_receipt_valid=current and independent and conditional,source_warnings=warnings)
+        result.update(current_conditional_receipt_valid=independent and conditional,source_warnings=warnings)
         if conditional and independent:result['audit_status']='AUDIT-CONDITIONAL-PRIMARY-SOURCES-UNVERIFIED'
-        if current:
-            notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
-            result.update(background_policy=audit.get('background_policy'), background_notes=notes,
-                          background_note_count=sum(len(x) for x in notes.values()),
-                          audit_sha256=sha(audit_path),
-                          background_supplement=background.supplement(data, notes))
-            if not unresolved and any(notes.values()):result['audit_status']='AUDIT-RECEIPT-VALID-WITH-BACKGROUND-NOTES'
+        notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
+        result.update(background_policy=audit.get('background_policy'), background_notes=notes,
+                      background_note_count=sum(len(x) for x in notes.values()),
+                      audit_sha256=sha(audit_path),
+                      background_supplement=background.supplement(data, notes))
+        if not unresolved and any(notes.values()):result['audit_status']='AUDIT-RECEIPT-VALID-WITH-BACKGROUND-NOTES'
     return result, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
 
@@ -546,12 +534,11 @@ def render(data, destination):
              "", "## Frozen original target", "", spec["full_target"], "", "## Original hypotheses", ""]
     for item in spec["hypotheses"]:
         lines.extend([f"- **{item['id']}**: {item['statement']}"])
-    if graph["format_version"] == 2:
-        lines.extend(["", "## Declared parameters and logical primitives", ""])
-        for item in spec["parameters"]:
-            lines.append(f"- `{item['symbol']}`: {item['type']}.")
-        for item in spec["logic"]["primitives"]:
-            lines.append(f"- `{item['symbol']}`: {item['type']}. {item['meaning']}")
+    lines.extend(["", "## Declared parameters and logical primitives", ""])
+    for item in spec["parameters"]:
+        lines.append(f"- `{item['symbol']}`: {item['type']}.")
+    for item in spec["logic"]["primitives"]:
+        lines.append(f"- `{item['symbol']}`: {item['type']}. {item['meaning']}")
     lines.extend(["", "## Global definitions and notation", ""])
     for item in defs.values():
         lines.extend([f"### {item['id']} — {item['symbol']}", "", item["definition"], "",
@@ -588,15 +575,13 @@ def render(data, destination):
             continue
         item, step = props[key], by_output[key]
         lines.extend([f"### {key} — {step['id']}", "", item["statement"], "", f"Inputs: {', '.join(step['inputs']) or 'none'}. Rules: {', '.join(step['rules'])}.", ""])
-        if graph["format_version"] == 2:
-            lines.extend(["Statement binders: " + json.dumps(item["binders"], ensure_ascii=False), "",
-                          "Local declarations: " + json.dumps(step["locals"], ensure_ascii=False), ""])
+        lines.extend(["Statement binders: " + json.dumps(item["binders"], ensure_ascii=False), "",
+                      "Local declarations: " + json.dumps(step["locals"], ensure_ascii=False), ""])
         for n, paragraph in enumerate(step["argument"], 1):
             lines.extend([f"{n}. {paragraph['text']}", "", f"   Inputs used: {', '.join(paragraph['uses']) or 'local calculation/logic'}. Introduces: {', '.join(paragraph['introduces']) or 'none'}. Discharges: {', '.join(paragraph['discharges']) or 'none'}.", ""])
-            if graph["format_version"] == 2:
-                lines.extend([f"   Step {paragraph['id']}; objects: {', '.join(paragraph['objects']) or 'none'}; prior local facts: {', '.join(paragraph['uses_local']) or 'none'}.", ""])
-                for fact in paragraph["produces"]:
-                    lines.extend([f"   {fact['id']}: {fact['statement']} Active assumptions: {', '.join(fact['assumptions']) or 'none'}.", ""])
+            lines.extend([f"   Step {paragraph['id']}; objects: {', '.join(paragraph['objects']) or 'none'}; prior local facts: {', '.join(paragraph['uses_local']) or 'none'}.", ""])
+            for fact in paragraph["produces"]:
+                lines.extend([f"   {fact['id']}: {fact['statement']} Active assumptions: {', '.join(fact['assumptions']) or 'none'}.", ""])
         for app in step["applications"]:
             lines.extend([f"Source {app['input']} ({app.get('id', app['input'])}) — {app['bindings']}", "", *[f"- {check}" for check in app["hypothesis_checks"]], ""])
     (destination / "NL0.md").write_text("\n".join(lines) + "\n")
@@ -605,34 +590,16 @@ def render(data, destination):
 
 
 def packet(data, inference):
-    result, graph, spec, props, steps, defs, definition_closure, ancestors = data
+    result, _, _, _, steps, _, _, _ = data
     require(inference in steps, "INFERENCE", f"unknown inference {inference}")
-    if graph["format_version"] == 2:
-        value = closed_call(closure.packet, data, inference)
-        notes = result.get('background_notes', {}).get(inference, [])
-        if notes:
-            value['reviewed_packet_sha256'] = value.pop('packet_sha256')
-            value['accepted_background_notes'] = notes
-            value['background_supplement_sha256'] = result['background_supplement']['sha256']
-            value['packet_sha256'] = closure.digest(value)
-        return value
-    step = steps[inference]
-    all_props = [props[p] for p in step["inputs"]] + [props[step["output"]]]
-    ids = set(step["definitions"])
-    for proposition in all_props:
-        ids.update(proposition["definitions"])
-    dclosure = definition_closure(ids)
-    guards = set().union(*(set(defs[d]["requires"]) for d in dclosure)) if dclosure else set()
-    hclosure = set().union(*(ancestors(p) for p in step["inputs"])) if step["inputs"] else set()
-    return {"case_id": spec["case_id"], "full_target": spec["full_target"],
-            "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
-            "audit_receipt_valid": result["audit_receipt_valid"],
-            "original_hypotheses": [h for h in spec["hypotheses"] if h["id"] in hclosure],
-            "logic": spec["logic"], "pins": spec["pins"],
-            "definitions": [d for d in defs.values() if d["id"] in dclosure],
-            "definition_prerequisites": [props[p] for p in sorted(guards)],
-            "inputs": [props[p] for p in step["inputs"]], "output": props[step["output"]],
-            "inference": step, "warning": "This packet is a view, not an independent proof or audit certificate."}
+    value = closed_call(closure.packet, data, inference)
+    notes = result.get('background_notes', {}).get(inference, [])
+    if notes:
+        value['reviewed_packet_sha256'] = value.pop('packet_sha256')
+        value['accepted_background_notes'] = notes
+        value['background_supplement_sha256'] = result['background_supplement']['sha256']
+        value['packet_sha256'] = closure.digest(value)
+    return value
 
 
 def global_overview(data):
@@ -677,22 +644,21 @@ def main():
     parser.add_argument("--audit", type=Path)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--inference")
-    parser.add_argument("--legacy", action="store_true", help="Inspect historical v1; never grants current-standard acceptance")
     args = parser.parse_args()
     try:
         require(args.command != "inspect-audit" or args.audit is not None, "CLI", "inspect-audit requires --audit")
         data = validate(args.graph, args.spec, args.audit,
-                        allow_unresolved=args.command == "inspect-audit", legacy=args.legacy)
+                        allow_unresolved=args.command == "inspect-audit")
         if args.command in {"check", "inspect-audit"}:
             result = data[0]
         elif args.command == "render":
             require(args.out is not None, "CLI", "render requires --out")
             result = render(data, args.out)
         elif args.command == 'overview':
-            require(not args.legacy and args.audit is None,'CLI','Create a current source overview without importing an audit receipt')
+            require(args.audit is None,'CLI','Create a current source overview without importing an audit receipt')
             result=global_overview(data)
         elif args.command == "audit-template":
-            require(args.audit is None and not args.legacy, "CLI", "Create a new pending audit without inheriting a receipt")
+            require(args.audit is None, "CLI", "Create a new pending audit without inheriting a receipt")
             result = closed_call(closure.audit_template, data, CHECKS, EXTERNAL_CHECKS,
                                  str(args.graph.resolve().relative_to(args.graph.parent.resolve())),
                                  str(args.spec.resolve().relative_to(args.graph.parent.resolve())))

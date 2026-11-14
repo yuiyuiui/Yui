@@ -21,7 +21,6 @@ import basis_native
 import basis_review
 import basis_graph
 
-LEGACY_VERSION = 'yui-basis-1'
 VERSION = basis_graph.VERSION
 CONTEXT = 'proof-context.json'
 CONTEXT_VERSION = 'yui-basis-context-2'
@@ -43,10 +42,8 @@ def text(value, label):
 
 
 def artifact_schema(version=None, *, planning=False):
-    if version is None:
-        import artifact_protocol as p
-        return p.choice(artifact_schema(LEGACY_VERSION),artifact_schema(VERSION))
-    modern = version==basis_graph.VERSION
+    if version not in (None,VERSION):raise ValueError('Only the current basis format is supported')
+    version=VERSION
     import artifact_protocol as p
     evidence=p.choice(p.obj({'input':p.TEXT}),p.obj({'path':p.TEXT,'sha256':p.TEXT}))
     branches=[]
@@ -56,22 +53,21 @@ def artifact_schema(version=None, *, planning=False):
             'port':p.nullable({'type':'string','pattern':r'^[EM]\d{3}$'}),
             'compatibility':{'enum':['native','adapted','internal','unresolved']},
             'origin':p.obj({'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
-                'evidence':p.array(evidence,minItems=1 if category==4 or (modern and category==2) else 0)}),
-            'lean':({'type':'null'} if category==3 and not modern else p.obj({'type':p.TEXT,
-                'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if modern and planning else p.TEXT}))}))
+                'evidence':p.array(evidence,minItems=1 if category==4 or category==2 else 0)}),
+            'lean':p.obj({'type':p.TEXT,
+                'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if planning else p.TEXT})}))
     dependency=p.choice(*branches)
-    return p.obj({'version':p.literal(version),**({'global_graph':basis_graph.schema()} if modern else {}),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
+    return p.obj({'version':p.literal(version),'global_graph':basis_graph.schema(),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
         'dependencies':p.array(dependency),'replacements':p.array(p.obj({
             'original_dependency':p.TEXT,'replacement':p.array(p.TEXT,minItems=1),'explanation':p.TEXT}))})
 
 
 def validate(value, target):
     import artifact_protocol as p
-    if not isinstance(value,dict) or value.get('version') not in {LEGACY_VERSION,VERSION}:
+    if not isinstance(value,dict) or value.get('version') != VERSION:
         raise ValueError('Unknown basis protocol version')
-    modern = value['version']==basis_graph.VERSION
     p.validate(value,artifact_schema(value['version']))
-    if modern:basis_graph.active(value)
+    basis_graph.active(value)
     if value['full_target']!=target:raise ValueError('Basis must preserve the complete original selected target verbatim')
     text(value['proof'], 'basis proof')
     header = value['lean_header'];text(header, 'basis Lean header')
@@ -103,24 +99,21 @@ def validate(value, target):
             if not isinstance(port,str) or not re.fullmatch(r'[EM]\d{3}',port) or port in ports:
                 raise ValueError('Invalid/duplicate basis port')
             ports.add(port)
-        if category==3 and modern:
+        if category==3:
             if compatibility!='internal' or (port and not port.startswith('E')) or not row['uses']:
                 raise ValueError('A prepared derivation needs reducible dependencies and an optional discharge port')
             ir.type_text(row['lean']['type']);ir.proof_text(row['lean']['proof'])
-        elif category==3:
-            if port is not None or compatibility!='internal' or row['lean'] is not None or not row['uses']:
-                raise ValueError('Class 3 is an internal concrete derivation, never an E premise')
         else:
             lean = row['lean']
             ir.type_text(lean['type'])
             if category==4:
-                if compatibility!='unresolved' or lean['proof'] is not None or (not modern and not port) or (port and not port.startswith('E')):
+                if compatibility!='unresolved' or lean['proof'] is not None or (port and not port.startswith('E')):
                     raise ValueError('Class 4 remains an explicit E with no claimed proof')
             else:
                 if compatibility not in {'native','adapted'}:raise ValueError('Separate proof origin from native/adapted compatibility')
                 ir.proof_text(lean['proof'])
                 if category==2 or compatibility=='adapted':
-                    if (not modern or port) and (not port or not port.startswith('E')):raise ValueError('Prepared library/adapted proofs need provisional E ports')
+                    if port and not port.startswith('E'):raise ValueError('Prepared library/adapted proofs need provisional E ports')
                 elif port is not None and not port.startswith('M'):
                     raise ValueError('Native Mathlib uses direct access or optional M ports')
         rows[key] = row
@@ -451,7 +444,7 @@ def run(job, budget, progress):
                                     'text_sha256':hashlib.sha256((active/document).read_text().encode()).hexdigest()})
         context['staged_evidence']=staged_evidence
         (active/'basis-proof.md').write_text(artifact['proof']);write(active/'basis-registry.json',artifact)
-        if artifact['version']==basis_graph.VERSION:write(active/'global-nl0.json',artifact['global_graph'])
+        write(active/'global-nl0.json',artifact['global_graph'])
         write(active/CONTEXT, context);manifest(active)
         write(root/'basis-selection.json',{'context':bind(active/CONTEXT),'inputs':bind(active/'inputs.json')})
         sessions.close_all('BASIS_PREPARED',[validator.selected/'checked.json',out/'review/report.json'])
@@ -612,16 +605,13 @@ def check_interface(context, contract, graph=None, *, step_instances=None):
     ports=basis_graph.handoff().by_port(artifact,graph)
     expected = {p:r for p,r in ports.items() if p.startswith('E')}
     actual = {p['id']:p for p in contract['premises'] if p['kind']=='external'}
-    if artifact['version']==basis_graph.VERSION:
-        expected.update({p:r for p,r in ports.items() if p.startswith('M')})
-        active=set(expected)
-        if graph is not None:
-            basis_graph.verify_handoff(artifact,graph)
-            active.intersection_update(p['id'] for p in graph['propositions'])
-        actual.update({p['id']:p for p in contract['premises'] if p['kind']=='mathlib' and p['id'] in expected})
-        ir.need(set(actual)==active,'Interface changed the foundation ports used by the selected NL0 graph')
-    else:
-        ir.need(set(expected)==set(actual),'Interface changed prepared basis E ports')
+    expected.update({p:r for p,r in ports.items() if p.startswith('M')})
+    active=set(expected)
+    if graph is not None:
+        basis_graph.verify_handoff(artifact,graph)
+        active.intersection_update(p['id'] for p in graph['propositions'])
+    actual.update({p['id']:p for p in contract['premises'] if p['kind']=='mathlib' and p['id'] in expected})
+    ir.need(set(actual)==active,'Interface changed the foundation ports used by the selected NL0 graph')
     for key,row in actual.items():
         ir.need(row['type']==expected[key]['lean']['type'] and row['statement']==expected[key]['statement'],
             'Interface changed prepared basis type/context at '+key)

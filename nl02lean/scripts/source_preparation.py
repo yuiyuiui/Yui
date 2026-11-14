@@ -224,7 +224,7 @@ def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
     started = time.monotonic()
     graph, spec, patch_path, out = [Path(x).resolve() for x in (graph, spec, patch_path, out)]
     data, baseline_paths = read_source(graph, spec, audit_a, incremental)
-    ir.need(data[1]['format_version'] == 2, 'incremental acceptance requires current v2 source; legacy experiments stay development-only')
+    ir.need(data[1]['format_version'] == 2, 'incremental acceptance requires the current source format')
     patch = ir.load(patch_path)
     ir.need(patch['baseline_graph_sha256'] == ir.digest(graph) and patch['spec_sha256'] == ir.digest(spec), 'patch binds a different baseline')
     revised, cuts = apply_patch(data[1], patch)

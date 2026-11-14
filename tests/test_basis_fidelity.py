@@ -18,12 +18,6 @@ from role_sessions import Sessions
 
 
 class BasisFidelityTests(unittest.TestCase):
-    def test_historical_review_reads_its_own_keys_and_cannot_be_reused_as_a_new_review(self):
-        self.assertEqual(basis_review.rule_for(self.packet,basis_review.PRE_NUMBERING_RULE),basis_review.PRE_NUMBERING_RULE)
-        self.assertNotEqual(basis_review.item_keys(self.packet,basis_review.PRE_NUMBERING_RULE),
-                            basis_review.item_keys(self.packet))
-        with self.assertRaises(ValueError):
-            basis_review.rule_for(self.packet,'unknown')
 
     @classmethod
     def setUpClass(cls):
@@ -38,14 +32,14 @@ class BasisFidelityTests(unittest.TestCase):
     def tearDownClass(cls):cls.scratch.cleanup()
 
     def test_one_review_for_all_formal_items_reports_the_real_proposition(self):
-        self.assertEqual(self.packet['required'],['B001','B002'])
+        self.assertEqual(self.packet['required'],['B001','B002','B003'])
         self.assertEqual({ref['path'] for ref in ir.load(self.context['semantic_review']['path'])['assessments'].values()},
                          {str(self.batch)})
         item=self.packet['items']['B002']
         self.assertIn('∀',item['actual_type'])
         self.assertIn('Nat',item['actual_type'])
         self.assertTrue(item['signature'])
-        self.assertNotIn('actual_type',self.packet['items']['B003'])
+        self.assertIn('actual_type',self.packet['items']['B003'])
         self.assertEqual(basis.verify_context(self.context),self.value)
 
     def test_affected_dependency_component_and_common_target_force_fresh_assessment(self):
@@ -54,10 +48,10 @@ class BasisFidelityTests(unittest.TestCase):
             candidate=deepcopy(self.packet);transform(candidate)
             keys=basis_review.item_keys(candidate)
             return {k for k in original if original[k]!=keys[k]}
-        self.assertEqual(changed(lambda p:p['items']['B003'].update(statement='Modified internal use.')),{'B001'})
+        self.assertEqual(changed(lambda p:p['items']['B003'].update(statement='Modified internal use.')),{'B001','B003'})
         self.assertEqual(changed(lambda p:p['items']['B002'].update(actual_type='True')),{'B002'})
-        self.assertEqual(changed(lambda p:p.update(proof='Changed common route.')),{'B001','B002'})
-        self.assertEqual(changed(lambda p:p['documents'].update({'problem.md':'different bytes'})),{'B001','B002'})
+        self.assertEqual(changed(lambda p:p.update(proof='Changed common route.')),{'B001','B002','B003'})
+        self.assertEqual(changed(lambda p:p['documents'].update({'problem.md':'different bytes'})),{'B001','B002','B003'})
 
     def test_exact_rows_and_coverage_reject_missing_foreign_unassessed_and_empty_judgments(self):
         raw=ir.load(self.batch.parent/'stage/accepted.json')
@@ -118,7 +112,7 @@ class BasisFidelityTests(unittest.TestCase):
                         sessions.close_all('BASIS_PREPARED',[out/'review/report.json'])
             return calls,ref,issues
         calls,first,issues=assess('0002',self.value,True)
-        self.assertEqual(calls,[['B001','B002']]);self.assertEqual(set(issues),{'B002'})
+        self.assertEqual(calls,[['B001','B002','B003']]);self.assertEqual(set(issues),{'B002'})
         with self.assertRaises(StageFailure) as exc:assess('0003',self.value)
         self.assertEqual(exc.exception.result['status'],'REPAIR_CYCLE')
         second=deepcopy(self.value);second['dependencies'][1]['statement']+=' Revised natural-number scope.'
@@ -141,7 +135,7 @@ class BasisFidelityTests(unittest.TestCase):
                 feedback=stage.dispatch(name,args)
                 self.assertIn('B002',feedback['error'])
                 self.assertIn('actual_type_location',feedback['error'])
-                self.assertEqual(stage.validator.progress()['remaining'],['/items/B001','/items/B002'])
+                self.assertEqual(stage.validator.progress()['remaining'],['/items/B001','/items/B002','/items/B003'])
             return synthetic_review(stage,saved_via='record')
         with patch.object(ArtifactStage,'_execute',review):
             receipt,issues=basis_review.assess(out,context,self.value,sessions,None,{})

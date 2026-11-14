@@ -14,7 +14,7 @@ import strategy_bank as bank
 SOURCE = {'lean_version': '4.32.2',
           'mathlib_commit': '905b95818eb32af7874a58b427f50c1711a5e96c',
           'basis': 'historical_configuration'}
-VERSIONS = ('4.32.2', '4.35.0', '4.99.0', 'NOT_SELECTED', None)
+VERSIONS = (SOURCE['lean_version'], '0.0.1', '99.0.0', 'NOT_SELECTED', None)
 
 
 class CrossVersionReferences(unittest.TestCase):

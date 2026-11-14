@@ -42,6 +42,7 @@ class NativeBasisDependencies(unittest.TestCase):
             typ='∀ a b : ℕ, a + b = b + a'
             value=artifact(dependency('B001',typ=typ,proof='intro a b; exact Nat.add_comm a b'),
                 dependency('B002',2,typ=typ,proof='intro a b; simpa only [← YuiBasis.B001]'))
+            value['dependencies'][1]['uses']=['B001']
             context=checked_context(root,value)
             native=ir.load(Path(context['native']['path']).parent/'elaborated.json')
             self.assertTrue(any(r['name'].startswith('YuiBasis.B002.') for r in native['dependencies']['declarations']))

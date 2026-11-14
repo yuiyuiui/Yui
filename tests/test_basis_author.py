@@ -113,7 +113,7 @@ class BasisDraftTests(unittest.TestCase):
         self.assertFalse(row['stage_complete']);self.assertEqual(row['feedback_kind'],'author_action_required')
         self.assertIsNone(self.stage.accepted)
 
-    def test_malformed_legacy_obstacle_is_candidate_feedback_not_execution_fault(self):
+    def test_obsolete_obstacle_wrapper_is_rejected_as_candidate_feedback(self):
         for value in ('[]','null','"text"','{invalid'):
             with self.subTest(value=value):
                 row=self.stage.dispatch('report_obstacle',{'obstacle_json':value})

@@ -594,7 +594,7 @@ class Stage(carrier.Trial):
             files = []
             for path in [*ir.ROOT.glob('nl0/scripts/*.py'), *ir.HERE.glob('scripts/*.py'),
                          *ir.ROOT.glob('workflow/blocks/*.py'),
-                         ir.ROOT/'toolchain/legacy/lean-mathlib.json', ir.ROOT/'config.json']:
+                         ir.ROOT/'config.json']:
                 target = self.logs/'harness-snapshot'/path.relative_to(ir.ROOT)
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)
@@ -780,4 +780,3 @@ class Stage(carrier.Trial):
             if result.get('status')=='CANCELLED':self.release_resources('USER_CANCELLED')
         if case_deadline is not None:raise case_deadline
         return result,self.accepted
-

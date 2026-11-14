@@ -199,7 +199,7 @@ actual assembly closes every dependency. Failure leaves the root unfinished.
 
 `run_graph.py --max-concurrency auto|N` remains a frozen-port-only command;
 `model_pilot.py` provides the internal isolated proof stage. Neither alone
-claims whole-proof Audit B. Integer `--workers` / `--max-model-stages` remain
+claims whole-proof Audit B. Integer `--max-concurrency` / `--max-model-stages` remain
 compatibility aliases, with conflicts rejected.
 
 ## 6. Execute Audit B and finish
@@ -227,9 +227,9 @@ unverified output pauses for an explicit `final-decision` command. Source warnin
 never become ordinary PASS. Invalid compilation, `sorry`, dependency failure or
 changed provenance cannot be overridden by a semantic review.
 
-The lower-level legacy/manual path remains available through
+The explicit development review path is available through
 `audit-check --review /absolute/completed-review.json`. It requires an actual
-located review under its historical schema. A pending template never passes,
+located review under the current schema. A pending template never passes,
 and it does not acquire a pre-proof semantic history by being compiled.
 
 Only a genuine whole-source Audit B pass yields `WORKFLOW-PASSED`. Retain failed
@@ -247,8 +247,7 @@ hash, and retain each node's notes as on-demand implementation references. Do
 not pre-type or promote every note into an additional M input. The controller
 attaches exact note IDs to the relevant paragraphs. This requires no source
 rewrite and no fresh Audit A. Mathlib use is globally available in stage two;
-notes remain local references, not permissions. Legacy `promoted_inputs` contracts
-remain supported for reproducibility.
+notes remain local references, not permissions.
 
 Preserving this authority does not require every proof worker to read every
 justification. Its initial prompt contains a compact index for its selected

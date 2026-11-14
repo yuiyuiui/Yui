@@ -74,18 +74,18 @@ class RequirementSelectionTests(unittest.TestCase):
         self.assertEqual(code,1)
         self.assertIn('Missing selected environment',json.loads((self.root/'missing.json').read_text())['error'])
 
-    def test_selected_fixture_projection_does_not_rewrite_original_or_history(self):
+    def test_selected_fixture_projection_does_not_rewrite_unrelated_inputs(self):
         source=self.root/'source';(source/'lean/examples/simple').mkdir(parents=True)
-        (source/'legacy').mkdir()
+        (source/'unrelated').mkdir()
         contract=source/'lean/examples/simple/contract.json'
-        contract.write_text(json.dumps({'pins':{'lean_version':'historical','mathlib_commit':'b'*40}}))
-        history=source/'legacy/evidence.json';history.write_bytes(b'Immutable historical proof evidence')
+        contract.write_text(json.dumps({'pins':{'lean_version':'UNSELECTED','mathlib_commit':'b'*40}}))
+        history=source/'unrelated/evidence.json';history.write_bytes(b'Unrelated fixture input')
         before={p.relative_to(source):p.read_bytes() for p in source.rglob('*') if p.is_file()}
         selected={'lean':{'version_number':'chosen'},'mathlib':{'rev':'c'*40}}
         out=prepare(source,self.root/'selected',selected)
         self.assertEqual(json.loads((out/'lean/examples/simple/contract.json').read_text())['pins'],
                          {'lean_version':'chosen','mathlib_commit':'c'*40})
-        self.assertEqual((out/'legacy/evidence.json').read_bytes(),history.read_bytes())
+        self.assertEqual((out/'unrelated/evidence.json').read_bytes(),history.read_bytes())
         self.assertEqual(before,{p.relative_to(source):p.read_bytes() for p in source.rglob('*') if p.is_file()})
 
 

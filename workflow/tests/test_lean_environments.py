@@ -11,7 +11,7 @@ rules = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(rules)
 
 
-def candidate(version='4.35.0', revision='b' * 40, root='/tools/new'):
+def candidate(version='0.0.2', revision='b' * 40, root='/tools/new'):
     return {'version': 'yui-lean-environment-1',
             'lean': {'toolchain': 'leanprover/lean4:v' + version,
                      'version': 'Lean (version ' + version + ', example, Release)',
@@ -30,7 +30,7 @@ class EnvironmentSelection(unittest.TestCase):
         self.assertEqual(rules.select([expected]), expected)
 
     def test_two_versions_require_an_explicit_choice(self):
-        old = candidate('4.32.2', 'f' * 40, '/tools/old')
+        old = candidate('0.0.1', 'f' * 40, '/tools/old')
         with self.assertRaises(rules.SelectionRequired) as caught:
             rules.select([old, candidate()])
         request = caught.exception.request
@@ -40,11 +40,11 @@ class EnvironmentSelection(unittest.TestCase):
         self.assertIn('versions', request['choices'])
 
     def test_explicit_version_and_exact_revision_select_the_requested_pair(self):
-        old = candidate('4.32.2', 'f' * 40, '/tools/old')
+        old = candidate('0.0.1', 'f' * 40, '/tools/old')
         expected = candidate()
-        self.assertEqual(rules.select([old, expected], lean_version='4.35.0'), expected)
+        self.assertEqual(rules.select([old, expected], lean_version='0.0.2'), expected)
         self.assertEqual(rules.select([old, expected], mathlib_ref='b' * 40), expected)
-        self.assertEqual(rules.select([old, expected], mathlib_ref='v4.32.2'), old)
+        self.assertEqual(rules.select([old, expected], mathlib_ref='v0.0.1'), old)
 
     def test_aliases_of_the_same_pair_are_one_choice(self):
         expected = candidate()
@@ -53,15 +53,15 @@ class EnvironmentSelection(unittest.TestCase):
     def test_same_version_with_two_revisions_is_still_ambiguous(self):
         with self.assertRaises(rules.SelectionRequired):
             rules.select([candidate(), candidate(revision='f' * 40, root='/tools/other')],
-                         lean_version='4.35.0')
+                         lean_version='0.0.2')
 
     def test_missing_unavailable_and_incompatible_choices_never_fall_back(self):
-        for rows, selection in (([], {}), ([candidate()], {'lean_version': '4.99.0'}),
+        for rows, selection in (([], {}), ([candidate()], {'lean_version': '0.0.3'}),
                                 ([candidate()], {'mathlib_ref': 'missing'})):
             with self.subTest(selection=selection), self.assertRaises(rules.SelectionRequired):
                 rules.select(rows, **selection)
         wrong = candidate()
-        wrong['lean']['toolchain'] = 'leanprover/lean4:v4.32.2'
+        wrong['lean']['toolchain'] = 'leanprover/lean4:v0.0.1'
         with self.assertRaises(ValueError):
             rules.validate(wrong)
 
@@ -79,7 +79,7 @@ class EnvironmentSelection(unittest.TestCase):
         selected = rules.select([value])
         selected['lean']['local_path'] = '/unrelated'
         self.assertEqual(value, original)
-        self.assertEqual(rules.pins(value), {'lean_version': '4.35.0',
+        self.assertEqual(rules.pins(value), {'lean_version': '0.0.2',
                          'mathlib_commit': 'b' * 40, 'mathlib_root': '/tools/new/mathlib'})
         self.assertEqual(rules.pins(None), {'lean_version': 'NOT_SELECTED',
                          'mathlib_commit': 'NOT_SELECTED', 'mathlib_root': 'NOT_SELECTED'})

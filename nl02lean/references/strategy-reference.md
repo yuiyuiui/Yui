@@ -8,16 +8,14 @@ responses and immutable bank snapshots still apply.
 Each catalog entry and full card discloses `reference_environments`, pairing a
 Lean version with an exact Mathlib revision. `basis: historical_configuration`
 describes the recorded reference context. It does not claim the procedure was
-compiled or proven effective in that environment. The current curated cards
-retain the Lean 4.32.2 / Mathlib 905b95818eb32af7874a58b427f50c1711a5e96c
-configuration present in their historical repository revisions.
+compiled or proven effective in that environment. The paired origin is recorded on each card; it is independent of the selected
+task environment.
 
 Current replies use `StrategyReply@2` and explicitly carry `reference_only` and
 `current_environment_verification_required`. A reader must adapt APIs, syntax,
 types and hypotheses and check its actual implementation in the task's selected
 environment. Reading a card never grants a premise, review verdict, frozen
-interface or proof acceptance. The historical `StrategyReply@1` contract is
-retained for prior snapshots. New bank indexes use format 3.
+interface or proof acceptance. Replies use `StrategyReply@2`; bank indexes use format 3.
 
 Explicit ID lookup can read every card. Ranked search still reports missing
 prerequisites and can omit a recommendation because of relevance or reported

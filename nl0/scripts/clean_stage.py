@@ -255,7 +255,7 @@ class ArtifactStage(pilot.Stage):
         snapshot.mkdir()
         source_files = [*CORE.glob('nl0/scripts/*.py'), *CORE.glob('nl02lean/scripts/*.py'),
                         *CORE.glob('workflow/blocks/*.py'),
-                        CORE/'toolchain/legacy/lean-mathlib.json', CORE/'config.json']
+                        CORE/'config.json']
         files = []
         for path in source_files:
             destination = snapshot/path.relative_to(CORE)
@@ -518,15 +518,14 @@ class ArtifactStage(pilot.Stage):
                 self.accepted=basis_defect.locate(run_root(self.logs),self.logs,deepcopy(args))
                 result={'accepted':True,'stage_complete':True,'status':basis_defect.STATUS}
             elif name == 'report_obstacle':
-                value = (json.loads(args['obstacle_json'], object_pairs_hook=pilot.ir.unique)
-                         if set(args)=={'obstacle_json'} else deepcopy(args))
+                value = deepcopy(args)
                 shape=obstacle_schema(self.artifact_kind)
                 if not isinstance(value,dict) or set(value) != set(shape['required']):
                     required=set(shape['required'])
                     raise ValueError('OBSTACLE_FIELDS: required direct fields='+repr(sorted(required))+
                         '; missing='+repr(sorted(required-set(value)) if isinstance(value,dict) else sorted(required))+
                         '; unexpected='+repr(sorted(set(value)-required) if isinstance(value,dict) else [])+
-                        '. Use the published function schema; legacy obstacle_json is accepted only as the sole wrapper field.')
+                        '. Use the published direct-field function schema.')
                 if value['status']=='TASK_INCOMPLETE' and self.artifact_kind=='nl0':
                     raise ValueError('AUTHOR_ACTION_REQUIRED: unfinished drafting is not an obstacle. '
                         'Continue a concrete source lookup, draft or local edit.')

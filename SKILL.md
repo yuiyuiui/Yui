@@ -23,7 +23,7 @@ approved conditional fallback or source-qualified result as unconditional.
 These optional stages reuse the two existing model profiles and controllers.
 
 The installed skill root is the directory containing this `SKILL.md`. Keep
-`config.json`, `nl0/`, `nl02lean/` and `toolchain/` beside it; no enclosing
+`config.json`, `nl0/` and `nl02lean/` beside it; no enclosing
 `rigorous-proof/` subdirectory or particular checkout name is required.
 
 New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A basis request freezes the reviewed foundation inventory and supplies a structured graph seed. Direct NL0 builds its working graph from the original input. In both routes NL0 owns intermediate statements and dependency edges. Local authors may request a located graph repair. Independent Audit A reviews the selected complete revision before delivery or Lean. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
@@ -114,11 +114,6 @@ a selected B-final user decision is a separate authority. Keep
 scientific evidence and the selected profile. A pause is nonterminal: never
 restart it or delete its monitor. Existing exited-run recovery is historical,
 not a substitute for live `resume-error` controls.
-An explicitly authorized `--after-access-restored` continuation separately
-supports a verified provider HTTP403 stop at the NL0/Audit A boundary. It checks
-authenticated model metadata without inference before preparation and launch;
-403 stays excluded from automatic retries. Preserve old faults/costs and disclose
-the new runtime and unreleased-author scope in that operation reference.
 For a previously stopped inherited probe-directory collision, the same operation
 reference documents a separate guarded `--repair-local-tool` continuation after
 verified software repair and explicit owner authorization; it restores the saved

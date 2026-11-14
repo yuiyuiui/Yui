@@ -28,7 +28,7 @@ class BasisSchemaTests(unittest.TestCase):
             dependency('B003',2),dependency('B004',3),dependency('B005',4))
         rows,order=basis.validate(value,TARGET)
         self.assertEqual(set(order),set(rows));self.assertEqual(rows['B002']['category'],1)
-        self.assertIsNone(rows['B004']['port'])
+        self.assertEqual(rows['B004']['port'],'E004')
 
     def test_missing_extra_or_unknown_basis_fields_fail(self):
         for name in artifact():
@@ -51,7 +51,7 @@ class BasisSchemaTests(unittest.TestCase):
             with self.subTest(change=change),self.assertRaises(ValueError):basis.validate(value,TARGET)
 
     def test_class3_cannot_be_an_assumption_or_depend_on_unresolved4(self):
-        for change in ({'port':'E003'},{'lean':{'type':'True','proof':'trivial'}},{'uses':[]},{'uses':['B004']}):
+        for change in ({'port':None},{'lean':None},{'uses':[]},{'uses':['B004']}):
             value=artifact(dependency(),dependency('B003',3),dependency('B004',4))
             value['dependencies'][1].update(change)
             with self.subTest(change=change),self.assertRaises(ValueError):basis.validate(value,TARGET)
@@ -77,13 +77,13 @@ class BasisSchemaTests(unittest.TestCase):
             with self.subTest(category=category),self.assertRaises(ValueError):basis.validate(artifact(first,second),TARGET)
 
     def test_native_adapted_and_library_ports(self):
-        for category,compatibility,port in [(1,'native','E001'),(1,'adapted',None),(2,'native','M001')]:
+        for category,compatibility,port in [(1,'native','E001'),(1,'adapted','M001'),(2,'native','M001')]:
             row=dependency(category=category,compatibility=compatibility);row['port']=port
             with self.subTest(row=row),self.assertRaises(ValueError):basis.validate(artifact(row),TARGET)
 
     def test_class4_requires_retained_evidence_and_no_claimed_proof(self):
         for change in ({'origin':{'kind':'textbook','reference':'X','revision':'X','evidence':[]}},
-                {'lean':{'type':'True','proof':'trivial'}},{'port':None},{'compatibility':'adapted'}):
+                {'lean':{'type':'True','proof':'trivial'}},{'compatibility':'adapted'}):
             row=dependency(category=4);row.update(change)
             with self.subTest(change=change),self.assertRaises(ValueError):basis.validate(artifact(row),TARGET)
 
@@ -127,10 +127,10 @@ class BasisJobTests(unittest.TestCase):
         self.proof=self.root/'proof.md';self.proof.write_text('Theorem 1. '+TARGET)
     def tearDown(self):self.temp.cleanup()
 
-    def test_legacy_jobs_and_default_are_conditional(self):
+    def test_default_mode_is_conditional(self):
         job=jobs.prepare(self.proof,track='full',profiles=PROFILES)
         self.assertEqual(basis.mode(job),'conditional');self.assertEqual(basis.mode({}),'conditional')
-        # Re-seal a historical job with no new optional field.
+        # Re-seal the current job with its optional default mode omitted.
         del job['formalization'];write(Path(job['root'])/'job.json',job)
         marker=ir.load(Path(job['root'])/jobs.MARKER);marker['job']=bind(Path(job['root'])/'job.json')
         write(Path(job['root'])/jobs.MARKER,marker)
@@ -232,7 +232,7 @@ class BasisNativeTests(unittest.TestCase):
     def test_real_prepared_basis_types_proofs_and_trust(self):
         self.assertEqual(basis.verify_context(self.context),self.value)
         check=basis_native.verify(self.context['native']['path'])
-        self.assertEqual({row[0] for row in check['checks']},{'B001','B002','B003'})
+        self.assertEqual({row[0] for row in check['checks']},{'B001','B002','B003','B004'})
 
     def test_bad_proof_and_unresolved_type_return_native_nonpass(self):
         for name,source in [('bad','import Mathlib\ntheorem Bad : False := by trivial\n'),

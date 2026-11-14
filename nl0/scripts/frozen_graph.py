@@ -17,7 +17,6 @@ BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 ASSIGNED = 'assigned-global.json'
 DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
-LEGACY_BASIS = 'basis-global-metadata'
 LOCAL = 'nl0-local-authoring'
 OBJECT = {'type':'object', 'additionalProperties':True}
 
@@ -57,7 +56,7 @@ def checked_receipt(source, owner, *, foundation=None, previous=None):
 def read_receipt(binding):
     verify_bindings([binding])
     record = nl0.load(binding['path'])
-    owners={'yui-global-1':(DIRECT,LEGACY_BASIS),'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,)}
+    owners={'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,)}
     if record['owner'] not in owners.get(record['version'],()):
         raise ValueError('Unknown global graph authority')
     verify_bindings([record['spec'],record['graph']]+([record['foundation']] if 'foundation' in record else []))

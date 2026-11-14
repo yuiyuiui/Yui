@@ -19,10 +19,6 @@ from runtime_config import validate_profile
 from variant import OUTPUT_DIRECTORY
 
 VERSION = 'yui-case-job-6'
-CATALOG_FREE_VERSION = 'yui-case-job-5'
-ATTACHMENT_VERSION = 'yui-case-job-4'
-ENVIRONMENT_VERSION = 'yui-case-job-3'
-LEGACY_VERSION = 'yui-case-job-2'
 MARKER = '.yui-run.json'
 TRACKS = {'nl0','full','translate','audit-b'}
 
@@ -83,8 +79,9 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
     if resume and lean_libraries:raise ValueError('Recovery inherits frozen Lean libraries; do not attach a replacement')
     if resume:
         prior = json.loads((Path(resume['prior_run'])/'job.json').read_text())
-        selected = (prior.get('lean_environment') if 'lean_environment' in prior else
-                    environments.legacy() if prior['track'] != 'nl0' else None)
+        if prior.get('version') != VERSION:
+            raise ValueError('Unsupported task format; start a new task with the current Yui version')
+        selected = prior['lean_environment']
         if lean_environment is not None and lean_environment != selected:
             raise ValueError('Recovery cannot change the frozen Lean environment')
     else:
@@ -218,8 +215,11 @@ def scientific_context(job):
     import lean_environment as environments
     import lean_libraries
     from runtime_config import use_environment
-    selected=(job.get('lean_environment') if 'lean_environment' in job else
-              environments.legacy() if job.get('version')==LEGACY_VERSION and job.get('track')!='nl0' else None)
+    if job.get('version') != VERSION:
+        raise ValueError('Unsupported task format; start a new task with the current Yui version')
+    if 'lean_environment' not in job:
+        raise ValueError('Task must record its Lean environment or explicit NL0 null')
+    selected=job['lean_environment']
     import local_config
     with local_config.use(job.get('local_configuration')),use_environment(selected),lean_libraries.generated(None),lean_libraries.use(job.get('lean_libraries',[])), \
             lean_libraries.generated(Path(job['root'])/'imported-lean'):
@@ -249,15 +249,10 @@ def validate(job, *, verify_runtime=True):
 
 
 def _validate(job, *, verify_runtime=True):
-    if job.get('version') not in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
-        raise ValueError('Unsupported explicit case job')
-    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION} and 'lean_environment' not in job:
-        raise ValueError('A v3/v4/v5 job must freeze its Lean selection or explicit NL0 null')
-    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION} and 'lean_libraries' not in job:
-        raise ValueError('A v4/v5 job must freeze its explicit Lean library scope')
-    if job['version'] in {VERSION,CATALOG_FREE_VERSION} and ('runtime_snapshot' not in job
-            or 'library_root' in job['runtime_snapshot']):
-        raise ValueError('A v5/v6 job requires a catalog-free runtime snapshot')
+    if job.get('version') != VERSION or job.get('track') not in TRACKS:
+        raise ValueError('Unsupported task format; start a new task with the current Yui version')
+    if 'runtime_snapshot' not in job or set(job['runtime_snapshot']) != {'root','manifest'}:
+        raise ValueError('Task requires the current executable snapshot format')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'stop_after' in job:
@@ -270,14 +265,11 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Unknown public workflow protocol or track')
         expected.add('workflow_protocol')
     if 'resume' in job:expected.add('resume')
-    if job['version'] not in {VERSION,CATALOG_FREE_VERSION} and 'library_catalog' in job:expected.add('library_catalog')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
     if 'formalization' in job:expected.add('formalization')
-    if 'lean_environment' in job:expected.add('lean_environment')
-    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION}:expected.add('lean_libraries')
-    if job['version']==VERSION:expected.add('local_configuration')
+    expected.update({'lean_environment','lean_libraries','local_configuration'})
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
     if job.get('local_configuration') is not None:
@@ -347,16 +339,12 @@ def _validate(job, *, verify_runtime=True):
         validate_descriptor(job)
         import basis
         prior=json.loads((Path(job['resume']['prior_run'])/'job.json').read_text())
-        if 'lean_environment' in prior and job.get('lean_environment') != prior['lean_environment']:
+        if job['lean_environment'] != prior['lean_environment']:
             raise ValueError('Recovery changed the frozen Lean environment')
         if basis.mode(prior)!=basis.mode(job):raise ValueError('Recovery changed formalization goal')
         if not all(r in job['authority_bindings'] for r in basis.recovery_bindings(prior)):
             raise ValueError('Recovery omitted prepared basis bindings')
     if verify_runtime:
         import runtime_snapshot
-        if 'runtime_snapshot' in job:
-            runtime_snapshot.validate(job)
-        else:
-            verify_bindings(job['runtime'])
-        runtime_snapshot.validate_retired_catalog_binding(job)
+        runtime_snapshot.validate(job)
     return job

@@ -58,7 +58,7 @@ def numbered_seed(registry, previous=None):
 
 
 def by_port(registry, graph=None):
-    """Resolve the selected graph against the frozen registry, including older artifacts."""
+    """Resolve the selected graph against the frozen registry, using registered ports before label assignment."""
     rows = {r['id']: r for r in registry['dependencies']}
     if graph is None or FIELD not in graph:
         return {r['port']:r for r in rows.values() if r['port']}

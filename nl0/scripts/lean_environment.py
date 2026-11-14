@@ -209,15 +209,6 @@ def resolve(*, lean_root=None, mathlib_root=None, lean_version=None, mathlib_ref
         raise
 
 
-def legacy(lock=None):
-    """Old jobs have their own portable version pin; discovery cannot replace it."""
-    historical=CORE/'toolchain/legacy/lean-mathlib.json'
-    lock = lock or json.loads((historical if historical.is_file() else CORE/'toolchain/lock.json').read_text())
-    version = lock['lean']['toolchain'].split(':v', 1)[1]
-    shared = Path.home()/('formalization-tools/lean-mathlib-v' + version)
-    value = resolve(lean_root=shared/'lean', mathlib_root=shared/'mathlib', lean_version=version,
-                    mathlib_ref=lock['mathlib']['rev'])
-    return value
 
 
 def _elan_lean(elan, toolchain):

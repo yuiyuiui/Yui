@@ -70,7 +70,7 @@ def require_canonical(logic):
 
 
 def packet_logic(logic):
-    """Author descriptions never become packet permissions, including legacy input."""
+    """Author descriptions never become packet permissions, including author-supplied metadata."""
     value = deepcopy(logic)
     value['calculations'] = [key+': '+description for key, description in CALCULATIONS.items()]
     return value

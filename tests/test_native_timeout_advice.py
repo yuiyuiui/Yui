@@ -98,7 +98,7 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         with patch.object(bank,'search',side_effect=AssertionError('No advice lookup')):
             for result in cases:
                 with self.subTest(result=result):
-                    self.assertIsNone(bank.native_timeout_feedback(result,'4.32.2',None))
+                    self.assertIsNone(bank.native_timeout_feedback(result,'0.0.1',None))
         stage=self.stage()
         with patch.object(ir,'check',side_effect=RuntimeError('Native process cleanup could not be confirmed')):
             with self.assertRaisesRegex(RuntimeError,'cleanup'):stage.dispatch('check_transition',{'proof':'trivial'})
@@ -132,7 +132,7 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         missing=bank.freeze_native_timeout_policy(self.root/'missing-snapshot',bank=self.root/'absent-bank')
         self.assertEqual(missing['status'],'UNAVAILABLE')
         stage=self.stage();snapshot=stage.native_timeout_snapshot
-        other_version=bank.native_timeout_feedback(wall_timeout(),'4.99.0',snapshot)
+        other_version=bank.native_timeout_feedback(wall_timeout(),'0.0.3',snapshot)
         self.assertEqual(other_version['status'],'ADVICE_DELIVERED')
         self.assertTrue(other_version['reference_only'])
         self.assertTrue(other_version['current_environment_verification_required'])
@@ -146,8 +146,8 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         self.assertFalse(failed['accepted']);self.assertIsNone(stage.accepted)
 
     def test_new_job_runtime_bindings_include_strategy_data(self):
-        core=self.root/'runtime';(core/'toolchain/legacy').mkdir(parents=True)
-        for name in ('SKILL.md','config.json','toolchain/legacy/lean-mathlib.json'):
+        core=self.root/'runtime';core.mkdir(parents=True)
+        for name in ('SKILL.md','config.json'):
             (core/name).write_text('{}')
         shutil.copytree(bank.BANK,core/'nl02lean/bank')
         with patch.object(controller_common,'CORE',core):rows=controller_common.runtime_bindings()

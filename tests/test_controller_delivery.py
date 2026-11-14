@@ -25,7 +25,7 @@ class DeliveryPathTests(unittest.TestCase):
             for mode in ('incomplete', 'complete', 'incomplete-expired', 'recheck-then-deliver'):
                 problem = root/mode/'problem.txt';problem.parent.mkdir()
                 problem.write_bytes((harness_support.FIXTURES/'closed-addition/problem.txt').read_bytes())
-                job = harness_support.historical_job(problem, track='full',
+                job = harness_support.direct_controller_job(problem, track='full',
                                    profiles=harness_support.PROFILES, max_concurrency=1,
                                    output=root/('run-'+mode),
                                    time_budget_seconds=60 if mode=='incomplete-expired' else None)

@@ -26,7 +26,7 @@ class ClosureUniverseMatrix(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
 
     def check(self,rows,*,parameters=(),premises=(),conclusion='True',body='exact True.intro',
-              header='import Mathlib\nuniverse u v w\n',legacy=False,passed=True,replace=None):
+              header='import Mathlib\nuniverse u v w\n',passed=True,replace=None):
         value=artifact(*rows);value['lean_header']=header
         external=[{'id':r['port'],'kind':'external','type':r['lean']['type']} for r in rows if r['port']]
         c={'header':header,'parameters':list(parameters),'premises':list(premises)+external,'conclusion':{'type':conclusion}}
@@ -36,18 +36,16 @@ class ClosureUniverseMatrix(unittest.TestCase):
         # obtains declaration parameters from Lean, including auto-generated ones.
         levels={'parameters':['u','v'],'export_used_parameters':['u','v']}
         with patch.object(basis,'verify_context',return_value=value),patch.object(basis,'check_interface'):
-            source,expected,retained=b2lean.render(c,{},conditional,levels,legacy=legacy)
+            source,expected,retained=b2lean.render(c,{},conditional,levels)
         if replace:source=replace(source)
         out=self.root/('check-'+str(len(list(self.root.iterdir()))))
         native=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out)
         self.assertEqual(native['passed'],passed,ir.load(out/'compiler.json')['stdout'][:6000])
         return native,ir.load(out/'elaborated.json'),retained
 
-    def test_two_private_levels_reproduce_old_failure_and_close_with_new_renderer(self):
+    def test_two_private_levels_close_without_escaping_into_the_export(self):
         row=dependency(category=2,typ='∀ (A : Type u) (B : Type v), True',proof='intro A B; trivial')
         body='exact h_E001 (ULift.{u} Unit) (ULift.{v} Unit)'
-        failed,_,_=self.check([row],body=body,legacy=True,passed=False)
-        self.assertIn('LEAN_COMPILE_FAILED',failed['errors'])
         _,native,_=self.check([row],body=body)
         declarations={r['name']:r for r in native['dependencies']['declarations']}
         self.assertIn('YuiBasis.B001',declarations)

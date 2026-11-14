@@ -1,7 +1,7 @@
 """Consume accepted Audit A notes without expanding the Lean premise inventory.
 
-The historical promoted-input mode remains readable. New translation runs keep
-the original NL0 boundary and carry notes as node-local, verified references.
+Translation keeps the original NL0 boundary and carries notes as node-local,
+verified references.
 This adapter never changes the accepted NL0 or its Audit A authority.
 """
 from copy import deepcopy
@@ -9,19 +9,16 @@ from copy import deepcopy
 import background
 
 REFERENCE_ONLY = 'node_local_reference'
-LEGACY = 'promoted_inputs'
 
 
 def mode(contract):
-    selected = contract.get('source', {}).get('background_mode', LEGACY)
-    if selected not in {REFERENCE_ONLY, LEGACY}:
+    selected = contract.get('source', {}).get('background_mode', REFERENCE_ONLY)
+    if selected != REFERENCE_ONLY:
         raise ValueError('Unsupported background consumption mode: '+str(selected))
     return selected
 
 
 def effective(data, selected=REFERENCE_ONLY):
-    if selected == LEGACY:
-        return background.effective(data)
     if selected != REFERENCE_ONLY:
         raise ValueError('Unsupported background consumption mode')
     return deepcopy(data[3]), deepcopy(data[4])

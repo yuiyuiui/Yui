@@ -34,6 +34,11 @@ You can use this workflow to review a proof just in natural language level with 
 
 After downloading Yui, ask Codex to execute [the local adaptation entry](setup/README.md), then start using the skill.
 
+The installation contains reusable code, instructions and synthetic software tests.
+Each proof task stores its inputs, progress and results in its own directory outside
+the installation. Current tasks record their own selected Lean/Mathlib environment;
+Yui does not infer one from an old global lock or read obsolete task formats.
+
 ### Use
 
 Open the folder containing your proof in Codex and ask, for example, `Use $rigorous-proof to formalize Theorem 1 in proof.pdf unconditionally.` You can also start the workflow from the repository root using the CLI.

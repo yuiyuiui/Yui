@@ -48,7 +48,6 @@ def parsers(commands):
     p=commands.add_parser('resume',help='Continue a supported, explicitly verified operational checkpoint')
     p.add_argument('runs',nargs='+',type=Path);p.add_argument('--case-concurrency',type=int)
     p.add_argument('--detach',action='store_true');p.add_argument('--prepare-only',action='store_true')
-    p.add_argument('--output',type=Path,help='Fresh owned output for one explicit restored-access continuation')
     repairs=p.add_mutually_exclusive_group()
     repairs.add_argument('--repair-basis',action='store_true',
         help='Revise a verified downstream basis defect in a new run, under the original budget')
@@ -62,8 +61,6 @@ def parsers(commands):
         help='Continue an exited frozen proof queue after recorded ENOSPC; retain own drafts and recheck bodies')
     repairs.add_argument('--repair-basis-closure',action='store_true',
         help='After cancellation and verified exit, repeat only failed final basis closure from accepted artifacts')
-    repairs.add_argument('--after-access-restored',action='store_true',
-        help='Explicitly recover a verified provider HTTP403 after a fresh authenticated non-inference access check')
     for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
@@ -128,13 +125,9 @@ def preflight_profiles(job):
 def launch(prepared, *, detached=False, case_concurrency=None):
     for job in prepared:jobs.validate(job);preflight_profiles(job)
     from runtime_config import verify, use_environment
-    import lean_environment
     for job in prepared:
-        selected = job.get('lean_environment') if 'lean_environment' in job else (
-            lean_environment.legacy() if job['track'] != 'nl0' else None)
+        selected = job['lean_environment']
         with use_environment(selected):verify()
-    import access_recovery
-    for job in prepared:access_recovery.before_launch(job)
     if detached:
         from owner_observation import handoff
         observation=handoff([job['root'] for job in prepared])
@@ -200,19 +193,13 @@ def dispatch(args):
         import native_cleanup_recovery
         import proof_io_recovery
         import basis_closure_recovery
-        if getattr(args,'after_access_restored',False):
-            if len(args.runs)!=1:raise ValueError('Select one exact run for manual restored-access recovery')
-            prepared=[interrupted.prepare(args.runs[0],after_access_restored=True,output=args.output)]
-        elif getattr(args,'output',None) is not None:
-            raise ValueError('--output requires the explicit --after-access-restored route')
-        else:
-            prepared=[basis_defect.prepare(path) if getattr(args,'repair_basis',False) else
-                  basis_closure_recovery.prepare(path) if getattr(args,'repair_basis_closure',False) else
-                  native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
-                  proof_io_recovery.prepare(path) if getattr(args,'repair_proof_io',False) else
-                  interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
-                  interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
-                  interrupted.prepare(path) for path in args.runs]
+        prepared=[basis_defect.prepare(path) if getattr(args,'repair_basis',False) else
+              basis_closure_recovery.prepare(path) if getattr(args,'repair_basis_closure',False) else
+              native_cleanup_recovery.prepare(path) if getattr(args,'repair_native_cleanup',False) else
+              proof_io_recovery.prepare(path) if getattr(args,'repair_proof_io',False) else
+              interrupted.prepare(path,repair_evidence=True) if args.repair_evidence else
+              interrupted.prepare(path,repair_local_tool=True) if args.repair_local_tool else
+              interrupted.prepare(path) for path in args.runs]
         if args.prepare_only:return {'status':'PREPARED_NOT_STARTED','runs':[job['root'] for job in prepared]}
         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
     if args.command in {'prepare','run'}:

@@ -131,27 +131,6 @@ def supplement(data, by_inference):
     return {**payload, 'sha256': digest(payload)}
 
 
-def effective(data):
-    """Derived dependency view; preserve canonical author bytes and proof paragraphs."""
-    props, steps = deepcopy(data[3]), deepcopy(data[4])
-    serial = 1
-    sources={(p.get('source',{}).get('declaration'),p['statement']):pid for pid,p in props.items() if p['kind']=='mathlib'}
-    for rid, notes in sorted(data[0].get('background_notes', {}).items()):
-        need(rid in steps, 'unknown supplemented inference')
-        steps[rid]['background_notes'] = deepcopy(notes)
-        for note in notes:
-            if note['kind'] != 'mathlib': continue
-            key=(note['source']['declaration'],note['fact'])
-            pid=sources.get(key)
-            if pid is None:
-                while f'M{serial:03d}' in props: serial += 1
-                pid = f'M{serial:03d}'; serial += 1
-                props[pid] = {'id': pid, 'kind': 'mathlib', 'statement': note['fact'],
-                             'definitions': steps[rid]['definitions'], 'binders': [], 'objects': [],
-                             'source': deepcopy(note['source']), 'background_origin': {'inference': rid, 'note': note['id']}}
-                sources[key]=pid
-            if pid not in steps[rid]['inputs']:steps[rid]['inputs'].append(pid)
-    return props, steps
 
 
 def source_from_probe(root, identifier):

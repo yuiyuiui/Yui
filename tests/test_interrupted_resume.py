@@ -34,7 +34,7 @@ class InterruptedResumeTests(unittest.TestCase):
         self.stage.mkdir(parents=True)
         self.failure={'status':'UNFINISHED','execution_health':'FAULT','isolation_violation':False,
             'execution_fault':'SYNTHETIC provider interruption',
-            'transport_health':{'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR',
+            'transport_health':{'status':'FAULT','faults':[{'kind':'NATIVE_PROVIDER_ERROR',
                 'details':{'code':'server_is_overloaded'}}],'uncertainty':[]}}
         self.write(self.stage/'result.json',self.failure)
         self.failed_turn(self.stage)

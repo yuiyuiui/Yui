@@ -78,14 +78,14 @@ class BackgroundTests(unittest.TestCase):
         self.write('audit-test-only.json',self.audit)
         return nl0.validate(self.base/'nl0.json',self.base/'spec.json',self.base/'audit-test-only.json')
 
-    def test_probe_and_notes_preserve_author_bytes_and_supply_effective_library_port(self):
+    def test_probe_and_notes_preserve_author_bytes_without_adding_a_premise(self):
         before=(self.base/'nl0.json').read_bytes()
-        data=self.accepted();props,steps=background.effective(data)
+        data=self.accepted();props,steps=__import__('background_inputs').effective(data)
         self.assertEqual(data[0]['background_note_count'],1)
         self.assertTrue(data[0]['current_standard_receipt_valid'])
         self.assertEqual((self.base/'nl0.json').read_bytes(),before)
-        self.assertEqual(props['M001']['source']['declaration'],'Continuous.add')
-        self.assertIn('M001',steps['R001']['inputs'])
+        self.assertNotIn('M001',props)
+        self.assertNotIn('M001',steps['R001']['inputs'])
         packet=nl0.packet(data,'R001')
         self.assertEqual(packet['accepted_background_notes'],[self.note])
         self.assertEqual(packet['reviewed_packet_sha256'],self.packet['packet_sha256'])
@@ -140,48 +140,8 @@ class BackgroundTests(unittest.TestCase):
         note=copy.deepcopy(self.note);note.update(kind='elementary',fact='Equality substitution preserves an identical expression.')
         note.pop('source');self.audit['inference_reviews']['R001']['background_notes']=[note]
         self.audit['inference_reviews']['R001']['replay'].update(library_evidence=[],read_materials=['packet:'+self.packet['packet_sha256']])
-        self.assertEqual(set(background.effective(self.accepted())[0]),set(self.data[3]))
+        self.assertEqual(set(__import__('background_inputs').effective(self.accepted())[0]),set(self.data[3]))
 
-    def test_translation_and_audit_b_cannot_drop_the_accepted_supplement(self):
-        import ir, workflow, audit_b
-        data=self.accepted();props,_=background.effective(data)
-        cp=self.base/'contract.json';pp=self.base/'plan.json';rp=self.base/'interface-review.json'
-        c={'version':2,'id':'background_handoff_control',
-           'source':{'path':'nl0.json','sha256':nl0.sha(self.base/'nl0.json')},
-           'pins':{'lean_version':self.spec['pins']['lean_version'],'mathlib_commit':self.spec['pins']['mathlib_commit']},
-           'source_steps':[{'id':'S001','text':self.graph['inferences'][0]['argument'][0]['text']}],
-           'header':'import Mathlib\n','parameters':[{'name':x,'type':'ℝ → ℝ'} for x in ['f','g']],
-           'premises':[{'id':pid,'kind':props[pid]['kind'],'statement':props[pid]['statement'],'type':typ}
-                       for pid,typ in [('H001','Continuous f'),('H002','Continuous g'),
-                                       ('M001','Continuous f → Continuous g → Continuous (f + g)')]],
-           'conclusion':{'type':'Continuous (f + g)','statement':self.spec['conclusion']},
-           'representation':{'space':'Real-valued continuous functions.'},
-           'review':{'mode':'upstream_audited_packet','scope':'TEST ONLY synthetic source/interface judgments.'}}
-        ir.write(cp,c)
-        plan={'version':2,'contract_sha256':ir.digest(cp),'representation_notes':'All functions are real-valued on the real line.',
-              'steps':[{'id':'T001','statement':'Continuous (f + g)','inputs':['H001','H002','M001'],
-                        'source_steps':['S001'],'explanation':'Apply the actual background library source to the two continuous functions.'}],
-              'terminal':'T001'}
-        ir.write(pp,plan)
-        with self.assertRaisesRegex(ValueError,'omitted or changed accepted background'):
-            workflow.freeze(self.base/'nl0.json',self.base/'spec.json',cp,pp,rp,self.base/'bad-freeze',audit_a=self.base/'audit-test-only.json')
-        c['source']['background_supplement_sha256']=data[0]['background_supplement']['sha256']
-        c['source']['background_supplement']=data[0]['background_supplement'];ir.write(cp,c)
-        plan['steps'][0]['background_notes']=['R001.BG001']
-        plan['contract_sha256']=ir.digest(cp);ir.write(pp,plan)
-        review={'version':workflow.VERSION,'source_graph_sha256':nl0.sha(self.base/'nl0.json'),
-                'contract_sha256':ir.digest(cp),'plan_sha256':ir.digest(pp),
-                'reviewer':{'identity':'TEST_ONLY','mode':'external_review','independent':True,
-                            'disclosure':'Synthetic format control, not real review.'},
-                'checks':{key:{'verdict':'PASS','notes':'Synthetic TEST ONLY judgment.'} for key in workflow.INTERFACE_CHECKS},
-                'paragraph_mapping':{'S001':{'inference':'R001','paragraph':'S001'}},'source_outputs':{'P':'T001'},
-                'evidence':[{'path':'problem.txt','sha256':nl0.sha(self.base/'problem.txt')}]}
-        ir.write(rp,review)
-        result=workflow.freeze(self.base/'nl0.json',self.base/'spec.json',cp,pp,rp,self.base/'freeze',audit_a=self.base/'audit-test-only.json')
-        self.assertEqual(result['background_supplement']['sha256'],c['source']['background_supplement_sha256'])
-        self.assertEqual(ir.local_packet(cp,plan,'T001')['accepted_background_notes']['R001.BG001']['fact'],self.note['fact'])
-        inventory,_=audit_b.source_data(cp,graph=self.base/'nl0.json',spec=self.base/'spec.json',audit_a=self.base/'audit-test-only.json')
-        self.assertEqual(next(p for p in inventory['propositions'] if p['id']=='M001')['source']['declaration'],'Continuous.add')
 
     def test_exercise_translation_adapter_keeps_notes_without_promoting_ports(self):
         self.accepted()

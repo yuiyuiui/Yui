@@ -7,7 +7,7 @@ import unittest
 PATH=Path(__file__).resolve().parents[1]/'blocks/lean_library_manifests.py'
 SPEC=importlib.util.spec_from_file_location('library_rules_under_test',PATH)
 rules=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(rules)
-ENV={'lean_version':'4.35.0','mathlib_commit':'a'*40}
+ENV={'lean_version':'0.0.2','mathlib_commit':'a'*40}
 
 
 def example():
@@ -22,7 +22,7 @@ class LibraryRules(unittest.TestCase):
 
     def test_other_environment_cannot_reuse_compatible_looking_binary(self):
         for key in ENV:
-            value=example();value[key]='4.32.2' if key=='lean_version' else 'd'*40
+            value=example();value[key]='0.0.1' if key=='lean_version' else 'd'*40
             with self.subTest(key=key),self.assertRaises(ValueError):rules.validate(value,ENV)
 
     def test_namespace_shadowing_and_path_escape_are_rejected(self):

@@ -26,8 +26,10 @@ work. Ask once for matched paths or the desired versions, preserving any choice
 already supplied by the user. Do not silently select the newest available pair.
 
 Pass `--lean-root /path/to/lean --mathlib-root /path/to/mathlib` to `prepare` or
-`run`, or use `--lean-version 4.35.0 --mathlib-version v4.35.0` when that pair is
-already installed. The environment variables `YUI_LEAN_ROOT`,
+`run`, or use `--lean-version VERSION --mathlib-version TAG_OR_COMMIT` when that pair is
+already installed. `VERSION` and `TAG_OR_COMMIT` stand for the user-selected
+Lean version and matching Mathlib tag or full commit, not repository defaults.
+The environment variables `YUI_LEAN_ROOT`,
 `YUI_MATHLIB_ROOT`, `YUI_LEAN_VERSION` and `YUI_MATHLIB_VERSION` provide explicit
 host selections for low-level tools. A job's frozen selection takes precedence
 over later host changes.
@@ -36,7 +38,7 @@ If the selected versions are missing, explicitly install them first:
 
 ```sh
 python -B nl0/scripts/yui.py lean-environments --install \
-  --lean-version 4.35.0 --mathlib-version v4.35.0
+  --lean-version VERSION --mathlib-version TAG_OR_COMMIT
 ```
 
 This creates a new shared directory and obtains the official Lean toolchain,
@@ -50,14 +52,10 @@ commit and manifest/toolchain hashes, dependency revisions and completed native
 compatibility output. Parent/parallel/nested workers and case subprocesses use
 the same descriptor. Native checks and public delivery retain the selected
 identity. Recovery inherits the prior run's choice, never a fresh default.
-Older jobs without this field retain their declared legacy scientific pins in
-their executable snapshot; `toolchain/legacy/lean-mathlib.json` is that historical baseline,
-not a universal version requirement for new work.
-The previous v2 through v5 job formats remain readable for historical jobs.
-V3 through v6 jobs cannot omit the selected descriptor or explicit NL0 null.
-V4 through v6 also freeze the explicit external-library scope, including an empty
-list. V5 removes the personal theorem catalog; old catalog bytes remain only
-inside their original frozen jobs.
+Only the current job format is accepted. Every formal task carries its own
+selected descriptor; pure NL0 records an explicit null. External-library scope
+is also explicit, including an empty list. Older job formats must start a new
+run; the installation does not infer a scientific environment from a global lock.
 
 Selection establishes execution compatibility. It does not establish theorem
 fidelity, mathematical correctness of an imported source, or Audit A/B success.

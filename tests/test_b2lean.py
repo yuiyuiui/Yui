@@ -111,15 +111,6 @@ class BasisDischargeTests(unittest.TestCase):
             self.assertEqual(result['achieved_scope'],'CLOSED_LEAN_SOURCE_QUALIFIED')
             self.assertTrue((out/'warn.md').exists());b2lean.validate_receipt(out)
 
-    def test_legacy_renderer_receipt_remains_valid_without_reinterpretation(self):
-        original=b2lean.render
-        out=self.root/'legacy-renderer'
-        with patch.object(b2lean,'render',side_effect=lambda *a,**kw:original(*a,**kw,legacy=True)):
-            result=b2lean.finish(self.workflow,out,context=self.context,intermediate=self.intermediate)
-        result['version']='yui-b2lean-1';write(out/'report.json',result)
-        self.assertEqual(b2lean.validate_receipt(out)['version'],'yui-b2lean-1')
-        result['version']='yui-b2lean-2';write(out/'report.json',result)
-        with self.assertRaisesRegex(ValueError,'Closed export changed'):b2lean.validate_receipt(out)
 
     def test_final_compiler_failure_retains_failed_scope_and_never_publishes_acceptance(self):
         from execution_health import StageFailure
@@ -166,13 +157,13 @@ class BasisDischargeTests(unittest.TestCase):
             with self.assertRaises(ValueError):b2lean.validate_receipt(self.out)
         finally:path.write_bytes(original)
 
-    def test_class3_is_never_an_external_port(self):
+    def test_unregistered_foundation_port_is_rejected(self):
         context=deepcopy(self.context)
         source=self.workflow.parent/'source';path=source/'nl0.json';original=path.read_bytes()
         try:
             value=ir.load(path);value['propositions'].insert(0,{'id':'E999','kind':'external','statement':'unproved internal derivation'})
             write(path,value)
-            with self.assertRaisesRegex(ValueError,'external ports'):basis.source_context(path,source/'spec.json')
+            with self.assertRaisesRegex(ValueError,'foundation'):basis.source_context(path,source/'spec.json')
         finally:path.write_bytes(original)
 
 

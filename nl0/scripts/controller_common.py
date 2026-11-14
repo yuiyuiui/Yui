@@ -47,7 +47,7 @@ def manifest(directory):
 
 
 def runtime_bindings():
-    paths = [CORE/'SKILL.md', CORE/'config.json', CORE/'toolchain/legacy/lean-mathlib.json']
+    paths = [CORE/'SKILL.md', CORE/'config.json']
     for folder in ('nl0/scripts', 'nl0/references', 'nl0/templates', 'nl0/basis-bank', 'nl02lean/scripts',
                    'nl02lean/references', 'nl02lean/templates', 'nl02lean/bank'):
         paths.extend(p for p in (CORE/folder).rglob('*')

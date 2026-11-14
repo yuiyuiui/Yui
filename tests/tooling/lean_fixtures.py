@@ -4,7 +4,7 @@ from harness_support import FIXTURES
 import ir
 
 def norm_plan(cpath):
-    return {'version':1,'contract_sha256':ir.digest(cpath),
+    return {'version':2,'contract_sha256':ir.digest(cpath),
         'representation_notes':'Real norm equality is transported to ENNReal before the indexed supremum.',
         'steps':[{'id':'T001','statement':'∀ r : iota, ‖F r‖ₑ = ‖G r‖ₑ','inputs':['H001'],
                   'source_steps':['S001'],'explanation':'Lift equality of norms to the extended nonnegative range.'},

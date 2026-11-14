@@ -212,13 +212,6 @@ class FaultControlTests(FaultFixture,unittest.TestCase):
             result=faults.queue_notification(None,'message')
         self.assertEqual(result['status'],'PENDING');run.assert_not_called()
 
-    def test_invalid_auth_header_is_rejected_without_echoing_credentials_or_contacting_service(self):
-        import access_recovery
-        execution.atomic(self.root/'auth.json',{'tokens':{'access_token':'synthetic-secret\ninvalid','account_id':'synthetic-account'}})
-        with patch.object(access_recovery,'auth_home',return_value=self.root), \
-                patch.object(access_recovery.http.client,'HTTPSConnection') as connect:
-            with self.assertRaises(ValueError) as error:access_recovery.check({})
-        self.assertNotIn('synthetic-secret',str(error.exception));connect.assert_not_called()
 
     def test_owner_routing_is_saved_outside_all_mathematical_inputs(self):
         import jobs

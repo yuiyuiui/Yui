@@ -126,14 +126,6 @@ class ReviewControllerTests(unittest.TestCase):
             self.assertFalse(report['results'][0]['healthy'])
             self.assertEqual(report['results'][0]['record_qualified'],status=='ACCEPTED')
 
-    def test_legacy_global_projection_verifies_only_its_exact_older_shape(self):
-        path=self.out/'global/global-overview.json';view=json.loads(path.read_text())
-        view['schema']='yui-global-overview-1';view['inventory'].pop('unused_original_hypotheses')
-        view['inventory'].pop('reachability_basis')
-        a.write(path,view);self.plan['global_overview']=a.bind(path)
-        a.verify_global_overview(self.out,self.plan)
-        view['inventory']['graph_H_ids']=[];a.write(path,view);self.plan['global_overview']=a.bind(path)
-        with self.assertRaises(ValueError):a.verify_global_overview(self.out,self.plan)
 
     def test_a_failure_finding_cannot_be_hidden_by_all_pass_summary_fields(self):
         spec=json.loads((self.out/'global/spec.json').read_text())

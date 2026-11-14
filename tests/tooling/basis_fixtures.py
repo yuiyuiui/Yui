@@ -12,33 +12,26 @@ TARGET='For natural numbers a and b, if a=b, then a+0=b.'
 
 def dependency(key='B001', category=1, *, port=None, compatibility=None, typ='∀ n : ℕ, n + 0 = n', proof='intro n; exact Nat.add_zero n'):
     compatibility=compatibility or {1:'native',2:'adapted',3:'internal',4:'unresolved'}[category]
-    if category in {2,4} or compatibility=='adapted':port=port or 'E'+key[1:]
+    if category in {2,3,4} or compatibility=='adapted':port=port or 'E'+key[1:]
     return {'id':key,'category':category,'statement':'For every natural number n, n+0=n.',
         'origin':{'kind':{1:'mathlib',2:'lean-library',3:'derivation',4:'textbook'}[category],
             'reference':'SYNTHETIC attribution control; the actual native proof is elementary.',
-            'revision':'SYNTHETIC fixture version','evidence':[{'input':'problem.md'}] if category==4 else []},
+            'revision':'SYNTHETIC fixture version','evidence':[{'input':'problem.md'}] if category in {2,4} else []},
         'compatibility':compatibility,'uses':['B001'] if category==3 else [],'port':port,
-        'lean':None if category==3 else {'type':typ,'proof':None if category==4 else proof},
+        'lean':{'type':typ,'proof':None if category==4 else 'exact YuiBasis.B001' if category==3 else proof},
         'justification':'Software fixture only; source and semantic classifications are not independently certified.'}
 
 
 def artifact(*rows):
-    return {'version':basis.LEGACY_VERSION,'full_target':TARGET,
+    return active_artifact({'version':basis.VERSION,'full_target':TARGET,
         'proof':'From a=b and the additive identity a+0=a, obtain a+0=b.',
-        'dependencies':list(rows),'replacements':[],'lean_header':'import Mathlib\n'}
+        'dependencies':list(rows),'replacements':[],'lean_header':'import Mathlib\n'})
 
 
 def active_artifact(value):
-    """Fresh v2 producer; artifact() remains an intentional retained-v1 fixture."""
-    import basis_graph
+    """Build the current graph schema from an elementary, synthetic proof."""
     from copy import deepcopy
-    v=deepcopy(value);v['version']=basis_graph.VERSION
-    for row in v['dependencies']:
-        if row['category']==2 and not row['origin']['evidence']:
-            row['origin']['evidence']=[{'input':'problem.md'}]
-        if row['category']==3:
-            row['port']='E'+row['id'][1:]
-            row['lean']={'type':'∀ n : ℕ, n + 0 = n','proof':'exact YuiBasis.'+row['uses'][0]}
+    v=deepcopy(value);v['version']=basis.VERSION
     graph=ir.load(Path(__file__).resolve().parents[1]/'fixtures/closed-addition/nl0.json')
     add_external_applications(graph,v,[])
     v['global_graph']={'propositions':[{k:r[k] for k in ('id','statement')} for r in graph['propositions']],

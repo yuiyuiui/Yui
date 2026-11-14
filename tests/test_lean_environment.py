@@ -102,14 +102,6 @@ class SelectedEnvironment(unittest.TestCase):
             with self.assertRaises(ValueError):
                 jobs.validate(missing)
 
-    def test_v3_frozen_jobs_remain_readable_without_an_attachment_field(self):
-        with tempfile.TemporaryDirectory() as raw:
-            problem=Path(raw)/'proof.md';problem.write_text('If P then P.')
-            job=jobs.prepare(problem,track='full',profiles=harness_support.PROFILES,lean_environment=self.selected)
-            job['version']='yui-case-job-3';job.pop('lean_libraries');job.pop('local_configuration')
-            root=Path(job['root']);(root/'job.json').write_text(json.dumps(job))
-            marker=json.loads((root/jobs.MARKER).read_text());marker.update(version=job['version'],job=bind(root/'job.json'))
-            (root/jobs.MARKER).write_text(json.dumps(marker));jobs.validate(job)
 
     def test_translate_and_audit_tracks_freeze_the_same_explicit_pair(self):
         import source_preparation

@@ -96,6 +96,20 @@ class ClosureChecks(unittest.TestCase):
         self.assertNotIn("H001", json.dumps(packet))
         self.assertEqual(packet["packet_sha256"], nl0.closure.digest(packet))
 
+    def test_removed_graph_format_is_rejected(self):
+        self.spec['format_version']=1;self.graph['format_version']=1
+        with self.assertRaisesRegex(nl0.Invalid,'Only the current NL0 format'):
+            self.data()
+
+    def test_missing_producer_and_dependency_cycle_are_rejected(self):
+        original=copy.deepcopy(self.graph)
+        self.graph['inferences']=[r for r in self.graph['inferences'] if r['id']!='R001']
+        with self.assertRaisesRegex(nl0.Invalid,'PRODUCER'):self.data()
+        self.graph=original
+        self.graph['inferences'][0]['inputs'].append('P')
+        self.graph['inferences'][0]['argument'][0]['uses'].append('P')
+        with self.assertRaisesRegex(nl0.Invalid,'CYCLE'):self.data()
+
     def test_numbered_formula_cannot_replace_output_content(self):
         self.graph["propositions"][1]["statement"] = "The identity (8.3) holds."
         with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-REFERENCE"):
@@ -304,20 +318,6 @@ class ClosureChecks(unittest.TestCase):
         with self.assertRaisesRegex(nl0.Invalid, "AUDIT-VERSION"):
             self.data(audit)
 
-    def test_old_graph_requires_explicit_legacy_opt_in(self):
-        old = ROOT / "tests/fixtures/legacy/bench_case_6"
-        with self.assertRaisesRegex(nl0.Invalid, "LEGACY-CONTRACT"):
-            nl0.validate(old / "nl0.json", old / "spec.json")
-        from runtime_config import require_environment
-        copied=self.base/'relocated-history';shutil.copytree(old,copied)
-        spec=nl0.load(copied/'spec.json')
-        spec['pins']['mathlib_root']=require_environment()['mathlib']['local_path']
-        (copied/'spec.json').write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
-        graph=nl0.load(copied/'nl0.json');graph['spec_sha256']=nl0.sha(copied/'spec.json')
-        (copied/'nl0.json').write_text(json.dumps(graph,ensure_ascii=False,indent=2)+'\n')
-        result = nl0.validate(copied / "nl0.json", copied / "spec.json", legacy=True)[0]
-        self.assertEqual(result["status"], "LEGACY-STRUCTURE-PASSED")
-        self.assertFalse(result["current_standard_receipt_valid"])
 
     def test_cli_audit_template_refuses_overwrite(self):
         self.write()

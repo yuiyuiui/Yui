@@ -45,8 +45,7 @@ concrete step. Only actual located source/math/execution blockers justify stoppi
 
     def dispatch(self,name,args):
         if name=='report_obstacle':
-            try:value=json.loads(args['obstacle_json']) if set(args)=={'obstacle_json'} else args
-            except (ValueError,TypeError):return super().dispatch(name,args)
+            value=args
             if isinstance(value,dict) and value.get('status')=='TASK_INCOMPLETE':
                 result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
                     'error':'Save the actual partial basis and continue; ordinary unfinished work is not a mathematical gap.'}

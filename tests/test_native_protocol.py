@@ -17,6 +17,19 @@ import execution_state
 
 
 class NativeProtocolTests(unittest.TestCase):
+    def test_missing_native_usage_stays_unknown_and_old_http_logs_are_ignored(self):
+        import tempfile
+        import usage
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw)
+            (root/'requests.jsonl').write_text('{"request_number":1}\n')
+            (root/'response-0001.sse').write_text('data: {"type":"response.completed","response":{"id":"old","usage":{"input_tokens":8,"output_tokens":2,"total_tokens":10}}}\n')
+            result=usage.summarize_stage(root)
+            self.assertEqual(result['status'],'NOT_RECORDED')
+            self.assertIsNone(result['total_usage'])
+            self.assertIsNone(result['observed_usage'])
+            self.assertFalse(result['complete'])
+
     def test_native_policies_do_not_claim_invisible_partial_stream_guards(self):
         import model_pilot
         self.assertFalse(native_client.OUTPUT_POLICY['partial_argument_deltas_available'])

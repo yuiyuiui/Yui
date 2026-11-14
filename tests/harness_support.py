@@ -83,8 +83,8 @@ def _offline_notification(thread,message):
 
 _faults.queue_notification=_offline_notification
 
-def historical_job(*args, **kwargs):
-    """Exercise the pre-protocol public controller against its historical snapshot layout."""
+def direct_controller_job(*args, **kwargs):
+    """Exercise the shared continuation controller without the public stage graph."""
     from unittest.mock import patch
     import jobs
     bound=jobs.runtime_bindings()

@@ -80,14 +80,8 @@ def material(artifact, native, originals, evidence, revision_report=None):
             'replacements':artifact['replacements'], 'documents':source_docs, 'items':items}
 
 
-LEGACY_RULE='3abe1dc3c52b4314c9baad29e85c38c39cc48785afd8916b97393e2cbc5fdf98'
-# Read previously issued reports under their original comparison key. Newly
-# assigned reports always use RULE, including when computing reuse keys.
-PRE_NUMBERING_RULE='adf3fcd09c4a7f9b019a55237c1045619366a0abd48f05ddfd9868f30464fd6b'
-
-
 def rule_for(packet, rule):
-    if rule not in (RULE,PRE_NUMBERING_RULE) and (rule!=LEGACY_RULE or 'global_graph' in packet):
+    if rule != RULE:
         raise ValueError('Unknown basis review rules for this protocol')
     return rule
 

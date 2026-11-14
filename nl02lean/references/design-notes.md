@@ -22,7 +22,6 @@ Yui dynamic tools. Python communicates over stdio and owns workflow gates;
 Codex owns direct model-service communication and native context management.
 Configuration/input/tool receipts describe the observable boundary. Built-in
 Codex instructions are retained, and raw provider HTTP payloads are not certified.
-The former request-normalizing relay exists only in historical run snapshots.
 
 The design leaves general natural-language semantic verification, automatic
 global-definition discovery, arbitrary dependent witness export and optimal

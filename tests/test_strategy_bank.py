@@ -30,7 +30,7 @@ class StrategyBankTests(unittest.TestCase):
             verification='Compile the exact local application and inspect its signature.',
             positive_example='Apply an operation with all its required conditions proved.',
             negative_example='Apply it with a missing condition.',reference_environments=[
-                {'lean_version':'4.32.2','mathlib_commit':'a'*40,'basis':'historical_configuration'}],
+                {'lean_version':'0.0.1','mathlib_commit':'a'*40,'basis':'historical_configuration'}],
             status='GENERAL_GUIDANCE',evidence=[dict(kind='design_rule',path='evidence.md',
                 sha256=bank.sha(self.root/'evidence.md'),note='Synthetic editorial guidance only.')])
 
@@ -40,7 +40,7 @@ class StrategyBankTests(unittest.TestCase):
 
     def query(self,**kw):
         return bank.search(dict(family='representation',tags=['conversion'],facts=[],
-                                lean_version='4.32.2',**kw),self.root)
+                                lean_version='0.0.1',**kw),self.root)
 
     def test_matching_advice_is_bounded_and_never_verifies_prerequisites(self):
         result=self.query()
@@ -49,7 +49,7 @@ class StrategyBankTests(unittest.TestCase):
         self.assertEqual(card['missing_preconditions'],['relation_preserved'])
         self.assertEqual(card['applicability'],'CONDITIONAL')
         reported=bank.search(dict(family='representation',tags=['conversion'],
-            facts=['relation_preserved'],lean_version='4.32.2'),self.root)['strategies'][0]
+            facts=['relation_preserved'],lean_version='0.0.1'),self.root)['strategies'][0]
         self.assertEqual(reported['applicability'],'PRECONDITIONS_REPORTED')
         self.assertFalse(reported['preconditions_independently_verified'])
         self.assertLess(result['counts']['metadata_scored'],result['counts']['bank_size'])
@@ -58,18 +58,18 @@ class StrategyBankTests(unittest.TestCase):
 
     def test_reported_contraindication_excludes_recommendation(self):
         q=dict(family='representation',tags=['conversion'],facts=[],
-               lean_version='4.32.2',contraindications=['lossy_map'])
+               lean_version='0.0.1',contraindications=['lossy_map'])
         self.assertEqual(bank.search(q,self.root)['status'],'NO_APPLICABLE_CANDIDATE')
 
     def test_query_version_does_not_exclude_reference_candidates(self):
-        for version in ('4.32.2','4.35.0','4.99.0',None):
+        for version in ('0.0.1','0.0.2','0.0.3',None):
             with self.subTest(version=version):
                 q=dict(family='representation',tags=['conversion'],facts=[],lean_version=version)
                 self.assertEqual(bank.search(q,self.root)['strategies'][0]['id'],'ST900')
 
     def test_unknown_or_unmatched_diagnosis_abstains(self):
         for family,tags in [('unknown',[]),('representation',['absent_tag'])]:
-            result=bank.search(dict(family=family,tags=tags,lean_version='4.32.2'),self.root)
+            result=bank.search(dict(family=family,tags=tags,lean_version='0.0.1'),self.root)
             self.assertEqual(result['status'],'ABSTAIN')
             self.assertEqual(result['counts']['full_cards_read'],0)
 
@@ -116,19 +116,19 @@ class StrategyBankTests(unittest.TestCase):
 
     def test_grounding_binds_version_without_overriding_explicit_diagnosis(self):
         q,receipt=bank.grounded_query(dict(family='representation',tags=['quotient'],
-            facts=['invariance_proved'],lean_version='guessed'), 'f = g', 'local hypotheses','4.32.2')
-        self.assertEqual(q['lean_version'],'4.32.2')
+            facts=['invariance_proved'],lean_version='guessed'), 'f = g', 'local hypotheses','0.0.1')
+        self.assertEqual(q['lean_version'],'0.0.1')
         self.assertEqual(q['tags'],['quotient'])
         self.assertEqual(bank.search(q,self.root)['strategies'][0]['id'],'ST901')
         self.assertEqual(receipt['precondition_verification'],'not performed by routing')
 
     def test_explicit_execution_fault_is_separate_from_mathematics(self):
-        q=bank.diagnose(dict(transport_fault=True,diagnostic='type mismatch',lean_version='4.32.2'))
+        q=bank.diagnose(dict(transport_fault=True,diagnostic='type mismatch',lean_version='0.0.1'))
         self.assertEqual(q['family'],'execution')
         self.assertEqual(bank.search(q,self.root)['strategies'][0]['id'],'ST902')
 
     def test_native_timeout_advice_is_conditional_and_excludes_controller_faults(self):
-        query=dict(family='execution',tags=['native_timeout'],lean_version='4.32.2',facts=[])
+        query=dict(family='execution',tags=['native_timeout'],lean_version='0.0.1',facts=[])
         candidate=bank.search(query)['strategies'][0]
         self.assertEqual(candidate['id'],'ST020')
         self.assertEqual(candidate['applicability'],'CONDITIONAL')
@@ -139,7 +139,7 @@ class StrategyBankTests(unittest.TestCase):
         excluded=dict(qualified,contraindications=['provider_or_controller_fault'])
         self.assertEqual(bank.search(excluded)['status'],'NO_APPLICABLE_CANDIDATE')
         # A stored card does not silently activate diagnostic routing.
-        observation=bank.diagnose(dict(diagnostic='LEAN_TIMEOUT',lean_version='4.32.2'))
+        observation=bank.diagnose(dict(diagnostic='LEAN_TIMEOUT',lean_version='0.0.1'))
         self.assertEqual(bank.search(observation)['status'],'ABSTAIN')
 
     def test_repository_bank_is_current_general_guidance_with_no_orphan_cards(self):

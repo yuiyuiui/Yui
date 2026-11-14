@@ -10,7 +10,6 @@ import execution_health
 class ExecutionHealthTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
-        (self.root/'requests.jsonl').write_text('{"request_number":1}\n')
 
     def tearDown(self):self.temp.cleanup()
 
@@ -70,12 +69,16 @@ class ExecutionHealthTests(unittest.TestCase):
                 execution_health.require_review_execution(row,self.root/'unfinished-result.json')
             self.assertEqual(error.exception.result['status'],outcome)
 
-    def http(self,status):
-        (self.root/'http.jsonl').write_text(json.dumps({'path':'/responses','request_number':1,'status':status})+'\n')
 
-    def test_http_error_cannot_become_model_failure(self):
-        self.http(503)
-        self.assertEqual(execution_health.inspect(self.root)['status'],'FAULT')
+
+    def test_native_reader_failure_is_not_remote_provider_recovery(self):
+        (self.root/'native-client.json').write_text('{}')
+        (self.root/'carrier-reader-errors.jsonl').write_text(json.dumps({'message':'invalid native frame'})+'\n')
+        health=execution_health.inspect(self.root)
+        self.assertEqual(health['status'],'FAULT')
+        self.assertEqual(health['faults'][0]['kind'],'CARRIER_READER_ERROR')
+        result=self.submitted();result.update(execution_health='FAULT',transport_health=health)
+        self.assertFalse(execution_health.known_transport_recovery(result))
 
     def test_missing_transport_evidence_stays_unverified(self):
         self.assertEqual(execution_health.inspect(self.root)['status'],'UNVERIFIED')
@@ -84,58 +87,3 @@ class ExecutionHealthTests(unittest.TestCase):
         self.assertEqual(execution_health.review_outcome(['PASS','UNVERIFIED']),'REVIEW_UNVERIFIED')
         self.assertEqual(execution_health.review_outcome(['FAIL','UNVERIFIED']),'MATHEMATICAL_REVIEW_FAILED')
         self.assertEqual(execution_health.review_outcome([]),'REVIEW_INCOMPLETE')
-
-    def test_provider_server_error_is_an_execution_fault(self):
-        self.http(200)
-        (self.root/'response-0001.sse').write_text('data: '+json.dumps({'type':'response.failed','response':{
-            'error':{'code':'server_error','message':'service unavailable'}}})+'\n\n')
-        self.assertEqual(execution_health.inspect(self.root)['status'],'FAULT')
-
-    def test_rejected_math_candidate_is_not_an_execution_fault(self):
-        self.http(200)
-        (self.root/'tools.jsonl').write_text('{"result":{"exit_code":1,"accepted":false}}\n')
-        self.assertEqual(execution_health.inspect(self.root)['status'],'NO_RECORDED_FAULT')
-
-    def test_output_limit_is_not_network_failure_and_does_not_hide_a_real_fault(self):
-        self.http(200)
-        (self.root/'response-0001.sse').write_text('data: '+json.dumps({
-            'type':'response.incomplete','response':{'error':None,
-            'incomplete_details':{'reason':'max_output_tokens'}}})+'\n\n')
-        (self.root/'model-output-events.jsonl').write_text('{"event":"MODEL_OUTPUT_STALLED"}\n')
-        self.assertEqual(execution_health.inspect(self.root)['status'],'NO_RECORDED_FAULT')
-        (self.root/'relay-errors.jsonl').write_text('{"error":"TLS EOF"}\n')
-        self.assertEqual(execution_health.inspect(self.root)['status'],'FAULT')
-
-    def test_real_relay_and_tool_service_faults_are_separate_from_missing_usage(self):
-        self.http(200)
-        (self.root/'relay-errors.jsonl').write_text('{"error":"TLS unexpected EOF"}\n')
-        report=execution_health.inspect(self.root)
-        self.assertEqual(report['status'],'FAULT')
-        self.assertIsNone(report['faults'][0]['request_number'])
-        (self.root/'relay-errors.jsonl').unlink()
-        (self.root/'tools.jsonl').write_text('{"tool":"search_mathlib","result":{"infrastructure_error":true,"error":"missing executable"}}\n')
-        self.assertEqual(execution_health.inspect(self.root)['faults'][0]['kind'],'TOOL_SERVICE_ERROR')
-
-    def test_local_relay_and_reader_faults_cannot_be_qualified_as_remote_recovery(self):
-        self.http(200)
-        for name,value,kind in (
-            ('relay-errors.jsonl',{'error':'synthetic local failure','category':'harness_bug','origin':'local_evidence'},'LOCAL_RELAY_ERROR'),
-            ('carrier-reader-errors.jsonl',{'message':'synthetic native JSON failure'},'CARRIER_READER_ERROR')):
-            with self.subTest(kind=kind):
-                path=self.root/name;path.write_text(json.dumps(value)+'\n')
-                health=execution_health.inspect(self.root)
-                self.assertEqual(health['status'],'FAULT');self.assertEqual(health['faults'][0]['kind'],kind)
-                result=self.recovered();result['transport_health']=health
-                self.assertFalse(execution_health.record_qualification(result)['recovered_transport'])
-                path.unlink()
-
-    def test_post_tool_wait_stays_uncertain_and_a_real_fault_takes_precedence(self):
-        self.http(200)
-        (self.root/'model-output-events.jsonl').write_text(json.dumps({
-            'event':'PROVIDER_TERMINAL_WAIT_EXCEEDED','request_number':1,
-            'call_ids':['actual-call'],'idle_seconds':121})+'\n')
-        report=execution_health.inspect(self.root)
-        self.assertEqual(report['status'],'UNVERIFIED')
-        self.assertEqual(report['uncertainty'][0]['kind'],'PROVIDER_TERMINAL_WAIT_EXCEEDED')
-        (self.root/'relay-errors.jsonl').write_text('{"error":"TLS EOF"}\n')
-        self.assertEqual(execution_health.inspect(self.root)['status'],'FAULT')

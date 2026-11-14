@@ -34,8 +34,7 @@ open the exceptional independent B-final review below. A faithful result then ha
 report. Invalid native evidence, incomplete dependencies or changed provenance
 cannot be overridden semantically. Nonfaithful/unverified results wait for the
 three explicit user choices in [proof repair](proof-repair.md); accepting a different
-result does not complete the original target. Explicit/manual legacy semantic
-receipts remain supported under their original schemas and are not relabeled.
+result does not complete the original target. Semantic receipts must use the current schema.
 Explicitly nonindependent/self-review records remain readable development checks;
 they cannot grant whole-workflow Audit B acceptance. The same qualification rule
 applies to supplied Audit A authority and incremental producer/cut reviews.
@@ -170,9 +169,8 @@ Local bodies still compile against their own task inputs and the pinned
 library; every required producer must exist. Assembly, inspection and semantic
 review have separate recorded outcomes.
 
-Version-1 receipts remain historical results under their original policy.
-They cannot be silently relabeled or accepted as version-2 reviews. Start a
-new bound audit when policy, source, code or evidence changes. Pending templates
+Use a current version-2 receipt. Start a new bound audit when policy, source,
+code or evidence changes. Pending templates
 never pass. A whole accepted source plus complete native gates and its bound semantic
 authority yields `AUDIT-B-PASSED`; a fragment yields at most the explicitly
 scoped development verdict. A whole source with an actual conditional Audit A

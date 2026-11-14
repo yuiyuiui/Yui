@@ -15,7 +15,6 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from usage import normalize
 
 _scope = contextvars.ContextVar('yui_execution_scope', default=(None, None))
 
@@ -231,8 +230,7 @@ class Recorder:
             deadline_utc=min(deadline_utc,inherited)
         self.deadline=self.started+(deadline_utc-started_utc).total_seconds() if deadline_utc else None
         self._cancel_all = threading.Event(); self._cancel_tasks = set(); self._control_seen = set()
-        self._handles = {}; self._requests = set(); self._covered = set(); self._responses = {}
-        self._usage_totals = {}; self._usage_unknown = {}; self._native_usage = {}; self._native_seen = False
+        self._handles = {}; self._native_usage = {}
         self._usage_errors = []; self._signals = {}; self._locals = threading.local()
         owner = identity(os.getpid())
         if owner is None: raise RuntimeError('Cannot establish controller process identity')
@@ -411,7 +409,7 @@ class Recorder:
 
     def native_event(self, task, stage, method, usage=None):
         with self.lock:
-            self._native_seen=True;self.dirty=True
+            self.dirty=True
         if task:
             values={'last_transport_event_at_utc':now()}
             if method.startswith(('item/','rawResponseItem/')):
@@ -423,45 +421,7 @@ class Recorder:
                 self.state['usage']['accounting_source']='native_cumulative_stage_deltas'
                 self.state['usage']['usage_last_observed_at_utc']=now();self.dirty=True
 
-    def request_started(self, stage, number):
-        with self.lock: self._requests.add((stage,number)); self.dirty=True
 
-    def model_event(self, task, stage, number, event):
-        from output_guard import substantive_event, TERMINAL_EVENTS
-        if task:
-            with self.lock:
-                row = self.state['tasks'].get(task, {})
-                values = {'last_model_event_at_utc': now()}
-                values['last_transport_event_at_utc']=now()
-                if substantive_event(event):values['last_substantive_model_event_at_utc']=now()
-                if (substantive_event(event) and not row.get('current_lean_check')
-                        and row.get('state') not in {'FINISHED', 'CANCELLED', 'LOCAL_CHECKED','REPAIR_WAIT'}):
-                    values.update(activity='MODEL_RUNNING', last_activity_at_utc=now())
-                if event.get('type') in TERMINAL_EVENTS:values['last_provider_terminal_at_utc']=now()
-                self.task(task, **values)
-        if event.get('type') not in {'response.completed','response.incomplete','response.failed'}:return
-        response = event.get('response') or {}
-        if isinstance(response,dict):
-            with self.lock:
-                model=self.state['model']
-                for field,value in [('observed_model_ids',response.get('model')),('observed_service_tiers',response.get('service_tier'))]:
-                    if value is not None:model[field]=sorted(set(model.get(field,[]))|{value})
-        if not isinstance(response,dict) or not isinstance(response.get('usage'),dict): return
-        try:
-            counts = normalize(response['usage']); rid = response['id']
-        except (ValueError, KeyError):
-            with self.lock: self._usage_errors.append('Invalid provider usage'); self.dirty=True
-            return
-        with self.lock:
-            if rid in self._responses and self._responses[rid] != counts:
-                self._usage_errors.append('Conflicting provider usage: '+rid)
-            if rid not in self._responses:
-                self._responses[rid] = counts
-                for key, value in counts.items():
-                    self._usage_totals[key] = self._usage_totals.get(key, 0) + (value or 0)
-                    self._usage_unknown[key] = self._usage_unknown.get(key, 0) + (value is None)
-            self._covered.add((stage,number))
-            self.state['usage']['usage_last_observed_at_utc'] = now(); self.dirty=True
 
     def lean_started(self, task, file):
         check_id=uuid.uuid4().hex
@@ -495,16 +455,11 @@ class Recorder:
                 if not force and (mono-self.last_write<1 or not (self.dirty or heartbeat)): return
                 if heartbeat:
                     self.state['controller_heartbeat_at_utc']=now();self._heartbeat=mono
-                totals={k: v if not self._usage_unknown[k] else None for k,v in self._usage_totals.items()} if self._responses else None
-                if self._native_usage:
-                    keys=('input_tokens','output_tokens','total_tokens','cached_input_tokens','reasoning_tokens')
-                    totals={k:None if (totals or {}).get(k,0) is None else sum(x[k] for x in self._native_usage.values())+(totals or {}).get(k,0) for k in keys}
-                complete=(not self._native_seen and self.done.is_set() and bool(self._requests) and self._requests<=self._covered and not self._usage_errors)
-                self.state['usage'].update(status='COMPLETE' if complete else 'PARTIAL' if self._responses or self._native_usage else 'UNKNOWN',
-                    confirmed_tokens=totals,requests=len(self._requests),requests_with_usage=len(self._requests & self._covered),
-                    in_flight_or_unreported_requests=len(self._requests-self._covered),errors=list(self._usage_errors))
-                if self._native_seen:
-                    self.state['usage'].update(requests=None,requests_with_usage=None,in_flight_or_unreported_requests=None)
+                keys=('input_tokens','output_tokens','total_tokens','cached_input_tokens','reasoning_tokens')
+                totals={k:sum(x[k] for x in self._native_usage.values()) for k in keys} if self._native_usage else None
+                self.state['usage'].update(status='PARTIAL' if totals else 'UNKNOWN',
+                    confirmed_tokens=totals,requests=None,requests_with_usage=None,
+                    in_flight_or_unreported_requests=None,errors=list(self._usage_errors))
                 states=['PENDING','RUNNING','WAITING_REVIEW','PAUSED_ERROR','LOCAL_CHECKED','UNFINISHED','BLOCKED','REPAIR_WAIT','CANCEL_REQUESTED','CANCELLED','FINISHED']
                 self.state['counts']={s:sum(t['state']==s for t in self.state['tasks'].values()) for s in states}
                 groups=self.state.get('proof_group_sizes')
@@ -569,7 +524,7 @@ class Recorder:
                 for line in ledger.read_text().splitlines():
                     row=json.loads(line);actual[row.get('response_id') or row['record_id']]=row['usage']
             if ledgers:
-                expected={**self._responses,**{'native-stage:'+k:v for k,v in self._native_usage.items()}}
+                expected={'native-stage:'+k:v for k,v in self._native_usage.items()}
                 matches=actual==expected and not missing
                 self.state['usage']['final_ledger_reconciliation']={'status':'MATCHED' if matches else 'INCOMPLETE_OR_MISMATCH',
                     'stage_usage_files':sorted(ledgers),'missing_ledgers':missing}

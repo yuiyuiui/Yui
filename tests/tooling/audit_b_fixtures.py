@@ -44,7 +44,7 @@ def fixture(directory,variant='identity'):
     if variant=='extra_axiom':
         header+='axiom hiddenProof : False\n'
         body='exact False.elim hiddenProof'
-    c={'version':1,'id':'audit_control','source':{'path':'source.json','sha256':ir.digest(directory/'source.json')},
+    c={'version':2,'id':'audit_control','source':{'path':'source.json','sha256':ir.digest(directory/'source.json')},
        'source_steps':source['source_steps'],'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':mathlib},
        'header':header,'parameters':params,'premises':premises,
        'endpoint_correspondence':{p['id']:{'mode':'direct','explanation':'The displayed binders and assertion encode the source '+p['id']+'.'} for p in props if p['kind'] in {'external','target'}},
@@ -53,7 +53,7 @@ def fixture(directory,variant='identity'):
     if variant=='equivalent_target':
         c['endpoint_correspondence']['P']={'mode':'equivalent','explanation':'The encoding pairs the original assertion with True; take the first projection to recover the original, and pair it with True.intro in the other direction.'}
     cpath=directory/'contract.json';ir.write(cpath,c)
-    plan={'version':1,'contract_sha256':ir.digest(cpath),'representation_notes':'Preserve the fixed proposition or natural-number statement.',
+    plan={'version':2,'contract_sha256':ir.digest(cpath),'representation_notes':'Preserve the fixed proposition or natural-number statement.',
           'steps':[{'id':'T001','statement':target,'inputs':[p['id'] for p in premises],
                     'source_steps':['S001'],'explanation':source['source_steps'][0]['text']}],'terminal':'T001'}
     ppath=directory/'plan.json';ir.write(ppath,plan)

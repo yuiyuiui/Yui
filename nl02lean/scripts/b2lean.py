@@ -19,7 +19,7 @@ from controller_common import bind, write, verify_bindings
 from execution_health import StageFailure
 
 
-def render(contract, context, conditional_source, levels, *, legacy=False, graph=None):
+def render(contract, context, conditional_source, levels, *, graph=None):
     artifact=basis.verify_context(context);basis.check_interface(context,contract,graph)
     by_port=basis.basis_graph.handoff().by_port(artifact,graph)
     retained=[p for p in contract['premises'] if p['kind']!='mathlib'
@@ -36,19 +36,11 @@ def render(contract, context, conditional_source, levels, *, legacy=False, graph
     declarations,_,_=basis.declarations(artifact, omit=contract.get('prepared_instances',{}).get('included',()))
     source=conditional_source+'\n'+declarations
     source+='\nnamespace YuiClosed\nset_option autoImplicit false\n'
-    if legacy:
-        # Historical receipts bind the original renderer, including its inferred
-        # levels. Never reinterpret their checked source using the new helper.
-        used=set(levels['export_used_parameters'])
-        universe=['_' for name in levels['parameters'] if name in used]
-        suffix='.{'+', '.join(universe)+'}' if universe else ''
-        application='@AuditBExport.P'+suffix+' '+' '.join(arguments)
-    else:
-        omitted=['h_'+p['id'] for p in contract['premises'] if p['kind']=='external'
-            and basis.prepared(by_port[p['id']])]
-        helper=Path(__file__).with_name('basis_export.lean').read_text()
-        source+=helper.replace('__DISCHARGED_BINDERS__', '#['+', '.join(map(json.dumps,omitted))+']')+'\n'
-        application='yui_basis_export%('+', '.join(arguments)+')'
+    omitted=['h_'+p['id'] for p in contract['premises'] if p['kind']=='external'
+        and basis.prepared(by_port[p['id']])]
+    helper=Path(__file__).with_name('basis_export.lean').read_text()
+    source+=helper.replace('__DISCHARGED_BINDERS__', '#['+', '.join(map(json.dumps,omitted))+']')+'\n'
+    application='yui_basis_export%('+', '.join(arguments)+')'
     source+=f"set_option Elab.async false in\ntheorem P {parameters} {hypotheses} : {contract['conclusion']['type']} := by\n"
     source+='  exact '+application+'\n\nend YuiClosed\n'
     return source, expected, [p['id'] for p in retained]
@@ -111,7 +103,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
 def validate_receipt(out):
     """Read-only revalidation of a delivered closed proof and its authority."""
     out=Path(out);report=ir.load(out/'report.json');verify_bindings(report['bindings'])
-    ir.need(report.get('version') in {'yui-b2lean-1','yui-b2lean-2','yui-b2lean-3'},'Unknown final basis receipt')
+    ir.need(report.get('version') == 'yui-b2lean-3','Unknown final basis receipt')
     verify_bindings([report['closure']['native'],report['closure']['proof']])
     checked=basis_native.verify(report['closure']['native']['path'])
     frozen=workflow.bound(report['conditional_workflow']);context=frozen['basis_context']
@@ -120,9 +112,9 @@ def validate_receipt(out):
     source,expected,retained=render(ir.contract(frozen['contract']),context,
         (Path(report['conditional_workflow'])/'audit-b/Proof.lean').read_text(),
         ir.load(Path(report['conditional_workflow'])/'audit-b/assembly.json')['universe_parameters'],
-        legacy=report['version']=='yui-b2lean-1',graph=ir.load(frozen['authority']['graph']))
+        graph=ir.load(frozen['authority']['graph']))
     ir.need((out/'Proof.lean').read_text()==source and checked['checks']==[['P','YuiClosed.P',expected]],'Closed export changed')
-    residual=actual_residual(context,retained,ir.load(frozen['authority']['graph'])) if report['version']=='yui-b2lean-3' else context['residual_class4']
+    residual=actual_residual(context,retained,ir.load(frozen['authority']['graph']))
     complete=not residual and not receipt['source_conditional']
     scope='UNCONDITIONAL_LEAN' if complete else 'CONDITIONAL_LEAN' if residual else 'CLOSED_LEAN_SOURCE_QUALIFIED'
     ir.need(report['formalization_goal']=='unconditional' and report['achieved_scope']==scope

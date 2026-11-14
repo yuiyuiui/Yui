@@ -30,13 +30,13 @@ class StrategyReferenceTests(unittest.TestCase):
         for ids in [['ST021']*2, ['ST001','ST002','ST003','ST004'], ['../rule.md']]:
             with self.subTest(ids=ids), self.assertRaises(ValueError):
                 model.check('StrategyQuery@1', {'bank':'basis','ids':ids}, 'author')
-        result = {'bank':'lean', 'revision':'f'*64, 'status':'cards', 'cards':[], 'omitted':[]}
-        model.check('StrategyReply@1', result, 'ignored guidance')
+        result = {'bank':'lean', 'revision':'f'*64, 'status':'cards', 'cards':[], 'omitted':[], 'reference_only':True, 'current_environment_verification_required':True, 'usage_notice':'Reference only; check current code.'}
+        model.check('StrategyReply@2', result, 'ignored guidance')
         for port in ('Foundation@2', 'Audited@2', 'Outcome@1'):
             with self.subTest(port=port), self.assertRaises(ValueError):
                 model.check(port, result, 'guidance offered as proof')
         with self.assertRaises(ValueError):
-            model.check('StrategyReply@1', {'accepted':True,'stage_complete':True}, 'receipt')
+            model.check('StrategyReply@2', {'accepted':True,'stage_complete':True}, 'receipt')
 
     def test_bound_returns_only_whole_cards_and_identifies_skips(self):
         cards = [{'id':'ST021', 'text':'大'*9500}, {'id':'ST022', 'text':'small'}]
