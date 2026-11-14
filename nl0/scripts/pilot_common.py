@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 from runtime_config import load_lock
-from execution_state import current, Cancelled, terminate_owned, capture_process
+from execution_state import current, Cancelled, terminate_owned, capture_process, ProcessIdentityUnconfirmed
 
 
 
@@ -138,6 +138,20 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
     check = recorder.lean_started(task,file) if recorder else None
     process = None; owner = None; launched = None
     observed_stdout = observed_stderr = ''
+    def stop_native(native, *, diagnose=True):
+        def confirm():
+            return recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+        stopped=confirm()
+        if not stopped and diagnose:
+            import process_recovery
+            native_workspace.record(work,confirmed=False,phase='cleanup-unconfirmed',process=owner or launched,
+                                    exit_code=process.returncode)
+            evidence=dict(native)
+            if recorder and check:
+                evidence['_record_path']=check['log_path']
+                evidence['source_path']=check['source_path']
+            stopped=process_recovery.recover(process,owner,work,file,evidence,recorder,task,confirm)
+        return stopped
     try:
         native_workspace.record(work, confirmed=False, phase='launching')
         process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
@@ -145,7 +159,19 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         launched={'pid':process.pid,'pgid':process.pid,'started':None,
                   'cleanup_uncertainty':'Native child launched; OS start identity not yet confirmed'}
         native_workspace.record(work,confirmed=False,phase='capturing-child',process=launched)
-        owner = recorder.register_process(process,'lean',task,private_group=True) if recorder else capture_process(process,private_group=True)
+        try:
+            owner = recorder.register_process(process,'lean',task,private_group=True) if recorder else capture_process(process,private_group=True)
+        except ProcessIdentityUnconfirmed:
+            import process_recovery
+            def capture_again():
+                nonlocal owner
+                owner=recorder.register_process(process,'lean',task,private_group=True) if recorder else capture_process(process,private_group=True)
+                return True
+            pending={'phase':'child-identity','exit_code':None}
+            if recorder and check:pending['source_path']=check['source_path']
+            recovered=process_recovery.recover(process,launched,work,file,pending,
+                                               recorder,task,capture_again)
+            if not recovered:raise
         register_child(work, process, 'lean',private_group=True,identity_record=owner)
         while True:
             try:
@@ -159,7 +185,8 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
                 observed_stdout,observed_stderr=decoded(interruption.output),decoded(interruption.stderr)
                 cancelled=recorder is not None and recorder.cancelled(task)
                 if cancelled or (timeout is not None and time.monotonic()-started>=timeout):
-                    stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+                    stopped=stop_native({'exit_code':124,'timed_out':not cancelled,'cancelled':cancelled,
+                                         'stdout':observed_stdout,'stderr':observed_stderr},diagnose=not cancelled)
                     if not stopped: raise native_workspace.unconfirmed('Native process cleanup could not be confirmed',work)
                     stdout,stderr=process.communicate()
                     observed_stdout,observed_stderr=stdout,stderr
@@ -190,7 +217,7 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         stopped = process is None
         if process is not None:
             if owner:
-                try:stopped=recorder.stop_process(process) if recorder else terminate_owned(process,owner)
+                try:stopped=stop_native(locals().get('result',{}),diagnose=sys.exc_info()[0] is None)
                 except (OSError,ValueError,subprocess.SubprocessError):stopped=False
             if recorder and stopped: recorder.process_finished(process)
         native_workspace.record(work,confirmed=bool(stopped),

@@ -63,6 +63,10 @@ def translate(ctx, data):
     selection, reading and assembly preparation pass its exact bound files to
     connection repair. Incomplete rounds remain available to diagnosis/reuse
     under their own gates. Final acceptance requires actual compiled evidence.
+    OS snapshots use fresh 5/15/30-second attempts. Exhausted native cleanup
+    suspends in place for the owning AI's bound diagnosis and recheck/wait or
+    escalation, with one delayed recheck. Advice cannot grant process exit or
+    proof acceptance; untouched proof work and the pending native call survive.
     """
     return dispatch(ctx, data, 'translate')
 def close(ctx, data): return dispatch(ctx, data, 'close')

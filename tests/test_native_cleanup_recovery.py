@@ -18,7 +18,9 @@ class NativeCleanupRecoveryTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=(Path(self.temp.name)/'prior').resolve();self.root.mkdir()
         self.stage=self.root/'nl0-to-lean/0001/workflow/proof-run/workers/T002'
         self.workflow=self.stage.parents[2];self.interface=self.workflow.parent/'interface'
-        self.old={'root':str(self.root),'policy':'normal','time_budget_seconds':None,'case':'synthetic',
+        import jobs
+        self.old={'version':jobs.VERSION,'lean_environment':None,'lean_libraries':[],
+                  'root':str(self.root),'policy':'normal','time_budget_seconds':None,'case':'synthetic',
                   'profiles':{'nl0':'synthetic-profile','lean':'synthetic-profile'},'max_concurrency':2,
                   'documents':[{'sha256':'input-hash'}]}
         write(self.root/'job.json',self.old)
@@ -59,6 +61,19 @@ class NativeCleanupRecoveryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'still live'):recovery.qualify(self.root)
         value=json.loads((self.stage/'result.json').read_text());value['execution_fault']='different fault'
         write(self.stage/'result.json',value)
+        with self.assertRaisesRegex(ValueError,'non-cleanup'):recovery.qualify(self.root)
+
+    def test_actual_group_wording_and_structured_fault_reach_the_same_guard(self):
+        file=self.stage/'result.json';original=json.loads(file.read_text())
+        for fields in ({'execution_fault':'RuntimeError: Native process group cleanup could not be confirmed'},
+                       {'execution_fault':'Structured native cleanup failure',
+                        'operational_fault':{'code':'NATIVE_CLEANUP_UNCONFIRMED','cleanup_confirmed':False}}):
+            write(file,{**original,**fields})
+            self.assertEqual(recovery.qualify(self.root)[1]['failed_steps'],['T002'])
+
+    def test_retained_model_workspace_is_not_confused_with_native_scratch(self):
+        file=self.stage/'result.json';value=json.loads(file.read_text());value['temporary_workspace_removed']=False
+        write(file,value)
         with self.assertRaisesRegex(ValueError,'non-cleanup'):recovery.qualify(self.root)
 
     def test_partial_coverage_mismatch_is_rejected(self):

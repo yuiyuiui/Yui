@@ -40,7 +40,7 @@ def process_table():
                          'started':started(' '.join(parts[4:9])),'command':parts[9]}
         if os.getpid() not in rows:raise ValueError('Incomplete cleanup process snapshot')
         return rows
-    return query(['ps','-axww','-o','pid=,ppid=,pgid=,stat=,lstart=,command='],parse,timeout=10)
+    return query(['ps','-axww','-o','pid=,ppid=,pgid=,stat=,lstart=,command='],parse)
 
 
 def matching(record, table):

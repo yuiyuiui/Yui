@@ -47,6 +47,26 @@ def audit_exit(ctx, data):
     return after_audit(data,data['authority'],ref(data['job']['path']))
 
 def translate(ctx, data):
+    if data['job']['path']=='cleanup-recovered':
+        # Independent operational acceptance: the complete native output exists,
+        # snapshots fail, owner advice requests recheck, then a fresh check wins.
+        # The actual retained Popen/CLI path is tested by the parent integration.
+        import subprocess
+        from .blocks import process_snapshots as policy
+        calls=[]
+        def query(limit):
+            calls.append(limit);raise subprocess.TimeoutExpired('ps',limit)
+        try:policy.retry(query)
+        except subprocess.TimeoutExpired:pass
+        else:raise ValueError('Exhausted snapshots cannot confirm cleanup')
+        if calls!=[5,15,30]:raise ValueError('Cleanup query allowances must be 5/15/30')
+        advice=policy.decision({'version':'yui-process-diagnosis-1','incident':'fixture','checkpoint_sha256':'bound-checkpoint',
+            'observation_sha256':'bound-observation','assessment':'UNKNOWN',
+            'observations':['The retained compiler output completed; process exit is not yet confirmed.'],
+            'unknowns':['Original OS slowdown cause.'],'options':['Fresh group confirmation.'],'action':'recheck'})
+        if advice['action']!='recheck':raise ValueError('AI advice cannot grant acceptance')
+        fresh=policy.retry(lambda limit:{'confirmed':True})
+        if not fresh['confirmed']:raise ValueError('Native cleanup remains unknown')
     different = data['job']['path'] == 'different'
     return after_translation(data, ref(data['job']['path']), different=different)
 
@@ -58,7 +78,7 @@ def publish(ctx, data):
     status = {'stop':'STOPPED_BY_USER','different':'DIFFERENT_RESULT_DELIVERED'}.get(case)
     if not status:
         status = ('DRAFT-AUDIT-CONDITIONAL' if case=='qualified' else 'DRAFT-AUDIT-PASSED') if data['goal']=='audit' else 'WORKFLOW-CONDITIONAL' if case in ('qualified','residual') else 'WORKFLOW-PASSED'
-    closed = case in ('closed','qualified','local-edge')
+    closed = case in ('closed','qualified','local-edge','cleanup-recovered')
     extra = {'residual':['E004'],'external':['E001']}.get(case,[])
     port, scope = classify(data['goal'], status, closed=closed, qualified=case=='qualified')
     return outcome(port, {'scope':scope,'extra_premises':extra,'inventory':ctx.put_file(scope.encode())})

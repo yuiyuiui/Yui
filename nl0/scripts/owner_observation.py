@@ -100,7 +100,7 @@ def process_table():
             table[pid]={'pid':pid,'pgid':pgid,'started':started(parts[2])}
         if os.getpid() not in table:raise ValueError('Incomplete observed process snapshot')
         return table
-    return query(['ps','-axo','pid=,pgid=,lstart='],parse,timeout=10)
+    return query(['ps','-axo','pid=,pgid=,lstart='],parse)
 
 
 def matches(record, table):

@@ -22,6 +22,18 @@ definition as the case. A zero-lookup run has the same proof and review gates.
 
 The Yui case owns the process group, budget, material requests, decisions, checkpoints, delivery and cleanup. Read `yui.py status RUN`, `observe RUN` or `errors RUN` for the live owner and exact incident. Supply source bytes with `supply-material RUN --incident ID --file FILE`. Use `resume-checkpoint RUN --id ID` at a requested stage boundary. When a user says they sent the requested reference, inspect attachments actually received in the owning chat. Bind the matching file to the open incident. If there are several plausible editions, ask which one to bind. Leave the request waiting while no matching file is available. `verify-delivery RUN/delivery` rechecks the portable graph, evidence and endpoint inventory. Supply `--comparator BINARY` to build and compare the theorem package. `cleanup RUN --apply` explicitly releases owned scratch and preserves the verified delivery.
 
+OS process queries use fresh 5/15/30-second attempts. If native shutdown still
+cannot be confirmed, the caller preserves its live handle and checkpoint and
+requests diagnosis from the owning AI. Read the supplied process-recovery entry;
+`process-diagnose RUN --incident ID` collects bounded observations and
+`process-decision RUN --incident ID --report FILE` submits located owner advice.
+Only fresh identity/group checks release the suspended operation. A delayed
+recheck is scheduled once; further retries require owner investigation. Unknown
+causes stay unknown, advice never grants proof acceptance, and ordinary explicit
+cancellation remains available. The owner prepares/tests authorized operational
+repairs before escalating concrete choices to the desktop user; it never hot-edits
+the frozen runtime or restarts unaffected proof work.
+
 The standalone protocol CLI accepts a prepared job binding in `{"job":{"path":"…/job.json","sha256":"…"}}`. Run `python scripts/flow.py start PROTOCOL_DIR ENTRY @input.json` from this package with a fresh protocol directory, separate from the case. This runs the frozen case or reads its corresponding completed transitions. Use Yui controls against the case path for operational interaction.
 
 ## Maintenance

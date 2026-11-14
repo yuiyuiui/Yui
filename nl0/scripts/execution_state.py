@@ -23,6 +23,11 @@ class Cancelled(Exception):
     """An explicit external stop, never a model deadline or mathematical gap."""
 
 
+class ProcessIdentityUnconfirmed(RuntimeError):
+    """A launched child has no fresh, complete OS start identity yet."""
+    fault_code='PROCESS_IDENTITY_UNCONFIRMED'
+
+
 class CaseDeadlineExceeded(TimeoutError):
     """The shared case wall budget expired; this is not an external cancel."""
 
@@ -49,7 +54,7 @@ def identity(pid):
         def parse(result):
             if result.returncode or not result.stdout.strip():return None
             return {'pid':int(pid),'started':started(result.stdout),'pgid':os.getpgid(int(pid))}
-        return query(['ps', '-p', str(int(pid)), '-o', 'lstart='],parse,timeout=2,check=False)
+        return query(['ps', '-p', str(int(pid)), '-o', 'lstart='],parse,check=False)
     except (OSError, ValueError, subprocess.TimeoutExpired):
         return None
 
@@ -79,7 +84,7 @@ def process_table():
             rows[pid] = {'pid':pid, 'pgid':pgid, 'stat':parts[2], 'started':started(parts[3])}
         if os.getpid() not in rows: raise ValueError('Incomplete OS process snapshot')
         return rows
-    return query(['ps','-ax','-o','pid=,pgid=,stat=,lstart='],parse,timeout=2)
+    return query(['ps','-ax','-o','pid=,pgid=,stat=,lstart='],parse)
 
 
 def remaining_processes(record, table):
@@ -114,7 +119,7 @@ def remaining_processes(record, table):
 def capture_process(process, *, private_group=False):
     record = identity(process.pid)
     if record is None:
-        if process.poll() is None:raise RuntimeError('Cannot establish child process ownership')
+        if process.poll() is None:raise ProcessIdentityUnconfirmed('Cannot establish child process ownership')
         record={'pid':process.pid,'started':None,'pgid':process.pid if private_group else None}
         # A reaped PID-only child owns no private group. Group-owning callers
         # explicitly opt in so even a fast-exiting leader still requires inspection.

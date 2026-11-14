@@ -40,6 +40,7 @@ def confirmed(work):
 
 def unconfirmed(message, work):
     error=RuntimeError(message)
+    error.fault_code='NATIVE_CLEANUP_UNCONFIRMED'
     error.native_cleanup_confirmed=False
     error.native_workspace=str(Path(work).resolve())
     return error

@@ -220,6 +220,28 @@
           }
         ]
       },
+      "resume diagnosed process cleanup before final delivery": {
+        "entry": "unconditional",
+        "input": {
+          "job": {
+            "path": "cleanup-recovered",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "name": "resume diagnosed process cleanup before final delivery",
+        "steps": [
+          {
+            "expect": {
+              "data": {
+                "extra_premises": [],
+                "scope": "UNCONDITIONAL_LEAN"
+              },
+              "result": "unconditional",
+              "status": "completed"
+            }
+          }
+        ]
+      },
       "retain natural-language source qualification": {
         "entry": "audit",
         "input": {
@@ -391,9 +413,9 @@
     },
     "skill": "yui-workflow",
     "sources": {
-      "SKILL.md": "8f62bb6d706631b7b06c69cfbac45c1dfc9996165402d9b1b8d35974b6bf00d4",
-      "acceptance.json": "b055fafdc8c89c251c23133fd48c1d3bcb5bda057e63b54063677ef4aef74e34",
-      "adapters.py": "a996a834db5e2f71dbefb324723e9671787036bfe1837c29d3d5051858045935",
+      "SKILL.md": "19ce5c9932510fb5bd47d723a5f80fd8eda31c2f29ca66cb5d0b26a8f7f5e8b8",
+      "acceptance.json": "4c0ff2db172a98a60786fc90dcf226ca5020c52c47ec10e8e2562245568e44e5",
+      "adapters.py": "e3cd1b1e54454d7d55606f016f7a8e90ce443bd1bdd9ab73786a7b25bf7148c8",
       "blocks/foundation_handoff.py": "63383c959477f0e09282a089f0a7425de1702a0b59e62c0ae403ed9089ae7bff",
       "blocks/imported_lean.py": "c60e9f0409673710b364aea4fc63323b6f3fa4fcfa04526fa53203707592e7f4",
       "blocks/lean_environments.py": "3059d347fe1c5bbddc22a83230b30e15296fc3082c7ba23392b59bf9deb22151",
@@ -403,13 +425,13 @@
       "blocks/local_setup.py": "28c92c2ccd659ee094ab7a78a24575944bac5d8be3c915bab32b131efa5d80bd",
       "blocks/native_case.py": "36a090d4d8bcee97e89c699624a171937c477ffdfaf8fba0b737559b90e3385c",
       "blocks/prepared_case.py": "ac3a11a4a359e735ff9835cb09084871173a5d64195ec35c59fe750e2d9ae48d",
-      "blocks/process_snapshots.py": "f780008fc49a912f5d21da801fc8814c415fdc1465e83c60c435e3b6dd67cc38",
+      "blocks/process_snapshots.py": "02d27ede24383e2d6a67afa6a3d755cc6ec253d3b17bd77bc6b968015d08be29",
       "blocks/proof_rounds.py": "0036bb54989be2ade36e9e73d58b99e6b8052bbaf5f3b76214b97f6dc6953e3f",
       "blocks/routing.py": "ba1a52c4377c1e23c7c951592045eee12d7f6d4a1c067a5a90834ce3474ece51",
       "blocks/strategy_reference.py": "ccea424619c1830718607acbab2d833834730e597273e29cf1a1abbe35c25034",
-      "checks.json": "3de4067876e44d3db5d0762e521b22118e24a6d1d04f2889f1fb93edb4d3c607",
+      "checks.json": "8cc5b5bf66e238f5a9223222199e67fcc4c3e3a0b2a23056c1ca93723f80d1e3",
       "fixtures.json": "479fdcf705fec1bd22a6504e93d904a456085d488d61ac77184463a37eaaef26",
-      "test_adapters.py": "371cc807abd09262ee3fc08c1fed55fc0f8f6077d84c764e6a4be7ba4c2d3638",
+      "test_adapters.py": "d7169d0770cc704872be66c56d03bc7fb5882c335928e7b62c130c3ba5fef753",
       "tests/test_foundation_handoff.py": "4f157078badd337b51b2678231e3ddf84a660d8c3331af569a60f1f50451c6cd",
       "tests/test_imported_lean.py": "b097ed1feef601afa8e4ad01a9e403a26db9d17423b4ebb17a6c9feb80345463",
       "tests/test_lean_environments.py": "770d599398f23ac2367d52cda825ddf17cb81177ee1094812b1a3cbb311518fe",
@@ -417,7 +439,7 @@
       "tests/test_lean_libraries.py": "6bb2b7fe3034b36e0953e9fbad580a2cd34d1cfa4fd8a54bb446051e126e4b7f",
       "tests/test_lean_limits.py": "5f24867cec5662c9a085e40ae4a03915a3d8ceefe640f3e4c3e3403686528732",
       "tests/test_local_setup.py": "dedc6b5ff3d3250538d7ddc93cbaf2132ac38f25a39db47cbde55aa5ca5df45c",
-      "tests/test_process_snapshots.py": "fadff6052659bfc3d2bc55e851c5b5b7c601bcd152543a3399aae8693c03ed32",
+      "tests/test_process_snapshots.py": "f9d6b9e7f645e455c3ddae9d5331c415f696ab242fe23536b9d8ac3a4bad00aa",
       "tests/test_proof_rounds.py": "d76315500503b3e6fbfb8855f739fdaf6cb3af66a9378db31092555b6e50b4a3",
       "tests/test_public_contract.py": "3206d60f8245da595449c1767ec3bdd0002eb596d88091aca0f46c4a4efb985f",
       "tests/test_strategy_reference.py": "fd9b747bef5f09d494a91b80a816dc217fc55732b4ebc50511f812fa33738559",
@@ -514,11 +536,13 @@
         "file": "tests/test_process_snapshots.py",
         "id": "process-snapshot-retry",
         "members": {
-          "tests/test_process_snapshots.py": "fadff6052659bfc3d2bc55e851c5b5b7c601bcd152543a3399aae8693c03ed32"
+          "tests/test_process_snapshots.py": "f9d6b9e7f645e455c3ddae9d5331c415f696ab242fe23536b9d8ac3a4bad00aa"
         },
         "origin_cases": {
+          "exhausted-snapshot": "FreshSnapshots.test_real_wait_allowances_are_five_fifteen_thirty_and_stop_after_thirty",
           "explicit-cleanup": "FreshSnapshots.test_explicit_cleanup_retries_a_second_timeout_without_repeating_proof_work",
-          "native-cleanup": "FreshSnapshots.test_native_cleanup_timeout_then_fresh_success"
+          "native-cleanup": "FreshSnapshots.test_native_cleanup_timeout_then_fresh_success",
+          "owner-diagnosis": "FreshSnapshots.test_ai_advice_cannot_grant_success_or_omit_evaluated_uncertainty"
         },
         "timeout": 30
       },
@@ -720,5 +744,5 @@
     }
   },
   "format": "workflow-acceptance/1",
-  "id": "57de330257382eab7fa7456822f30bc0889c9c2f35c72e15639c483442163a2e"
+  "id": "1fba09f6eca31379536b48e6b0fe7f44880dc01374e1efbcf402d325e09e1c76"
 }

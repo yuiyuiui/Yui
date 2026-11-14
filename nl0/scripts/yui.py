@@ -65,7 +65,7 @@ def main():
         except (ValueError,KeyError,OSError,subprocess.SubprocessError) as error:
             print(json.dumps({'status':'VALIDATION_FAILED','error':str(error)}));return 1
         print(json.dumps(result,indent=2));return 0
-    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision','lean-environments'}:
+    if args.command in {'prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision','lean-environments','process-diagnose','process-decision'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))

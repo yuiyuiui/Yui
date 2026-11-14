@@ -170,6 +170,8 @@ class Gate:
                  '\nAutomatic resume is unavailable; inspect the diagnostic and choose an authorized repair or user action.')+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
+        operation=getattr(self,'operation',None)
+        if operation is not None:text=operation.notice(self)
         details=self.state.get('error',{})
         if isinstance(details,dict) and details.get('reason')=='REVIEW_NO_PROGRESS' and 'last_validation' in details:
             text += ('\nReview waiting for correction: '+details['message']+
@@ -188,16 +190,17 @@ class Gate:
         self.state['notification'] = {**result, 'attempts':self.notification_attempts, 'at_utc':execution.now()}
         self.persist()
 
-    def pause(self, error, *, retries=0, resumable=True, checkpoint=None, decisions=()):
+    def pause(self, error, *, retries=0, resumable=True, checkpoint=None, decisions=(), operation=None):
         """Block locally until an exact-incident resume or explicit cancellation."""
         incident = uuid.uuid4().hex
+        self.operation=operation
         details = ({'exception_type':type(error).__name__, 'message':str(error),
                     'traceback':''.join(traceback.format_exception(error))}
                    if isinstance(error, BaseException) else error)
         entry = Path(__file__).with_name('yui.py')
         self.state = {'version':VERSION, 'incident':incident, 'state':'PAUSED_ERROR',
             'stage':self.stage, 'root':str(self.root), 'logs':str(self.logs),
-            'owner_process':execution.identity(os.getpid()), 'at_utc':execution.now(),
+            'owner_process':(dict(self.recorder.state.get('controller',{})) if operation and self.recorder else execution.identity(os.getpid())), 'at_utc':execution.now(),
             'fault':remote_retry.diagnose(error), 'error':redact(details), 'retries':retries,
             'resumable':resumable, 'checkpoint':redact(checkpoint or {}),
             'requires_job_binding':self.requires_job, 'job_binding':self.job_binding,
@@ -215,6 +218,7 @@ class Gate:
                 '--incident',incident,'--action',action] for action in decisions}
             self.state['resume_command']=[sys.executable,'-B',str(entry),'errors',str(self.root)]
         self.notification_attempts = 0
+        if operation is not None:operation.bind(self)
         self.persist();self.check_cancel();self.report()
         if self.recorder is not None:
             if self.task:self.recorder.task(self.task, state='PAUSED_ERROR', activity='PAUSED_ERROR', error_state=str(self.path))
@@ -223,6 +227,7 @@ class Gate:
         seen_controls=set()
         while True:
             self.check_cancel()
+            if operation is not None and operation.tick(self):return self.state
             if self.stage in {'basis-decision','source-material'} and self.recorder is not None:
                 try:self.recorder.check()
                 except execution.CaseDeadlineExceeded:
@@ -265,7 +270,7 @@ class Gate:
                     self.recorder.task(self.task, state='RUNNING', activity='ERROR_RESUMED')
                     self.recorder.flush(force=True)
                 return self.state
-            if request and not resumable:
+            if request and not resumable and operation is None:
                 self.state['resume_rejected'] = 'Verified software repair and an explicit supported checkpoint are required; no blind phase replay'
                 self.persist()
             if time.monotonic() >= outbox_due:

@@ -29,6 +29,7 @@ class ProcessQueryTests(unittest.TestCase):
             return SimpleNamespace(stdout=self.minimal(),returncode=0)
         with patch.object(subprocess,'run',side_effect=ps):rows=execution.process_table()
         self.assertIn(os.getpid(),rows);self.assertEqual(len(calls),2)
+        self.assertEqual([k['timeout'] for a,k in calls],[5,15])
         self.assertTrue(process_queries.history()[-1]['query_completed'])
 
     def test_cleanup_and_owner_observation_share_fresh_retry_without_inventing_exit(self):
@@ -45,6 +46,7 @@ class ProcessQueryTests(unittest.TestCase):
                     side_effect=subprocess.TimeoutExpired('ps',2)) as run:
                 with self.assertRaises(subprocess.TimeoutExpired):consumer()
                 self.assertEqual(run.call_count,3)
+                self.assertEqual([c.kwargs['timeout'] for c in run.call_args_list],[5,15,30])
             for text in ('','incomplete row\n',str(os.getpid())+' not-a-group R '+STAMP+'\n'):
                 with self.subTest(consumer=consumer.__module__,text=text),patch.object(subprocess,'run',
                         return_value=SimpleNamespace(stdout=text,returncode=0)):
@@ -70,6 +72,14 @@ class ProcessQueryTests(unittest.TestCase):
                 patch.object(execution.os,'kill',side_effect=AssertionError('No identified target')):
             self.assertFalse(execution.terminate_owned(child,record))
             self.assertIn('cleanup_uncertainty',record)
+
+    def test_real_slow_response_uses_longer_wait_instead_of_three_short_failures(self):
+        # The first actual child exceeds five seconds. A fresh six-second child
+        # then succeeds under fifteen, proving real subprocess timeout behavior.
+        result=process_queries.query([sys.executable,'-B','-c','import time; time.sleep(6); print("complete")'],
+                                     lambda value:value.stdout.strip())
+        self.assertEqual(result,'complete')
+        self.assertEqual([r['timeout_seconds'] for r in process_queries.history()[-1]['attempts']],[5,15])
 
 
 if __name__=='__main__':unittest.main()

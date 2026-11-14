@@ -680,6 +680,9 @@ class Stage(carrier.NativeCarrier):
                 result['interrupt_error'] = str(stop_error)
         except Exception as e:
             result.update({'status':'UNFINISHED','execution_fault':type(e).__name__+': '+str(e)})
+            if getattr(e,'fault_code',None) in {'NATIVE_CLEANUP_UNCONFIRMED','PROCESS_IDENTITY_UNCONFIRMED'}:
+                result['operational_fault']={'code':e.fault_code,'cleanup_confirmed':False,
+                                            'workspace':getattr(e,'native_workspace',None)}
             result['traceback']=traceback.format_exc()
             if getattr(self,'tool_execution_fault',None):
                 result.update(stop_reason='LOCAL_TOOL_EXECUTION_FAULT',

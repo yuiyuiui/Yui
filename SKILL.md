@@ -114,6 +114,12 @@ a selected B-final user decision is a separate authority. Keep
 scientific evidence and the selected profile. A pause is nonterminal: never
 restart it or delete its monitor. The guarded recovery of an exited current-format run is separate from live
 `resume-error` controls.
+Native process queries instead use fresh 5/15/30-second attempts. Exhaustion
+preserves the live native checkpoint and requests operational diagnosis from the
+owning AI; follow [process diagnosis and recovery](nl0/references/process-recovery.md).
+Bound owner advice can request a recheck, delayed check or escalation, never
+grant exit/acceptance or authorize a frozen-runtime edit. One delayed recheck
+runs automatically; no response or failed delivery stays visibly pending.
 For a previously stopped inherited probe-directory collision, the same operation
 reference documents a separate guarded `--repair-local-tool` continuation after
 verified software repair and explicit owner authorization; it restores the saved

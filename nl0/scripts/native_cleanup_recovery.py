@@ -9,6 +9,7 @@ from jobs import prior_context
 
 VERSION='yui-native-cleanup-recovery-1'
 FAULT='RuntimeError: Native process cleanup could not be confirmed'
+FAULTS={FAULT,'RuntimeError: Native process group cleanup could not be confirmed'}
 
 
 @prior_context
@@ -37,7 +38,10 @@ def qualify(previous):
         stage=Path(task['log_path']).resolve()
         if not stage.is_relative_to(root):raise ValueError('Proof stage escapes its case')
         report=ir.load(stage/'result.json')
-        if (task['state']!='UNFINISHED' or report.get('execution_fault')!=FAULT
+        fault=report.get('operational_fault',{})
+        cleanup_fault=(report.get('execution_fault') in FAULTS or
+                       (fault.get('code')=='NATIVE_CLEANUP_UNCONFIRMED' and fault.get('cleanup_confirmed') is False))
+        if (task['state']!='UNFINISHED' or not cleanup_fault
                 or not report.get('identity_and_input_boundary_verified')
                 or report.get('isolation_violation') is not False
                 or report.get('temporary_workspace_removed') is not True):

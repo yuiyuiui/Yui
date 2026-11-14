@@ -23,6 +23,19 @@ Explicit quota/auth/rejection evidence takes priority over a generic capacity
 code. A mathematical nonpass is ordinary located repair, never a remote retry.
 The native Lean 360-second limit remains a separate candidate-check policy.
 
+## OS process queries and live native recovery
+
+Process snapshots use fresh 5/15/30-second attempts. Native identity/cleanup
+uncertainty retains the child handle, compiler result and exact source before
+requesting the existing owner AI's diagnosis. The actionable owner notification
+replaces the ordinary no-response-required alert for this operational checkpoint.
+Use the [process recovery entry](process-recovery.md) for bounded observations,
+bound advice, one delayed recheck and escalation to concrete desktop choices.
+Only the caller's fresh identity/group checks resolve the wait; incomplete or
+timed-out compilation stays a nonpass, and remaining trust checks still run.
+This does not authorize cancelling/restarting independent work, hot-editing the
+frozen runtime, signalling unknown processes or changing mathematical premises.
+
 ## Explicit whole-case budget
 
 Whole-case and stage totals remain unlimited by default. An explicitly selected

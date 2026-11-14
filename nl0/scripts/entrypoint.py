@@ -74,6 +74,10 @@ def parsers(commands):
         p=commands.add_parser(name,help='Inspect or explicitly resume one retained live error checkpoint; no model call')
         p.add_argument('run',type=Path)
         if name=='resume-error':p.add_argument('--incident',required=True)
+    for name in ('process-diagnose','process-decision'):
+        p=commands.add_parser(name,help='Diagnose or direct one suspended native-cleanup operation')
+        p.add_argument('run',type=Path);p.add_argument('--incident',required=True)
+        if name=='process-decision':p.add_argument('--report',type=Path,required=True)
     p=commands.add_parser('final-decision',help='Apply an explicit user choice at a retained B-final nonpass')
     p.add_argument('run',type=Path);p.add_argument('--incident',required=True)
     p.add_argument('--action',choices=['deliver-actual','recheck','reset-translation'],required=True)
@@ -152,6 +156,10 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command in {'process-diagnose','process-decision'}:
+        import process_recovery
+        return (process_recovery.diagnose(args.run,args.incident) if args.command=='process-diagnose'
+                else process_recovery.decide(args.run,args.incident,args.report))
     if args.command=='lean-environments':
         import lean_environment
         if args.install:
