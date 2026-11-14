@@ -84,7 +84,7 @@ class SelectedEnvironment(unittest.TestCase):
             problem.write_text('If P then P.')
             job = jobs.prepare(problem, track='full', profiles=harness_support.PROFILES,
                                lean_environment=self.selected)
-            self.assertEqual(job['version'],'yui-case-job-4')
+            self.assertEqual(job['version'],'yui-case-job-5')
             self.assertEqual(job['lean_environment'], self.selected)
             jobs.validate(job)
             with patch.object(environments, 'resolve', side_effect=AssertionError('no reselection')):

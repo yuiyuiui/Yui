@@ -80,7 +80,7 @@ def source_check(source, base, pins):
         if row.get('probe_version') != 1 or row.get('exit_code') != 0 or row.get('mathlib_commit') != pins['mathlib_commit']: continue
         if pins['lean_version'] not in row.get('lean_version', ''): continue
         found |= any(all(value.get(k) == source[k] for k in keys-{'evidence'}) for value in row.get('sources', {}).values())
-    need(found, 'no matching successful native/catalog probe')
+    need(found, 'no matching successful native probe')
 
 
 def validate(notes, packet, base):

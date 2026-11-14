@@ -181,7 +181,8 @@ def bookkeeping_boundary(prior,old,result):
     import audit_reuse
     import nl0
     if (result.get('status')!='EXECUTION_FAULT' or
-            result.get('error')!='ValueError: BACKGROUND: no matching successful native/catalog probe' or
+            result.get('error') not in {'ValueError: BACKGROUND: no matching successful native probe',
+                                       'ValueError: BACKGROUND: no matching successful native/catalog probe'} or
             'audit_reuse.py' not in result.get('traceback','')):
         raise ValueError('Not a known recoverable evidence-index fault')
     state=json.loads((prior/'execution-status.json').read_text())

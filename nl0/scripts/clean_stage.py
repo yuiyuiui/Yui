@@ -212,9 +212,6 @@ class ArtifactStage(pilot.Stage):
                 'The optional module locator uses dotted syntax (Mathlib.Topology.Basic), never a slash path; omit it if unknown.',
                 {'id':{'type':'string'},'declaration':{'type':'string'},'module':{'type':'string'}},
                 ['id','declaration']))
-            self.tools.append(pilot.carrier.tool('find_library_sources',
-                'Search pinned foundational metadata by an exact declaration name or ordinary mathematical terms. Ranked lexical candidates are not a theorem whitelist or an applicability judgment. Selected sources still need explicit M roots and complete checks.',
-                {'query':{'type':'string'}},['query']))
         if self.author_closing:
             self.tools.append(pilot.carrier.tool('read_draft',
                 'Read a JSON pointer in your own same-stage candidate after an actual structural check. No other file/stage is accessible. For an existing string optionally supply both start_line/end_line to request up to 250 numbered lines and its complete text_sha256 for replace_lines. A read end beyond the text returns the remaining existing lines and actual range; the start must exist. Edits never clamp their range.',
@@ -265,16 +262,6 @@ class ArtifactStage(pilot.Stage):
             destination.parent.mkdir(parents=True, exist_ok=True)
             copy_input(path, destination)
             files.append({'path':str(path.relative_to(CORE)), 'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
-        from library_catalog import binding as catalog_binding, catalog_path
-        selected_catalog=catalog_binding()
-        for row in selected_catalog['files']:
-            relative=Path('library')/Path(row['path']).relative_to(catalog_path().parent)
-            destination=snapshot/relative
-            destination.parent.mkdir(parents=True,exist_ok=True)
-            copy_input(row['path'],destination)
-            if hashlib.sha256(destination.read_bytes()).hexdigest()!=row['sha256']:
-                raise ValueError('User library changed while its stage snapshot was copied')
-            files.append({'path':str(relative),'sha256':row['sha256']})
         for raw, text in self.rule_texts.items():
             relative=Path(raw).relative_to(CORE)
             if relative==Path('SKILL.md'):
@@ -301,7 +288,7 @@ class ArtifactStage(pilot.Stage):
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
             'output_verbosity':self.output_verbosity,
             'transport':'native-codex-stdio-v1','arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,
-            'library_catalog':selected_catalog,'resolved_environment':pilot.load_lock(),'task_documents':
+            'resolved_environment':pilot.load_lock(),'task_documents':
             {k:hashlib.sha256(v.encode()).hexdigest() for k,v in self.task_inputs.items()},
             'frozen_task_files':task_bindings,
             'rule_documents':{str(Path(k).relative_to(CORE)):hashlib.sha256(v.encode()).hexdigest() for k,v in self.rule_texts.items()},
@@ -461,9 +448,7 @@ class ArtifactStage(pilot.Stage):
         return result,artifact
 
     def dispatch(self, name, args):
-        from library_catalog import use_library
-        with use_library(self.logs/'harness-snapshot/library'):
-            return self._dispatch(name,args)
+        return self._dispatch(name,args)
 
     def record_tool_fault(self, name, args, error, started):
         """Retain an actual execution failure before the carrier cleans up."""
@@ -570,9 +555,6 @@ class ArtifactStage(pilot.Stage):
             elif name == 'submit_review_blocker':
                 self.accepted=self.validator.blocker(args['finding'])
                 result={'accepted':True,'stage_complete':True,'review_coverage':'INCOMPLETE','mathematical_acceptance':False}
-            elif name == 'find_library_sources':
-                from library_catalog import lookup
-                result=lookup(args['query'])
             elif name == 'probe_library':
                 from artifact_validation import signature_probe
                 self.library_probes += 1

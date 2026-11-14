@@ -408,7 +408,7 @@ def reserve_probe_directory(case, identifier, sequence):
             sequence += 1
 
 
-def signature_probe(case, identifier, declaration, module, sequence, *, timeout=None, use_catalog=True, on_native=None):
+def signature_probe(case, identifier, declaration, module, sequence, *, timeout=None, on_native=None):
     """Only validated identifiers enter this trusted, sandboxed query program."""
     case=Path(case).resolve()
     if not re.fullmatch(r'M\d{3,}', identifier):
@@ -422,15 +422,6 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
     __import__('runtime_config').require_environment()
     lock = load_lock()
     out = reserve_probe_directory(case, identifier, sequence)
-    if use_catalog:
-        from library_catalog import cached_probe
-        cached=cached_probe(identifier,declaration,module,lock)
-        if cached:
-            row,report=cached
-            report['requested_selector']={'declaration':declaration,'module_hint':module}
-            receipt=out/'library-sources.json';write(receipt,report)
-            return {'id':identifier,**row,'metadata_reused':True,'evidence':[
-                {'path':str(receipt.relative_to(case)),'sha256':hashlib.sha256(receipt.read_bytes()).hexdigest()}]}
     work = out / 'work'
     (work / 'input').mkdir(parents=True)
     program = '\n'.join(['import Mathlib', 'set_option pp.universes true',

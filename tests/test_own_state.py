@@ -37,6 +37,16 @@ class OwnStateTests(unittest.TestCase):
         result=self.worker.dispatch('check_draft',{'artifact':deepcopy(self.value)})
         self.assertTrue(result['accepted']);return result['candidate_number']
 
+    def test_author_keeps_native_queries_without_a_personal_catalog_tool_or_snapshot(self):
+        self.assertIn('probe_library',self.worker.tool_names)
+        self.assertNotIn('find_library_sources',self.worker.tool_names)
+        manifest=json.loads((self.worker.logs/'execution-manifest.json').read_text())
+        self.assertNotIn('library_catalog',manifest)
+        self.assertFalse((self.worker.logs/'harness-snapshot/library').exists())
+        result=self.worker.dispatch('find_library_sources',{'query':'compact'})
+        self.assertFalse(result['accepted'])
+        self.assertEqual(self.worker.lean_calls,0)
+
     def test_native_tool_io_failure_is_logged_as_execution_not_mathematical_feedback(self):
         for error in [OSError(5,'Synthetic I/O failure'),PermissionError(13,'Synthetic denied write')]:
             with patch('artifact_validation.signature_probe',side_effect=error):

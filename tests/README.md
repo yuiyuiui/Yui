@@ -15,6 +15,28 @@ configured pinned Lean/Mathlib environment. A skipped native test is not a
 native integration pass. The suite blocks accidental live model calls and real
 owner-task notifications through harness_support.py.
 
+For a maintenance change, run the affected modules and direct consumers first;
+full discovery is a separate broad check. Select an actual installed pair with
+`YUI_LEAN_ROOT` and `YUI_MATHLIB_ROOT` for native tests. Pure controller cases
+should not need a Lean process; historical-version fixtures keep their explicit
+historical selection.
+
+## Personal theorem catalog removal
+
+The removed feature was the root `library/` directory, its manual index and
+cached-probe shortcut. Native Mathlib lookup, stage-owned source receipts and
+explicit external Lean libraries are retained. The acceptance boundaries are:
+
+| Requirement | Independent witness |
+| --- | --- |
+| New jobs ignore obsolete catalog configuration and contain no catalog | `test_job_entry.JobEntryTests.test_new_job_has_no_personal_catalog_state_or_external_discovery` |
+| A standalone installation works without catalog data | `test_job_entry.JobEntryTests.test_standalone_copy_prepares_and_reports_without_repository_or_test_support` |
+| Old frozen snapshots remain readable and reject changed bindings/files | `test_runtime_snapshot.RuntimeSnapshotTests` and `test_job_entry.JobEntryTests.test_old_job_catalog_is_only_an_immutable_legacy_binding` |
+| Authors retain native source queries but no personal-index tool | `test_own_state.OwnStateTests.test_author_keeps_native_queries_without_a_personal_catalog_tool_or_snapshot` |
+| A formerly indexed theorem is queried natively in the selected pair on every request | `test_probe_evidence.NativeProbeWithoutCatalog` (actual Lean, no model) |
+| Exact source evidence, alias handling and same-stage renumbering still work | `test_artifact_validation`, `test_background`, `test_evidence_index` |
+| Explicit external compiled Lean libraries remain separate | `test_lean_libraries` and the registered workflow `external-lean-libraries` suite |
+
 Basis controls are in `test_basis.py`, `test_basis_author.py`, `test_basis_workflow.py`, `test_b2lean.py`
 and `test_test_cleanup.py`. They cover legacy/default requests, all four source
 classes, origin versus compatibility, source/target/port binding, exact user

@@ -131,7 +131,7 @@ Default permanent output is `<problem-directory>/rigorous-proof/<run-id>/`:
 ```text
 inputs/                  exact declared documents and extraction provenance
 job.json                 immutable request, profiles, runtime/input bindings
-runtime/                 owned allowlisted executable/rules/catalog snapshot
+runtime/                 owned allowlisted executable/rules/strategy snapshot
 runtime-manifest.json    original-to-snapshot hashes, no credentials/memories
 .yui-run.json            cleanup ownership marker
 execution-status.json    coalesced status/usage/owned-process record
@@ -144,6 +144,13 @@ repairs/                 actual located diagnostic routing
 logs/                    controller lifecycle output
 case-result.json         actual acceptance scope and execution qualification
 ```
+
+New v5 jobs and v3 runtime snapshots do not contain a personal theorem catalog.
+Native Mathlib queries save their selected-environment evidence inside the
+owning stage; that evidence is not a cross-task theorem directory. Old frozen
+jobs retain read-only format compatibility, including the hashes of any old
+catalog files. Only their old executable snapshot receives the retired catalog
+setting. New stages never discover or consult it.
 
 Only applicable stages are created. Multiple attempts are retained, not
 silently overwritten. An explicit `--output` chooses another new directory;

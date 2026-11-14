@@ -57,8 +57,6 @@ def runtime_bindings():
         paths.extend([definition/'workflow.json', definition/'adapters.py', definition/'requirements.txt'])
     for folder in ('scripts','blocks'):
         paths.extend((definition/folder).rglob('*.py'))
-    from library_catalog import catalog_files
-    paths.extend(catalog_files())
     return [bind(p) for p in sorted(set(paths))]
 
 

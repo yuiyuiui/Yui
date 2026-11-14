@@ -2,6 +2,7 @@
 import harness_support
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 import sys
@@ -9,7 +10,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from artifact_validation import reserve_probe_directory, signature_probe
+from artifact_validation import reserve_probe_directory, signature_probe, run_lean
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -87,16 +88,49 @@ class ProbeAllocationTests(unittest.TestCase):
             with self.assertRaises(PermissionError):reserve_probe_directory('/unused','M021',1)
 
     def test_returned_receipt_uses_the_actual_new_directory_not_the_counter_hint(self):
-        # Synthetic cache data tests path routing, not native theorem validity.
+        # Synthetic native output tests path routing, not theorem validity.
         with tempfile.TemporaryDirectory() as d:
             root=Path(d);old=root/'library/M021-0001';old.mkdir(parents=True)
             receipt=old/'library-sources.json';receipt.write_text('Immutable old receipt')
-            row={'declaration':'Synthetic.new_query'}
-            with patch('library_catalog.cached_probe',return_value=(row,{'sources':{'M021':row}})):
+            source=root/'Mathlib/Synthetic.lean';source.parent.mkdir();source.write_text('-- Synthetic source fixture\n')
+            output='\n'.join(['RESOLVED_NAME:M021:Synthetic.new_query','RESOLVED_MODULE:M021:Mathlib.Synthetic',
+                'BEGIN_SIGNATURE:M021','@Synthetic.new_query : True','BEGIN_AXIOMS:M021',
+                "'Synthetic.new_query' depends on axioms: []",'END_SOURCE:M021',''])
+            lock={'lean':{'version':'synthetic'},'mathlib':{'local_path':str(root),'rev':'f'*40}}
+            with patch('runtime_config.require_environment'),patch('artifact_validation.load_lock',return_value=lock), \
+                 patch('artifact_validation.run_lean',return_value={
+                     'exit_code':0,'stdout':output,'stderr':'','wall_seconds':0}) as native:
                 result=signature_probe(root,'M021','Synthetic.new_query',None,1)
+            native.assert_called_once()
             self.assertEqual(result['evidence'][0]['path'],'library/M021-0002/library-sources.json')
             self.assertEqual(receipt.read_text(),'Immutable old receipt')
-            self.assertEqual(json.loads((root/result['evidence'][0]['path']).read_text())['sources']['M021'],row)
+            report=json.loads((root/result['evidence'][0]['path']).read_text())
+            self.assertEqual(report['sources']['M021']['declaration'],'Synthetic.new_query')
+            self.assertEqual(report['result']['stdout'],output)
+
+
+class NativeProbeWithoutCatalog(unittest.TestCase):
+    def test_former_catalog_example_is_queried_in_the_selected_environment_each_time(self):
+        from runtime_config import load_lock
+        lock=load_lock()
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);obsolete=root/'obsolete';obsolete.mkdir()
+            (obsolete/'foundations.json').write_text('Stale data must not affect a native query.')
+            with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(obsolete)}), \
+                 patch('artifact_validation.run_lean',wraps=run_lean) as native:
+                first=signature_probe(root/'case','M001','isCompact_singleton',None,1)
+                second=signature_probe(root/'case','M001','isCompact_singleton',None,1)
+            self.assertEqual(native.call_count,2)
+            self.assertNotEqual(first['evidence'],second['evidence'])
+            for result in (first,second):
+                self.assertNotIn('metadata_reused',result)
+                report=json.loads((root/'case'/result['evidence'][0]['path']).read_text())
+                self.assertEqual(report['lean_version'],lock['lean']['version'])
+                self.assertEqual(report['mathlib_commit'],lock['mathlib']['rev'])
+                self.assertEqual(report['result']['exit_code'],0)
+                self.assertIn('BEGIN_SIGNATURE:M001',report['result']['stdout'])
+                self.assertTrue(report['sources']['M001']['axioms'])
+                self.assertTrue((root/'case'/result['evidence'][0]['path']).with_name('library-probe.log').is_file())
 
 
 if __name__=="__main__":

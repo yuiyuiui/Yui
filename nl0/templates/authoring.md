@@ -157,13 +157,12 @@ are not a substantive mathematical-gap report. Source/graph edits invalidate
 bound closing notes. When ready, resubmit the exact candidate. Fresh Audit A
 receives none of these notes or historical feedback.
 
-## Library access
+## Native Mathlib access
 
-find_library_sources offers a small verified pinned metadata index, not a
-whitelist. An exact canonical name selects that declaration; ordinary terms
-return ranked candidates with actual matched terms. Overlap does not establish
-applicability. probe_library resolves genuine aliases and the actual module;
-its optional module argument is only a locator hint. Read the pinned source
+probe_library queries the selected Mathlib environment directly and resolves
+genuine aliases and the actual module; its optional module argument is only a
+locator hint. The query records its actual environment and native evidence.
+Read the pinned source
 and compare its whole native signature with its NL restatement and actual
 application. Predicates/data definitions are not source theorems. Same-stage
 M-label renumbering can reuse exact metadata through a disclosed mapping;

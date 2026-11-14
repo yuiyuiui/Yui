@@ -1,6 +1,6 @@
 # Per-run Lean and Mathlib selection
 
-Every new `yui-case-job-4` formalization freezes one verified local Lean/Mathlib pair in
+Every new `yui-case-job-5` formalization freezes one verified local Lean/Mathlib pair in
 `job.json:lean_environment`. Pure NL0 runs freeze `null`; their source metadata
 uses `NOT_SELECTED` and their host carrier needs no Lean installation. Native
 library probing in an NL0 run requires an explicitly selected environment.
@@ -52,9 +52,11 @@ identity. Recovery inherits the prior run's choice, never a fresh default.
 Older jobs without this field retain their declared legacy scientific pins in
 their executable snapshot; `toolchain/lock.json` is that historical baseline,
 not a universal version requirement for new work.
-The previous `yui-case-job-2` and `yui-case-job-3` readers remain supported for historical jobs.
-V3 and V4 jobs cannot omit the selected descriptor or explicit NL0 null. V4 also
-freezes the explicit external-library scope, including an empty list.
+The previous v2, v3 and v4 job formats remain readable for historical jobs.
+V3 through v5 jobs cannot omit the selected descriptor or explicit NL0 null.
+V4 and v5 also freeze the explicit external-library scope, including an empty
+list. V5 removes the personal theorem catalog; old catalog bytes remain only
+inside their original frozen jobs.
 
 Selection establishes execution compatibility. It does not establish theorem
 fidelity, mathematical correctness of an imported source, or Audit A/B success.

@@ -419,7 +419,7 @@ class ArtifactValidationTests(unittest.TestCase):
                                 'Mathlib.Topology.MetricSpace.HausdorffDimension',1)
 
     def test_real_native_resolver_accepts_alias_and_records_actual_canonical_name(self):
-        row=signature_probe(self.root/'alias','M001','isCompact_Icc',None,1,use_catalog=False)
+        row=signature_probe(self.root/'alias','M001','isCompact_Icc',None,1)
         self.assertEqual(row['declaration'],'CompactIccSpace.isCompact_Icc')
         self.assertEqual(row['module'],'Mathlib.Topology.Order.Compact')
         self.assertTrue(row['signature'].startswith('@CompactIccSpace.isCompact_Icc :'))
@@ -427,7 +427,7 @@ class ArtifactValidationTests(unittest.TestCase):
 
     def test_actual_predicate_definition_is_not_accepted_as_proved_theorem(self):
         with self.assertRaisesRegex(ValueError,'SOURCE_KIND_MISMATCH'):
-            signature_probe(self.root/'predicate','M001','Nat.Prime',None,1,use_catalog=False)
+            signature_probe(self.root/'predicate','M001','Nat.Prime',None,1)
 
     def test_exact_task_proof_copy_is_canonical_text_and_never_a_mathematical_pass(self):
         fixture=Path(__file__).parent/'fixtures/closed-addition'
@@ -644,7 +644,7 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_importing_module_hint_is_corrected_only_from_actual_native_evidence(self):
         row=signature_probe(self.root/'wrong-module','M001',
             'hasFDerivAt_integral_of_dominated_of_fderiv_le',
-            'Mathlib.MeasureTheory.Integral.IntegralEqImproper',1,use_catalog=False)
+            'Mathlib.MeasureTheory.Integral.IntegralEqImproper',1)
         self.assertEqual(row['module'],'Mathlib.Analysis.Calculus.ParametricIntegral')
 
     def test_library_metadata_is_bound_without_rewriting_mathematics(self):

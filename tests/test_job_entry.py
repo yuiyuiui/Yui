@@ -47,19 +47,45 @@ class JobEntryTests(unittest.TestCase):
         self.assertEqual(len(job['documents']),2)
         self.assertNotIn('DO NOT EXPOSE',''.join(p.read_text() for p in (root/'inputs').iterdir()))
 
-    def test_job_binds_optional_library_selection_even_when_absent(self):
-        import os
-        with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(self.root/'catalog-one')}):
+    def test_new_job_has_no_personal_catalog_state_or_external_discovery(self):
+        obsolete=self.root/'catalog';obsolete.mkdir()
+        (obsolete/'foundations.json').write_text('Invalid obsolete catalog: never open this.')
+        with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(obsolete)}):
             job=self.job();jobs.validate(job)
-            self.assertEqual(job['library_catalog']['files'],[])
-            with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(self.root/'catalog-two')}):
-                jobs.validate(job) # A later installation/environment change is not an active-job change.
-            catalog=self.root/'catalog-one';catalog.mkdir()
-            (catalog/'foundations.json').write_text('{"version":1,"entries":[]}')
-            jobs.validate(job)
-            frozen=Path(job['runtime_snapshot']['library_root'])
-            (frozen/'foundations.json').write_text('{"version":1,"entries":[]}')
-            with self.assertRaisesRegex(ValueError,'library selection|undeclared'):jobs.validate(job)
+        self.assertEqual(job['version'],'yui-case-job-5')
+        self.assertNotIn('library_catalog',job)
+        self.assertNotIn('library_root',job['runtime_snapshot'])
+        self.assertFalse((Path(job['runtime_snapshot']['root'])/'library').exists())
+        self.assertTrue(all(Path(row['path']).is_relative_to(Path(job['root'])/'runtime') for row in job['runtime']))
+
+    def test_current_job_rejects_retired_catalog_fields(self):
+        job=self.job();job['library_catalog']={'path':'/obsolete/foundations.json','files':[]}
+        with self.assertRaisesRegex(ValueError,'Unsupported explicit job fields'):jobs.validate(job)
+
+    def test_current_job_cannot_select_a_retired_snapshot_format(self):
+        job=self.job();job['runtime_snapshot']['library_root']=str(Path(job['root'])/'runtime/library')
+        with self.assertRaisesRegex(ValueError,'catalog-free runtime snapshot'):jobs.validate(job)
+
+    def test_old_job_catalog_is_only_an_immutable_legacy_binding(self):
+        from controller_common import bind
+        job=self.job();root=Path(job['root']);frozen=root/'runtime/library';frozen.mkdir()
+        catalog=frozen/'foundations.json';catalog.write_text('{"version":1,"entries":[]}')
+        manifest=root/'runtime-manifest.json';value=json.loads(manifest.read_text())
+        value['version']='yui-runtime-snapshot-2'
+        value['files'].append({'relative_path':'library/foundations.json','sha256':bind(catalog)['sha256'],
+                               'original':dict(bind(catalog),path='/old/installation/library/foundations.json')})
+        manifest.write_text(json.dumps(value))
+        job.update(version='yui-case-job-4',library_catalog={'path':str(catalog),'files':[bind(catalog)]})
+        job['runtime'].append(bind(catalog))
+        job['runtime_snapshot'].update(manifest=bind(manifest),library_root=str(frozen))
+        def save():
+            (root/'job.json').write_text(json.dumps(job))
+            marker=json.loads((root/jobs.MARKER).read_text())
+            marker.update(version=job['version'],job=bind(root/'job.json'))
+            (root/jobs.MARKER).write_text(json.dumps(marker))
+        save();jobs.validate(job)
+        job['library_catalog']['files']=[];save()
+        with self.assertRaisesRegex(ValueError,'binding changed'):jobs.validate(job)
 
     def test_job_binds_original_inputs_and_cannot_write_into_installation(self):
         job=self.job();self.problem.write_text('Changed after freeze')
@@ -290,16 +316,14 @@ class JobEntryTests(unittest.TestCase):
 
     def test_standalone_copy_prepares_and_reports_without_repository_or_test_support(self):
         elsewhere=self.root/'unrelated working directory';elsewhere.mkdir()
-        env=os.environ.copy();env.pop('YUI_LIBRARY_ROOT',None)
-        for include_catalog in (True,False):
-            with self.subTest(include_catalog=include_catalog):
-                parent=self.root/('with catalog' if include_catalog else 'without catalog')
-                install=parent/'renamed skill root'
-                ignored=['__pycache__','results','.git','tests']
-                if not include_catalog:ignored.append('library')
-                shutil.copytree(CORE,install,ignore=shutil.ignore_patterns(*ignored))
-                foreign=parent/'library';foreign.mkdir()
-                (foreign/'foundations.json').write_text('Unrelated sibling; must never be read.')
+        parent=self.root/'standalone';install=parent/'renamed skill root'
+        shutil.copytree(CORE,install,ignore=shutil.ignore_patterns('__pycache__','results','.git','.venv','tests'))
+        foreign=parent/'library';foreign.mkdir()
+        (foreign/'foundations.json').write_text('Unrelated sibling; must never be read.')
+        for obsolete_override in (None,str(foreign)):
+            with self.subTest(obsolete_override=obsolete_override):
+                env=os.environ.copy();env.pop('YUI_LIBRARY_ROOT',None)
+                if obsolete_override:env['YUI_LIBRARY_ROOT']=obsolete_override
                 command=[sys.executable,'-B',str(install/'nl0/scripts/yui.py')]
                 result=subprocess.run(command+['prepare',str(self.problem),'--track','nl0',
                     '--nl0-model','gpt-6.1-sol','--nl0-effort','high','--nl0-speed','standard',
@@ -315,10 +339,9 @@ class JobEntryTests(unittest.TestCase):
                 job=json.loads((run/'job.json').read_text())
                 frozen=run/'runtime'
                 self.assertTrue(all(Path(row['path']).is_relative_to(frozen) for row in job['runtime']))
-                catalog=job['library_catalog']
-                self.assertEqual(Path(catalog['path']),frozen/'library/foundations.json')
-                self.assertEqual(bool(catalog['files']),include_catalog)
-                self.assertTrue(all(Path(row['path']).is_relative_to(frozen) for row in catalog['files']))
+                self.assertNotIn('library_catalog',job)
+                self.assertNotIn('library_root',job['runtime_snapshot'])
+                self.assertFalse((frozen/'library').exists())
 
 
 if __name__=='__main__':unittest.main()

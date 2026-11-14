@@ -16,10 +16,10 @@ import uuid
 
 from controller_common import CORE, bind, write, runtime_bindings, verify_bindings
 from runtime_config import validate_profile
-import library_catalog
 from variant import OUTPUT_DIRECTORY
 
-VERSION = 'yui-case-job-4'
+VERSION = 'yui-case-job-5'
+ATTACHMENT_VERSION = 'yui-case-job-4'
 ENVIRONMENT_VERSION = 'yui-case-job-3'
 LEGACY_VERSION = 'yui-case-job-2'
 MARKER = '.yui-run.json'
@@ -163,7 +163,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
                 raise ValueError('Primary proof differs from the accepted NL0 inputs; do not translate a different problem under its receipt')
             write(inputs/'inputs.json',{'inputs':[{k:row[k] for k in ('id','path','sha256')} for row in documents]})
             import runtime_snapshot
-            snapshot,runtime,catalog_binding=runtime_snapshot.capture(root,runtime_bindings(),core=CORE)
+            snapshot,runtime=runtime_snapshot.capture(root,runtime_bindings(),core=CORE)
             job={'version':VERSION,'id':case_id+'-'+run_id,'case':case_id,'run_id':run_id,
                  'track':track,'policy':policy,'problem':str(problem),'root':str(root),
                  'profiles':profiles,'max_concurrency':max_concurrency,'documents':documents,
@@ -172,7 +172,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
                  'audit':str(Path(audit).resolve()) if audit else None,
                  'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
                  'time_budget_seconds':time_budget_seconds,'runtime':runtime,
-                 'runtime_snapshot':snapshot,'library_catalog':catalog_binding}
+                 'runtime_snapshot':snapshot}
             job['formalization']=formalization
             if stop_after:job['stop_after']=stop_after
             if (any(r['path']==str(root/'runtime/workflow/workflow.json') for r in runtime)
@@ -236,12 +236,15 @@ def validate(job, *, verify_runtime=True):
 
 
 def _validate(job, *, verify_runtime=True):
-    if job.get('version') not in {VERSION,ENVIRONMENT_VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
+    if job.get('version') not in {VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
         raise ValueError('Unsupported explicit case job')
-    if job['version'] in {VERSION,ENVIRONMENT_VERSION} and 'lean_environment' not in job:
-        raise ValueError('A v3/v4 job must freeze its Lean selection or explicit NL0 null')
-    if job['version']==VERSION and 'lean_libraries' not in job:
-        raise ValueError('A v4 job must freeze its explicit Lean library scope')
+    if job['version'] in {VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION} and 'lean_environment' not in job:
+        raise ValueError('A v3/v4/v5 job must freeze its Lean selection or explicit NL0 null')
+    if job['version'] in {VERSION,ATTACHMENT_VERSION} and 'lean_libraries' not in job:
+        raise ValueError('A v4/v5 job must freeze its explicit Lean library scope')
+    if job['version']==VERSION and ('runtime_snapshot' not in job
+            or 'library_root' in job['runtime_snapshot']):
+        raise ValueError('A v5 job requires a catalog-free runtime snapshot')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'stop_after' in job:
@@ -254,13 +257,13 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Unknown public workflow protocol or track')
         expected.add('workflow_protocol')
     if 'resume' in job:expected.add('resume')
-    if 'library_catalog' in job:expected.add('library_catalog')
+    if job['version']!=VERSION and 'library_catalog' in job:expected.add('library_catalog')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
     if 'formalization' in job:expected.add('formalization')
     if 'lean_environment' in job:expected.add('lean_environment')
-    if job['version']==VERSION:expected.add('lean_libraries')
+    if job['version'] in {VERSION,ATTACHMENT_VERSION}:expected.add('lean_libraries')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
     if 'lean_environment' in job:
@@ -329,12 +332,10 @@ def _validate(job, *, verify_runtime=True):
         if not all(r in job['authority_bindings'] for r in basis.recovery_bindings(prior)):
             raise ValueError('Recovery omitted prepared basis bindings')
     if verify_runtime:
+        import runtime_snapshot
         if 'runtime_snapshot' in job:
-            import runtime_snapshot
-            snapshot=runtime_snapshot.validate(job)
-            with library_catalog.use_library(snapshot['library_root']):selected=library_catalog.binding()
+            runtime_snapshot.validate(job)
         else:
-            verify_bindings(job['runtime']);selected=library_catalog.binding()
-        if 'library_catalog' in job and job['library_catalog']!=selected:
-            raise ValueError('Frozen user library selection or evidence changed')
+            verify_bindings(job['runtime'])
+        runtime_snapshot.validate_retired_catalog_binding(job)
     return job

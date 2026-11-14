@@ -79,7 +79,7 @@ outside the installed skill. Multiple problems own separate outputs, contexts,
 queues and ledgers. Use normal local repair unless a first-pass measurement is
 explicitly requested. Runtime and software controls are fully inside this skill;
 no repository example/support directory or old test result is required.
-New jobs retain an allowlisted executable/rule/catalog snapshot in their owned
+New jobs retain an allowlisted executable/rule/strategy snapshot in their owned
 `runtime/` directory and launch from it. Installation updates cannot silently
 change an active job's bound code; snapshot tampering still fails validation.
 Fresh jobs may attach explicitly bound non-Mathlib source/olean libraries through
