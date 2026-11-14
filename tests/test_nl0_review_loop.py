@@ -63,7 +63,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                 self.workspaces.append(stage.work)
             if stage.mode=='nl0-authoring':
                 artifact={'synthetic':'global draft'}
-                exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[stage.model],'standard_tier_verified':True}
+                exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':stage.model,'errors':[]}
                 result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','exposure':exposure,'usage':{'complete':True}}
             elif stage.mode=='nl0-local-repair':
                 validator=stage.validator
@@ -74,7 +74,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                     if repeat != 'local':row['argument'][0]['text']+=' Local explanation completed.'
                     artifact={'inference':row}
                 validator(artifact)
-                exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[stage.model],'standard_tier_verified':True}
+                exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':stage.model,'errors':[]}
                 result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','exposure':exposure,'usage':{'complete':True}}
             else:
                 failed=(role=='audit-a-global' and global_failure and (n==1 or repeat=='cycle' and n==2))

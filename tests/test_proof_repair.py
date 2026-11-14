@@ -324,7 +324,7 @@ class ProofRepairTests(unittest.TestCase):
         ir.write(old/'prompt.txt',json.loads(stage.prompt()))
         ir.write(old/'result.json',{'status':'REPAIR_REQUESTED','model':stage.model,'model_selection':stage.model_selection,
             'temporary_workspace_removed':True,'isolation_violation':False,'execution_health':'NO_RECORDED_FAULT',
-            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[stage.model],'standard_tier_verified':True}})
+            'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':stage.model,'errors':[]}})
         ir.write(previous/'workers/T002/lean-drafts/proof-0001.json',{'proof':'SIBLING_CANARY'})
         current=self.stage();receipt=proof_reuse.restore_repair_drafts(current,previous)
         self.assertIn('Warm own-node repair',receipt['scope']);self.assertIsNone(current.accepted)
@@ -368,7 +368,7 @@ class ProofRepairTests(unittest.TestCase):
         ir.write(destination/'result.json',{'status':'REPAIR_REQUESTED','repair_request':stage.repair_request,
             'model':model,'temporary_workspace_removed':True,'isolation_violation':False,
             'execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},
-            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[model],'standard_tier_verified':True}})
+            'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':model,'errors':[]}})
         ir.write(previous/'report.json',{'repair_requests':{'T001':stage.repair_request}})
         (previous/'workers/T002').mkdir();(previous/'workers/T002/foreign.txt').write_text('SIBLING_PRIVATE_CANARY')
         author=self.root/'author';ir.write(author/'inputs/spec.json',{'conclusion':'a neutral source target'})

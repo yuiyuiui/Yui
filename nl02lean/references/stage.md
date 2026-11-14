@@ -94,7 +94,6 @@ Proof jobs share their case proof budget; translation
 preparation and Audit B use a separate serial budget and the same all-stage ledger.
 Earlier local Audit A R reviews have their own N-slot budget. Record
 proof-only utilization separately from review activity, queue time and intervals.
-Legacy integer options are compatibility aliases.
 Here a run is one case, not a multi-case batch. Python coordination does not
 occupy a model slot. Apply [the execution protocol](execution-protocol.md) for
 the node queue, structured status file, scoped cancellation, retained errors and successful role finalization.

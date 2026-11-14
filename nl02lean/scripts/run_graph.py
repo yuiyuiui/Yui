@@ -90,7 +90,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     store = Store(shared_store) if shared_store else None
     files = [Path(__file__),Path(ir.__file__),Path(__file__).with_name('dependency_instances.py'),Path(pilot.__file__),Path(scheduler.__file__),
              Path(__file__).with_name('shared_lemmas.py'),Path(__file__).with_name('strategy_bank.py'),Path(concurrency.__file__),
-             ir.ROOT/'nl0/scripts/run_pilot.py',ir.ROOT/'nl0/scripts/pilot_common.py',
+             ir.ROOT/'nl0/scripts/native_carrier.py',ir.ROOT/'nl0/scripts/pilot_common.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/usage.py',ir.ROOT/'nl0/scripts/exposure.py',
              ir.ROOT/'nl0/scripts/execution_health.py']
     files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__),

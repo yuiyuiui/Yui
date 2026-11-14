@@ -273,7 +273,7 @@ class InterfaceContract:
             'endpoint_correspondence':value['endpoint_correspondence'],
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
             'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
-            'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Unreviewed candidate: only syntax/types and source boundaries are checked here. Normal entry requires actual independent pre-freeze semantic acceptance; the legacy pending field grants none.'}}
+            'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Unreviewed candidate: only syntax/types and source boundaries are checked here. Normal entry requires actual independent pre-freeze semantic acceptance; the pending field grants none.'}}
         supplement_file=self.out/'inputs/background-supplement.json'
         if supplement_file.is_file():
             supplement=json.loads(supplement_file.read_text())

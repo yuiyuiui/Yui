@@ -117,8 +117,8 @@ Unknown/local software faults and ambiguous protocol checkpoints stay paused
 when a safe replay boundary is unavailable. `resume-error` refuses those cases;
 the operator must inspect/verify the repair and select a supported checkpoint.
 An installation edit does not silently change a running job's frozen runtime.
-Legacy `resume` commands exist only for already-exited historical attempts and
-retain their original guards; never use them instead of a live error pause.
+The guarded `resume` commands apply only to exited current-format attempts;
+never use them instead of a live error pause.
 
 ## Exit and cleanup
 

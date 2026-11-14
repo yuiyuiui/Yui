@@ -54,10 +54,8 @@ API, confirm its matching completion and retain the role until the specified
 successful workflow boundary. Never manipulate HTTP connections to implement
 this handoff.
 
-Historical snapshots and archived raw-wire logs retain their original meanings.
-Legacy read-only exposure/usage readers remain for those records; new production
-runs cannot launch the removed relay. Provider-side state and account scheduling
-remain outside the locally observable boundary.
+Provider-side state and account scheduling remain outside the locally
+observable boundary. Native records are the only supported execution format.
 
 ## Clean text stages
 
@@ -93,8 +91,8 @@ partial provider argument/SSE events, so the former consecutive-whitespace and
 raw-provider-terminal observers are not installed or claimed for native runs.
 Complete tool arguments are validated before execution. Native-reported errors
 and process/reader failures follow the retained fault lifecycle; no synthetic
-terminal/usage or partial-call execution is permitted. Historical event-classification
-tests do not establish protection of an unobservable native stream.
+terminal/usage or partial-call execution is permitted. Unobservable provider
+streams have no locally claimed protection.
 
 Case-local execution snapshots/control files are controller material, not
 worker inputs. Their updates and heartbeats make no model calls. Independent

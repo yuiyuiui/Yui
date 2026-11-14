@@ -7,8 +7,6 @@ No API keys, bearer tokens, or authorization headers are written into logs.
 """
 from __future__ import annotations
 
-import argparse
-import concurrent.futures
 import hashlib
 import json
 import os
@@ -16,15 +14,12 @@ import queue
 import re
 import shutil
 import subprocess
-import tempfile
-import textwrap
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from staging_storage import copy_input
 
-from pilot_common import ROOT, load_lock, run_lean, sha256, transport_sandbox_profile
+from pilot_common import transport_sandbox_profile
 from runtime_config import model_profile
 import remote_retry
 from execution_state import CaseDeadlineExceeded, Cancelled
@@ -32,18 +27,8 @@ from execution_state import CaseDeadlineExceeded, Cancelled
 REMOTE_RETRY_POLICY = remote_retry.POLICY
 
 MODEL = model_profile()['id']
-PERSISTENT_VERSIONS = {'0.4.0', '0.4.1'}
-CURRENT_VERSION = '0.4.1'
 # Give an executing native tool batch time to return its diagnostics on a protective stop.
 REVIEW_FEEDBACK_DRAIN_SECONDS = 5
-SYSTEM = ('你是 Lean 4 证明形式化模型。只依据本次任务提供的定义、允许前提、自然语言证明和固定版本的 mathlib，'
-          '完成精确目标 P。可以使用提供的工具查阅 mathlib 并检查证明。不得增加目标假设、使用未授权公理或占位证明。'
-          'check_proof 和 submit_proof 接收 := by 之后的 Lean 证明体，不接收整个文件。'
-          '检查失败时自行修复；完成后调用 submit_proof。不要尝试查阅其他任务、参考答案、记忆、skill 或外部服务。')
-AUDIT_QUESTION = ('证明阶段已经结束，本轮仅作环境自述，不再修改证明。请分别说明：'
-                  '1. 本轮你实际使用了哪些工具和信息来源；2. 是否看到旧会话、个人记忆或 skill 内容；'
-                  '3. 是否调用过额外模型、网页或其他网络 API；4. 对运行程序通过何种网络接口调用你，'
-                  '以及宿主机是否还存在不可见文件，哪些是你无法独立核实的。请区分亲自观察和无法验证。')
 
 
 def now() -> str:
@@ -61,57 +46,8 @@ def tool(name: str, description: str, properties: dict, required: list[str]) -> 
                             'additionalProperties': False}}
 
 
-TOOLS = [
-    tool('search_mathlib', '在固定 mathlib 的 Lean 源码中搜索正则表达式，返回至多 100 行。',
-         {'query': {'type': 'string'}}, ['query']),
-    tool('read_mathlib', '读取固定 mathlib 中一个 Mathlib/...lean 文件的指定行。',
-         {'path': {'type': 'string'}, 'start_line': {'type': 'integer'}, 'line_count': {'type': 'integer'}},
-         ['path', 'start_line', 'line_count']),
-    tool('check_proof', '将提供的证明体放入不可改动的目标包装中，以 Lean 编译并检查公理依赖。',
-         {'proof': {'type': 'string'}}, ['proof']),
-    tool('submit_proof', '提交最终证明体并执行相同验收；成功时结束证明阶段。',
-         {'proof': {'type': 'string'}}, ['proof']),
-]
-TOOL_NAMES = {t['name'] for t in TOOLS}
-SYSTEM_WITH_AUXILIARY = SYSTEM + (
-    'check_auxiliary 可单独检查一个全称量化的辅助命题及其证明体；该检查不会把结果加入前提或最终目标。'
-    '最终提交仍须在 P 的证明体中包含所有自建辅助结果的证明。')
-CONTINUE_PROMPT = ('最终目标P尚未通过提交验收。请继续利用本题已有上下文和工具修复并提交完整证明。'
-                   '目标、定义和许可前提不变；本条不提供新的数学事实。')
-SYSTEM_PERSISTENT = SYSTEM_WITH_AUXILIARY + (
-    '本题Target.lean.txt中theorem P已经声明的参数和假设，在最终证明体开头已位于Lean上下文中，不要再次intro这些参数。'
-    '最终证明体不要以额外的by开头；只有新建的have子证明需要自己的by。辅助命题的全称量词仍需在辅助证明内引入。'
-    '最终提交未通过时应继续修复；单次回合结束不代表任务完成，管理程序可能发出固定继续指令。')
-TOOLS_WITH_AUXILIARY = TOOLS + [
-    tool('check_auxiliary', '在同一前提下独立编译一个辅助命题，不接受最终目标，也不扩充后续上下文。'
-         'statement 只填命题类型（含全部量词），proof 只填 := by 之后的证明体。',
-         {'statement': {'type': 'string'}, 'proof': {'type': 'string'}}, ['statement', 'proof']),
-]
-
-
-def harness_policy(version: str) -> tuple[str, list[dict]]:
-    if version in ['0.1.0', '0.2.0']:
-        return SYSTEM, TOOLS
-    if version == '0.3.0':
-        return SYSTEM_WITH_AUXILIARY, TOOLS_WITH_AUXILIARY
-    if version in PERSISTENT_VERSIONS:
-        return SYSTEM_PERSISTENT, TOOLS_WITH_AUXILIARY
-    raise ValueError('未知 harness 版本：' + version)
-
-
-FOUNDATIONS = {'propext', 'Classical.choice', 'Quot.sound'}
-FORBIDDEN = re.compile(r'\b(sorry|admit|axiom|unsafe|run_meta|run_elab|run_tac|native_decide|set_option)\b|(^|\n)\s*#', re.M)
-AUXILIARY_COMMANDS = re.compile(
-    r'\b(theorem|lemma|def|abbrev|opaque|instance|namespace|section|end|import|open|'
-    r'attribute|syntax|macro|elab|initialize|export|variable|universe)\b|:=')
-PROOF_FORMAT = 'dedent_then_indent_2'
-
-
-def format_proof_body(proof: str) -> str:
-    """Embed a standalone tactic body without requiring outer file indentation."""
-    return textwrap.indent(textwrap.dedent(proof).strip('\n'), '  ')
-
-
+CONTINUE_PROMPT = ('The requested artifact has not passed submission. '
+                   'Continue with the same inputs and tools; preserve the fixed specification.')
 
 
 def system_https_proxy() -> tuple[str, int] | None:
@@ -120,6 +56,15 @@ def system_https_proxy() -> tuple[str, int] | None:
     host = re.search(r'HTTPSProxy\s*:\s*(\S+)', config)
     port = re.search(r'HTTPSPort\s*:\s*(\d+)', config)
     return (host[1], int(port[1])) if enabled and enabled[1] == '1' and host and port else None
+
+
+TOOLS = [
+    tool('search_mathlib', 'Search the selected Mathlib sources; at most 100 lines.',
+         {'query': {'type': 'string'}}, ['query']),
+    tool('read_mathlib', 'Read specified lines of a Mathlib source file.',
+         {'path': {'type': 'string'}, 'start_line': {'type': 'integer'}, 'line_count': {'type': 'integer'}},
+         ['path', 'start_line', 'line_count']),
+]
 
 
 class LocalProtocolRejection(PermissionError):
@@ -133,64 +78,12 @@ class NativeEventTimeout(TimeoutError):
     """The controller wait expired before the requested native event arrived."""
 
 
-class Trial:
+class NativeCarrier:
+    """Shared native-session methods; concrete stages supply inputs and validators."""
     @property
     def model(self):
         return self.model_selection['id'] if hasattr(self, 'model_selection') else MODEL
 
-    def __init__(self, case: str, run_dir: Path, timeout: float | None = None, suite: str = 'pilot-v1',
-                 harness_version: str = '0.2.0'):
-        self.harness_version = harness_version
-        self.model_selection = model_profile()
-        self.strict = harness_version in PERSISTENT_VERSIONS
-        self.system, self.tools = harness_policy(harness_version)
-        self.tool_names = {t['name'] for t in self.tools}
-        self.case, self.logs, self.timeout = case, run_dir / case, __import__('runtime_config').time_limit(timeout)
-        self.logs.mkdir(parents=True)
-        self.work = Path(tempfile.mkdtemp(prefix=f'nl2lean-{case}-')).resolve()
-        from run_resources import register_workspace
-        register_workspace(self.work, self.logs)
-        for name in ['input', 'output', 'tmp', 'home', 'state']:
-            (self.work / name).mkdir(mode=0o700)
-        self.suite = suite
-        self.taskdir = ROOT / 'benchmarks' / suite / case
-        self.task = json.loads((self.taskdir / 'task.json').read_text())
-        for p in self.taskdir.iterdir():
-            if self.strict and p.name not in {'task.md', 'Premises.lean', 'Target.lean.txt'}:
-                continue
-            copy_input(p, self.work / 'input' / p.name)
-        (self.logs / 'input').mkdir()
-        for p in (self.work / 'input').iterdir(): copy_input(p, self.logs / 'input' / p.name)
-        if self.strict:
-            # Archive manager metadata for verification, without exposing it
-            # through the model/compiler's own runtime input directory.
-            shutil.copyfile(self.taskdir / 'task.json', self.logs / 'input/task.json')
-            (self.logs / 'runtime-input-manifest.json').write_text(json.dumps(
-                {p.name: sha256(p) for p in (self.work / 'input').iterdir()}, indent=2) + '\n')
-        (self.logs / 'input-manifest.json').write_text(json.dumps(
-            {p.name: sha256(p) for p in (self.logs / 'input').iterdir()}, indent=2) + '\n')
-        self.prefix = (self.work / 'input/Target.lean.txt').read_text().split(' := by\n')[0] + ' := by\n'
-        self.accepted = None
-        self.lean_calls = 0
-        self.api_calls = 0
-        self.request_lock = threading.Lock()
-        self.native_turn_generation = 0
-        self.request_turns = {}
-        self.last_response_success = None
-        self.rpc_id = 0
-        self.inbox: queue.Queue = queue.Queue()
-        self.started: float | None = None
-        self.allowed_user_messages: set[str] = set()
-        self.proc = None
-        self.model_calls: dict[str, dict] = {}
-        self.tool_history: dict[str, dict] = {}
-        self.phase = 'proof'
-        self.continuation_count = 0
-        self.turn_results: list[dict] = []
-        self.last_turn_event = None
-        self.active_turn_id = None
-        self.pending_turn_start_id = None
-        self.initial_user_message = None
 
     def lean_timeout(self) -> float | None:
         import lean_timeout_policy
@@ -198,118 +91,48 @@ class Trial:
         limit = (lean_timeout_policy.ceiling() if lean_timeout_policy.active.get() is not None
                  else __import__('runtime_config').configured_timeout('native'))
         case_left = recorder.remaining(limit) if recorder else limit
-        if self.strict and self.started is not None and self.timeout is not None:
+        if self.started is not None and self.timeout is not None:
             remaining = self.started + self.timeout - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError('证明预算已耗尽，不再启动Lean检查。')
             return min(case_left, remaining) if case_left is not None else remaining
         return case_left
 
-    def check(self, proof: str, submit: bool = False) -> dict:
-        if self.strict and re.match(r'^\s*by(?:\s|$)', proof):
-            return {'accepted': False, 'error': '只填固定目标 := by 之后的证明体，请去掉开头多余的by。已声明参数已在上下文中。'}
-        if len(proof) > 100_000 or FORBIDDEN.search(proof):
-            return {'accepted': False, 'error': '证明体包含被禁止的占位符、公理、元编程命令或超出长度限制。'}
-        p = self.work / 'output/Candidate.lean'
-        compiled_body = format_proof_body(proof)
-        p.write_text(self.prefix + compiled_body + '\n\nend\nend Pilot\n\n#print axioms Pilot.P\n#check @Pilot.P\n')
-        self.lean_calls += 1
-        result = run_lean(p, self.work, extra=[self.work / 'input'], timeout=self.lean_timeout())
-        match = re.search(r"'Pilot.P' depends on axioms: \[([^]]*)\]", result['stdout'])
-        actual = {s.strip() for s in match[1].split(',') if s.strip()} if match else set()
-        if "'Pilot.P' does not depend on any axioms" in result['stdout']:
-            match = True
-        allowed = FOUNDATIONS | {'Pilot.' + f for f in self.task['allowed_premises']}
-        unexpected = actual - allowed
-        ok = result['exit_code'] == 0 and bool(match) and not unexpected
-        record = {**result, 'accepted': ok, 'axioms': sorted(actual), 'unexpected_axioms': sorted(unexpected),
-                  'proof_sha256': hashlib.sha256(proof.encode()).hexdigest(), 'submission': submit}
-        record.update({'proof_body_format': PROOF_FORMAT,
-                       'compiled_proof_body_sha256': hashlib.sha256(compiled_body.encode()).hexdigest()})
-        append(self.logs / 'lean.jsonl', record)
-        if submit and ok:
-            self.accepted = {'solve_seconds': time.monotonic() - self.started,
-                             'accepted_at_utc': now(), 'proof_sha256': record['proof_sha256'], 'axioms': sorted(actual),
-                             'proof_body_format': PROOF_FORMAT,
-                             'compiled_proof_body_sha256': record['compiled_proof_body_sha256']}
-            (self.logs / 'proof.txt').write_text(proof)
-            (self.logs / 'CompiledProof.txt').write_text(compiled_body)
-            shutil.copyfile(p, self.logs / 'Submitted.lean')
-        return {**record, 'stdout': result['stdout'][-14000:], 'stderr': result['stderr'][-2000:]}
-
-    def check_auxiliary(self, statement: str, proof: str) -> dict:
-        if (not statement.strip() or len(statement) > 20_000 or len(proof) > 100_000
-                or FORBIDDEN.search(statement) or FORBIDDEN.search(proof)
-                or AUXILIARY_COMMANDS.search(statement)):
-            return {'auxiliary_valid': False, 'error': '辅助命题只接受命题类型及无占位符的证明体。'}
-        header, marker, _ = self.prefix.partition('theorem P')
-        if not marker:
-            raise ValueError('固定目标缺少 theorem P。')
-        compiled_body = format_proof_body(proof)
-        p = self.work / 'output/Auxiliary.lean'
-        p.write_text(header + 'theorem auxiliaryCheck : ' + statement + ' := by\n' + compiled_body
-                     + '\n\nend\nend Pilot\n\n#print axioms Pilot.auxiliaryCheck\n#check @Pilot.auxiliaryCheck\n')
-        self.lean_calls += 1
-        result = run_lean(p, self.work, extra=[self.work / 'input'], timeout=self.lean_timeout())
-        match = re.search(r"'Pilot.auxiliaryCheck' depends on axioms: \[([^]]*)\]", result['stdout'])
-        actual = {s.strip() for s in match[1].split(',') if s.strip()} if match else set()
-        if "'Pilot.auxiliaryCheck' does not depend on any axioms" in result['stdout']:
-            match = True
-        allowed = FOUNDATIONS | {'Pilot.' + f for f in self.task['allowed_premises']}
-        unexpected = actual - allowed
-        record = {**result, 'auxiliary_valid': result['exit_code'] == 0 and bool(match) and not unexpected,
-                  'scope': 'auxiliary_only; not added to premises or final target',
-                  'axioms': sorted(actual), 'unexpected_axioms': sorted(unexpected),
-                  'statement_sha256': hashlib.sha256(statement.encode()).hexdigest(),
-                  'proof_sha256': hashlib.sha256(proof.encode()).hexdigest(),
-                  'proof_body_format': PROOF_FORMAT,
-                  'compiled_proof_body_sha256': hashlib.sha256(compiled_body.encode()).hexdigest(),
-                  'kind': 'auxiliary', 'submission': False}
-        append(self.logs / 'lean.jsonl', record)
-        return {**record, 'stdout': result['stdout'][-14000:], 'stderr': result['stderr'][-2000:]}
-
     def dispatch(self, name: str, args: dict) -> dict:
-        started = time.monotonic()
+        """Serve the two source-reading tools shared by current stages."""
+        started=time.monotonic()
         try:
-            if name not in self.tool_names:
-                raise PermissionError('工具不在本次实验白名单内。')
-            if self.strict and self.phase != 'proof':
-                raise PermissionError('证明阶段已经结束，环境自述阶段不执行工具。')
-            if self.accepted and name in ['check_proof', 'submit_proof', 'check_auxiliary']:
-                raise PermissionError('证明已验收，禁止覆盖该次提交。')
-            if name in ['check_proof', 'submit_proof']:
-                result = self.check(args['proof'], name == 'submit_proof')
-            elif name == 'check_auxiliary':
-                result = self.check_auxiliary(args['statement'], args['proof'])
-            elif name == 'search_mathlib':
-                __import__('runtime_config').require_environment()
-                ml = Path(load_lock()['mathlib']['local_path']) / 'Mathlib'
-                rg = load_lock()['tools']['ripgrep']['binary_path']
-                p = subprocess.run([rg, '--no-config', '-n', '--max-count', '5', '--glob', '*.lean',
-                                    '--', args['query'], str(ml)], capture_output=True, text=True,
-                                   env={'PATH': '/usr/bin:/bin', 'HOME': str(self.work / 'home'), 'LANG': 'en_US.UTF-8'})
-                result = {'matches': '\n'.join(p.stdout.replace(str(ml) + '/', 'Mathlib/').splitlines()[:100])[:16000],
-                          'exit_code': p.returncode, 'stderr': p.stderr[-2000:]}
-            elif name == 'read_mathlib':
-                __import__('runtime_config').require_environment()
-                ml = Path(load_lock()['mathlib']['local_path'])
-                path = (ml / args['path']).resolve()
-                if not path.is_relative_to(ml / 'Mathlib') or path.suffix != '.lean':
-                    raise PermissionError('只能读取固定 mathlib 的 Mathlib/*.lean 源码。')
-                start = max(1, int(args['start_line']))
-                count = max(1, min(200, int(args['line_count'])))
-                lines = path.read_text().splitlines()
-                result = {'path': str(path.relative_to(ml)), 'lines': '\n'.join(
-                    f'{i + 1}: {lines[i]}' for i in range(start - 1, min(len(lines), start - 1 + count)))[:18000]}
+            if name not in self.tool_names or self.phase!='proof':
+                raise PermissionError('Tool is unavailable in this stage')
+            from runtime_config import require_environment,load_lock
+            require_environment()
+            lock=load_lock();root=Path(lock['mathlib']['local_path'])
+            if name=='search_mathlib':
+                source=root/'Mathlib'
+                found=subprocess.run([lock['tools']['ripgrep']['binary_path'],'--no-config','-n',
+                    '--max-count','5','--glob','*.lean','--',args['query'],str(source)],
+                    capture_output=True,text=True,
+                    env={'PATH':'/usr/bin:/bin','HOME':str(self.work/'home'),'LANG':'en_US.UTF-8'})
+                result={'matches':'\n'.join(found.stdout.replace(str(source)+'/', 'Mathlib/').splitlines()[:100])[:16000],
+                        'exit_code':found.returncode,'stderr':found.stderr[-2000:]}
+            elif name=='read_mathlib':
+                path=(root/args['path']).resolve()
+                if not path.is_relative_to(root/'Mathlib') or path.suffix!='.lean':
+                    raise PermissionError('Only source files in the selected Mathlib are readable')
+                start=max(1,int(args['start_line']));count=max(1,min(200,int(args['line_count'])))
+                lines=path.read_text().splitlines()
+                result={'path':str(path.relative_to(root)),'lines':'\n'.join(
+                    f'{i+1}: {lines[i]}' for i in range(start-1,min(len(lines),start-1+count)))[:18000]}
             else:
-                raise PermissionError('工具不在本次实验白名单内。')
-        except (CaseDeadlineExceeded, Cancelled):raise
-        except Exception as e:
-            result = {'error': str(e), 'error_type': type(e).__name__, 'accepted': False,
-                      'infrastructure_error': name == 'search_mathlib' and isinstance(e, FileNotFoundError)}
-        append(self.logs / 'tools.jsonl', {'tool': name, 'arguments': args, 'result': result,
-                                         'wall_seconds': time.monotonic() - started})
+                raise PermissionError('Tool is unavailable in this stage')
+        except (CaseDeadlineExceeded,Cancelled):raise
+        except Exception as error:
+            result={'error':str(error),'error_type':type(error).__name__,'accepted':False,
+                    'infrastructure_error':name=='search_mathlib' and isinstance(error,FileNotFoundError)}
+        append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
+                                      'wall_seconds':time.monotonic()-started})
         return result
+
 
     def validate_tool_rpc(self, params):
         return __import__('native_client').validate_tool(self,params)
@@ -469,10 +292,9 @@ class Trial:
         for key in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','NO_PROXY','http_proxy','https_proxy','all_proxy','no_proxy'):
             if key in os.environ:env[key]=os.environ[key]
         command=[lock['codex']['binary_path'],'app-server','--stdio']
-        if self.strict:
-            profile=self.work/'transport.sb';profile.write_text(transport_sandbox_profile(self.work))
-            shutil.copyfile(profile,self.logs/'transport-sandbox.sb')
-            command=['/usr/bin/sandbox-exec','-f',str(profile)]+command
+        profile=self.work/'transport.sb';profile.write_text(transport_sandbox_profile(self.work))
+        shutil.copyfile(profile,self.logs/'transport-sandbox.sb')
+        command=['/usr/bin/sandbox-exec','-f',str(profile)]+command
         with (self.logs/'transport-stderr.log').open('w') as error_log:
             self.proc=subprocess.Popen(command,cwd=self.work/'input',env=env,stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,stderr=error_log,text=True,bufsize=1,start_new_session=True)
@@ -547,7 +369,7 @@ class Trial:
             if finished(event) or review_guard.blocked:
                 return event
 
-    def solve_turns(self, user: str, *, smoke: bool = False) -> dict:
+    def solve_turns(self, user: str) -> dict:
         """Continue in the same isolated history; no deadline unless requested."""
         self.allowed_user_messages.add(user)
         self.initial_user_message = user
@@ -620,7 +442,7 @@ class Trial:
                 self.allowed_user_messages.add(continuation_prompt);message=continuation_prompt
                 continue
             incident_retries=0
-            if smoke or self.accepted or not self.strict:
+            if self.accepted:
                 return done
             hook=getattr(self,'after_unaccepted_turn',None)
             if hook and hook():
@@ -740,93 +562,3 @@ class Trial:
                 path.parent.mkdir(exist_ok=True)
                 path.write_text(json.dumps(row,ensure_ascii=False,indent=2)+'\n')
                 row['record']={'path':str(path.resolve()),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
-
-    def run(self, *, smoke: bool = False) -> dict:
-        result = {'case': self.case, 'suite': self.suite, 'model': self.model, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'), 'status': 'STARTING',
-                  'harness_version': self.harness_version,
-                  'runtime_directory': str(self.work), 'started_at_utc': now(), 'smoke': smoke}
-        try:
-            prep = run_lean(self.work / 'input/Premises.lean', self.work,
-                            output=self.work / 'output/Premises.olean')
-            if prep['exit_code'] != 0: raise RuntimeError('前提文件编译失败：' + str(prep))
-            for path in (self.work / 'output').glob('Premises.*'):
-                shutil.move(path, self.work / 'input' / path.name)
-            self.start_process()
-            inventory = self.rpc('skills/list', {'cwds': [str(self.work / 'input')], 'forceReload': True})
-            (self.logs / 'skills-inventory.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2))
-            t = self.rpc('thread/start',__import__('native_client').thread_parameters(self))
-            __import__('native_client').verify_thread(self,t)
-            self.thread_id = t['thread']['id']
-            if smoke:
-                user = ('本轮是工具链连接测试，不做数学任务。请先调用 search_mathlib 搜索 '
-                        'hasDerivAt_tsum_of_isPreconnected，再调用 read_mathlib 读取 '
-                        'Mathlib/Analysis/Calculus/SmoothSeries.lean 第85至110行，最后仅回复：连接正常。')
-                if 'check_auxiliary' in self.tool_names:
-                    user += ('回复前还须调用 check_auxiliary，statement 为 ∀ n : Nat, n = n，'
-                             'proof 为 intro n 后换行 rfl。这只是独立编译工具的连接检查。')
-            else:
-                user = '\n\n'.join((self.work / 'input' / p).read_text()
-                                    for p in ['task.md', 'Premises.lean', 'Target.lean.txt'])
-            try:
-                done = self.solve_turns(user, smoke=smoke)
-                result['turn_result'] = done
-            except TimeoutError as e:
-                if not self.strict:
-                    raise
-                result.update({'status': 'TIMEOUT', 'error': str(e)})
-                result['proof_elapsed_seconds'] = time.monotonic() - self.started
-                result['proof_stage_status'] = 'TIMEOUT'
-                self.phase = 'closing'
-                self.interrupt_active_turn()
-                result['deadline_interrupt_status'] = 'PASS'
-            result.setdefault('proof_elapsed_seconds', time.monotonic() - self.started)
-            if smoke:
-                result['status'] = 'SMOKE_COMPLETED'
-            elif self.accepted:
-                result.update(self.accepted)
-                result['status'] = 'PROOF_ACCEPTED'
-                # Recompile the submission in a newly created verifier root.
-                v = Path(tempfile.mkdtemp(prefix=f'nl2lean-verify-{self.case}-')).resolve()
-                for n in ['input', 'output', 'home', 'tmp']: (v / n).mkdir()
-                for p in (self.work / 'input').glob('Premises.*'): shutil.copyfile(p, v / 'input' / p.name)
-                shutil.copyfile(self.logs / 'Submitted.lean', v / 'output/Submitted.lean')
-                verification = run_lean(v / 'output/Submitted.lean', v, extra=[v / 'input'])
-                (self.logs / 'independent-verification.json').write_text(json.dumps(verification, ensure_ascii=False, indent=2))
-                result['independent_verification_exit_code'] = verification['exit_code']
-                if verification['exit_code'] != 0: result['status'] = 'VALIDATION_FAILED'
-            elif result['status'] != 'TIMEOUT':
-                result['status'] = 'NO_ACCEPTED_PROOF'
-            result['proof_stage_status'] = result['status']
-            if not smoke and (self.accepted or self.strict):
-                self.phase = 'audit'
-                self.allowed_user_messages.add(AUDIT_QUESTION)
-                self.rpc('turn/start', {'threadId': self.thread_id, 'effort': getattr(self, 'model_selection', {}).get('reasoning_effort', 'high'),
-                    'input': [{'type': 'text', 'text': AUDIT_QUESTION}], 'environments': []})
-                self.receive_until(lambda m: m.get('method') == 'turn/completed',
-                    self.started + self.timeout if self.timeout is not None else None)
-                result['environment_audit_status'] = 'COMPLETED'
-        except Exception as e:
-            result['status'] = 'TIMEOUT' if isinstance(e, TimeoutError) else 'ERROR'
-            result['error'] = str(e)
-            result['failure_phase'] = self.phase
-        finally:
-            if result.get('status') not in {'SMOKE_COMPLETED','PROOF_ACCEPTED','CANCELLED'}:
-                try:self.pause_error({'code':'harness_bug','message':'Native carrier did not complete',
-                    'outcome':dict(result)},resumable=False)
-                except __import__('execution_state').Cancelled:
-                    result.update(status='CANCELLED',stop_reason='EXTERNAL_CANCEL')
-            result['continuation_count'] = self.continuation_count
-            result['remote_retries'] = getattr(self,'remote_retry_count',0)
-            result['remote_retry_policy'] = REMOTE_RETRY_POLICY
-            result['proof_turns'] = self.turn_results
-            result.update({'finished_at_utc': now(), 'api_calls': self.api_calls, 'lean_calls': self.lean_calls})
-            if self.started: result['total_elapsed_seconds'] = time.monotonic() - self.started
-            if self.proc:
-                self.proc.terminate()
-                try: self.proc.wait(timeout=5)
-                except subprocess.TimeoutExpired: self.proc.kill(); self.proc.wait()
-            # Authentication is ephemeral and never part of the experiment artifact.
-            for name in ['auth.json', 'models_cache.json']:
-                (self.work / 'state' / name).unlink(missing_ok=True)
-            (self.logs / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
-        return result

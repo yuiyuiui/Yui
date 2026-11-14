@@ -19,7 +19,7 @@ then export the actual worker packets from the accepted source version.
 
 1. Receive the exact v2 per-R packet, its spec/graph bindings and Audit A
    receipt. Verify the upstream receipt before claiming production readiness.
-   Development may instead use a clearly labeled legacy extract with complete
+   Development may instead use a clearly labeled development extract with complete
    mathematical text, original source spans and no current-Audit-A claim.
 2. Inventory the direct input propositions, conclusion and all used definitions.
    Copy their mathematical content; never reconstruct an input by consulting

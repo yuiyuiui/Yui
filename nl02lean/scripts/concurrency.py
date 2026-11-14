@@ -168,7 +168,7 @@ def serial_budget(budget=None):
         ir.need(budget.configuration['effective'] == 1 and budget.role in {'unspecified','preparation_review'},
                 'Preparation/review requires a serial non-proof budget')
         if budget.role=='unspecified':
-            ir.need(budget.report()['active_model_stages']==0,'Cannot change the role of an active legacy budget')
+            ir.need(budget.report()['active_model_stages']==0,'Cannot change the role of an active unassigned budget')
             budget.role='preparation_review'
         return budget
     return Budget(serial_configuration(), role='preparation_review')

@@ -9,7 +9,7 @@ import threading
 import time
 from unittest.mock import Mock, patch
 
-import run_pilot as carrier
+import native_carrier as carrier
 from clean_stage import ArtifactStage
 
 
@@ -27,7 +27,7 @@ class IsolationTests(unittest.TestCase):
         self.temp.cleanup()
 
     def payload(self):
-        return {'model': __import__('run_pilot').MODEL, 'reasoning': {'effort': 'high'},
+        return {'model': __import__('native_carrier').MODEL, 'reasoning': {'effort': 'high'},
                 'instructions': 'FOREIGN_INSTRUCTION_CANARY',
                 'input': [{'role': 'developer', 'content': [{'type': 'input_text', 'text': 'PRIVATE_SKILL_CANARY'}]},
                           {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': 'FOREIGN_TASK_CANARY'}]},
@@ -56,7 +56,7 @@ class IsolationTests(unittest.TestCase):
             self.worker.start_process()
         parsed=tomllib.loads((self.worker.logs/'effective-config.toml').read_text())
         self.assertEqual(parsed['tool_output_token_limit'],262144)
-        self.assertEqual(parsed['model'],__import__('run_pilot').MODEL)
+        self.assertEqual(parsed['model'],__import__('native_carrier').MODEL)
         self.assertEqual(parsed['model_reasoning_effort'],'high')
         self.assertEqual(parsed['project_doc_max_bytes'],0)
         self.assertFalse(parsed['features']['memories'])

@@ -77,10 +77,9 @@ class InterfaceGateTests(unittest.TestCase):
             'source_graph':bind(inputs/'nl0.json'),'spec':bind(inputs/'spec.json'),
             'paragraph_mapping':{'S001':{'inference':'R001','paragraph':'S001'}},'source_outputs':{'P':'T001'}})
         ir.write(out/'stage/accepted.json',{'checks':checks,'findings':[]})
-        ir.write(out/'stage/result.json',{'status':'ACCEPTED','model':__import__('run_pilot').MODEL,
+        ir.write(out/'stage/result.json',{'status':'ACCEPTED','model':__import__('native_carrier').MODEL,
             'execution_health':'NO_RECORDED_FAULT','temporary_workspace_removed':True,'isolation_violation':False,
-            'usage':{'complete':False},'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
-                'actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}})
+            'usage':{'complete':False},'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}})
         for name in ['exposure-audit.json','execution-manifest.json']:ir.write(out/'stage'/name,{'fixture':'synthetic only'})
         review.collect(out)
         return out,inputs

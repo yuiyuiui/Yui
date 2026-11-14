@@ -137,21 +137,6 @@ def inventory(repo, outputs=None):
                                 raise ValueError('Workspace owner marker differs: '+str(work))
                             workspaces[work.resolve()] = str(path)
                         records.append(row['owner'])
-                    elif filename == 'transport-sandbox.sb':
-                        # Migration of old Yui stages before explicit workspace markers.
-                        # Require an exact archived/live profile match and Yui carrier config.
-                        text = path.read_text()
-                        for raw in re.findall(r'\(subpath ("(?:[^"\\]|\\.)*")\)', text):
-                            work = Path(json.loads(raw))
-                            if not work.name.startswith('nl0-ir-model-') or work.resolve().parent != temp_root:
-                                continue
-                            if work.is_symlink() or not work.is_dir():
-                                continue
-                            profile, config = work/'transport.sb', work/'state/config.toml'
-                            if (profile.is_file() and not profile.is_symlink() and
-                                config.is_file() and not config.is_symlink() and
-                                profile.read_text() == text and 'Yui isolated subscription carrier' in config.read_text()):
-                                workspaces[work.resolve()] = str(path)
                 except (OSError, ValueError, KeyError, TypeError) as error:
                     errors.append(str(error))
     # A launch can succeed before OS identity capture fails. Retain that group

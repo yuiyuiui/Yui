@@ -87,7 +87,7 @@ class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
 
     def test_identity_or_rule_mismatch_never_qualifies(self):
         path=self.campaign/'R001/stage/result.json';result=a.nl0.load(path)
-        result['exposure']['actual_model_ids']=['wrong-model'];a.write(path,result)
+        result['exposure']['configured_model']='wrong-model';a.write(path,result)
         self.assertNotIn('packet:R001',reuse.select(self.data,[self.campaign]))
         path=self.campaign/'R002/stage/execution-manifest.json';manifest=a.nl0.load(path)
         manifest['rule_documents']['nl0/references/audit-a.md']='changed';a.write(path,manifest)
@@ -95,9 +95,9 @@ class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
 
     def test_complete_recovered_review_is_reused_with_fault_measurement_preserved(self):
         path=self.campaign/'R001/stage/result.json';result=a.nl0.load(path)
-        result.update(execution_health='FAULT',temporary_workspace_removed=True,
-            transport_health={'status':'FAULT','faults':[{'kind':'PROVIDER_ERROR','request_number':1,
-                'code':'server_is_overloaded'}],'uncertainty':[]})
+        result.update(transport='native-codex-stdio-v1',execution_health='FAULT',temporary_workspace_removed=True,
+            transport_health={'status':'FAULT','faults':[{'kind':'NATIVE_PROVIDER_ERROR',
+                'details':{'codexErrorInfo':'serverOverloaded'}}],'uncertainty':[]})
         a.write(path,result)
         hit=reuse.select(self.data,[self.campaign])['packet:R001']
         self.assertFalse(hit['measurement']['execution_qualified'])

@@ -11,7 +11,7 @@ import unittest
 from clean_stage import ArtifactStage
 import own_state
 import exposure
-from run_pilot import MODEL
+from native_carrier import MODEL
 from unittest.mock import patch
 
 

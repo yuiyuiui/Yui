@@ -6,11 +6,8 @@ nor shell/filesystem access. All actual transmitted inputs and usage are retaine
 """
 from __future__ import annotations
 
-import argparse
-import concurrent.futures
 import hashlib
 import json
-import os
 from pathlib import Path
 import queue
 import shutil
@@ -22,14 +19,12 @@ import traceback
 
 import ir
 import strategy_bank
-import scheduler
 import concurrency
 import execution_state as execution
 import proof_repair
-from shared_lemmas import Store
 
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
-import run_pilot as carrier
+import native_carrier as carrier
 import graph_repair
 from runtime_config import model_profile
 from native_client import OUTPUT_POLICY, PROVIDER_WAIT_POLICY
@@ -44,14 +39,9 @@ def load_lock():
     return runtime_lock()
 
 
-carrier.load_lock = load_lock
-
 HARNESS = 'yui-0.1.3'
 BACKGROUND_NOTE_POLICY = 'local-background-on-demand-1'
 LEAN_WRITING_PATH = ir.HERE/'references/lean-writing.md'
-STAGE_LIMITER = None
-carrier.CONTINUE_PROMPT = ('The requested artifact has not passed submission. '
-                          'Continue with the same inputs and tools; preserve the fixed specification.')
 SYSTEM = ('You translate the supplied natural-language proof faithfully into Lean 4. '
           'Use the explicit project premises and any proved result in the pinned Mathlib environment. '
           'Preserve all assumptions, conclusions, equality modes and the supplied proof route. '
@@ -64,7 +54,7 @@ def json_tool(name, description, field):
     return carrier.tool(name, description, {field:{'type':'string'}}, [field])
 
 
-class Stage(carrier.Trial):
+class Stage(carrier.NativeCarrier):
     def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
@@ -82,7 +72,6 @@ class Stage(carrier.Trial):
         if self.private_sources and not private_worker:raise ValueError('Private sources require a private proof worker')
         self.timeout = __import__('runtime_config').time_limit(timeout)
         self.harness_version = HARNESS
-        self.strict = True
         self.system = SYSTEM
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
@@ -117,7 +106,7 @@ class Stage(carrier.Trial):
                         'are available through read_lean_draft. After a context reset, query its index '
                         'before claiming no draft or helper exists. Helpers never become new premises.')
         self.phase = 'proof'
-        self.tools = [dict(t) for t in carrier.TOOLS[:2]]
+        self.tools = [dict(t) for t in carrier.TOOLS]
         self.tools[0]['description']='Search the pinned mathlib Lean source using a regular expression; at most 100 lines.'
         self.tools[1]['description']='Read specified lines of a Mathlib/*.lean source file from the pinned checkout.'
         import lean_libraries
@@ -498,7 +487,7 @@ class Stage(carrier.Trial):
             role=getattr(self.budget,'role',None) or ('proof' if self.mode=='proof' else 'preparation_review'),model=self.model,
             model_selection=self.model_selection)
         queued = time.monotonic()
-        limiter = self.budget or STAGE_LIMITER
+        limiter = self.budget
         try:
             with execution.activate(recorder,self.execution_task):
                 if recorder:recorder.check(self.execution_task)

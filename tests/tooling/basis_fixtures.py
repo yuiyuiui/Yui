@@ -117,8 +117,7 @@ def synthetic_review(stage, verdicts=None, saved_via=None):
     if not result.get('stage_complete'):raise AssertionError(result)
     stage.submission_closed=True
     stage.workspace_retention=retention(stage.work,getattr(stage,'workspace_owner_logs',stage.logs))
-    exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[stage.model],
-        'standard_tier_verified':True}
+    exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':stage.model,'errors':[]}
     record={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},
         'temporary_workspace_removed':False,'workspace_retention':stage.workspace_retention,
         'role_session':stage.role_session,'model':stage.model,'exposure':exposure}

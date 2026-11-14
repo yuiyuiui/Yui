@@ -105,7 +105,7 @@ It compares the prepared declarations and residual assumptions together against 
 rewritten use and the propositions printed by Lean. For class 4 it reads the
 value of the proposition definition. The comparison covers quantifier order,
 uniform constants, domains, assumptions, direction, definitions and adapters.
-The basis reviewer checks each prepared class 3 and its consumers. The retained v1 format represents historical NL-only derivations.
+The basis reviewer checks each prepared class 3 and its consumers.
 
 The reviewer submits a located PASS, FAIL or UNVERIFIED for every assigned item.
 A normal-policy nonpass goes back to the same basis author with the prior
@@ -118,7 +118,7 @@ its findings and pauses. The execution ledger includes both roles.
 
 The active context binds the selected basis, native check and semantic report.
 Downstream readback verifies their inputs and the reviewer's complete submission.
-Historical native-only contexts use their original runtime snapshots.
+Only current-format basis contexts are accepted.
 
 ## Remaining class 4 and errors
 

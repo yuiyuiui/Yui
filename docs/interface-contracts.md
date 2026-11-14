@@ -27,7 +27,7 @@ source fidelity, Lean checking, dependency closure, or user decisions.
 | Proof obstruction report | `proof_repair.obstruction_schema` | Worker tool and live diagnosis request; a source allegation requires its evidence and ordinary local proof errors remain local |
 | Endpoint mapping/connection | `audit_b.mapping_schema` | Connection author and final mapping reader; optional proof patches are separately checked |
 | Partial Lean type probes | `translation_author.type_probe_schema` | Expression-checking tool and its parameter validation |
-| Development interface and plan tools | `ir.interface_draft_schema` and `plan_schema` | Legacy string adapter instructions and the actual interface/plan checks |
+| Development interface and plan tools | `ir.interface_draft_schema` and `plan_schema` | String-encoded tool inputs and the actual interface/plan checks |
 
 `ReviewShape` derives required review pointers, the saved-row tool, complete and
 partial artifact variants, and the completion summary from the same fields.
@@ -55,6 +55,6 @@ The owner still resolves locations and checks the quoted bytes. These are stated
 definitions of the same final artifact.
 
 Compatibility string wrappers decode into the same checker as object tools.
-Historical receipts retain their existing readers. Running jobs keep their
-frozen runtime; changing the installation does not migrate an active or paused
+Current-format jobs keep their frozen runtime; changing the installation
+does not migrate an active or paused
 review or authorize its resumption.

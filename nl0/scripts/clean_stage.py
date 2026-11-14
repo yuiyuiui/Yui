@@ -97,7 +97,7 @@ class ArtifactStage(pilot.Stage):
                             'and distinguish mathematical review from structural checks.')
         if self.acceptance_authority:
             self.system += '\n\n'+self.acceptance_authority.instructions()
-        self.tools = [dict(t) for t in pilot.carrier.TOOLS[:2]] if library else []
+        self.tools = [dict(t) for t in pilot.carrier.TOOLS] if library else []
         self.imported_lean_publication=phase in {'basis-authoring','basis-frontier','interface-authoring'}
         if library:
             import lean_libraries

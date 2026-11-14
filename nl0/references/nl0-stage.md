@@ -63,11 +63,9 @@ and exact meaning of the checks are documented in the data contract. Programs
 validate explicit metadata and evidence binding; they cannot recognize every
 undeclared theorem or prove a natural-language argument.
 
-New spec/graph files use format v2 and mathematical-NL0 audits use v4.
-A detailed-NL0 audit v3 does not establish current format-4 acceptance. Historical v1 files
-require explicit `--legacy`; their receipts cannot establish current-standard
-acceptance. Do not silently migrate, overwrite, or relabel old cases. The
-archived case-2 authoring script no longer manufactures passing reviews.
+Spec/graph files use format v2 and mathematical-NL0 audits use v4. Unsupported
+formats are rejected. Create and review a current-format case instead of
+relabeling an old receipt.
 The [format example](../../tests/fixtures/closed-addition/nl0.json) is a small schema
 example with an unperformed audit, not a new benchmark or certification.
 

@@ -453,7 +453,7 @@ def run(job, budget, progress):
 
 def verify_context(context):
     ir.need(context.get('version')==CONTEXT_VERSION and context.get('formalization')=='unconditional',
-        'A new unconditional handoff requires the early basis semantic review; use the frozen runtime for historical receipts')
+        'An unconditional handoff requires the current early basis semantic review')
     verify_bindings([context['basis'],context['native'],*context['original_inputs'],*context['evidence']])
     if 'staged_evidence' in context:
         staged=context['staged_evidence']

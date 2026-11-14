@@ -96,8 +96,13 @@ Interpret the report:
 
 Evidence is under .runtime/setup-evidence/. The current report is
 .runtime/setup-report.json and the usable default is .runtime/local-config.json.
-They are ignored machine-local files. Do not edit tracked source files to fill
-in versions, paths or credentials.
+They are ignored machine-local files. Setup keeps the current attempt and
+evidence still referenced by the usable default; completed inactive attempts
+are removed. Failed setup preserves the previous usable default. Active or
+unconfirmed process/workspace ownership prevents removal. Do not edit tracked
+source files to fill in versions, paths or credentials. After an installation
+or Codex update, rerun this entry and confirm `doctor` succeeds; an old READY
+report does not certify changed files.
 
 ## 4. Optional external Lean libraries
 

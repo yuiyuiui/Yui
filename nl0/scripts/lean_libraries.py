@@ -228,7 +228,7 @@ def search_source(query):
 
 def tools(*,force=False):
     if not force and not current():return []
-    import run_pilot as carrier
+    import native_carrier as carrier
     return [carrier.tool('read_lean_library',
         'Read a bound public non-Mathlib Lean source. Returns its complete retained source evidence and a bounded line view; availability is not semantic approval.',
         {'module':{'type':'string'},'start':{'type':'integer'},'end':{'type':'integer'}},['module','start','end']),

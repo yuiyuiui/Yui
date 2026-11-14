@@ -253,8 +253,8 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,allow_publis
 
 
 def tools():
-    import run_pilot
-    return [run_pilot.tool('check_imported_lean',
+    import native_carrier
+    return [native_carrier.tool('check_imported_lean',
         'Check a complete, source-bound imported Lean unit in the current environment first. On failure, check declared source-project versions and imports before requesting compatibility porting or correction. A candidate must pass current checking. publish is allowed only before basis/interface freeze; no source or semantic approval is granted.',
         {'source':{'type':'object','additionalProperties':True},'upstream':{'type':'object','additionalProperties':False,
             'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'}},'required':['lean_version','mathlib_ref']},

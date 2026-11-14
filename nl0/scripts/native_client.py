@@ -88,7 +88,7 @@ def verify_thread(stage, response):
 
 def append(stage, name, row):
     # Import lazily: both native stages inherit the same controller implementation.
-    from run_pilot import append as record
+    from native_carrier import append as record
     record(stage.logs/name, row)
 
 
@@ -137,7 +137,8 @@ def observe(stage, message):
             # This is a native host-start error for a known actual exec call,
             # not prose supplied by an author, paper or Yui validation tool.
             if (origin and origin['turn_id']==turn and isinstance(output,str)
-                    and output.startswith('failed to spawn code-mode host ')):
+                    and output.startswith(('failed to spawn code-mode host ',
+                                           'gRPC code-mode session opening failed:'))):
                 error={'code':'harness_bug','origin':'native_code_mode_host',
                     'message':output,'thread_id':thread,'turn_id':turn,'call_id':item.get('call_id')}
                 if not getattr(stage,'native_infrastructure_fault',None):

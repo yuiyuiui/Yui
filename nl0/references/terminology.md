@@ -106,7 +106,7 @@ User-facing main agent / run operator
 ```
 
 The second diagram describes workflow ownership and stage order, not a native
-Codex subagent tree. In the current carrier, `nl0/scripts/run_pilot.py` starts
+Codex subagent tree. In the current carrier, `nl0/scripts/native_carrier.py` starts
 `codex app-server --stdio` with native `multi_agent` and `multi_agent_v2`
 disabled. Its author/reviewer/proof sessions are therefore not native
 subagents of the interactive main conversation. A stage's recorded

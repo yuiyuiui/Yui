@@ -259,7 +259,7 @@ def collect(out):
         p=out/'stage'/name;files.append({**bind(p),'path':str(p.relative_to(out))})
     review={'version':workflow.VERSION,'source_graph_sha256':bindings['source_graph']['sha256'],
         'contract_sha256':bindings['contract']['sha256'],'plan_sha256':bindings['plan']['sha256'],
-        'reviewer':{'identity':result.get('model',__import__('run_pilot').MODEL)+' / '+__import__('runtime_config').model_profile('interface')['reasoning_effort']+' / Standard','mode':'fresh_model_review','independent':True,
+        'reviewer':{'identity':result.get('model',__import__('native_carrier').MODEL)+' / '+__import__('runtime_config').model_profile('interface')['reasoning_effort']+' / Standard','mode':'fresh_model_review','independent':True,
             'disclosure':'Separate clean semantic reviewer; read only the explicit source, typed candidate and Yui rules, with pinned Mathlib tools. No author history, previous verdict or proof reference.'},
         'checks':raw['checks'],'paragraph_mapping':bindings['paragraph_mapping'],
         'source_outputs':bindings['source_outputs'],'evidence':files,

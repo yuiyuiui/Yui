@@ -113,7 +113,7 @@ def run(directory,timeout=None,budget=None):
                 inputs=target/'inputs.json',library=False,timeout=timeout,budget=budget,
                 validator=lambda value:validate_review(packet,value,target/'stage'))
             result,actual=stage.execute();stage_dir=target/'stage'
-        health=bool(result.get('measurement_valid') and result.get('exposure',{}).get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED')
+        health=bool(result.get('measurement_valid') and result.get('exposure',{}).get('status')=='NATIVE-CODEX-CONTEXT-CHECK-PASSED')
         qualified=record_qualification(result,allow_blocked=expected.get('kind')=='global')
         return {'packet':name,'expected':expected,'actual':actual,'healthy':health,
                 'record_qualification':qualified,

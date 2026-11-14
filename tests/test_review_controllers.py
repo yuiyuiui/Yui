@@ -112,10 +112,10 @@ class ReviewControllerTests(unittest.TestCase):
                 if actual is not None:b.validate_review(packet,actual)
                 row={'status':status,'measurement_valid':False,'execution_health':'FAULT',
                     'temporary_workspace_removed':True,'isolation_violation':False,'usage':{'complete':False},
-                    'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],
-                                'standard_tier_verified':True},
-                    'transport_health':{'status':'FAULT','faults':[{'kind':'RELAY_ERROR','request_number':2}],
-                        'uncertainty':[{'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':[2]}]}}
+                    'transport':'native-codex-stdio-v1',
+                    'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]},
+                    'transport_health':{'status':'FAULT','faults':[{'kind':'NATIVE_PROVIDER_ERROR','details':{'codexErrorInfo':'serverOverloaded'}}],
+                        'uncertainty':[]}}
                 a.write(stage.logs/'result.json',row)
                 if actual is not None:a.write(stage.logs/'accepted.json',actual)
                 shutil.rmtree(stage.work)
@@ -345,7 +345,7 @@ class ReviewControllerTests(unittest.TestCase):
         # Qualified result shapes below are synthetic controller inputs, not a
         # real model run or an actual semantic verdict.
         stage=out/'stage';stage.mkdir()
-        exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}
+        exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}
         result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},'exposure':exposure}
         a.write(stage/'result.json',result);a.write(stage/'accepted.json',draft)
         first=self.root/'first-review';i.prepare(out,first)

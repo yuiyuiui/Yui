@@ -21,7 +21,7 @@ Eligible background notes join the effective local inputs without rewriting
 the author graph. Bind their supplement hash in the typed interface.
 An ineligible incomplete output or undeclared object is returned to NL0/Audit A before
 formalization, rather than silently repaired by the formalization worker.
-Historical v1 receipts cannot establish this interface's current acceptance.
+Only current-format receipts can establish this interface's acceptance.
 
 Map every N/P and substantive bridge to actual Lean declarations. Interface
 elaboration, coercion work and proved equivalent reformulations need not become

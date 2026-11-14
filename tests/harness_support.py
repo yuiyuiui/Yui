@@ -28,7 +28,7 @@ def native_available():
 # process launch or provider access, rather than consume a real model request.
 # Configuration tests explicitly mock Popen; local protocol tests replace the
 # launch method with their deterministic local carrier.
-import run_pilot as _carrier
+import native_carrier as _carrier
 import subprocess as _subprocess
 
 
@@ -37,8 +37,8 @@ class LiveModelAttemptBlocked(BaseException):
 
 
 _original_popen=_subprocess.Popen
-_original_start=_carrier.Trial.start_process
-_original_pause=_carrier.Trial.pause_error
+_original_start=_carrier.NativeCarrier.start_process
+_original_pause=_carrier.NativeCarrier.pause_error
 
 
 def _offline_start(stage):
@@ -54,8 +54,8 @@ def _offline_pause(stage,*args,**kwargs):
     return _original_pause(stage,*args,**kwargs)
 
 
-_carrier.Trial.start_process=_offline_start
-_carrier.Trial.pause_error=_offline_pause
+_carrier.NativeCarrier.start_process=_offline_start
+_carrier.NativeCarrier.pause_error=_offline_pause
 
 import fault_control as _faults
 _original_gate_pause=_faults.Gate.pause

@@ -35,7 +35,7 @@ premise. Retained tool logs and stage manifests identify the policy and card.
 Checked shared theorem lookup is a separate mechanism described in
 [shared-lemmas.md](shared-lemmas.md). It does not query these advice cards.
 
-## Legacy tagged query for standalone queues
+## Tagged strategy query for standalone queues
 
 First identify the failed local transition from its goal, exact context,
 compiler diagnostic and attempted application. If the local audited-note index

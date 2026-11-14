@@ -1,4 +1,4 @@
-# Native measurement and historical evidence
+# Native execution measurement
 
 New runs use native Codex stdio events, not an intercepted HTTP stream. Preserve
 selected model/effort/Standard configuration, native thread/turn identities,
@@ -20,10 +20,6 @@ Known recovered native transport errors preserve their faults and costs; a
 complete correctly bound review may proceed without pretending execution was
 fault-free. Unknown native errors, reader/tool faults and unconfirmed handoffs
 remain ineligible for automatic acceptance.
-
-The old raw-wire format is supported only by read-only historical validators.
-Its requests.jsonl/response-*.sse evidence must not be fabricated for new runs.
-Historical benchmark results keep the runtime/profile that produced them.
 
 Stage wall time includes tools, network/service waits and model work. Native
 work-start/completion intervals are not pure model reasoning time. Retries and

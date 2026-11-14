@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from clean_stage import ArtifactStage
-import run_pilot
+import native_carrier
 
 
 class CarrierReaderTests(unittest.TestCase):
@@ -23,8 +23,8 @@ class CarrierReaderTests(unittest.TestCase):
     def reader(self, lines):
         stage=self.stage;proc=Mock(stdin=io.StringIO(),stdout=iter(lines),pid=12345)
         stage.execution=None;stage.rpc=Mock(return_value={});stage.start_relay=Mock(return_value=12345)
-        with patch.object(run_pilot,'system_https_proxy',return_value=None), \
-                patch.object(run_pilot.subprocess,'Popen',return_value=proc), \
+        with patch.object(native_carrier,'system_https_proxy',return_value=None), \
+                patch.object(native_carrier.subprocess,'Popen',return_value=proc), \
                 patch('runtime_config.auth_home',return_value=self.root/'no-auth'), \
                 patch('run_resources.register_child'),patch.object(threading,'Thread') as thread:
             stage.start_process()
@@ -32,11 +32,11 @@ class CarrierReaderTests(unittest.TestCase):
 
     def test_event_log_write_failure_reaches_control_loop_without_losing_original_cause(self):
         callback=self.reader([json.dumps({'method':'turn/completed','params':{'turn':{'id':'t','status':'completed'}}})])
-        original=run_pilot.append
+        original=native_carrier.append
         def failed_log(path,value):
             if path.name=='events.jsonl':raise OSError('synthetic event disk failure')
             return original(path,value)
-        with patch.object(run_pilot,'append',failed_log):callback()
+        with patch.object(native_carrier,'append',failed_log):callback()
         with self.assertRaisesRegex(RuntimeError,'synthetic event disk failure'):
             self.stage.check_runtime_state()
         self.assertFalse(self.stage.inbox.empty())
@@ -77,7 +77,7 @@ class CarrierReaderTests(unittest.TestCase):
 
     def test_reader_fault_is_retained_even_when_diagnostic_storage_also_fails(self):
         callback=self.reader(['invalid native JSON\n'])
-        with patch.object(run_pilot,'append',side_effect=OSError('synthetic storage unavailable')):callback()
+        with patch.object(native_carrier,'append',side_effect=OSError('synthetic storage unavailable')):callback()
         with self.assertRaisesRegex(RuntimeError,'synthetic storage unavailable'):self.stage.check_runtime_state()
         self.assertIn('evidence_error',self.stage.carrier_reader_fault)
 

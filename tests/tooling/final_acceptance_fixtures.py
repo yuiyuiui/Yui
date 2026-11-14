@@ -13,10 +13,10 @@ import workflow
 
 
 def qualified_artifact(stage,artifact):
-    exposure={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True}
+    exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}
     for name,value in [('accepted.json',artifact),('exposure-audit.json',exposure),
         ('execution-manifest.json',{'fixture':'SYNTHETIC review execution; not an actual mathematical audit'}),
-        ('result.json',{'status':'ACCEPTED','model':__import__('run_pilot').MODEL,
+        ('result.json',{'status':'ACCEPTED','model':__import__('native_carrier').MODEL,
             'execution_health':'NO_RECORDED_FAULT','temporary_workspace_removed':True,
             'usage':{'complete':False},'exposure':exposure})]:ir.write(Path(stage)/name,value)
 

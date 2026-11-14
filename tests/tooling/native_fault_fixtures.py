@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from native_fixture import NativeFixture
-import run_pilot
+import native_carrier
 
 
 class NativeFaultFixture(NativeFixture):
@@ -59,7 +59,7 @@ class NativeFaultFixture(NativeFixture):
         class Threads:
             def __getattr__(self,name):return getattr(original_threading,name)
             def Event(self):return Sleeper() if original_threading.get_ident()==fixture.worker.ident else original_threading.Event()
-        with patch.object(run_pilot,'time',SimpleNamespace(monotonic=lambda:clock[0],sleep=original_time.sleep)),patch.object(run_pilot,'threading',Threads()):
+        with patch.object(native_carrier,'time',SimpleNamespace(monotonic=lambda:clock[0],sleep=original_time.sleep)),patch.object(native_carrier,'threading',Threads()):
             self.original_wait(seconds,reason,turn,deadline)
         self.waits.append(seconds)
 

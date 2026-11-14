@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 
 CORE=Path(__file__).resolve().parents[1]
 import remote_retry as retry
-import run_pilot
+import native_carrier
 import execution_state
 import execution_health
 import full_workflow
@@ -29,8 +29,9 @@ class RemoteRetryTests(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
 
     def trial(self):
-        t=run_pilot.Trial.__new__(run_pilot.Trial)
-        t.logs=self.root;t.thread_id='same-isolated-thread';t.timeout=None;t.strict=True
+        t=native_carrier.NativeCarrier.__new__(native_carrier.NativeCarrier)
+        t.logs=self.root;t.thread_id='same-isolated-thread';t.timeout=None
+        t.after_unaccepted_turn=lambda:True
         t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None
@@ -54,7 +55,7 @@ class RemoteRetryTests(unittest.TestCase):
     def test_real_overload_code_continues_same_thread_profile_and_existing_history(self):
         error={'message':'Selected model is at capacity.','codexErrorInfo':'serverOverloaded'}
         t=self.turns([error]);t.tool_history['old-call']={'actual_result':'retained'}
-        result=t.solve_turns('Original frozen task.',smoke=True)
+        result=t.solve_turns('Original frozen task.')
         self.assertEqual(result,terminal(2));self.assertEqual(t.remote_retry_count,1)
         self.assertEqual(t.turn_results[0]['params']['turn']['error'],error)
         self.assertEqual(t.tool_history['old-call'],{'actual_result':'retained'})
@@ -62,12 +63,12 @@ class RemoteRetryTests(unittest.TestCase):
             self.assertEqual(call.args[1]['threadId'],'same-isolated-thread')
             self.assertEqual(call.args[1]['model'],'gpt-6.1-sol')
             self.assertEqual(call.args[1]['effort'],'high')
-        self.assertEqual(t.rpc.call_args_list[1].args[1]['input'][0]['text'],run_pilot.CONTINUE_PROMPT)
+        self.assertEqual(t.rpc.call_args_list[1].args[1]['input'][0]['text'],native_carrier.CONTINUE_PROMPT)
         self.assertEqual(t.continuation_count,0);t.wait_remote_retry.assert_called_once()
 
     def test_transient_retries_stop_at_thirty_and_enter_pause(self):
         t=self.turns([{'code':'server_is_overloaded'}]*36)
-        with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task',smoke=True)
+        with self.assertRaisesRegex(RuntimeError,'retained pause'):t.solve_turns('Frozen task')
         self.assertEqual(t.remote_retry_count,30)
         self.assertEqual(t.rpc.call_count,31)
         t.pause_error.assert_called_once()
@@ -83,7 +84,7 @@ class RemoteRetryTests(unittest.TestCase):
                 return receive(predicate,deadline)
             t.receive_until.side_effect=stale_success
             with self.subTest(marker=marker),self.assertRaisesRegex(RuntimeError,'retained pause'):
-                t.solve_turns('Frozen task',smoke=True)
+                t.solve_turns('Frozen task')
             self.assertEqual(t.remote_retry_count,30)
 
     def test_permanent_unknown_and_local_failures_do_not_retry(self):
@@ -93,11 +94,11 @@ class RemoteRetryTests(unittest.TestCase):
         for error in errors:
             with self.subTest(error=error):
                 t=self.turns([error])
-                with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
+                with self.assertRaises(RuntimeError):t.solve_turns('Frozen task')
                 t.wait_remote_retry.assert_not_called()
         for flag in ['local_protocol_fault']:
             t=self.turns([{'codexErrorInfo':'serverOverloaded'}]);setattr(t,flag,True)
-            with self.assertRaises(RuntimeError):t.solve_turns('Frozen task',smoke=True)
+            with self.assertRaises(RuntimeError):t.solve_turns('Frozen task')
             t.wait_remote_retry.assert_not_called()
 
 
@@ -132,9 +133,9 @@ class RemoteRetryTests(unittest.TestCase):
 
     def test_stale_terminal_event_does_not_finish_the_new_turn(self):
         t=self.trial();t.rpc=Mock(return_value={'turn':{'id':'turn-2'}})
-        t.receive_until=run_pilot.Trial.receive_until.__get__(t)
+        t.receive_until=native_carrier.NativeCarrier.receive_until.__get__(t)
         t.inbox.put(terminal(1,{'codexErrorInfo':'serverOverloaded'}));t.inbox.put(terminal(2))
-        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(2))
+        self.assertEqual(t.solve_turns('Frozen task'),terminal(2))
         self.assertEqual(t.remote_retry_count,0)
 
     def test_duplicate_tool_delivery_keeps_exact_receipt_without_reexecuting(self):
@@ -142,7 +143,7 @@ class RemoteRetryTests(unittest.TestCase):
         t.model_calls={'call':{'name':'neutral','arguments':'{"x":1}'}};t.tool_names={'neutral'};t.active_turn_id='turn-1'
         for number in [1,2]:t.inbox.put({'method':'item/tool/call','id':number,
             'params':{'threadId':'same-isolated-thread','turnId':'turn-1','callId':'call','tool':'neutral','arguments':{'x':1}}})
-        t.inbox.put(terminal(1));t.receive_until=run_pilot.Trial.receive_until.__get__(t)
+        t.inbox.put(terminal(1));t.receive_until=native_carrier.NativeCarrier.receive_until.__get__(t)
         t.receive_until(lambda m:m.get('method')=='turn/completed',None)
         self.assertEqual(t.dispatch.call_count,1)
         replies=[json.loads(line) for line in t.proc.stdin.getvalue().splitlines()]
@@ -156,29 +157,27 @@ class RemoteRetryTests(unittest.TestCase):
         t.inbox.put({'method':'item/tool/call','id':2,
             'params':{'threadId':'same-isolated-thread','turnId':'turn-1','callId':'call','tool':'neutral','arguments':{'x':2}}})
         with self.assertRaises(PermissionError):
-            run_pilot.Trial.receive_until(t,lambda m:False,None)
+            native_carrier.NativeCarrier.receive_until(t,lambda m:False,None)
         t.dispatch.assert_not_called();self.assertEqual(t.proc.stdin.getvalue(),'')
 
 
+    def native_fault(self):
+        (self.root/'native-client.json').write_text('{}')
+        (self.root/'native-errors.jsonl').write_text(json.dumps({
+            'error':{'codexErrorInfo':'serverOverloaded','message':'capacity'}})+'\n')
+        return execution_health.inspect(self.root)
+
     def test_structured_remote_error_type_is_also_recognized_by_execution_health(self):
-        (self.root/'requests.jsonl').write_text('{"request_number":1}\n')
-        (self.root/'http.jsonl').write_text('{"path":"/responses","request_number":1,"status":200}\n')
-        (self.root/'response-0001.sse').write_text('data: '+json.dumps({'type':'response.failed',
-            'response':{'error':{'type':'service_unavailable_error','message':'capacity'}}})+'\n\n')
-        health=execution_health.inspect(self.root)
+        health=self.native_fault()
         self.assertEqual(health['status'],'FAULT');self.assertFalse(health['uncertainty'])
+        self.assertEqual(health['faults'][0]['kind'],'NATIVE_PROVIDER_ERROR')
 
     def test_recovered_overload_is_disclosed_and_never_a_healthy_measurement(self):
-        (self.root/'requests.jsonl').write_text('{"request_number":1}\n')
-        (self.root/'http.jsonl').write_text('{"path":"/responses","request_number":1,"status":200}\n')
-        (self.root/'response-0001.sse').write_text('data: '+json.dumps({'type':'response.failed',
-            'response':{'error':{'code':'server_is_overloaded','message':'capacity'}}})+'\n\n')
-        health=execution_health.inspect(self.root)
-        self.assertEqual(health['status'],'FAULT');self.assertEqual(health['faults'][0]['request_number'],1)
-        row={'model':'gpt-6.1-sol','status':'ACCEPTED','execution_health':'FAULT',
+        health=self.native_fault()
+        self.assertEqual(health['status'],'FAULT')
+        row={'model':'gpt-6.1-sol','transport':'native-codex-stdio-v1','status':'ACCEPTED','execution_health':'FAULT',
             'transport_health':health,'temporary_workspace_removed':True,'usage':{'complete':False},
-            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
-                'actual_model_ids':['gpt-6.1-sol'],'standard_tier_verified':True}}
+            'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':'gpt-6.1-sol','errors':[]}}
         (self.root/'stage').mkdir();(self.root/'stage/result.json').write_text(json.dumps(row))
         self.assertEqual(full_workflow.accepted(self.root),row)
         checked=execution_health.require_review_execution(row,self.root/'stage/result.json')

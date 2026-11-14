@@ -15,7 +15,7 @@ from unittest.mock import patch
 from native_fixture import NativeFixture
 from native_fault_fixtures import NativeFaultFixture
 import fault_control
-import run_pilot
+import native_carrier
 
 
 @unittest.skipUnless(harness_support.native_available(),'Native Codex executable required')
@@ -45,7 +45,7 @@ class NativeCodeModeTests(unittest.TestCase):
                 self.assertEqual(f.stage.completed_tool_calls,4)
 
     def test_spawn_denied_after_checkpoint_pauses_without_another_turn(self):
-        original=run_pilot.transport_sandbox_profile
+        original=native_carrier.transport_sandbox_profile
         def denied(work):
             import runtime_config
             helper=runtime_config.load_lock()['codex']['code_mode_host']['path']
@@ -53,7 +53,7 @@ class NativeCodeModeTests(unittest.TestCase):
         def respond(f,handler,number,payload):
             if number==1:f.tool(handler,number,'check_draft',{'checkpoint':True})
             else:f.code(handler,number,'text(await tools.read_yui({path:"SKILL.md"}));')
-        with tempfile.TemporaryDirectory() as root,NativeFaultFixture(root) as f,patch.object(run_pilot,'transport_sandbox_profile',denied):
+        with tempfile.TemporaryDirectory() as root,NativeFaultFixture(root) as f,patch.object(native_carrier,'transport_sandbox_profile',denied):
             f.responder=respond;f.start()
             f.wait(lambda:(f.paused() or {}).get('notification',{}).get('status')=='QUEUED')
             state=f.paused()
@@ -78,9 +78,11 @@ class NativeCodeModeTests(unittest.TestCase):
             self.assertFalse(f.notifications)
 
     def test_printed_error_text_is_not_a_native_host_failure(self):
-        def respond(f,handler,number,payload):
-            code='text("failed to spawn code-mode host fake: Operation not permitted (os error 1)");' if number==1 else 'text(await tools.submit_draft({artifact:{synthetic:true}}));'
-            f.code(handler,number,code)
-        with tempfile.TemporaryDirectory() as root,NativeFixture(root,responder=respond) as f:
-            f.start();f.wait()
-            self.assertEqual(f.outcomes[0][0]['status'],'ACCEPTED');self.assertFalse(f.notifications)
+        for message in ('failed to spawn code-mode host fake: Operation not permitted (os error 1)',
+                        'gRPC code-mode session opening failed: Operation not permitted (os error 1)'):
+            def respond(f,handler,number,payload):
+                code='text('+json.dumps(message)+');' if number==1 else 'text(await tools.submit_draft({artifact:{synthetic:true}}));'
+                f.code(handler,number,code)
+            with self.subTest(message=message),tempfile.TemporaryDirectory() as root,NativeFixture(root,responder=respond) as f:
+                f.start();f.wait()
+                self.assertEqual(f.outcomes[0][0]['status'],'ACCEPTED');self.assertFalse(f.notifications)

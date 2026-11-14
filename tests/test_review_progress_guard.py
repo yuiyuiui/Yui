@@ -16,7 +16,7 @@ import fault_control
 from execution_state import Cancelled, CaseDeadlineExceeded
 from native_fixture import NativeFixture
 from review_contract import ReviewContract, ReviewProgressGuard
-from run_pilot import NativeEventTimeout, Trial
+from native_carrier import NativeEventTimeout, NativeCarrier
 
 
 def contract(root):
@@ -113,7 +113,7 @@ class ReviewProgressTests(unittest.TestCase):
 
     def test_drain_waits_for_matching_outer_or_direct_results_and_honors_stop_conditions(self):
         with tempfile.TemporaryDirectory() as raw:
-            t=Trial.__new__(Trial);t.logs=Path(raw);t.active_turn_id='active';t.thread_id='thread'
+            t=NativeCarrier.__new__(NativeCarrier);t.logs=Path(raw);t.active_turn_id='active';t.thread_id='thread'
             t.send=Mock(return_value=99)
             guard=ReviewProgressGuard(contract(t.logs/'review'));guard.stop('Synthetic stall')
             trigger={'method':'item/tool/call','params':{'turnId':'active','callId':'inner'}}
@@ -128,7 +128,7 @@ class ReviewProgressTests(unittest.TestCase):
                     return next(e for e in events if predicate(e))
                 t.receive_until=receive
                 self.assertEqual(t.wait_work_turn(guard,None)['params']['item']['call_id'],'second' if outer else 'inner')
-            with patch('run_pilot.REVIEW_FEEDBACK_DRAIN_SECONDS',0):
+            with patch('native_carrier.REVIEW_FEEDBACK_DRAIN_SECONDS',0):
                 for exc in (CaseDeadlineExceeded('budget'),Cancelled('cancel'),TimeoutError('local tool failed')):
                     t.receive_until=Mock(side_effect=[trigger,exc])
                     with self.assertRaises(type(exc)):t.wait_work_turn(guard,time.monotonic()+20)
@@ -262,9 +262,9 @@ class ReviewProgressTests(unittest.TestCase):
 
     def test_empty_completed_native_turns_after_a_rejection_pause_before_next_start(self):
         with tempfile.TemporaryDirectory() as raw:
-            root=Path(raw);t=Trial.__new__(Trial)
+            root=Path(raw);t=NativeCarrier.__new__(NativeCarrier)
             t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={}
-            t.logs=root;t.timeout=None;t.strict=True;t.allowed_user_messages=set()
+            t.logs=root;t.timeout=None;t.allowed_user_messages=set()
             t.thread_id='retained';t.accepted=None;t.turn_results=[];t.continuation_count=0
             t.last_response_success=None;t.rpc=Mock(return_value={'turn':{'id':'turn'}})
             t.review_guard=ReviewProgressGuard(contract(root/'review'))

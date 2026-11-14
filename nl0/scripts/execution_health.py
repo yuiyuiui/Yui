@@ -1,6 +1,5 @@
 """Attribute observed transport/controller health separately from mathematical outcomes."""
 import json
-import re
 from pathlib import Path
 
 from usage import json_rows
@@ -40,9 +39,7 @@ def qualification(result):
     expected_model=result.get('model',configured)
     native=(exposure.get('status')=='NATIVE-CODEX-CONTEXT-CHECK-PASSED'
             and exposure.get('configured_model')==expected_model and not exposure.get('errors'))
-    identity=native or (exposure.get('status')=='TRANSMITTED-EXPOSURE-CHECK-PASSED'
-              and exposure.get('actual_model_ids')==[expected_model]
-              and exposure.get('standard_tier_verified') is True)
+    identity=native
     health=result.get('execution_health','UNVERIFIED')
     return {'execution_qualified':bool(identity and health=='NO_RECORDED_FAULT'),
             'identity_and_input_boundary_verified':bool(identity), 'execution_health':health,
@@ -59,7 +56,6 @@ def known_transport_recovery(result, *, archived=None):
             or not __import__('run_resources').safe_stage_workspace(result,archived=archived)):return False
     transport=result.get('transport_health',{});faults=transport.get('faults',[])
     if transport.get('status')!='FAULT' or not faults:return False
-    numbers={f.get('request_number') for f in faults if type(f.get('request_number')) is int}
     def explicitly_resumed(category=None):
         import hashlib
         for row in result.get('error_pauses',[]):
@@ -74,19 +70,12 @@ def known_transport_recovery(result, *, archived=None):
                     return True
             except (OSError,ValueError,KeyError):continue
         return False
-    if result.get('transport')=='native-codex-stdio-v1':
-        for row in faults:
-            if row.get('kind')!='NATIVE_PROVIDER_ERROR':return False
-            diagnosis=remote_retry.diagnose(row.get('details'))
-            if not diagnosis['retryable'] and not explicitly_resumed(diagnosis['category']):return False
-        return not transport.get('uncertainty')
-    if any(f.get('kind') not in {'RELAY_ERROR','HTTP_ERROR','PROVIDER_ERROR'} for f in faults):return False
-    return all((u.get('kind')=='HTTP_EVIDENCE_INCOMPLETE'
-                and set(u.get('missing_requests',[]))<=numbers)
-               or (u.get('kind')=='PROVIDER_ERROR' and explicitly_resumed()
-                   and remote_retry.diagnose(u.get('details'))['category'] in
-                   {'model_auth','model_balance','model_quota','model_request_rejected'})
-               for u in transport.get('uncertainty',[]))
+    if result.get('transport')!='native-codex-stdio-v1':return False
+    for row in faults:
+        if row.get('kind')!='NATIVE_PROVIDER_ERROR':return False
+        diagnosis=remote_retry.diagnose(row.get('details'))
+        if not diagnosis['retryable'] and not explicitly_resumed(diagnosis['category']):return False
+    return not transport.get('uncertainty')
 
 
 def record_qualification(result,*,allow_blocked=False,archived=None):

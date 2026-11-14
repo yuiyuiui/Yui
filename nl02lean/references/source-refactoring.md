@@ -190,7 +190,7 @@ records, untouched paragraphs and local fact/assumption lifetimes are protected.
 Consumer source-application changes can remove obsolete uses, not introduce new
 external uses. A broader refactor is deferred rather than widening this operation.
 Multiple proposed edits to one consumer must first be merged into one coherent
-candidate or left unextracted. Legacy test copies remain development evidence.
+candidate or left unextracted.
 
 Separate three responsibilities:
 

@@ -2,9 +2,11 @@
 from contextlib import contextmanager
 from datetime import datetime,timezone
 from pathlib import Path
+import fcntl
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -137,12 +139,72 @@ def select_environment(args,previous):
                                     directory=args.directory)
 
 
+def prune_evidence(storage, current):
+    """Keep current/default evidence; remove completed, inactive setup attempts."""
+    evidence=storage/'setup-evidence'
+    keep={current.name}
+    configuration=local_config.path()
+    if configuration.is_file():
+        value=json.loads(configuration.read_text())
+        documents=[value]+[json.loads(Path(row['specification']['path']).read_text())
+                           for row in value.get('libraries',[])]
+        def references(value):
+            if isinstance(value,dict):
+                for item in value.values():references(item)
+            elif isinstance(value,list):
+                for item in value:references(item)
+            elif isinstance(value,str) and Path(value).is_absolute():
+                try:relative=Path(value).relative_to(evidence)
+                except ValueError:return
+                if relative.parts:keep.add(relative.parts[0])
+        for document in documents:references(document)
+    removed=[];retained=[]
+    from execution_state import process_table,remaining_processes
+    table=None
+    for attempt in sorted(evidence.iterdir()):
+        if attempt.name in keep:continue
+        if attempt.is_symlink() or not attempt.is_dir() or not re.fullmatch(r'[0-9a-f]{32}',attempt.name):
+            continue
+        report=attempt/'report.json'
+        if not report.is_file() or report.is_symlink():continue
+        try:
+            value=json.loads(report.read_text())
+            if value.get('attempt')!=str(attempt) or value.get('status') not in {'READY','FAILED','NEEDS_USER_ACTION'}:
+                continue
+            processes=list(attempt.rglob('resources/process-*.json'))
+            if processes and table is None:table=process_table()
+            for path in processes:
+                row=json.loads(path.read_text())
+                if row.get('schema_version')!='yui-owned-process-1':raise ValueError('Unknown process ownership')
+                if remaining_processes(row['process'],table)[0]:raise ValueError('Process group still present')
+            for path in attempt.rglob('resources/workspace-*.json'):
+                row=json.loads(path.read_text())
+                if row.get('schema_version')!='yui-workspace-owner-1':raise ValueError('Unknown workspace ownership')
+                if Path(row['workspace']).exists():raise ValueError('Owned workspace still retained')
+            shutil.rmtree(attempt)
+            removed.append(attempt.name)
+        except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError) as error:
+            retained.append({'attempt':attempt.name,'reason':str(error)})
+    return {'removed':removed,'retained':retained}
+
+
 def run(args):
-    """Run actual checks in a provisional scope; failed switches keep the old default."""
+    """Serialize adaptation so evidence cleanup cannot touch an active setup."""
     if args.bootstrap:return bootstrap()
     storage=CORE/'.runtime'
     if storage.is_symlink():raise ValueError('Local setup storage must not be a symlink')
     storage.mkdir(exist_ok=True)
+    lock=storage/'.setup.lock'
+    if lock.is_symlink():raise ValueError('Setup lock must not be a symlink')
+    with lock.open('a') as handle:
+        try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise local_config.rules.SetupRequired('Another setup is running; wait for it to finish') from None
+        return _run(args,storage)
+
+
+def _run(args,storage):
+    """Run actual checks in a provisional scope; failed switches keep the old default."""
     evidence=storage/'setup-evidence'
     if evidence.is_symlink():raise ValueError('Setup evidence must stay inside the installation')
     evidence.mkdir(exist_ok=True)
@@ -222,6 +284,10 @@ def run(args):
             # Do not serialize raw authentication or subprocess arguments.
             report.update(status='FAILED',error=type(error).__name__+': '+str(error)[:4000])
     local_config.rules.validate_report(report)
+    try:report['evidence_cleanup']=prune_evidence(storage,attempt)
+    except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError) as error:
+        report['evidence_cleanup']={'removed':[],'retained':[],
+                                    'error':type(error).__name__+': '+str(error)}
     for path in (attempt/'report.json',storage/'setup-report.json'):
         try:write(path,report)
         except OSError as error:

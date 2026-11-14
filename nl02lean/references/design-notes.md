@@ -9,7 +9,7 @@ mathematical inference.
 [Chain of States](https://arxiv.org/html/2512.10317v1) studies the related
 two-stage idea of extracting formal states from an informal proof and then
 generating tactics between adjacent states. It motivates making intermediate
-targets explicit. This prototype is a separate local implementation, not a
+targets explicit. This is a separate local implementation, not a
 reproduction of CoSProver, its training or its benchmark. Its reported results
 do not establish our speed. Here a correspondence review still constrains
 which route a worker may implement; successful proof search alone does not

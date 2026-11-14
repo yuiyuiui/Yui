@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 import execution_state as execution
 import fault_control as faults
 import remote_retry
-import run_pilot
+import native_carrier
 import run_resources
 from clean_stage import ArtifactStage
 
@@ -275,8 +275,9 @@ class FaultControlTests(FaultFixture,unittest.TestCase):
 
 class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
     def trial(self, errors):
-        t=run_pilot.Trial.__new__(run_pilot.Trial)
-        t.logs=self.root;t.thread_id='retained-thread';t.timeout=None;t.strict=True
+        t=native_carrier.NativeCarrier.__new__(native_carrier.NativeCarrier)
+        t.logs=self.root;t.thread_id='retained-thread';t.timeout=None
+        t.after_unaccepted_turn=lambda:True
         t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None;t.execution=None;t.execution_task='worker'
@@ -291,7 +292,7 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
     def test_thirty_one_failed_attempts_mean_thirty_retries_then_pause_without_next_call(self):
         t=self.trial([{'httpStatusCode':503}]*31)
         t._fault_gate.wait=lambda _:self.cancel(t._fault_gate)
-        with self.assertRaises(execution.Cancelled):t.solve_turns('Frozen original task',smoke=True)
+        with self.assertRaises(execution.Cancelled):t.solve_turns('Frozen original task')
         self.assertEqual(t.rpc.call_count,31);self.assertEqual(t.wait_remote_retry.call_count,30)
         self.assertEqual(t._fault_gate.state['retries'],30)
         self.assertEqual([c.args[0] for c in t.wait_remote_retry.call_args_list],[60]*30)
@@ -300,7 +301,7 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
     def test_auth_fault_waits_for_manual_resume_in_the_same_thread(self):
         t=self.trial([{'httpStatusCode':403}])
         t._fault_gate.wait=lambda _:faults.resume(self.root,t._fault_gate.state['incident'])
-        self.assertEqual(t.solve_turns('Frozen original task',smoke=True),terminal(1))
+        self.assertEqual(t.solve_turns('Frozen original task'),terminal(1))
         t.wait_remote_retry.assert_not_called();t.refresh_after_error_pause.assert_called_once()
         self.assertTrue(all(c.args[1]['threadId']=='retained-thread' for c in t.rpc.call_args_list))
 
@@ -310,8 +311,8 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         new={'tokens':{'access_token':'synthetic-refreshed','account_id':'synthetic-account'}}
         execution.atomic(t.work/'state/auth.json',old)
         home=self.root/'authentication';home.mkdir();execution.atomic(home/'auth.json',new)
-        with patch('runtime_config.auth_home',return_value=home),patch.object(run_pilot,'system_https_proxy',return_value=None):
-            run_pilot.Trial.refresh_after_error_pause(t)
+        with patch('runtime_config.auth_home',return_value=home),patch.object(native_carrier,'system_https_proxy',return_value=None):
+            native_carrier.NativeCarrier.refresh_after_error_pause(t)
         self.assertEqual(json.loads((t.work/'state/auth.json').read_text()),old)
         t.rpc.assert_called_with('account/read',{'refreshToken':True})
         self.assertFalse(hasattr(t,'resumed_auth_headers'))
@@ -320,15 +321,15 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
     def test_retry_exhaustion_resumes_only_after_operator_action(self):
         t=self.trial([{'code':'network_error'}]*31)
         t._fault_gate.wait=lambda _:faults.resume(self.root,t._fault_gate.state['incident'])
-        self.assertEqual(t.solve_turns('Frozen task',smoke=True),terminal(31))
+        self.assertEqual(t.solve_turns('Frozen task'),terminal(31))
         self.assertEqual(t.rpc.call_count,32);self.assertEqual(t.remote_retry_count,30)
 
     def test_actual_retry_wait_has_sixty_seconds_of_cancellable_local_sleep(self):
-        t=self.trial([]);t.wait_remote_retry=run_pilot.Trial.wait_remote_retry.__get__(t)
+        t=self.trial([]);t.wait_remote_retry=native_carrier.NativeCarrier.wait_remote_retry.__get__(t)
         t.remote_retry_count=1;clock=[0.]
         sleeper=Mock();sleeper.wait.side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)
-        with patch.object(run_pilot.time,'monotonic',side_effect=lambda:clock[0]), \
-             patch.object(run_pilot.threading,'Event',return_value=sleeper):
+        with patch.object(native_carrier.time,'monotonic',side_effect=lambda:clock[0]), \
+             patch.object(native_carrier.threading,'Event',return_value=sleeper):
             t.wait_remote_retry(60,{'category':'model_transport'},{'id':'failed'},None)
         self.assertEqual(clock[0],60)
         t.rpc.assert_not_called();self.assertEqual(t.thread_id,'retained-thread')

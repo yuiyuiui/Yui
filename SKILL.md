@@ -89,7 +89,7 @@ Fresh jobs may attach explicitly bound non-Mathlib source/olean libraries throug
 replaces independent source/interface review or final dependency discharge.
 For substantial imported code, use the executable [local-first check and port
 workflow](nl0/references/imported-lean.md) before rewriting it.
-Historical jobs without snapshots retain their original binding checks.
+Only current-format jobs with their own runtime snapshots are supported.
 Local proof and helper checks start at six minutes; a workload-only diagnosis
 raises the next allowance by six minutes, up to thirty. Complete-file nl02lean
 assembly/export/inspection and final b2lean checks start at thirty minutes;
@@ -112,8 +112,8 @@ specified global-pass, all-local-pass, interface-freeze and final-delivery
 boundaries, after their bound handoffs are saved. Explicit user cancellation or
 a selected B-final user decision is a separate authority. Keep
 scientific evidence and the selected profile. A pause is nonterminal: never
-restart it or delete its monitor. Existing exited-run recovery is historical,
-not a substitute for live `resume-error` controls.
+restart it or delete its monitor. The guarded recovery of an exited current-format run is separate from live
+`resume-error` controls.
 For a previously stopped inherited probe-directory collision, the same operation
 reference documents a separate guarded `--repair-local-tool` continuation after
 verified software repair and explicit owner authorization; it restores the saved
@@ -263,4 +263,4 @@ are subsets of input/output totals, not extra tokens. Missing usage is unknown.
 Return the exact accepted scope, source/formal artifacts, unresolved citations
 or gaps, actual execution health, time/token breakdown, and reproducible commands.
 Do not claim a universal NL0 compiler, an unconditional proof of literature
-inputs, completed Audit C, or acceleration from this prototype alone.
+inputs, completed Audit C, or acceleration without a measured comparison.

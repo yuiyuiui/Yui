@@ -52,22 +52,66 @@ class LocalSetupTests(unittest.TestCase):
 
     def test_success_publishes_one_validated_config_and_repeat_setup_reuses_registration(self):
         provider=self.checks()
+        attempts=[]
         for _ in range(2):
             result=local_setup.run(self.args)
             self.assertEqual(result['status'],'READY',result)
+            attempts.append(Path(result['attempt']))
             local_config.verify(json.loads(local_config.path().read_text()))
         self.assertEqual(provider.call_count,2)
         self.assertTrue(self.args.skill_root.is_symlink())
         self.assertEqual(self.args.skill_root.resolve(),self.root)
+        self.assertFalse(attempts[0].exists())
+        self.assertTrue(attempts[1].is_dir())
+        self.assertEqual(result['evidence_cleanup']['removed'],[attempts[0].name])
 
     def test_failed_switch_keeps_previous_configuration_bytes(self):
         self.checks();self.assertEqual(local_setup.run(self.args)['status'],'READY')
         before=local_config.path().read_bytes()
         with patch.object(setup_checks,'provider',side_effect=ValueError('Synthetic service failure')):
             result=local_setup.run(self.args)
+            failed=Path(result['attempt'])
+            result=local_setup.run(self.args)
         self.assertEqual(result['status'],'FAILED')
         self.assertFalse(result['configuration_published'])
         self.assertEqual(local_config.path().read_bytes(),before)
+        local_config.verify(json.loads(before))
+        self.assertFalse(failed.exists())
+        self.assertEqual(len(list((self.root/'.runtime/setup-evidence').iterdir())),2)
+
+    def test_cleanup_preserves_live_process_evidence_and_unowned_directories(self):
+        import execution_state
+        self.checks();first=local_setup.run(self.args)
+        old=Path(first['attempt']);resources=old/'resources';resources.mkdir()
+        write(resources/'process-current.json',{'schema_version':'yui-owned-process-1',
+                                              'process':execution_state.identity(__import__('os').getpid())})
+        storage=old.parent
+        foreign=storage/('f'*32);foreign.mkdir();write(foreign/'report.json',{'status':'READY','attempt':'/foreign'})
+        incomplete=storage/('e'*32);incomplete.mkdir()
+        link=storage/('d'*32);link.symlink_to(foreign,target_is_directory=True)
+        result=local_setup.run(self.args)
+        self.assertEqual(result['status'],'READY',result)
+        self.assertTrue(all(p.exists() for p in (old,foreign,incomplete,link)))
+        self.assertEqual(result['evidence_cleanup']['retained'][0]['attempt'],old.name)
+
+    def test_cleanup_preserves_an_unreleased_workspace(self):
+        self.checks();first=local_setup.run(self.args)
+        old=Path(first['attempt']);resources=old/'resources';resources.mkdir()
+        work=self.root.parent/'still-owned';work.mkdir()
+        write(resources/'workspace-current.json',{'schema_version':'yui-workspace-owner-1','workspace':str(work)})
+        result=local_setup.run(self.args)
+        self.assertEqual(result['status'],'READY',result)
+        self.assertTrue(old.is_dir());self.assertTrue(work.is_dir())
+        self.assertIn('workspace',result['evidence_cleanup']['retained'][0]['reason'])
+
+    def test_second_setup_cannot_run_or_prune_an_active_setup(self):
+        import fcntl
+        self.checks();storage=self.root/'.runtime';storage.mkdir()
+        with (storage/'.setup.lock').open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            with self.assertRaisesRegex(local_config.rules.SetupRequired,'Another setup'):
+                local_setup.run(self.args)
+        self.assertFalse((storage/'setup-evidence').exists())
 
     def test_atomic_configuration_write_failure_keeps_previous_default(self):
         self.checks();self.assertEqual(local_setup.run(self.args)['status'],'READY')
@@ -199,7 +243,7 @@ class ProviderMetadataTests(unittest.TestCase):
         self.stack = ExitStack(); self.addCleanup(self.stack.close); self.addCleanup(self.temp.cleanup)
         self.stack.enter_context(patch.object(setup_checks, 'auth_home', return_value=self.root))
         self.stack.enter_context(patch.object(setup_checks, 'host_tools', return_value={'codex': {'version': 'codex-cli 0.1.0'}}))
-        self.proxy = self.stack.enter_context(patch('run_pilot.system_https_proxy', return_value=None))
+        self.proxy = self.stack.enter_context(patch('native_carrier.system_https_proxy', return_value=None))
         self.factory = self.stack.enter_context(patch.object(setup_checks.http.client, 'HTTPSConnection', return_value=self.connection))
 
 

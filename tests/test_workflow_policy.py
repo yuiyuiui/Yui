@@ -38,8 +38,7 @@ class WorkflowPolicyTests(unittest.TestCase):
         row={'status':'ACCEPTED','temporary_workspace_removed':True,'isolation_violation':False,
             'execution_health':'NO_RECORDED_FAULT','usage':{'complete':True},
             'transport_health':{'status':'NO_RECORDED_FAULT','faults':[],'uncertainty':[]},
-            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],
-                        'standard_tier_verified':True,'acceptance_contract':authority}}
+            'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[] ,'acceptance_contract':authority}}
         a.write(stage/'result.json',row)
         (stage/'tools.jsonl').write_text(a.json.dumps({'tool':'submit_draft','result':{
             'stage_complete':True,'author_closing_check':{'author_release_ready':True,'content_sha256':key}}})+'\n')
@@ -48,8 +47,9 @@ class WorkflowPolicyTests(unittest.TestCase):
     def test_complete_source_recovered_transport_can_be_audited_without_timing_upgrade(self):
         directory,row=self.submitted_fixture();row['execution_health']='FAULT'
         row['usage']['complete']=False
-        row['transport_health']={'status':'FAULT','faults':[{'kind':'RELAY_ERROR','request_number':2,'details':'TLS EOF'}],
-            'uncertainty':[{'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':[2]}]}
+        row['transport']='native-codex-stdio-v1'
+        row['transport_health']={'status':'FAULT','faults':[{'kind':'NATIVE_PROVIDER_ERROR',
+            'details':{'codexErrorInfo':'responseStreamDisconnected'}}],'uncertainty':[]}
         a.write(directory/'stage/result.json',row)
         result=f.nl0_artifact_for_audit(directory)
         self.assertTrue(result['author_artifact_ready_for_audit'])
@@ -67,8 +67,8 @@ class WorkflowPolicyTests(unittest.TestCase):
             row=copy.deepcopy(original);row['status']=status;variants.append(row)
         row=copy.deepcopy(original);row['isolation_violation']=True;variants.append(row)
         row=copy.deepcopy(original);row['execution_fault']='controller error';variants.append(row)
-        row=copy.deepcopy(original);row['exposure']['actual_model_ids']=['other-model'];variants.append(row)
-        row=copy.deepcopy(original);row['exposure']['standard_tier_verified']=False;variants.append(row)
+        row=copy.deepcopy(original);row['exposure']['configured_model']='other-model';variants.append(row)
+        row=copy.deepcopy(original);row['exposure']['errors']=['configuration mismatch'];variants.append(row)
         row=copy.deepcopy(original);row['execution_health']='UNVERIFIED';variants.append(row)
         row=copy.deepcopy(original);row['execution_health']='FAULT'
         row['transport_health']['faults']=[{'kind':'TOOL_SERVICE_ERROR'}];variants.append(row)

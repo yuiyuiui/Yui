@@ -51,7 +51,7 @@ METADATA_MAX_BYTES=8 * 1024 * 1024
 
 def provider_metadata(profiles):
     """One authenticated GET, using the same verified-TLS/system-proxy route."""
-    from run_pilot import system_https_proxy
+    from native_carrier import system_https_proxy
     auth = json.loads((auth_home()/'auth.json').read_text())
     tokens = auth.get('tokens') or {}
     token, account = tokens.get('access_token'), tokens.get('account_id')

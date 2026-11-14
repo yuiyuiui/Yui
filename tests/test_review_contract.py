@@ -103,11 +103,10 @@ class ReviewCompletionTests(unittest.TestCase):
 class QualificationTests(unittest.TestCase):
     def test_missing_usage_does_not_erase_qualified_actual_judgment(self):
         row={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','usage':{'complete':False},
-             'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED','actual_model_ids':[__import__('run_pilot').MODEL],
-                         'standard_tier_verified':True}}
+             'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}}
         self.assertTrue(require_review_execution(row,'synthetic-result')['execution_qualified'])
         self.assertFalse(qualification(row)['measurement_valid'])
-        bad=deepcopy(row);bad['exposure']['actual_model_ids']=[]
+        bad=deepcopy(row);bad['exposure']['configured_model']=''
         with self.assertRaises(StageFailure):require_review_execution(bad,'synthetic-result')
         bad=deepcopy(row);bad['execution_health']='UNVERIFIED'
         with self.assertRaises(StageFailure):require_review_execution(bad,'synthetic-result')

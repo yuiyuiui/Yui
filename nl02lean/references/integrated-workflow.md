@@ -144,7 +144,7 @@ strict Lean declaration checking of every exact local context and target,
 without proof bodies, placeholders or extra axioms. Author expression probes
 also commit checked definitions; `#check` alone is not an acceptance gate.
 This binding is **not a semantic review receipt**; the
-recorded semantic status is `PENDING_AUDIT_B`. This legacy route requires explicit semantic review before claiming complete
+recorded semantic status is `PENDING_AUDIT_B`. This development route requires explicit semantic review before claiming complete
 acceptance. Normal full/translation entry runs the independent interface reviewer
 and reads back its actual hash-bound PASS before freezing/dispatch; final machine
 Audit B inherits it only after actual full endpoint and proof-integrity checks. The commands below expose the

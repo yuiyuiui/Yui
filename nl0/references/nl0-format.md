@@ -6,11 +6,8 @@ The clean carrier binds the shared section/version/hash in execution and
 author-readiness records; these are controller records, not extra proof axioms
 or new fields to invent inside spec/graph.
 
-New graphs/specifications use format v2 and Yui audit records use v4. The existing v1
-Koch/BO cases are historical snapshots and have not been reaccepted. Reading
-them requires `--legacy`; current default checks reject them. Historical
-receipt validity is labeled `LEGACY-*` and `current_standard_receipt_valid`
-remains false. Do not mechanically bump a version number to migrate a proof.
+Graphs/specifications use format v2 and Yui audit records use v4. Unsupported
+formats are rejected. Do not mechanically bump a version number to migrate a proof.
 Apply [self-containment](self-containment.md) to the actual mathematical text.
 
 ## Authority and semantics
@@ -148,7 +145,7 @@ still contain them in full. No unprobed source is filled from model memory.
 The clean probe resolves genuine aliases to their canonical kernel name and
 discovers the actual defining module. A requested module is only a locator
 hint; its correction is recorded, never silently treated as source evidence.
-Native type printing (and the legacy `#check @declaration` probe) preserves the complete outer telescope,
+Native type printing preserves the complete outer telescope,
 including implicit/typeclass conditions, using ordinary notation for nested
 structure applications. Recursive expansion of inherited structure arguments
 is unnecessary; omitted hypotheses or ellipsis are not permitted. The actual
@@ -302,7 +299,7 @@ names), `locals`, `argument`, and `applications`.
   supply application conditions. E applications additionally require
   an inference-local unique `id: Addd`; different actual uses of the same E
   need separate IDs and records. M may also use explicit A IDs for repeated
-  instances; a legacy M without `id` uses its input ID as the unique key.
+  instances; a single M application without `id` uses its input ID as the unique key.
   `hypothesis_checks` has one nonempty
   explanation for each corresponding source obligation. A hypothesis needs an
   actual argument from inputs/H/local proved facts; filling a string is only
@@ -331,9 +328,8 @@ Every D, every E/M source, every R, and the target must be covered exactly once.
 Spec input hashes and source evidence are read back; malformed/duplicate JSON
 keys, missing files, changed bytes, failed verdicts, and stale audit hashes fail.
 
-Use audit `format_version: 4` for all new Yui records. A detailed-NL0 audit v3
-cannot establish format-4 acceptance. Historical audit v1/v2 remains inspectable only
-with historical graph v1 and --legacy, never as current acceptance.
+Use audit `format_version: 4`. Unsupported audit formats are rejected; changing
+a version field does not create a review or establish current acceptance.
 Each E source review additionally has `citation_checks`, mapping exactly
 `literature_identity`, `result_location`, `statement_fidelity`,
 `context_completeness`, `version_and_eligibility` to separate ordinary review

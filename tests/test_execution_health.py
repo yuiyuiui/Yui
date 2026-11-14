@@ -14,16 +14,15 @@ class ExecutionHealthTests(unittest.TestCase):
     def tearDown(self):self.temp.cleanup()
 
     def submitted(self):
-        return {'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT',
+        return {'transport':'native-codex-stdio-v1','status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT',
             'temporary_workspace_removed':True,'isolation_violation':False,
-            'usage':{'complete':True},'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
-                'actual_model_ids':[__import__('run_pilot').MODEL],'standard_tier_verified':True},
+            'usage':{'complete':True},'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]},
             'transport_health':{'status':'NO_RECORDED_FAULT','faults':[],'uncertainty':[]}}
 
     def recovered(self):
         row=self.submitted();row.update(execution_health='FAULT',usage={'complete':False},
-            transport_health={'status':'FAULT','faults':[{'kind':'RELAY_ERROR','request_number':6}],
-                'uncertainty':[{'kind':'HTTP_EVIDENCE_INCOMPLETE','missing_requests':[6]}]})
+            transport_health={'status':'FAULT','faults':[{'kind':'NATIVE_PROVIDER_ERROR','details':{'codexErrorInfo':'serverOverloaded'}}],
+                'uncertainty':[]})
         return row
 
     def test_complete_recovered_record_does_not_upgrade_original_health_or_usage(self):
@@ -47,10 +46,10 @@ class ExecutionHealthTests(unittest.TestCase):
         row=deepcopy(base);row['isolation_violation']=True;variants.append(row)
         row=deepcopy(base);row['transport_health']['faults']=[{'kind':'TOOL_SERVICE_ERROR'}];variants.append(row)
         row=deepcopy(base);row['transport_health']['uncertainty']=[{'kind':'PROVIDER_TERMINAL_WAIT_EXCEEDED'}];variants.append(row)
-        row=deepcopy(base);row['transport_health']['uncertainty'][0]['missing_requests']=[7];variants.append(row)
+        row=deepcopy(base);row['transport_health']['faults'][0]['details']={'codexErrorInfo':'unknown'};variants.append(row)
         row=deepcopy(base);row['temporary_workspace_removed']=False;variants.append(row)
-        row=deepcopy(base);row['exposure']['actual_model_ids']=['wrong-model'];variants.append(row)
-        row=deepcopy(base);row['exposure']['standard_tier_verified']=False;variants.append(row)
+        row=deepcopy(base);row['exposure']['configured_model']='wrong-model';variants.append(row)
+        row=deepcopy(base);row['exposure']['errors']=['configuration mismatch'];variants.append(row)
         for row in variants:
             self.assertFalse(execution_health.record_qualification(row)['submitted_record_qualified'])
 
@@ -82,6 +81,14 @@ class ExecutionHealthTests(unittest.TestCase):
 
     def test_missing_transport_evidence_stays_unverified(self):
         self.assertEqual(execution_health.inspect(self.root)['status'],'UNVERIFIED')
+
+    def test_old_transport_receipt_cannot_qualify_current_execution(self):
+        row=self.submitted()
+        row['exposure']={'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
+                         'actual_model_ids':['gpt-6.1-sol'],'standard_tier_verified':True}
+        self.assertFalse(execution_health.qualification(row)['identity_and_input_boundary_verified'])
+        row=self.recovered();row['transport']='obsolete-http'
+        self.assertFalse(execution_health.known_transport_recovery(row))
 
     def test_unverified_review_is_distinct_from_a_located_failure(self):
         self.assertEqual(execution_health.review_outcome(['PASS','UNVERIFIED']),'REVIEW_UNVERIFIED')

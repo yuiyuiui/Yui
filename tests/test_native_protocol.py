@@ -95,6 +95,16 @@ class NativeProtocolTests(unittest.TestCase):
         self.raw({'type':'custom_tool_call_output','call_id':'code',
             'output':'failed to spawn code-mode host /fixture/helper: Operation not permitted (os error 1)'})
 
+    def test_current_grpc_host_failure_requires_its_bound_exec_call(self):
+        text='gRPC code-mode session opening failed: code: unavailable, message: "Operation not permitted (os error 1)"'
+        self.raw({'type':'custom_tool_call_output','call_id':'foreign','output':text})
+        self.assertIsNone(getattr(self.stage,'native_infrastructure_fault',None))
+        self.raw({'type':'custom_tool_call','name':'exec','call_id':'grpc','input':'text(1);'})
+        self.raw({'type':'custom_tool_call_output','call_id':'grpc','output':text},turn='old')
+        self.assertIsNone(getattr(self.stage,'native_infrastructure_fault',None))
+        self.raw({'type':'custom_tool_call_output','call_id':'grpc','output':text})
+        self.assertEqual(self.stage.native_infrastructure_fault['origin'],'native_code_mode_host')
+
     def test_only_current_native_exec_failure_latches_and_completion_cannot_erase_it(self):
         for kind,name,call,turn in [('message','exec','code','turn'),
                 ('custom_tool_call','not_exec','code','turn'),('custom_tool_call','exec','other','old')]:

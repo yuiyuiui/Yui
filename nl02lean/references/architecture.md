@@ -87,12 +87,12 @@ it may transport a particular equality/property without asserting a general
 isomorphism or a conversion in both directions. Check that narrower role in the
 correspondence review; matching two view IDs is not a semantic proof.
 
-The prototype keeps a fixed cross-node parameter context. Different internal
+The implementation keeps a fixed cross-node parameter context. Different internal
 views may be defined locally. It does not yet synthesize arbitrary per-node
 parameter adapters. [Shared lemmas](shared-lemmas.md) specify frozen exports,
 permissions, exact reuse keys, physical storage and invalidation.
 
-The prototype uses exact text for terminal interface identity after whitespace
+The implementation uses exact text for terminal interface identity after whitespace
 normalization. Equivalent reformulations require a proved bridge or a reviewed
 new contract version. This conservative constraint is an implementation choice,
 not a claim that mathematical equivalence is textual equality.
@@ -133,8 +133,7 @@ Free slots take the next queued node with a fresh model context. See
 [the execution protocol](execution-protocol.md) for records, stops and ownership.
 Queue intervals and observed
 peak are recorded separately from requested bounds. Bank access is
-disabled by default and optional when enabled. Historical 0.4 runs still used
-sequential bodies and must retain that interpretation.
+disabled by default and optional when enabled.
 
 ## Status boundary
 

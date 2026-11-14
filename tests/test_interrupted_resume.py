@@ -177,8 +177,7 @@ class InterruptedResumeTests(unittest.TestCase):
         error='FileExistsError: [Errno 17] File exists: '+repr(str(copied.parent))
         self.write(stage/'result.json',{'status':'UNFINISHED','execution_fault':error,
             'temporary_workspace_removed':True,'isolation_violation':False,'execution_health':'FAULT',
-            'exposure':{'status':'TRANSMITTED-EXPOSURE-CHECK-PASSED',
-                'actual_model_ids':['gpt-6.1-sol'],'standard_tier_verified':True}})
+            'exposure':{'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':'gpt-6.1-sol','errors':[]}})
         self.write(stage/'events.jsonl',{'method':'item/tool/call','params':{
             'tool':'probe_library','arguments':{'id':'M021','declaration':'Synthetic.query'}}})
         (stage/'tools.jsonl').write_text('')

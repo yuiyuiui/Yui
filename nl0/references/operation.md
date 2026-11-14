@@ -1,6 +1,6 @@
 # Installed skill operation
 
-For a new public case, the job snapshot pins the route in [workflow.json](../../workflow/workflow.json). See the [workflow guide](../../workflow/SKILL.md) for the native CLI, final directory tree, explicit verification, optional stage breakpoints and operator attachments. After complete cleanup the four artifacts remain in `RUN/delivery`. For a stopped or interrupted case, read its actual phase and scope in `run.json`. Historical cases use their own frozen runtime and recovery instructions.
+For a new public case, the job snapshot pins the route in [workflow.json](../../workflow/workflow.json). See the [workflow guide](../../workflow/SKILL.md) for the native CLI, final directory tree, explicit verification, optional stage breakpoints and operator attachments. After complete cleanup the four artifacts remain in `RUN/delivery`. For a stopped or interrupted case, read its actual phase and scope in `run.json`. Only current-format cases are supported.
 
 This reference is for the invoking agent/operator, not an additional proof step.
 All executable paths are relative to the installed skill, independent of the
@@ -215,7 +215,7 @@ execution failures separately. A verified bookkeeping defect must not force
 the proof and all completed independent reviews to be repeated.
 
 Inherited evidence is checked before any remaining review model is called.
-If a legacy path-to-key index is wrong but the original judgment and matching
+If a retained path-to-key index is wrong but the original judgment and matching
 source bytes are intact and hash-bound, collection reconstructs a new index,
 validates it with the unchanged full checks, and proceeds. It records the old
 and new bindings in bookkeeping-repairs.json. This operation changes no theorem,

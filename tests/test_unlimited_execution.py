@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import runtime_config
-from run_pilot import Trial
+from native_carrier import NativeCarrier
 
 
 class UnlimitedExecutionTests(unittest.TestCase):
@@ -38,11 +38,10 @@ class UnlimitedExecutionTests(unittest.TestCase):
 
     def test_unlimited_stage_continues_after_long_elapsed_time(self):
         with tempfile.TemporaryDirectory() as temporary:
-            t = Trial.__new__(Trial)
+            t = NativeCarrier.__new__(NativeCarrier)
             t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
             t.logs = Path(temporary)
             t.timeout = None
-            t.strict = True
             t.allowed_user_messages = set()
             t.thread_id = 'synthetic'
             t.accepted = None
@@ -59,13 +58,13 @@ class UnlimitedExecutionTests(unittest.TestCase):
                     'id': 'synthetic', 'status': 'completed'}}}
 
             t.receive_until = receive
-            with patch('run_pilot.time.monotonic', side_effect=[1, 99999999]):
+            with patch('native_carrier.time.monotonic', side_effect=[1, 99999999]):
                 t.solve_turns('Synthetic explicit task')
             self.assertEqual(deadlines, [None, None])
             self.assertEqual(t.continuation_count, 1)
 
     def test_unlimited_receive_still_processes_terminal_events(self):
-        t = Trial.__new__(Trial)
+        t = NativeCarrier.__new__(NativeCarrier)
         t.inbox = queue.Queue()
         t.pending_turn_start_id = None
         t.active_turn_id = None
@@ -74,14 +73,14 @@ class UnlimitedExecutionTests(unittest.TestCase):
         self.assertEqual(result['params']['turn']['id'], 'done')
 
     def test_existing_worker_reads_updated_native_limit_without_restart(self):
-        t = Trial.__new__(Trial)
+        t = NativeCarrier.__new__(NativeCarrier)
         t.strict = True
         t.started = 10
         t.timeout = None
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw);config=root/'config.json'
             config.write_text(json.dumps({'timeouts':{'native_seconds':None}}))
-            with patch.object(runtime_config,'CORE',root), patch('run_pilot.time.monotonic',return_value=20):
+            with patch.object(runtime_config,'CORE',root), patch('native_carrier.time.monotonic',return_value=20):
                 self.assertIsNone(t.lean_timeout())
                 config.write_text(json.dumps({'timeouts':{'native_seconds':300}}))
                 self.assertEqual(t.lean_timeout(),300)

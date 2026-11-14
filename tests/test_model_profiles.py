@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import runtime_config
-import run_pilot
+import native_carrier
 from clean_stage import ArtifactStage
 
 
@@ -99,8 +99,8 @@ class ModelProfileTests(unittest.TestCase):
             stage.start_relay = Mock(return_value=12345)
             stage.rpc = Mock(return_value={})
             try:
-                with patch.object(run_pilot, 'system_https_proxy', return_value=None), \
-                        patch.object(run_pilot.subprocess, 'Popen', return_value=proc), \
+                with patch.object(native_carrier, 'system_https_proxy', return_value=None), \
+                        patch.object(native_carrier.subprocess, 'Popen', return_value=proc), \
                         patch('runtime_config.auth_home', return_value=root / 'empty-auth'), \
                         patch('run_resources.register_child'):
                     stage.start_process()
