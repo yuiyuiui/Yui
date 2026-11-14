@@ -45,7 +45,7 @@ def fixture(directory,variant='identity'):
         header+='axiom hiddenProof : False\n'
         body='exact False.elim hiddenProof'
     c={'version':1,'id':'audit_control','source':{'path':'source.json','sha256':ir.digest(directory/'source.json')},
-       'source_steps':source['source_steps'],'pins':{'lean_version':'4.32.2','mathlib_commit':mathlib},
+       'source_steps':source['source_steps'],'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':mathlib},
        'header':header,'parameters':params,'premises':premises,
        'endpoint_correspondence':{p['id']:{'mode':'direct','explanation':'The displayed binders and assertion encode the source '+p['id']+'.'} for p in props if p['kind'] in {'external','target'}},
        'conclusion':{'statement':props[-1]['statement'],'type':target},'representation':{'scope':'propositional/Nat controls'},

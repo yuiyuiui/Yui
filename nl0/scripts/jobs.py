@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from contextlib import ExitStack,contextmanager
+from contextlib import ExitStack,contextmanager,nullcontext
 from functools import wraps
 from copy import deepcopy
 import hashlib
@@ -18,7 +18,8 @@ from controller_common import CORE, bind, write, runtime_bindings, verify_bindin
 from runtime_config import validate_profile
 from variant import OUTPUT_DIRECTORY
 
-VERSION = 'yui-case-job-5'
+VERSION = 'yui-case-job-6'
+CATALOG_FREE_VERSION = 'yui-case-job-5'
 ATTACHMENT_VERSION = 'yui-case-job-4'
 ENVIRONMENT_VERSION = 'yui-case-job-3'
 LEGACY_VERSION = 'yui-case-job-2'
@@ -88,12 +89,14 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
             raise ValueError('Recovery cannot change the frozen Lean environment')
     else:
         selected = lean_environment if lean_environment is not None else (
-            environments.resolve() if track != 'nl0' or lean_libraries else None)
+            __import__('runtime_config').require_environment() if track != 'nl0' or lean_libraries else None)
     if selected is not None:
         selected = environments.verify(selected)
     from runtime_config import use_environment
     import lean_libraries as attached_lean
-    with use_environment(selected),attached_lean.generated(None),ExitStack() as selections:
+    import local_config
+    local_scope=local_config.use(prior.get('local_configuration')) if resume else nullcontext()
+    with local_scope,use_environment(selected),attached_lean.generated(None),ExitStack() as selections:
         problem = input_file(problem)
         extra = [input_file(p) for p in materials]
         if len({problem,*extra}) != len(extra)+1:
@@ -173,13 +176,22 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
                  'source_authority':authority,'authority_bindings':[bind(p) for p in [*source_files,*audit_files]],
                  'time_budget_seconds':time_budget_seconds,'runtime':runtime,
                  'runtime_snapshot':snapshot}
+            import local_config
+            local=local_config.current()
+            if local is not None and not local_config.provisional():
+                local_config.verify(local,evidence=not local_config.scoped())
+            from runtime_config import host_tools,auth_home
+            tools=host_tools()
+            actual_host={'codex':tools['codex'],'ripgrep':{
+                'path':tools['tools']['ripgrep']['binary_path'],'sha256':tools['tools']['ripgrep']['sha256']},
+                'python':tools['tools']['python']['binary_path'],'auth_home':str(auth_home())}
+            job['local_configuration']=local_config.for_job(local,profiles,selected,host=actual_host)
             job['formalization']=formalization
             if stop_after:job['stop_after']=stop_after
             if (any(r['path']==str(root/'runtime/workflow/workflow.json') for r in runtime)
                     and track in {'nl0','full'} and (not resume or resume.get('mode')=='basis-revision')):
                 job['workflow_protocol']='yui-workflow-1'
-            from runtime_config import host_tools
-            job['native_components']=deepcopy(host_tools()['codex'])
+            job['native_components']=deepcopy(tools['codex'])
             if target:job['target_selection']=target
             if resume:
                 job['resume']=resume
@@ -208,7 +220,8 @@ def scientific_context(job):
     from runtime_config import use_environment
     selected=(job.get('lean_environment') if 'lean_environment' in job else
               environments.legacy() if job.get('version')==LEGACY_VERSION and job.get('track')!='nl0' else None)
-    with use_environment(selected),lean_libraries.generated(None),lean_libraries.use(job.get('lean_libraries',[])), \
+    import local_config
+    with local_config.use(job.get('local_configuration')),use_environment(selected),lean_libraries.generated(None),lean_libraries.use(job.get('lean_libraries',[])), \
             lean_libraries.generated(Path(job['root'])/'imported-lean'):
         yield
 
@@ -236,15 +249,15 @@ def validate(job, *, verify_runtime=True):
 
 
 def _validate(job, *, verify_runtime=True):
-    if job.get('version') not in {VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
+    if job.get('version') not in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION,LEGACY_VERSION} or job.get('track') not in TRACKS:
         raise ValueError('Unsupported explicit case job')
-    if job['version'] in {VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION} and 'lean_environment' not in job:
+    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION,ENVIRONMENT_VERSION} and 'lean_environment' not in job:
         raise ValueError('A v3/v4/v5 job must freeze its Lean selection or explicit NL0 null')
-    if job['version'] in {VERSION,ATTACHMENT_VERSION} and 'lean_libraries' not in job:
+    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION} and 'lean_libraries' not in job:
         raise ValueError('A v4/v5 job must freeze its explicit Lean library scope')
-    if job['version']==VERSION and ('runtime_snapshot' not in job
+    if job['version'] in {VERSION,CATALOG_FREE_VERSION} and ('runtime_snapshot' not in job
             or 'library_root' in job['runtime_snapshot']):
-        raise ValueError('A v5 job requires a catalog-free runtime snapshot')
+        raise ValueError('A v5/v6 job requires a catalog-free runtime snapshot')
     expected={'version','id','case','run_id','track','policy','problem','root','profiles',
               'max_concurrency','documents','source','audit','source_authority','authority_bindings','time_budget_seconds','runtime'}
     if 'stop_after' in job:
@@ -257,15 +270,23 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Unknown public workflow protocol or track')
         expected.add('workflow_protocol')
     if 'resume' in job:expected.add('resume')
-    if job['version']!=VERSION and 'library_catalog' in job:expected.add('library_catalog')
+    if job['version'] not in {VERSION,CATALOG_FREE_VERSION} and 'library_catalog' in job:expected.add('library_catalog')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
     if 'formalization' in job:expected.add('formalization')
     if 'lean_environment' in job:expected.add('lean_environment')
-    if job['version'] in {VERSION,ATTACHMENT_VERSION}:expected.add('lean_libraries')
+    if job['version'] in {VERSION,CATALOG_FREE_VERSION,ATTACHMENT_VERSION}:expected.add('lean_libraries')
+    if job['version']==VERSION:expected.add('local_configuration')
     if set(job)!=expected or job.get('policy') not in {'normal','first-pass'}:
         raise ValueError('Unsupported explicit job fields/policy')
+    if job.get('local_configuration') is not None:
+        import local_config
+        local_config.verify(job['local_configuration'],evidence=False)
+        if (job['local_configuration']['profiles']!=job['profiles']
+                or job['local_configuration']['lean_environment']!=job.get('lean_environment')
+                or job['local_configuration']['host']['codex']!=job.get('native_components')):
+            raise ValueError('Frozen local configuration differs from job bindings')
     if 'lean_environment' in job:
         selected = job['lean_environment']
         if selected is None and job['track'] != 'nl0':

@@ -16,7 +16,7 @@ class InstanceBinderTests(unittest.TestCase):
         ir.write(self.root/'source.json',{'mathematical_input':'Neutral arbitrary-field additive identity control.'})
         self.c={'version':2,'id':'generic_field_control','source':{'path':'source.json','sha256':ir.digest(self.root/'source.json')},
             'source_steps':[{'id':'S001','text':'Use the additive identity.'},{'id':'S002','text':'Retain the result.'}],
-            'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev']},
+            'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
             'header':'import Mathlib\n','parameters':[{'name':'K','type':'Type','binder_kind':'implicit'},
                 {'name':'instK','type':'Field K','binder_kind':'instance'},{'name':'x','type':'K'}],
             'premises':[{'id':'H001','kind':'hypothesis','statement':'x=x.','type':'x = x'}],

@@ -37,7 +37,7 @@ statement(s), including standing assumptions, as an explicit job input.
 
 The invoking agent owns request/configuration collection and dispatch. Follow
 [installed operation](nl0/references/operation.md) to identify explicit proof inputs,
-ask once for missing active-phase model/reasoning/speed settings, then call
+reuse the verified local model profiles or ask once for missing active-phase settings, then call
 `nl0/scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
 the user; do not call a separate intent-classification model. An omitted worker
 count or `auto` uses the current phase's node count: R nodes for local Audit A
@@ -47,6 +47,8 @@ ask for a worker count or fall back to two. An explicit positive integer N caps
 both separate phases. NL0/Audit A and
 Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
 does not prepare queues, task packets or controller jobs manually.
+Before first use or an environment switch, execute [the local adaptation entry](setup/README.md).
+It publishes the checked local default; do not fill versions or paths into source files.
 For formalization, follow [per-run Lean/Mathlib selection](nl0/references/lean-environments.md).
 Use a verified unambiguous local pair, or retain the user's explicit paths or
 version choice. Ask for matched paths or desired versions when discovery is
@@ -249,8 +251,9 @@ tool schemas/results, reported model identity, phase, usage and health. Native
 Codex manages model networking and context; Yui does not intercept HTTP payloads.
 Actual tier and per-response usage coverage remain unknown when not exposed. Never execute model-generated Python or shell text.
 
-Collect the active phase profiles as described above. `config.json` supplies
-defaults only when explicitly selected. The current isolated native Codex carrier requests
+Collect the active phase profiles as described above. The verified local setup
+supplies the user's saved choices; `config.json` supplies defaults only when
+explicitly selected. The current isolated native Codex carrier requests
 Standard speed and checks model/effort availability without fallback. Freeze
 and record each stage's selected profile;
 never silently substitute a stronger model or fallback.

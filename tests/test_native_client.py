@@ -7,7 +7,7 @@ import json
 import shutil
 from native_fixture import NativeFixture
 
-@unittest.skipUnless(shutil.which('codex'),'Codex executable required')
+@unittest.skipUnless(harness_support.native_available(),'Codex executable required')
 class NativeClientTests(unittest.TestCase):
     def test_submission_and_late_provider_tail_are_normal_handoff(self):
         for delay in (0,.03,.2):

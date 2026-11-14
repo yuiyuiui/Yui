@@ -11,7 +11,7 @@ import fault_control
 import execution_state
 import execution_health
 
-@unittest.skipUnless(shutil.which('codex'),'Native Codex executable required')
+@unittest.skipUnless(harness_support.native_available(),'Native Codex executable required')
 class NativeFaultTests(unittest.TestCase):
     def assert_checkpoint(self,f):
         self.assertEqual(f.checkpoint_writes,1)

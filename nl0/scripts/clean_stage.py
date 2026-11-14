@@ -255,7 +255,7 @@ class ArtifactStage(pilot.Stage):
         snapshot.mkdir()
         source_files = [*CORE.glob('nl0/scripts/*.py'), *CORE.glob('nl02lean/scripts/*.py'),
                         *CORE.glob('workflow/blocks/*.py'),
-                        CORE/'toolchain/lock.json', CORE/'config.json']
+                        CORE/'toolchain/legacy/lean-mathlib.json', CORE/'config.json']
         files = []
         for path in source_files:
             destination = snapshot/path.relative_to(CORE)

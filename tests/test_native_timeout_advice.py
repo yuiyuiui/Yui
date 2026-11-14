@@ -146,8 +146,8 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         self.assertFalse(failed['accepted']);self.assertIsNone(stage.accepted)
 
     def test_new_job_runtime_bindings_include_strategy_data(self):
-        core=self.root/'runtime';(core/'toolchain').mkdir(parents=True)
-        for name in ('SKILL.md','config.json','toolchain/lock.json'):
+        core=self.root/'runtime';(core/'toolchain/legacy').mkdir(parents=True)
+        for name in ('SKILL.md','config.json','toolchain/legacy/lean-mathlib.json'):
             (core/name).write_text('{}')
         shutil.copytree(bank.BANK,core/'nl02lean/bank')
         with patch.object(controller_common,'CORE',core):rows=controller_common.runtime_bindings()

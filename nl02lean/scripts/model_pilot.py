@@ -594,7 +594,7 @@ class Stage(carrier.Trial):
             files = []
             for path in [*ir.ROOT.glob('nl0/scripts/*.py'), *ir.HERE.glob('scripts/*.py'),
                          *ir.ROOT.glob('workflow/blocks/*.py'),
-                         ir.ROOT/'toolchain/lock.json', ir.ROOT/'config.json']:
+                         ir.ROOT/'toolchain/legacy/lean-mathlib.json', ir.ROOT/'config.json']:
                 target = self.logs/'harness-snapshot'/path.relative_to(ir.ROOT)
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)

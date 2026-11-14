@@ -36,7 +36,7 @@ class BackgroundTests(unittest.TestCase):
             'hypotheses':[{'id':'H001','statement':'f is continuous.','origin':'problem.txt:1'},
                           {'id':'H002','statement':'g is continuous.','origin':'problem.txt:1'}],
             'definitions':[],'logic':{'classical':False,'rules':['direct']},
-            'pins':{'lean_version':'4.32.2','mathlib_commit':lock['mathlib']['rev'],'mathlib_root':lock['mathlib']['local_path']},
+            'pins':{'lean_version':lock['lean']['version_number'],'mathlib_commit':lock['mathlib']['rev'],'mathlib_root':lock['mathlib']['local_path']},
             'inputs':[{'path':'problem.txt','sha256':nl0.sha(self.base/'problem.txt')}]}
         foundations.bind_author(self.spec['logic'])
         self.write('spec.json',self.spec)
@@ -148,7 +148,7 @@ class BackgroundTests(unittest.TestCase):
         cp=self.base/'contract.json';pp=self.base/'plan.json';rp=self.base/'interface-review.json'
         c={'version':2,'id':'background_handoff_control',
            'source':{'path':'nl0.json','sha256':nl0.sha(self.base/'nl0.json')},
-           'pins':{'lean_version':'4.32.2','mathlib_commit':self.spec['pins']['mathlib_commit']},
+           'pins':{'lean_version':self.spec['pins']['lean_version'],'mathlib_commit':self.spec['pins']['mathlib_commit']},
            'source_steps':[{'id':'S001','text':self.graph['inferences'][0]['argument'][0]['text']}],
            'header':'import Mathlib\n','parameters':[{'name':x,'type':'ℝ → ℝ'} for x in ['f','g']],
            'premises':[{'id':pid,'kind':props[pid]['kind'],'statement':props[pid]['statement'],'type':typ}

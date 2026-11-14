@@ -19,7 +19,7 @@ def parsers(commands):
                        help='Lean goal; unconditional adds 2basis and final b2lean closure to track=full')
         p.add_argument('--material',action='append',type=Path,default=[])
         p.add_argument('--lean-library',action='append',type=Path,default=[],
-                       help='Freeze an explicit public source/compiled-module library for the selected environment')
+                       help='Configured library name or explicit specification for this selected environment')
         p.add_argument('--lean-root',type=Path,help='Explicit local Lean installation for this run')
         p.add_argument('--mathlib-root',type=Path,help='Explicit compatible Mathlib checkout for this run')
         p.add_argument('--lean-version',help='Select one installed exact Lean release')
@@ -87,11 +87,14 @@ def parsers(commands):
 
 def profiles(args):
     config=json.loads((CORE/'config.json').read_text());selected={}
+    import local_config
+    local=local_config.current()
     required={'nl0','lean'} if args.track=='full' else {'nl0'} if args.track=='nl0' else {'lean'}
     for phase in required:
         values=[getattr(args,phase+'_'+field) for field in ('model','effort','speed')]
-        default=config['model'] if phase=='nl0' else config['phase_models']['nl0_to_lean']
-        if args.use_config_profiles:
+        default=(local['profiles'][phase] if local is not None else
+                 config['model'] if phase=='nl0' else config['phase_models']['nl0_to_lean'])
+        if args.use_config_profiles or local is not None:
             values=[value if value is not None else default[key] for value,key in zip(values,('id','reasoning_effort','speed'))]
         if any(value is None for value in values):
             raise ValueError('Ask once for the missing '+phase+' model, reasoning effort and speed, or explicitly choose --use-config-profiles')
@@ -159,8 +162,8 @@ def dispatch(args):
     if args.command=='lean-environments':
         import lean_environment
         if args.install:
-            if not args.lean_version or not args.mathlib_version:
-                raise ValueError('Installation needs both --lean-version and --mathlib-version')
+            if not args.mathlib_version:
+                raise ValueError('Installation needs an exact --mathlib-version')
             selected=lean_environment.install(lean_version=args.lean_version,
                 mathlib_ref=args.mathlib_version,directory=args.directory)
             return {'status':'LEAN_ENVIRONMENT_INSTALLED','environment':selected}
@@ -223,21 +226,28 @@ def dispatch(args):
         import lean_environment
         explicit = any(getattr(args,key,None) is not None for key in (
             'lean_root','mathlib_root','lean_version','mathlib_version'))
-        selected_environment = (lean_environment.resolve(lean_root=getattr(args,'lean_root',None),
-            mathlib_root=getattr(args,'mathlib_root',None),lean_version=getattr(args,'lean_version',None),
-            mathlib_ref=getattr(args,'mathlib_version',None)) if args.track!='nl0' or explicit else None)
         selections={}
         if args.track in {'nl0','full'}:
             for problem in args.problems:
                 selection=target_selection.resolve(problem,requested=getattr(args,'target',None),selection_file=getattr(args,'target_file',None))
                 if selection['status']!='SELECTED':return selection
                 selections[str(problem)]=selection
+        selected_environment = (lean_environment.resolve(lean_root=getattr(args,'lean_root',None),
+            mathlib_root=getattr(args,'mathlib_root',None),lean_version=getattr(args,'lean_version',None),
+            mathlib_ref=getattr(args,'mathlib_version',None)) if explicit else
+            __import__('runtime_config').require_environment() if args.track!='nl0' else None)
+        import local_config
+        local=local_config.current()
+        libraries=[]
+        for specification in getattr(args,'lean_library',[]):
+            configured=[row for row in local['libraries'] if row['name']==str(specification)] if local and 'libraries' in local else []
+            libraries.append(Path(configured[0]['specification']['path']) if configured else specification)
         for problem in args.problems:
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
                 target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None),
-                lean_environment=selected_environment,lean_libraries=getattr(args,'lean_library',[])))
+                lean_environment=selected_environment,lean_libraries=libraries))
         summary={'status':'PREPARED_NOT_STARTED','runs':[p['root'] for p in prepared],
                  'profiles':chosen,'proof_concurrency':(__import__('concurrency').resolve(workers)
                     if args.track in {'full','translate'} else None),

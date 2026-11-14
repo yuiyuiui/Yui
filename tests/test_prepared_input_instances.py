@@ -33,7 +33,7 @@ class PreparedInstances(unittest.TestCase):
         ir.write(source, {'text':'Apply the two reflexivity statements at their actual types.'})
         self.c = {'id':'genericPort','version':2,'source':{'path':source.name,'sha256':ir.digest(source)},
             'source_steps':[{'id':'S001','text':'Apply pair reflexivity.'}],
-            'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev']},
+            'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
             'header':'import Mathlib\n','parameters':[],
             'premises':[{'id':'E001','kind':'external','type':self.typ,'statement':self.row['statement']}],
             'conclusion':{'type':'(0 : Nat) = 0','statement':'Zero equals zero.'},

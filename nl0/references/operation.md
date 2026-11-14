@@ -36,9 +36,10 @@ The invoking agent checks that mathematical notation survives extraction before
 freezing it as the supplied proof; a successful pdftotext exit is not a fidelity
 judgment. Use an explicitly checked text source when the extraction is ambiguous.
 
-Ask once for each missing active phase's model, reasoning effort and speed.
-Retain choices supplied in the current request or already authorized in the
-conversation. NL0 authors and Audit A share the NL0 profile. Source preparation,
+Reuse profiles selected during local adaptation unless the user overrides them.
+Ask once for each active phase whose model, reasoning effort or speed remains
+missing. Retain choices supplied in the current request or already authorized
+in the conversation. NL0 authors and Audit A share the NL0 profile. Source preparation,
 local source review, interface authoring, all Lean proof jobs, assembly and Audit B
 share the Lean profile. Do not ask about an unused phase. Do not invoke a separate
 intent-classification model. Defaults in config.json require an explicit choice
@@ -145,7 +146,7 @@ logs/                    controller lifecycle output
 case-result.json         actual acceptance scope and execution qualification
 ```
 
-New v5 jobs and v3 runtime snapshots do not contain a personal theorem catalog.
+New v5/v6 jobs and v3 runtime snapshots do not contain a personal theorem catalog.
 Native Mathlib queries save their selected-environment evidence inside the
 owning stage; that evidence is not a cross-task theorem directory. Old frozen
 jobs retain read-only format compatibility, including the hashes of any old

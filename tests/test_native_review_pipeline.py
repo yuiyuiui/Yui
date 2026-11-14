@@ -27,7 +27,7 @@ import runtime_config
 import subprocess
 
 
-@unittest.skipUnless(shutil.which('codex'),'Codex executable required')
+@unittest.skipUnless(harness_support.native_available(),'Codex executable required')
 class NativeReviewPipelineTests(unittest.TestCase):
     def exercise(self, global_verdict, *, malformed_global=False, preview_notes=False):
         with tempfile.TemporaryDirectory() as raw:

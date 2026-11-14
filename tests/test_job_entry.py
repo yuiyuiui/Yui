@@ -52,7 +52,7 @@ class JobEntryTests(unittest.TestCase):
         (obsolete/'foundations.json').write_text('Invalid obsolete catalog: never open this.')
         with patch.dict(os.environ,{'YUI_LIBRARY_ROOT':str(obsolete)}):
             job=self.job();jobs.validate(job)
-        self.assertEqual(job['version'],'yui-case-job-5')
+        self.assertEqual(job['version'],'yui-case-job-6')
         self.assertNotIn('library_catalog',job)
         self.assertNotIn('library_root',job['runtime_snapshot'])
         self.assertFalse((Path(job['runtime_snapshot']['root'])/'library').exists())
@@ -61,6 +61,14 @@ class JobEntryTests(unittest.TestCase):
     def test_current_job_rejects_retired_catalog_fields(self):
         job=self.job();job['library_catalog']={'path':'/obsolete/foundations.json','files':[]}
         with self.assertRaisesRegex(ValueError,'Unsupported explicit job fields'):jobs.validate(job)
+
+    def test_v5_catalog_free_job_remains_readable_without_local_configuration(self):
+        from controller_common import bind
+        job=self.job();job['version']='yui-case-job-5';job.pop('local_configuration')
+        root=Path(job['root']);(root/'job.json').write_text(json.dumps(job))
+        marker=json.loads((root/jobs.MARKER).read_text())
+        marker.update(version=job['version'],job=bind(root/'job.json'))
+        (root/jobs.MARKER).write_text(json.dumps(marker));jobs.validate(job)
 
     def test_current_job_cannot_select_a_retired_snapshot_format(self):
         job=self.job();job['runtime_snapshot']['library_root']=str(Path(job['root'])/'runtime/library')
@@ -75,7 +83,7 @@ class JobEntryTests(unittest.TestCase):
         value['files'].append({'relative_path':'library/foundations.json','sha256':bind(catalog)['sha256'],
                                'original':dict(bind(catalog),path='/old/installation/library/foundations.json')})
         manifest.write_text(json.dumps(value))
-        job.update(version='yui-case-job-4',library_catalog={'path':str(catalog),'files':[bind(catalog)]})
+        job.pop('local_configuration');job.update(version='yui-case-job-4',library_catalog={'path':str(catalog),'files':[bind(catalog)]})
         job['runtime'].append(bind(catalog))
         job['runtime_snapshot'].update(manifest=bind(manifest),library_root=str(frozen))
         def save():

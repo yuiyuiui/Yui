@@ -15,7 +15,7 @@ from lean_fixtures import shared_fixture, LIFT
 from native_fixture import NativeFixture
 
 
-@unittest.skipUnless(shutil.which('codex'),'Codex executable required')
+@unittest.skipUnless(harness_support.native_available(),'Codex executable required')
 class NativeProofDiagnosisTests(unittest.TestCase):
     def test_author_waits_for_real_nested_diagnosis_and_continues_same_native_thread(self):
         with tempfile.TemporaryDirectory(prefix='native-proof-diagnosis-') as raw:

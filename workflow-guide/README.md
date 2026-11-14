@@ -999,6 +999,122 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
+<a id="contract-LocalSetupReport@1"></a>
+
+#### LocalSetupReport@1
+
+```json
+{
+  "additionalProperties": true,
+  "oneOf": [
+    {
+      "properties": {
+        "configuration_published": {
+          "const": true
+        },
+        "status": {
+          "const": "READY"
+        }
+      },
+      "required": [
+        "configuration",
+        "capabilities",
+        "checks"
+      ]
+    },
+    {
+      "properties": {
+        "configuration_published": {
+          "const": false
+        },
+        "status": {
+          "enum": [
+            "NEEDS_USER_ACTION",
+            "FAILED"
+          ]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "attempt": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "libraries": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mode": {
+          "enum": [
+            "nl0",
+            "lean"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "libraries"
+      ],
+      "type": "object"
+    },
+    "checks": {
+      "type": "object"
+    },
+    "configuration": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "configuration_published": {
+      "type": "boolean"
+    },
+    "entry": {
+      "const": "setup/README.md"
+    },
+    "mode": {
+      "enum": [
+        "nl0",
+        "lean"
+      ]
+    },
+    "status": {
+      "enum": [
+        "READY",
+        "NEEDS_USER_ACTION",
+        "FAILED"
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "entry",
+    "configuration_published",
+    "mode",
+    "attempt"
+  ],
+  "type": "object"
+}
+```
+
 <a id="contract-Outcome@1"></a>
 
 #### Outcome@1
@@ -2029,4 +2145,4 @@ def translate(ctx, data):
     return dispatch(ctx, data, 'translate')
 ```
 
-Workflow protocol 1 · Definition ac97ce4a313e30e5fd5bf0639e0b36b35f7d17dd5d182f0f0d3c870b851132dc
+Workflow protocol 1 · Definition b1bfd36718d260bea78477c211ee263938a3ec94045b2b30ba099cf8e4a18547

@@ -70,7 +70,7 @@ def prepare(directory):
         problem='Neutral semantic comparison control only. The supplied logical source is the comparison authority; no Audit A, proof execution or exercise acceptance is claimed.\n'
         (inputs/'problem.md').write_text(problem)
         spec=deepcopy(item['spec']);graph=deepcopy(item['graph'])
-        spec['pins']={'lean_version':'4.32.2','mathlib_commit':lock['mathlib']['rev'],'mathlib_root':lock['mathlib']['local_path']}
+        spec['pins']={'lean_version':lock['lean']['version_number'],'mathlib_commit':lock['mathlib']['rev'],'mathlib_root':lock['mathlib']['local_path']}
         spec['inputs']=[{'path':'problem.md','sha256':a.bind(inputs/'problem.md')['sha256']}]
         a.write(inputs/'spec.json',spec);graph['spec_sha256']=a.bind(inputs/'spec.json')['sha256'];a.write(inputs/'nl0.json',graph)
         a.nl0.validate(inputs/'nl0.json',inputs/'spec.json')

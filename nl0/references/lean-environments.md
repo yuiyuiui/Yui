@@ -1,6 +1,7 @@
 # Per-run Lean and Mathlib selection
 
-Every new `yui-case-job-5` formalization freezes one verified local Lean/Mathlib pair in
+Execute [the adaptation entry](../../setup/README.md) to initialize or change
+the local default. Every new `yui-case-job-6` formalization freezes one verified local Lean/Mathlib pair in
 `job.json:lean_environment`. Pure NL0 runs freeze `null`; their source metadata
 uses `NOT_SELECTED` and their host carrier needs no Lean installation. Native
 library probing in an NL0 run requires an explicitly selected environment.
@@ -50,13 +51,17 @@ compatibility output. Parent/parallel/nested workers and case subprocesses use
 the same descriptor. Native checks and public delivery retain the selected
 identity. Recovery inherits the prior run's choice, never a fresh default.
 Older jobs without this field retain their declared legacy scientific pins in
-their executable snapshot; `toolchain/lock.json` is that historical baseline,
+their executable snapshot; `toolchain/legacy/lean-mathlib.json` is that historical baseline,
 not a universal version requirement for new work.
-The previous v2, v3 and v4 job formats remain readable for historical jobs.
-V3 through v5 jobs cannot omit the selected descriptor or explicit NL0 null.
-V4 and v5 also freeze the explicit external-library scope, including an empty
+The previous v2 through v5 job formats remain readable for historical jobs.
+V3 through v6 jobs cannot omit the selected descriptor or explicit NL0 null.
+V4 through v6 also freeze the explicit external-library scope, including an empty
 list. V5 removes the personal theorem catalog; old catalog bytes remain only
 inside their original frozen jobs.
 
 Selection establishes execution compatibility. It does not establish theorem
 fidelity, mathematical correctness of an imported source, or Audit A/B success.
+
+V6 also freezes the selected host/profile context, without setup credentials or
+mutable installation-default files. Retained child snapshots consume that frozen
+context. Changing .runtime/local-config.json affects future jobs only.

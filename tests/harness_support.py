@@ -1,12 +1,13 @@
 """Shared test paths and synthetic profiles; never imported by the runtime."""
 from pathlib import Path
+import os
 import sys
 import test_resources  # Install only inside the explicitly owned cleanup runner.
 
 TESTS = Path(__file__).resolve().parent
 CORE = TESTS.parent
 LEAN = CORE / 'nl02lean'
-FIXTURES = TESTS / 'fixtures'
+FIXTURES = Path(os.environ.get('YUI_TEST_FIXTURE_ROOT',str(TESTS/'fixtures')))
 
 # Every test can be selected independently; no earlier test import is required.
 for directory in (CORE / 'nl0/scripts', LEAN / 'scripts', TESTS / 'tooling'):
@@ -16,6 +17,12 @@ for directory in (CORE / 'nl0/scripts', LEAN / 'scripts', TESTS / 'tooling'):
 
 PROFILES={'nl0':{'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard','automatic_fallback':False},
           'lean':{'id':'gpt-6-luna','reasoning_effort':'medium','speed':'standard','automatic_fallback':False}}
+
+
+def native_available():
+    import shutil
+    binary=os.environ.get('YUI_CODEX_BINARY') or shutil.which('codex')
+    return bool(binary and Path(binary).is_file())
 
 # A missed controller mock must fail the software test before authentication,
 # process launch or provider access, rather than consume a real model request.

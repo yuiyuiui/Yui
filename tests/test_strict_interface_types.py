@@ -17,7 +17,7 @@ class StrictInterfaceTypesTests(unittest.TestCase):
             'version': 2, 'id': 'strict_signature_control',
             'source': {'path': 'source.json', 'sha256': ir.digest(self.root/'source.json')},
             'source_steps': [{'id': 'S001', 'text': 'Retain the identity.'}],
-            'pins': {'lean_version': '4.32.2', 'mathlib_commit': ir.load_lock()['mathlib']['rev']},
+            'pins': {'lean_version': ir.load_lock()['lean']['version_number'], 'mathlib_commit': ir.load_lock()['mathlib']['rev']},
             'header': 'import Mathlib\ndef hiddenIndex {n : Nat} (x : Nat) : Prop := x = n\n',
             'parameters': [{'name': 'n', 'type': 'Nat'}, {'name': 'x', 'type': 'Nat'}],
             'premises': [{'id': 'H001', 'kind': 'hypothesis', 'statement': 'Identity.', 'type': 'True'}],

@@ -162,7 +162,7 @@ def prepare(cpath,ppath,bpath,out,**source):
              ir.ROOT/'nl0/scripts/execution_state.py',ir.ROOT/'workflow/blocks/process_snapshots.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/lean_environment.py',
              ir.ROOT/'workflow/blocks/lean_environments.py',
-             Path(background_inputs.__file__),ir.ROOT/'toolchain/lock.json']
+             Path(background_inputs.__file__),ir.ROOT/'toolchain/legacy/lean-mathlib.json']
     inputs = out/'input-bytes';inputs.mkdir()
     bound = []
     for i,p in enumerate(dict.fromkeys(originals)):

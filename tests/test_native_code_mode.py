@@ -18,7 +18,7 @@ import fault_control
 import run_pilot
 
 
-@unittest.skipUnless(shutil.which('codex'),'Native Codex executable required')
+@unittest.skipUnless(harness_support.native_available(),'Native Codex executable required')
 class NativeCodeModeTests(unittest.TestCase):
     def test_actual_exec_helper_reads_then_submits_through_dynamic_rpc(self):
         def respond(f,handler,number,payload):

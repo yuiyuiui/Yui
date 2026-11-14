@@ -18,47 +18,7 @@ import runtime_snapshot
 from controller_common import bind
 
 
-OLD = Path.home() / 'formalization-tools/lean-mathlib-v4.32.2'
-
-
-class SelectedEnvironment(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.selected = environments.resolve(lean_root=OLD/'lean', mathlib_root=OLD/'mathlib')
-
-    def test_descriptor_records_the_actual_pair_and_successful_native_probe(self):
-        selected = self.selected
-        self.assertEqual(selected['lean']['version_number'], '4.32.2')
-        self.assertEqual(selected['mathlib']['rev'], '905b95818eb32af7874a58b427f50c1711a5e96c')
-        self.assertTrue(selected['compatibility']['accepted'])
-        self.assertEqual(selected['compatibility']['exit_code'], 0)
-        self.assertEqual(selected['lean']['binary_sha256'],
-                         bind(Path(selected['lean']['local_path'])/'bin/lean')['sha256'])
-        environments.verify(selected)
-
-    def test_explicit_pair_is_not_replaced_by_a_discovered_version(self):
-        with patch.object(environments, 'discover', side_effect=AssertionError('unexpected discovery')):
-            self.assertEqual(environments.resolve(lean_root=OLD/'lean', mathlib_root=OLD/'mathlib'),
-                             self.selected)
-
-    def test_context_and_child_environment_keep_the_frozen_pair(self):
-        original = deepcopy(self.selected)
-        with runtime_config.use_environment(original):
-            self.assertEqual(runtime_config.load_lock()['mathlib']['rev'], original['mathlib']['rev'])
-            exposed = runtime_config.load_lock()
-            exposed['mathlib']['rev'] = 'altered returned copy'
-            self.assertEqual(runtime_config.load_lock()['mathlib']['rev'], original['mathlib']['rev'])
-        with patch.dict(os.environ, {'YUI_LEAN_IMPORT_ROOT': '/unrelated-case/imported-lean'}):
-            env = runtime_snapshot.environment({'lean_environment': original})
-        self.assertNotIn('YUI_LEAN_IMPORT_ROOT', env)
-        self.assertEqual(json.loads(env['YUI_LEAN_ENVIRONMENT']), original)
-        command = [sys.executable, '-B', '-c',
-                   'import json,runtime_config;print(json.dumps(runtime_config.scientific_pins()))']
-        env['PYTHONPATH'] = str(harness_support.CORE/'nl0/scripts')
-        observed = json.loads(subprocess.check_output(command, env=env, text=True))
-        self.assertEqual(observed['lean_version'], '4.32.2')
-        self.assertEqual(original, self.selected)
-
+class HostOnlyEnvironment(unittest.TestCase):
     def test_natural_language_job_needs_only_the_host_carrier(self):
         with tempfile.TemporaryDirectory() as raw:
             problem = Path(raw)/'problem.md'
@@ -78,13 +38,57 @@ class SelectedEnvironment(unittest.TestCase):
         self.assertEqual(cp.returncode,0,cp.stdout+cp.stderr)
         self.assertIsNone(json.loads(cp.stdout)['resolved_environment']['lean'])
 
+
+class SelectedEnvironment(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.selected = runtime_config.require_environment()
+
+    def test_descriptor_records_the_actual_pair_and_successful_native_probe(self):
+        selected = self.selected
+        self.assertIn('version '+selected['lean']['version_number']+',', subprocess.check_output(
+            [str(Path(selected['lean']['local_path'])/'bin/lean'),'--version'],text=True))
+        self.assertEqual(selected['mathlib']['rev'],subprocess.check_output(
+            ['git','-C',selected['mathlib']['local_path'],'rev-parse','HEAD'],text=True).strip())
+        self.assertTrue(selected['compatibility']['accepted'])
+        self.assertEqual(selected['compatibility']['exit_code'], 0)
+        self.assertEqual(selected['lean']['binary_sha256'],
+                         bind(Path(selected['lean']['local_path'])/'bin/lean')['sha256'])
+        environments.verify(selected)
+
+    def test_explicit_pair_is_not_replaced_by_a_discovered_version(self):
+        with patch.object(environments, 'discover', side_effect=AssertionError('unexpected discovery')):
+            resolved=environments.resolve(lean_root=self.selected['lean']['local_path'], mathlib_root=self.selected['mathlib']['local_path'])
+            self.assertEqual(environments.identity(resolved),environments.identity(self.selected))
+            self.assertEqual(resolved['lean']['local_path'],self.selected['lean']['local_path'])
+            self.assertEqual(resolved['mathlib']['local_path'],self.selected['mathlib']['local_path'])
+
+    def test_context_and_child_environment_keep_the_frozen_pair(self):
+        original = deepcopy(self.selected)
+        with runtime_config.use_environment(original):
+            self.assertEqual(runtime_config.load_lock()['mathlib']['rev'], original['mathlib']['rev'])
+            exposed = runtime_config.load_lock()
+            exposed['mathlib']['rev'] = 'altered returned copy'
+            self.assertEqual(runtime_config.load_lock()['mathlib']['rev'], original['mathlib']['rev'])
+        with patch.dict(os.environ, {'YUI_LEAN_IMPORT_ROOT': '/unrelated-case/imported-lean'}):
+            env = runtime_snapshot.environment({'lean_environment': original})
+        self.assertNotIn('YUI_LEAN_IMPORT_ROOT', env)
+        self.assertEqual(json.loads(env['YUI_LEAN_ENVIRONMENT']), original)
+        command = [sys.executable, '-B', '-c',
+                   'import json,runtime_config;print(json.dumps(runtime_config.scientific_pins()))']
+        env['PYTHONPATH'] = str(harness_support.CORE/'nl0/scripts')
+        observed = json.loads(subprocess.check_output(command, env=env, text=True))
+        self.assertEqual(observed['lean_version'], self.selected['lean']['version_number'])
+        self.assertEqual(original, self.selected)
+
+
     def test_formal_job_freezes_selected_authority_before_runtime_snapshot(self):
         with tempfile.TemporaryDirectory() as raw:
             problem = Path(raw)/'problem.md'
             problem.write_text('If P then P.')
             job = jobs.prepare(problem, track='full', profiles=harness_support.PROFILES,
                                lean_environment=self.selected)
-            self.assertEqual(job['version'],'yui-case-job-5')
+            self.assertEqual(job['version'],'yui-case-job-6')
             self.assertEqual(job['lean_environment'], self.selected)
             jobs.validate(job)
             with patch.object(environments, 'resolve', side_effect=AssertionError('no reselection')):
@@ -102,7 +106,7 @@ class SelectedEnvironment(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             problem=Path(raw)/'proof.md';problem.write_text('If P then P.')
             job=jobs.prepare(problem,track='full',profiles=harness_support.PROFILES,lean_environment=self.selected)
-            job['version']='yui-case-job-3';job.pop('lean_libraries')
+            job['version']='yui-case-job-3';job.pop('lean_libraries');job.pop('local_configuration')
             root=Path(job['root']);(root/'job.json').write_text(json.dumps(job))
             marker=json.loads((root/jobs.MARKER).read_text());marker.update(version=job['version'],job=bind(root/'job.json'))
             (root/jobs.MARKER).write_text(json.dumps(marker));jobs.validate(job)
@@ -207,8 +211,8 @@ class SelectedEnvironment(unittest.TestCase):
                 self.assertTrue(references)
                 complete=[r for r in references if r.get('status')=='cards']
                 self.assertTrue(complete)
-                reference_environment={'lean_version':self.selected['lean']['version_number'],
-                    'mathlib_commit':self.selected['mathlib']['rev'],'basis':'historical_configuration'}
+                reference_environment={'lean_version':'4.32.2',
+                    'mathlib_commit':'905b95818eb32af7874a58b427f50c1711a5e96c','basis':'historical_configuration'}
                 for reply in references:
                     self.assertIn(reply.get('status'),{'catalog','cards'},reply)
                     self.assertTrue(reply['reference_only'])

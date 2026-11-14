@@ -18,7 +18,7 @@ def case(directory):
           'parameters':[{'symbol':x,'type':'proposition'} for x in ('p','q')],
           'hypotheses':[{'id':'H001','statement':'p ∧ q.','origin':'problem.txt:1'}],
           'definitions':[],'logic':{'classical':False,'rules':['direct'],'calculations':[],'primitives':[]},
-          'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev'],
+          'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev'],
                   'mathlib_root':ir.load_lock()['mathlib']['local_path']},
           'inputs':[{'path':'problem.txt','sha256':ir.digest(problem)}]}
     sp=directory/'spec.json';ir.write(sp,spec)
@@ -118,7 +118,7 @@ def interface(graph,spec,directory):
                       'inputs':[outputs.get(x,x) for x in r['inputs']],'source_steps':[sid],
                       'explanation':r['argument'][0]['text']})
     c={'version':2,'id':'shared_projection_functional','source':{'path':'nl0.json','sha256':ir.digest(graph)},
-       'source_steps':source_steps,'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev']},
+       'source_steps':source_steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
        'header':'import Mathlib\n','parameters':[{'name':x,'type':'Prop'} for x in ('p','q')],
        'premises':[{'id':'H001','kind':'hypothesis','type':'p ∧ q','statement':'p ∧ q.'}],
        'conclusion':{'type':statements['P'],'statement':data[3]['P']['statement']},

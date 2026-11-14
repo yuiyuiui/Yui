@@ -1,41 +1,51 @@
 # Controller and workflow software tests
 
-Use the local interpreter with `workflow/requirements.txt` installed. Run `.venv/bin/python -B tests/run_tests.py` (or `yui.py selftest`) from the skill repository. The public workflow suite runs the CLI through a scripted native provider, actual Lean, the optional audited checkpoint, explicit cleanup and independent readback. Set `YUI_TEST_COMPARATOR` to a compatible upstream executable to compare all three Lean exports and two incorrect candidate proofs after cleanup. The Comparator host dependencies and sandbox follow the upstream platform requirements. For maintenance also run the registered workflow-builder's `audit workflow --require-baseline`.
-The runner always cleans its owned temporary root and recorded child processes,
-including hidden files, native workspaces and compiled scratch output. Success,
-test failures, Python exceptions, SIGINT and SIGTERM share the cleanup path.
-Unconfirmed shutdown retains diagnostics and fails cleanup; unrelated processes,
-symlink targets and shared Lean/mathlib caches are preserved. SIGKILL cannot run
-an exit handler, so its marked root and process ledger remain for diagnosis.
-Direct `python3 -B -m unittest discover -s tests -v` remains supported, without
-the enclosing cleanup guarantee. Select individual modules with, for example,
-`python3 -B tests/run_tests.py discover -s tests -p test_basis.py -v`.
-Native tests require the compatible Codex executable; kernel tests require the
-configured pinned Lean/Mathlib environment. A skipped native test is not a
-native integration pass. The suite blocks accidental live model calls and real
-owner-task notifications through harness_support.py.
+Run the local [adaptation entry](../setup/README.md) before native testing.
+The normal entry is .venv/bin/python -B nl0/scripts/yui.py selftest.
+Use --group none for tests requiring no Lean, --group current for the selected
+Lean/Mathlib pair, --group exact for historical tests, or --all for all applicable
+tests. Historical mismatches are reported as skips before class setup; a current
+compiler failure remains a failure. The machine-readable report is
+.runtime/test-report.json. Not-requested groups and actual selected identities
+are reported separately. Mocked provider replies are not live model validation.
 
-For a maintenance change, run the affected modules and direct consumers first;
-full discovery is a separate broad check. Select an actual installed pair with
-`YUI_LEAN_ROOT` and `YUI_MATHLIB_ROOT` for native tests. Pure controller cases
-should not need a Lean process; historical-version fixtures keep their explicit
-historical selection.
+Every discovered module has an explicit requirement in requirements.json;
+class and method overrides split mixed fixtures. New modules cannot silently
+receive a default classification. None-group execution actively rejects real
+Lean resolution/compilation. Current-group tests read their selected environment;
+generic Lean fixture templates are copied and materialized under the owned test
+root, without rewriting the originals or historical native evidence.
 
-## Personal theorem catalog removal
+For a maintenance change, select affected tests and their direct consumers:
 
-The removed feature was the root `library/` directory, its manual index and
-cached-probe shortcut. Native Mathlib lookup, stage-owned source receipts and
-explicit external Lean libraries are retained. The acceptance boundaries are:
+~~~sh
+.venv/bin/python -B tests/run_tests.py test_local_setup test_test_selection
+~~~
 
-| Requirement | Independent witness |
-| --- | --- |
-| New jobs ignore obsolete catalog configuration and contain no catalog | `test_job_entry.JobEntryTests.test_new_job_has_no_personal_catalog_state_or_external_discovery` |
-| A standalone installation works without catalog data | `test_job_entry.JobEntryTests.test_standalone_copy_prepares_and_reports_without_repository_or_test_support` |
-| Old frozen snapshots remain readable and reject changed bindings/files | `test_runtime_snapshot.RuntimeSnapshotTests` and `test_job_entry.JobEntryTests.test_old_job_catalog_is_only_an_immutable_legacy_binding` |
-| Authors retain native source queries but no personal-index tool | `test_own_state.OwnStateTests.test_author_keeps_native_queries_without_a_personal_catalog_tool_or_snapshot` |
-| A formerly indexed theorem is queried natively in the selected pair on every request | `test_probe_evidence.NativeProbeWithoutCatalog` (actual Lean, no model) |
-| Exact source evidence, alias handling and same-stage renumbering still work | `test_artifact_validation`, `test_background`, `test_evidence_index` |
-| Explicit external compiled Lean libraries remain separate | `test_lean_libraries` and the registered workflow `external-lean-libraries` suite |
+The runner accepts module/class/method names and unittest-style discover -s/-p
+selection. Optional --environment supplies a checked descriptor;
+--historical-environment can explicitly run exact history in a separate pair;
+--comparison-environment supplies a second pair for cross-version port/recovery
+checks. Ordinary current-environment tests do not require that second pair.
+Use --report to retain a report outside the repository.
+
+Each selected group runs in its own process and owned cleanup root. The runner
+cleans scratch, hidden state, native workspaces and recorded child processes on
+success, failure and catchable interruption. Unconfirmed cleanup retains evidence
+and fails the run. Shared Lean caches and unrelated processes are preserved.
+The suite blocks accidental live model calls and owner notifications. Native
+carrier and PDF dependencies remain explicit; a skipped native test is not a
+native pass. Use the cleanup runner for maintained test execution rather than
+unconfigured direct discovery.
+
+Local adaptation acceptance is recorded in [the validation record](../docs/local-adaptation-validation.md).
+The host controls are test_local_setup and test_test_selection; actual native
+consumer qualification is test_setup_native. Their purpose is availability and
+correct environment/receipt behavior, not mathematical review certification.
+The registered Workflow Builder local-adaptation suite independently checks
+readiness and selection contracts. A genuine clean supported-host installation
+is a separate qualification; moving this checkout to a temporary folder is not
+that qualification.
 
 Basis controls are in `test_basis.py`, `test_basis_author.py`, `test_basis_workflow.py`, `test_b2lean.py`
 and `test_test_cleanup.py`. They cover legacy/default requests, all four source

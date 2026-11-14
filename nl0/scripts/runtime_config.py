@@ -44,6 +44,10 @@ def selected_environment():
                 lean_environment.rules.validate(selected)
         else:
             import lean_environment
+            import local_config
+            if local_config.current() is None and not any(os.environ.get(key) for key in (
+                    'YUI_LEAN_ROOT','YUI_MATHLIB_ROOT','YUI_LEAN_VERSION','YUI_MATHLIB_VERSION')):
+                raise local_config.rules.SetupRequired('Execute setup/README.md to select and qualify a local environment')
             selected = lean_environment.resolve()
     return deepcopy(selected)
 
@@ -121,10 +125,15 @@ def model_profile(phase=None):
         ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-', 'basis-final-'))
     key = 'nl0_to_lean' if translation else 'model'
     selected = _profiles.get()
+    import local_config
+    local = local_config.current()
+    if selected is None and local is not None:
+        selected = local['profiles']
     profile = validate_profile(selected['lean' if translation else 'nl0'] if selected else
                                config['phase_models'][key] if translation else config['model'])
     return {**profile, 'profile_key': key, 'config_sha256': hashlib.sha256(raw).hexdigest(),
-            'selection_origin': 'explicit_run' if selected else 'installation_defaults'}
+            'selection_origin': ('explicit_run' if _profiles.get() else
+                                 'local_setup' if local is not None else 'installation_defaults')}
 
 
 def digest(path):
@@ -141,20 +150,38 @@ def choose(variable, candidates):
 
 
 def auth_home():
-    return Path(os.environ.get('YUI_CODEX_HOME', str(Path.home() / '.codex'))).expanduser().resolve()
+    import local_config
+    local = local_config.current()
+    selected = local['host']['auth_home'] if local else str(Path.home()/'.codex')
+    if not (local and local_config.scoped()):
+        selected = os.environ.get('YUI_CODEX_HOME', selected)
+    return Path(selected).expanduser().resolve()
 
 
-@lru_cache(maxsize=1)
 def host_tools():
     """Native carrier/host tools do not require a scientific installation."""
-    lock = json.loads((CORE / 'toolchain/lock.json').read_text())
+    lock = {'schema_version':2,'platform':{'execution_boundary':
+            'macOS sandbox-exec; unsupported hosts fail before native execution'}}
+    import local_config
+    local = local_config.current()
+    if local is not None and (local_config.scoped() or
+            not any(os.environ.get(k) for k in ('YUI_CODEX_BINARY','YUI_RG_BINARY'))):
+        host=local['host']
+        lock['codex']=deepcopy(host['codex'])
+        lock['tools']={'ripgrep':{'binary_path':host['ripgrep']['path'],'sha256':host['ripgrep']['sha256']},
+                       'python':{'binary_path':host['python']}}
+        return lock
     codex = choose('YUI_CODEX_BINARY', [shutil.which('codex'),
         '/Applications/Codex.app/Contents/Resources/codex',
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex'])
     rg = choose('YUI_RG_BINARY', [shutil.which('rg'),
         '/Applications/ChatGPT.app/Contents/Resources/codex-cli/codex-path/rg'])
-    for name in ('lean', 'mathlib', 'dependencies'):
-        lock.pop(name, None)
+    return _host_tools(str(codex),str(rg),json.dumps(lock,sort_keys=True))
+
+
+@lru_cache(maxsize=8)
+def _host_tools(codex_name,rg_name,serialized):
+    lock=json.loads(serialized);codex,rg=Path(codex_name),Path(rg_name)
     from native_runtime import resolve
     lock['codex'] = resolve(codex,subprocess.check_output([str(codex), '--version'], text=True).strip())
     lock['tools'] = {'ripgrep': {'binary_path': str(rg), 'sha256': digest(rg)},
@@ -172,6 +199,10 @@ def load_lock():
 
 
 def verify():
+    import local_config
+    local=local_config.current()
+    if local is not None:
+        local_config.verify(local,evidence=not local_config.scoped())
     selected = selected_environment()
     if selected is not None:
         import lean_environment

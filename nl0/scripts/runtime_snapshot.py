@@ -90,6 +90,7 @@ def root_for(job):
 def environment(job):
     import os
     env=dict(os.environ)
+    env['YUI_FROZEN_LOCAL_CONFIG']=json.dumps(job.get('local_configuration'),sort_keys=True)
     env.pop('YUI_LIBRARY_ROOT',None)
     if job.get('root') is not None:
         env['YUI_LEAN_IMPORT_ROOT']=str(Path(job['root'])/'imported-lean')

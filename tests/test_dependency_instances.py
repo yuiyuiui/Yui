@@ -20,7 +20,7 @@ class DependencyInstanceTests(unittest.TestCase):
         ir.write(source, {'text':'Distance symmetry at two types.'})
         self.contract = {'id':'instances','version':2,'source':{'path':source.name,'sha256':ir.digest(source)},
             'source_steps':[{'id':'S001','text':'Apply symmetry in the supplied spaces.'}],
-            'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev']},
+            'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
             'header':'import Mathlib\nabbrev Rn (n : ℕ) := EuclideanSpace ℝ (Fin n)\n',
             'parameters':[{'name':'n','type':'ℕ'}], 'premises':[],
             'conclusion':{'type':'∀ p q : Rn n, dist p q = dist q p','statement':'Symmetry.'},

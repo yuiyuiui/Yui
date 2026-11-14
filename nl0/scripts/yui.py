@@ -16,12 +16,21 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     import entrypoint
     entrypoint.parsers(commands)
+    import local_setup
+    local_setup.parsers(commands)
     doctor=commands.add_parser('doctor')
     doctor.add_argument('--no-lean',action='store_true',help='Check the host carrier/isolation for pure NL0 without selecting Lean')
     delivered=commands.add_parser('verify-delivery',help='Recheck a retained public delivery directory')
     delivered.add_argument('directory',type=Path)
     delivered.add_argument('--comparator',type=Path,help='Also run this compatible upstream Comparator executable on a disposable copy')
-    commands.add_parser('selftest').add_argument('--verbose',action='store_true')
+    tests=commands.add_parser('selftest')
+    tests.add_argument('--verbose',action='store_true')
+    tests.add_argument('--group',choices=['none','current','exact','all'],default='all')
+    tests.add_argument('--all',action='store_true')
+    tests.add_argument('--environment',type=Path)
+    tests.add_argument('--historical-environment',type=Path)
+    tests.add_argument('--comparison-environment',type=Path)
+    tests.add_argument('--report',type=Path)
     stage = commands.add_parser('stage')
     stage.add_argument('prompt', type=Path)
     stage.add_argument('--phase', required=True)
@@ -42,6 +51,12 @@ def main():
     status.add_argument('source',type=Path)
     for name in ['interface','interface-review','workflow']:status.add_argument('--'+name,type=Path)
     args = parser.parse_args()
+    if args.command=='setup':
+        try:result=local_setup.run(args)
+        except Exception as error:
+            result=getattr(error,'request',{'status':'FAILED','error':type(error).__name__+': '+str(error)})
+        print(json.dumps(result,indent=2))
+        return 0 if result['status'] in {'READY','BOOTSTRAPPED'} else 1
     if args.command=='verify-delivery':
         import delivery
         try:
@@ -70,7 +85,13 @@ def main():
             print(json.dumps(getattr(error,'request',{'status':'ENVIRONMENT_CHECK_FAILED','error':str(error)}),indent=2));return 1
     elif args.command == 'selftest':
         directory = CORE / 'tests'
-        result = subprocess.run([sys.executable, '-B', str(directory/'run_tests.py'), 'discover', '-s', str(directory), '-v'],
+        command=[sys.executable,'-B',str(directory/'run_tests.py'),'--group',args.group]
+        if args.all:command.append('--all')
+        if args.verbose:command.append('-v')
+        for flag in ('environment','historical_environment','comparison_environment','report'):
+            value=getattr(args,flag)
+            if value is not None:command.extend(['--'+flag.replace('_','-'),str(value)])
+        result = subprocess.run(command,
                                 capture_output=True,text=True)
         if args.verbose or result.returncode:
             print(result.stdout,end='')
@@ -78,6 +99,7 @@ def main():
         else:
             summary=[s for s in (result.stderr+'\n'+result.stdout).splitlines()
                      if s.startswith(('Ran ','test cleanup:')) or s=='OK']
+            summary.extend(s for s in result.stdout.splitlines() if s.startswith(('test groups:','test report:')))
             print('tests: '+'; '.join(summary),flush=True)
         return result.returncode
     elif args.command == 'usage':

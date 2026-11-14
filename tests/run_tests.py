@@ -74,7 +74,7 @@ def cleanup(root, records, leader=None):
     return {'status':'CLEANED','residual_pids':[]}
 
 
-def run(arguments=(), *, command=None):
+def run(arguments=(), *, command=None,test_env=None):
     root=Path(tempfile.mkdtemp(prefix='yui-tests-')).resolve()
     try:
         (root/'.test-owner.json').write_text(json.dumps({'owner':owner_identity(),'root':str(root)}))
@@ -84,10 +84,11 @@ def run(arguments=(), *, command=None):
         raise
     env=dict(os.environ,TMPDIR=str(scratch),TMP=str(scratch),TEMP=str(scratch),
         PYTHONDONTWRITEBYTECODE='1',YUI_TEST_CLEANUP_ROOT=str(root))
+    env.update(test_env or {})
     # Child imports instrumentation before harness_support captures Popen for its
     # offline model guard. Ordinary direct unittest remains supported as well.
     bootstrap=("import sys;sys.path.insert(0,"+repr(str(TESTS))+");import test_resources;"
-        "import unittest;unittest.main(module=None)")
+        "import selection;raise SystemExit(selection.worker(sys.argv[1:]))")
     command=command or [sys.executable,'-B','-c',bootstrap,*arguments]
     previous={};records={};process=None;interrupted=None;report=None
     def stop(signum,frame):
@@ -117,5 +118,5 @@ def run(arguments=(), *, command=None):
 
 
 if __name__=='__main__':
-    args=sys.argv[1:] or ['discover','-s',str(TESTS),'-v']
-    raise SystemExit(run(args))
+    import selection
+    raise SystemExit(selection.dispatch(sys.argv[1:],run))

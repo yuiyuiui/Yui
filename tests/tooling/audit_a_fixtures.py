@@ -48,6 +48,11 @@ class AuditReuseFixture:
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
         self.old=self.root/'old';shutil.copytree(a.CORE/'tests/fixtures/closed-addition',self.old)
+        # Bind only this generic test copy to the selected environment.
+        spec=a.nl0.load(self.old/'spec.json')
+        spec['pins']=__import__('runtime_config').scientific_pins();a.write(self.old/'spec.json',spec)
+        graph=a.nl0.load(self.old/'nl0.json');graph['spec_sha256']=reuse.sha(self.old/'spec.json')
+        a.write(self.old/'nl0.json',graph)
         self.problem=self.root/'problem';self.problem.mkdir();(self.problem/'problem.md').write_text('Synthetic controller fixture only.')
         self.campaign=self.root/'previous';self.plan=a.prepare(self.old,self.problem,self.campaign)
         for job in self.plan['jobs']:

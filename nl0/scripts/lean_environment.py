@@ -178,10 +178,19 @@ def discover(*, lean_roots=None, mathlib_roots=None):
 
 
 def resolve(*, lean_root=None, mathlib_root=None, lean_version=None, mathlib_ref=None):
-    lean_root = lean_root or os.environ.get('YUI_LEAN_ROOT')
-    mathlib_root = mathlib_root or os.environ.get('YUI_MATHLIB_ROOT')
-    lean_version = lean_version or os.environ.get('YUI_LEAN_VERSION')
-    mathlib_ref = mathlib_ref or os.environ.get('YUI_MATHLIB_VERSION')
+    if not any((lean_root,mathlib_root,lean_version,mathlib_ref)):
+        lean_root = os.environ.get('YUI_LEAN_ROOT')
+        mathlib_root = os.environ.get('YUI_MATHLIB_ROOT')
+        lean_version = os.environ.get('YUI_LEAN_VERSION')
+        mathlib_ref = os.environ.get('YUI_MATHLIB_VERSION')
+    if not any((lean_root,mathlib_root,lean_version,mathlib_ref)):
+        import local_config
+        local=local_config.current()
+        if local is not None:
+            selected=local['lean_environment']
+            if selected is None:
+                raise SelectionRequired(reason='Local setup is NL0-only; execute setup/README.md to enable Lean')
+            return verify(selected)
     if lean_root and mathlib_root:
         try:
             choices = [checked(describe(lean_root, mathlib_root))]
@@ -202,7 +211,8 @@ def resolve(*, lean_root=None, mathlib_root=None, lean_version=None, mathlib_ref
 
 def legacy(lock=None):
     """Old jobs have their own portable version pin; discovery cannot replace it."""
-    lock = lock or json.loads((CORE/'toolchain/lock.json').read_text())
+    historical=CORE/'toolchain/legacy/lean-mathlib.json'
+    lock = lock or json.loads((historical if historical.is_file() else CORE/'toolchain/lock.json').read_text())
     version = lock['lean']['toolchain'].split(':v', 1)[1]
     shared = Path.home()/('formalization-tools/lean-mathlib-v' + version)
     value = resolve(lean_root=shared/'lean', mathlib_root=shared/'mathlib', lean_version=version,
@@ -210,39 +220,107 @@ def legacy(lock=None):
     return value
 
 
-def install(*, lean_version, mathlib_ref, directory=None):
-    """Download only explicitly named versions into a new shared installation."""
-    version = lean_version.removeprefix('v')
-    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-rc\d+)?', version):
-        raise ValueError('Select an exact Lean release version')
+def _elan_lean(elan, toolchain):
+    """Query the selected Elan home, including an existing linked toolchain."""
+    try:
+        installed=subprocess.check_output([elan,'toolchain','list'],text=True,
+            stderr=subprocess.PIPE,timeout=30)
+        # `which` can install a missing override. Only query an installed name.
+        if toolchain not in {line.split()[0] for line in installed.splitlines() if line.strip()}:
+            return None
+        binary=subprocess.check_output([elan,'which','lean'],text=True,stderr=subprocess.PIPE,
+            timeout=30,env=dict(os.environ,ELAN_TOOLCHAIN=toolchain)).strip()
+    except subprocess.CalledProcessError:
+        return None
+    if not Path(binary).is_absolute() or not Path(binary).is_file():
+        raise ValueError('Elan returned an unavailable Lean executable')
+    return _root(binary)
+
+
+def install(*, lean_version=None, mathlib_ref, directory=None):
+    """Install/reuse only the requested pair; resume owned partial downloads."""
     if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-rc\d+)?|[0-9a-f]{40}', mathlib_ref):
         raise ValueError('Select an exact Mathlib release tag or full commit')
+    if lean_version is None:
+        try:
+            if directory is not None and Path(directory).is_dir():
+                return resolve(lean_root=Path(directory)/'lean',mathlib_root=Path(directory)/'mathlib',
+                               mathlib_ref=mathlib_ref)
+            if directory is None:return resolve(mathlib_ref=mathlib_ref)
+        except (OSError,ValueError,subprocess.SubprocessError):
+            pass
+        from urllib.request import urlopen
+        with urlopen('https://raw.githubusercontent.com/leanprover-community/mathlib4/'+
+                     mathlib_ref+'/lean-toolchain',timeout=30) as response:
+            toolchain=response.read(256).decode().strip()
+        match=re.fullmatch(r'leanprover/lean4:v(\d+\.\d+\.\d+(?:-rc\d+)?)',toolchain)
+        if not match:raise ValueError('Mathlib declares an unsupported Lean toolchain')
+        version=match[1]
+    else:version=lean_version.removeprefix('v')
+    if not re.fullmatch(r'\d+\.\d+\.\d+(?:-rc\d+)?', version):
+        raise ValueError('Select an exact Lean release version')
     root = Path(directory).expanduser().absolute() if directory else Path.home()/('formalization-tools/lean-mathlib-v' + version)
-    if root.exists() or root.is_symlink():
-        raise ValueError('Preserve the existing installation; select a new directory: ' + str(root))
-    root.mkdir(parents=True, exist_ok=False)
+    marker=root/'.yui-install.json'
+    if marker.is_symlink():raise ValueError('Invalid partial-install ownership marker')
+    requested={'version':1,'lean_version':version,'mathlib_ref':mathlib_ref}
+    if root.is_symlink():raise ValueError('Installation destination cannot be a symlink')
+    if root.exists():
+        try:return resolve(lean_root=root/'lean',mathlib_root=root/'mathlib',
+                           lean_version=version,mathlib_ref=mathlib_ref)
+        except (OSError,ValueError,subprocess.SubprocessError):
+            if not marker.is_file() or json.loads(marker.read_text())!=requested:
+                raise ValueError('Preserve the existing installation; choose a new directory: '+str(root))
+    else:
+        root.mkdir(parents=True,exist_ok=False)
+        marker.write_text(json.dumps(requested,indent=2)+'\n')
     elan = shutil.which('elan') or str(Path.home()/'.elan/bin/elan')
+    if not Path(elan).is_file():
+        raise SelectionRequired(reason='Install Elan through setup/README.md before downloading Lean')
     toolchain = 'leanprover/lean4:v' + version
-    subprocess.run([elan, 'toolchain', 'install', toolchain], check=True)
-    lean = Path.home()/('.elan/toolchains/leanprover--lean4---v' + version)
-    (root/'lean').symlink_to(lean, target_is_directory=True)
-    command = ['git', 'clone', '--depth', '1']
-    if mathlib_ref.startswith('v'):
-        command += ['--branch', mathlib_ref]
-    subprocess.run([*command, 'https://github.com/leanprover-community/mathlib4.git', str(root/'mathlib')], check=True)
+    def run(command,**kwargs):
+        if (root/'install.log').is_symlink():raise ValueError('Invalid install log path')
+        with (root/'install.log').open('a') as log:
+            subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,check=True,**kwargs)
+    lean=_elan_lean(elan,toolchain)
+    if lean is None:
+        run([elan, 'toolchain', 'install', toolchain])
+        lean=_elan_lean(elan,toolchain)
+    if lean is None:raise ValueError('Elan did not provide the requested Lean toolchain')
+    actual=subprocess.check_output([str(lean/'bin/lean'),'--version'],text=True,timeout=30)
+    found=re.search(r'^Lean \(version ([^,]+),',actual)
+    if found is None or found[1]!=version:
+        raise ValueError('The selected Elan toolchain does not match the requested Lean version')
+    if (root/'lean').exists() or (root/'lean').is_symlink():
+        if (root/'lean').resolve()!=lean.resolve():raise ValueError('Owned Lean link changed')
+    else:(root/'lean').symlink_to(lean,target_is_directory=True)
+    if (root/'mathlib').is_symlink():raise ValueError('Preserve a redirected partial Mathlib checkout')
+    if not (root/'mathlib').exists():
+        command = ['git', 'clone', '--depth', '1']
+        if mathlib_ref.startswith('v'):command += ['--branch', mathlib_ref]
+        run([*command, 'https://github.com/leanprover-community/mathlib4.git', str(root/'mathlib')])
+    elif not (root/'mathlib/.git').exists():
+        raise ValueError('Incomplete clone retained; choose a fresh directory or inspect install.log')
     if not mathlib_ref.startswith('v'):
-        subprocess.run(['git', '-C', str(root/'mathlib'), 'fetch', '--depth', '1', 'origin', mathlib_ref], check=True)
-        subprocess.run(['git', '-C', str(root/'mathlib'), 'checkout', '--detach', mathlib_ref], check=True)
+        run(['git','-C',str(root/'mathlib'),'fetch','--depth','1','origin',mathlib_ref])
+        run(['git','-C',str(root/'mathlib'),'checkout','--detach',mathlib_ref])
+    else:
+        actual=_git(root/'mathlib','describe','--tags','--exact-match','HEAD')
+        if actual!=mathlib_ref:raise ValueError('Owned partial Mathlib checkout changed')
     if (root/'mathlib/lean-toolchain').read_text().strip() != toolchain:
         raise ValueError('Requested Mathlib and Lean versions do not match; installation retained for inspection')
     env = dict(os.environ, PATH=str(lean/'bin') + os.pathsep + os.environ.get('PATH', ''))
-    subprocess.run([str(lean/'bin/lake'), 'exe', 'cache', 'get'], cwd=root/'mathlib', env=env, check=True)
+    run([str(lean/'bin/lake'), 'exe', 'cache', 'get'],cwd=root/'mathlib',env=env)
     packages = root/'packages'
-    packages.mkdir()
-    (packages/'mathlib').symlink_to(root/'mathlib', target_is_directory=True)
+    if packages.is_symlink():raise ValueError('Preserve a redirected package directory')
+    packages.mkdir(exist_ok=True)
+    def link(path,target):
+        if path.exists() or path.is_symlink():
+            if path.resolve()!=target.resolve():raise ValueError('Preserve a conflicting package link')
+        else:path.symlink_to(target,target_is_directory=True)
+    link(packages/'mathlib',root/'mathlib')
     manifest = json.loads((root/'mathlib/lake-manifest.json').read_text())
     for row in manifest['packages']:
-        (packages/row['name']).symlink_to(root/'mathlib/.lake/packages'/row['name'], target_is_directory=True)
+        link(packages/row['name'],root/'mathlib/.lake/packages'/row['name'])
     selected = resolve(lean_root=root/'lean', mathlib_root=root/'mathlib', lean_version=version, mathlib_ref=mathlib_ref)
     (root/'environment.json').write_text(json.dumps(selected, indent=2) + '\n')
     (root/'README.md').write_text('# Shared Lean/Mathlib ' + version + '\n\n'

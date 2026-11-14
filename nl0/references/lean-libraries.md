@@ -1,6 +1,8 @@
 # Explicit non-Mathlib Lean libraries
 
-`prepare` and `run` accept repeatable `--lean-library specification.json`.
+Run [the adaptation entry](../../setup/README.md) to derive and qualify a public
+library specification. `prepare` and `run` accept repeatable
+`--lean-library specification.json` or a verified configured library name.
 This attaches checked implementation material to a fresh job. It never changes
 the pinned Lean/Mathlib environment, an active runtime, the selected proof track,
 the allowed axioms, or a foundation's semantic acceptance requirements.

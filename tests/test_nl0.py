@@ -26,6 +26,12 @@ class NL0Checks(unittest.TestCase):
         self.spec = nl0.load(CASE / "spec.json")
         self.graph = nl0.load(CASE / "nl0.json")
         self.audit = nl0.load(CASE / "audit-a.json")
+        from runtime_config import require_environment
+        selected=require_environment()
+        if self.spec['pins']['mathlib_root']!=selected['mathlib']['local_path']:
+            # Relocate only this derived test copy; archived evidence stays unchanged.
+            self.spec['pins']['mathlib_root']=selected['mathlib']['local_path']
+            self.rebind()
 
     def tearDown(self):
         self.temp.cleanup()

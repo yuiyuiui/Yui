@@ -172,7 +172,7 @@ class SourceQualificationTests(unittest.TestCase):
                 mapping[sid]={'inference':r['id'],'paragraph':p['id']}
         c={'version':1,'id':'conditional_software_control',
            'source':{'path':'nl0.json','sha256':ir.digest(self.root/'nl0.json')},
-           'source_steps':source_steps,'pins':{'lean_version':'4.32.2','mathlib_commit':ir.load_lock()['mathlib']['rev']},
+           'source_steps':source_steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':ir.load_lock()['mathlib']['rev']},
            'header':'import Mathlib\n','parameters':[{'name':n,'type':'ℕ'} for n in ['a','b']],
            'premises':[{'id':'E001','kind':'external','type':'a = b','statement':'a=b.'}],
            'conclusion':{'type':'a + 0 = b','statement':'a+0=b.'},

@@ -308,7 +308,14 @@ class ClosureChecks(unittest.TestCase):
         old = ROOT / "tests/fixtures/legacy/bench_case_6"
         with self.assertRaisesRegex(nl0.Invalid, "LEGACY-CONTRACT"):
             nl0.validate(old / "nl0.json", old / "spec.json")
-        result = nl0.validate(old / "nl0.json", old / "spec.json", legacy=True)[0]
+        from runtime_config import require_environment
+        copied=self.base/'relocated-history';shutil.copytree(old,copied)
+        spec=nl0.load(copied/'spec.json')
+        spec['pins']['mathlib_root']=require_environment()['mathlib']['local_path']
+        (copied/'spec.json').write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
+        graph=nl0.load(copied/'nl0.json');graph['spec_sha256']=nl0.sha(copied/'spec.json')
+        (copied/'nl0.json').write_text(json.dumps(graph,ensure_ascii=False,indent=2)+'\n')
+        result = nl0.validate(copied / "nl0.json", copied / "spec.json", legacy=True)[0]
         self.assertEqual(result["status"], "LEGACY-STRUCTURE-PASSED")
         self.assertFalse(result["current_standard_receipt_valid"])
 

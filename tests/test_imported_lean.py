@@ -19,15 +19,14 @@ import runtime_config
 
 GOOD='import Mathlib\nnamespace ImportedExample\ntheorem witness : True := by trivial\nend ImportedExample\n'
 BAD=GOOD.replace('by trivial','by exact nonexistentOriginalProof')
-OLD=Path.home()/'formalization-tools/lean-mathlib-v4.32.2'
 
 
 class ImportedLeanTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.old=lean_environment.resolve(lean_root=OLD/'lean',mathlib_root=OLD/'mathlib')
-        path=os.environ.get('YUI_TEST_ALTERNATE_ENVIRONMENT')
-        cls.current=json.loads(Path(path).read_text()) if path else cls.old
+        cls.current=runtime_config.require_environment()
+        path=os.environ.get('YUI_TEST_UPSTREAM_ENVIRONMENT')
+        cls.old=lean_environment.verify(json.loads(Path(path).read_text())) if path else cls.current
 
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
