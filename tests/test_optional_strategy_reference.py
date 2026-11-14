@@ -40,7 +40,7 @@ class AuthorReference(unittest.TestCase):
         catalog = stage.dispatch('consult_strategy', {'bank':'basis'})
         self.assertEqual(catalog['status'], 'catalog')
         self.assertTrue({f'ST0{i}' for i in range(21,26)} <= {c['id'] for c in catalog['catalog']})
-        self.assertTrue(all(set(c)=={'id','title','revision','obstacle','family'} for c in catalog['catalog']))
+        self.assertTrue(all(set(c)=={'id','title','revision','obstacle','family','reference_environments'} for c in catalog['catalog']))
         # Selection is by ID; the author need not spell English tags or diagnose a failure.
         request = {'bank':'basis','ids':['ST021']}
         read = stage.dispatch('consult_strategy', request)
@@ -92,9 +92,11 @@ class AuthorReference(unittest.TestCase):
                 self.assertEqual(stage.dispatch('consult_strategy', args), before)
         unknown = stage.dispatch('consult_strategy', {'bank':'basis','ids':['ST023','ST999']})
         self.assertEqual((unknown['status'], unknown['ids']), ('not_in_catalog', ['ST999']))
+        catalog_before = stage.dispatch('consult_strategy', {'bank':'basis'})['catalog']
         with patch.object(stage, 'native_timeout_lean_version', '0.0'):
-            self.assertEqual(stage.dispatch('consult_strategy', {'bank':'basis'})['catalog'], [])
-            self.assertEqual(stage.dispatch('consult_strategy', args)['status'], 'not_in_catalog')
+            self.assertEqual(stage.dispatch('consult_strategy', {'bank':'basis'})['catalog'],
+                             catalog_before)
+            self.assertEqual(stage.dispatch('consult_strategy', args), before)
 
         (frozen/'cards/ST023.json').unlink()
         (frozen/'cards/ST023.json').symlink_to(live/'cards/ST023.json')

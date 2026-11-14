@@ -56,15 +56,31 @@ counterexample to misuse without reproducing an earlier proof.
 Each card needs a stable `ST` identifier, positive integer `revision`, title,
 broad `domains`, retrieval `family` and `tags`, an obstacle, explicit
 `preconditions` and `contraindications`, an ordered `procedure`, a verification
-criterion, neutral positive/negative examples, `lean_versions`, `status`, and
+criterion, neutral positive/negative examples, `reference_environments`, `status`, and
 nonempty `evidence`. The family describes the implementation obstacle; it is
 not the mathematical subject label. Existing families are `representation`,
 `analysis`, `calculation`, `interface`, `provenance` and `execution`.
 
-`lean_versions` bounds retrieval to declared toolchain versions. It is not a
-claim that a recipe, a proof example or all of Mathlib has been tested. The
-current curated cards are editorial guidance for the repository's pinned
-toolchain, not executable proof templates or empirically validated optimizers.
+`reference_environments` records paired `lean_version` and exact `mathlib_commit`
+values, with `basis: historical_configuration`. These are the recorded reference
+contexts, not compatibility restrictions or evidence of successful execution.
+Every strategy can be browsed and explicitly read under any current version,
+including before a Lean environment is selected. Each catalog item and complete
+card discloses its reference environments. The current curated cards retain
+the historical Lean 4.32.2 / Mathlib 905b95818eb32af7874a58b427f50c1711a5e96c
+configuration recorded when they were maintained; this does not claim that
+their recipes or examples were compiled there.
+
+The reader must adapt declaration names, APIs, syntax, types and hypotheses and
+check the actual implementation in the current task's selected environment.
+Catalog/card replies explicitly mark `reference_only` and
+`current_environment_verification_required`. A read never changes environment
+selection, proves a premise or authorizes proof acceptance. Ranked search and
+the frozen ST020 timeout reference follow the same cross-version rule.
+
+New bank indexes use format 3 and current tool replies use `StrategyReply@2`.
+Historical frozen jobs retain their old executable/data snapshots and contracts;
+maintenance does not rewrite those jobs or their evidence.
 
 Evidence records have exactly `kind`, `path`, `sha256`, and `note`. `path` is
 relative to this bank, must stay inside it, and names a sanitized text record.
@@ -91,8 +107,10 @@ python3 -B -m unittest discover -s tests -p 'test_strategy_bank.py'
 the builder removes obsolete generated cards after validation. Do not edit
 those outputs independently. Keep this document, evidence and index in sync.
 
-Retrieval is bounded advice. It checks declared toolchain scope and reported
-contraindications, returns missing prerequisites, and never marks them proved.
+Retrieval is bounded advice. Search checks reported contraindications and task
+relevance, returns missing prerequisites, and never marks them proved. Explicit
+ID lookup remains available for every card regardless of source or current version.
 Verify each required fact in the current Lean context before applying a recipe.
-The routing helper binds the actual toolchain version and recognizes explicit
-execution faults; it does not guess a mathematical subject from formula tokens.
+The routing helper records the actual task version as context and recognizes
+explicit execution faults; that version never filters references. It does not
+guess a mathematical subject from formula tokens.

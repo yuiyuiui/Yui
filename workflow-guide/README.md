@@ -1395,6 +1395,394 @@ Each row is one executable outcome. Instance paths distinguish repeated calls to
 }
 ```
 
+<a id="contract-StrategyReply@2"></a>
+
+#### StrategyReply@2
+
+```json
+{
+  "anyOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "catalog": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "family": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^ST[0-9]{3,}$",
+                "type": "string"
+              },
+              "obstacle": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "reference_environments": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "historical_configuration"
+                    },
+                    "lean_version": {
+                      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?$",
+                      "type": "string"
+                    },
+                    "mathlib_commit": {
+                      "pattern": "^[0-9a-f]{40}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lean_version",
+                    "mathlib_commit",
+                    "basis"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "title",
+              "family",
+              "obstacle",
+              "reference_environments"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "current_environment_verification_required": {
+          "const": true
+        },
+        "reference_only": {
+          "const": true
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "catalog"
+        },
+        "usage_notice": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "catalog",
+        "reference_only",
+        "current_environment_verification_required",
+        "usage_notice"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "cards": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "contraindications": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "domains": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "evidence": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "note": {
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "note"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "family": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "id": {
+                "pattern": "^ST[0-9]{3,}$",
+                "type": "string"
+              },
+              "negative_example": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "obstacle": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "positive_example": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "preconditions": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "procedure": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "reference_environments": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "basis": {
+                      "const": "historical_configuration"
+                    },
+                    "lean_version": {
+                      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?$",
+                      "type": "string"
+                    },
+                    "mathlib_commit": {
+                      "pattern": "^[0-9a-f]{40}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "lean_version",
+                    "mathlib_commit",
+                    "basis"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "status": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "tags": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "verification": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "revision",
+              "title",
+              "family",
+              "obstacle",
+              "domains",
+              "tags",
+              "preconditions",
+              "contraindications",
+              "procedure",
+              "verification",
+              "positive_example",
+              "negative_example",
+              "status",
+              "evidence",
+              "reference_environments"
+            ],
+            "type": "object"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "current_environment_verification_required": {
+          "const": true
+        },
+        "omitted": {
+          "items": {
+            "pattern": "^ST[0-9]{3,}$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "reference_only": {
+          "const": true
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "cards"
+        },
+        "usage_notice": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "cards",
+        "omitted",
+        "reference_only",
+        "current_environment_verification_required",
+        "usage_notice"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "unavailable"
+        }
+      },
+      "required": [
+        "bank",
+        "status",
+        "reason"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "bank": {
+          "enum": [
+            "basis",
+            "lean"
+          ],
+          "type": "string"
+        },
+        "ids": {
+          "items": {
+            "pattern": "^ST[0-9]{3,}$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "status": {
+          "const": "not_in_catalog"
+        }
+      },
+      "required": [
+        "bank",
+        "revision",
+        "status",
+        "ids"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "const": "invalid_query"
+        }
+      },
+      "required": [
+        "status",
+        "error"
+      ],
+      "type": "object"
+    }
+  ]
+}
+```
+
 <a id="contract-WorkingGraph@2"></a>
 
 #### WorkingGraph@2
@@ -1641,4 +2029,4 @@ def translate(ctx, data):
     return dispatch(ctx, data, 'translate')
 ```
 
-Workflow protocol 1 · Definition 87a63855d0522345940929a1b1c994bc58db6ec6996fa15d242edbf71bce1daf
+Workflow protocol 1 · Definition ac97ce4a313e30e5fd5bf0639e0b36b35f7d17dd5d182f0f0d3c870b851132dc

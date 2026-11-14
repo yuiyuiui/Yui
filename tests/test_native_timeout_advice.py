@@ -128,13 +128,14 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         self.assertEqual(card['sha256'],stage.native_timeout_snapshot['card_sha256'])
         self.assertEqual(manifest['native_timeout_policy']['policy'],bank.NATIVE_TIMEOUT_POLICY)
 
-    def test_missing_tampered_or_wrong_version_advice_keeps_failure_unaccepted(self):
+    def test_cross_version_advice_and_missing_or_tampered_data_keep_failure_unaccepted(self):
         missing=bank.freeze_native_timeout_policy(self.root/'missing-snapshot',bank=self.root/'absent-bank')
         self.assertEqual(missing['status'],'UNAVAILABLE')
         stage=self.stage();snapshot=stage.native_timeout_snapshot
-        wrong_version=bank.native_timeout_feedback(wall_timeout(),'4.99.0',snapshot)
-        self.assertEqual(wrong_version['status'],'UNAVAILABLE')
-        self.assertNotIn('strategy',wrong_version)
+        other_version=bank.native_timeout_feedback(wall_timeout(),'4.99.0',snapshot)
+        self.assertEqual(other_version['status'],'ADVICE_DELIVERED')
+        self.assertTrue(other_version['reference_only'])
+        self.assertTrue(other_version['current_environment_verification_required'])
         path=Path(snapshot['bank_root'])/'cards/ST020.json';path.write_bytes(path.read_bytes()+b' ')
         with patch.object(ir,'check',return_value=wall_timeout()):
             failed=stage.dispatch('submit_transition',{'proof':'trivial'})

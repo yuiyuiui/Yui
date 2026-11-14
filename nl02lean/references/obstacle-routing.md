@@ -85,8 +85,11 @@ python3 -B nl02lean/scripts/strategy_bank.py query --json \
 `PRECONDITIONS_REPORTED` means that the query lists every prerequisite; it does
 not mean those prerequisites are proved. `CONDITIONAL` lists missing ones.
 Check them in the current proof context before applying the advice. Reported
-contraindications and an out-of-scope toolchain exclude a card. Version scope
-is a retrieval constraint, not evidence of successful proof compilation.
+contraindications can exclude a search recommendation; explicit ID lookup can
+still read that card. Current Lean/Mathlib versions never exclude a reference.
+Every card records paired source versions in `reference_environments`; these
+describe historical context, not verified compatibility. Adapt and check any
+suggested implementation under the current selected environment.
 
 Cards use neutral examples and qualified evidence summaries. They contain no
 historical proof excerpts, node identifiers or reference answers. Current cards

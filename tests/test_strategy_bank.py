@@ -29,7 +29,8 @@ class StrategyBankTests(unittest.TestCase):
             procedure=['Check the required conditions before applying the operation.'],
             verification='Compile the exact local application and inspect its signature.',
             positive_example='Apply an operation with all its required conditions proved.',
-            negative_example='Apply it with a missing condition.',lean_versions=['4.32.2'],
+            negative_example='Apply it with a missing condition.',reference_environments=[
+                {'lean_version':'4.32.2','mathlib_commit':'a'*40,'basis':'historical_configuration'}],
             status='GENERAL_GUIDANCE',evidence=[dict(kind='design_rule',path='evidence.md',
                 sha256=bank.sha(self.root/'evidence.md'),note='Synthetic editorial guidance only.')])
 
@@ -55,11 +56,16 @@ class StrategyBankTests(unittest.TestCase):
         self.assertLessEqual(result['counts']['full_cards_read'],3)
         self.assertEqual(set(card['card']['evidence'][0]),{'kind','note'})
 
-    def test_reported_contraindication_and_version_mismatch_exclude_card(self):
-        for changes in [dict(contraindications=['lossy_map']),dict(lean_version='4.99.0')]:
-            q=dict(family='representation',tags=['conversion'],facts=[],lean_version='4.32.2')
-            q.update(changes)
-            self.assertEqual(bank.search(q,self.root)['status'],'NO_APPLICABLE_CANDIDATE')
+    def test_reported_contraindication_excludes_recommendation(self):
+        q=dict(family='representation',tags=['conversion'],facts=[],
+               lean_version='4.32.2',contraindications=['lossy_map'])
+        self.assertEqual(bank.search(q,self.root)['status'],'NO_APPLICABLE_CANDIDATE')
+
+    def test_query_version_does_not_exclude_reference_candidates(self):
+        for version in ('4.32.2','4.35.0','4.99.0',None):
+            with self.subTest(version=version):
+                q=dict(family='representation',tags=['conversion'],facts=[],lean_version=version)
+                self.assertEqual(bank.search(q,self.root)['strategies'][0]['id'],'ST900')
 
     def test_unknown_or_unmatched_diagnosis_abstains(self):
         for family,tags in [('unknown',[]),('representation',['absent_tag'])]:

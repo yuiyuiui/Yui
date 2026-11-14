@@ -604,6 +604,387 @@
           "additionalProperties": false
         }
       ]
+    },
+    "StrategyReply@2": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "bank": {
+              "type": "string",
+              "enum": [
+                "basis",
+                "lean"
+              ]
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "status": {
+              "const": "catalog"
+            },
+            "catalog": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^ST[0-9]{3,}$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "family": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "obstacle": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reference_environments": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lean_version": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?$"
+                        },
+                        "mathlib_commit": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "basis": {
+                          "const": "historical_configuration"
+                        }
+                      },
+                      "required": [
+                        "lean_version",
+                        "mathlib_commit",
+                        "basis"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision",
+                  "title",
+                  "family",
+                  "obstacle",
+                  "reference_environments"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "reference_only": {
+              "const": true
+            },
+            "current_environment_verification_required": {
+              "const": true
+            },
+            "usage_notice": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "bank",
+            "revision",
+            "status",
+            "catalog",
+            "reference_only",
+            "current_environment_verification_required",
+            "usage_notice"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bank": {
+              "type": "string",
+              "enum": [
+                "basis",
+                "lean"
+              ]
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "status": {
+              "const": "cards"
+            },
+            "cards": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^ST[0-9]{3,}$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "family": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "obstacle": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "domains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "preconditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "contraindications": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "procedure": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "verification": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "positive_example": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "negative_example": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "note": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "note"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "reference_environments": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "lean_version": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?$"
+                        },
+                        "mathlib_commit": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "basis": {
+                          "const": "historical_configuration"
+                        }
+                      },
+                      "required": [
+                        "lean_version",
+                        "mathlib_commit",
+                        "basis"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision",
+                  "title",
+                  "family",
+                  "obstacle",
+                  "domains",
+                  "tags",
+                  "preconditions",
+                  "contraindications",
+                  "procedure",
+                  "verification",
+                  "positive_example",
+                  "negative_example",
+                  "status",
+                  "evidence",
+                  "reference_environments"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 3
+            },
+            "omitted": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^ST[0-9]{3,}$"
+              },
+              "maxItems": 3,
+              "uniqueItems": true
+            },
+            "reference_only": {
+              "const": true
+            },
+            "current_environment_verification_required": {
+              "const": true
+            },
+            "usage_notice": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "bank",
+            "revision",
+            "status",
+            "cards",
+            "omitted",
+            "reference_only",
+            "current_environment_verification_required",
+            "usage_notice"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bank": {
+              "type": "string",
+              "enum": [
+                "basis",
+                "lean"
+              ]
+            },
+            "status": {
+              "const": "unavailable"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "bank",
+            "status",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "bank": {
+              "type": "string",
+              "enum": [
+                "basis",
+                "lean"
+              ]
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "status": {
+              "const": "not_in_catalog"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^ST[0-9]{3,}$"
+              },
+              "maxItems": 3,
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "bank",
+            "revision",
+            "status",
+            "ids"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "invalid_query"
+            },
+            "error": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "status",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
     }
   },
   "blocks": {

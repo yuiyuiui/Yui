@@ -357,3 +357,43 @@ accepted checkpoint is
 `d65963a96ee414582dfb7393e4b02012f9f143b7638565d23f28dc8c552ad45e`.
 The public definition remains unchanged. Protocol replay checks compatibility
 without repeating external proof actions.
+
+## Cross-version strategy references (2026-11-14)
+
+The scoped requirement and behavioral witnesses are recorded in
+[the reference policy](../nl02lean/references/strategy-reference.md). All 22
+cards are readable at any current version and before Lean selection. Catalogs
+and complete cards disclose paired historical Lean/Mathlib context and require
+actual checking in the selected task environment; advice grants no proof status.
+Historical contexts are not relabeled as completed native verification.
+
+Independent cases first reproduced the old version filtering and missing
+disclosure. After correcting an unknown-ID error-reply mismatch, all **35
+affected host tests passed in 5.387 seconds**, with CLEANED owned-resource
+cleanup. The eight new portable contract/provenance cases also passed. Three
+deliberately weakened provenance/authority rules were rejected by those cases.
+
+The actual selected-environment public-entry control passed both conditional
+and unconditional paths in **261.076 seconds**. It explicitly reads old-context
+references through native clients while retaining the selected Lean/Mathlib
+4.35.0 identity through compilation, Audit B and delivery. Unconditional delivery
+also uses an external library and a checked imported module, followed by cleanup
+and a fresh public-source build. Provider replies and semantic judgments remain
+local software fixtures; Lean compilation is real.
+
+This native run explicitly supplied `YUI_TEST_ALTERNATE_ENVIRONMENT` with the
+4.35.0 descriptor. Without that selection, the existing public-entry control
+uses its default pair and does not establish native coverage of another version.
+
+The complete tested file set and hashes were unchanged during these checks.
+This iteration used scoped bank/direct-consumer checks, not complete parent
+test discovery. An extra earlier-repair run was stopped at the user's request
+and cleaned; it is not reported as a passing suite. The timing observer is
+task-local and does not alter production test behavior. Cross-version theorem
+metadata cache handling and generic test-environment portability remain outside
+this bank change; item 5 is not established as fully complete by these results.
+
+The registered Builder audit passed all eight gates and 15 retained offline
+protocol replays in 4.575 seconds, recording checkpoint
+`ea1482eaec9cb5ffdd3b727254679d8c7084f92312a04c0c5a24a21f34360a09`.
+The three public entries, 28 edges and seven exits retain their existing routes.

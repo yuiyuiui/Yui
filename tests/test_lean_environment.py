@@ -178,7 +178,7 @@ class SelectedEnvironment(unittest.TestCase):
                 problem.write_bytes((harness_support.FIXTURES/'closed-addition/problem.txt').read_bytes())
                 run=root/'run'
                 bridge=harness_support.TESTS/'tooling/public_entry_control.py'
-                command=[sys.executable,'-B',str(bridge),mode,'run',str(problem),
+                command=[sys.executable,'-B',str(bridge),mode+'+reference','run',str(problem),
                          '--track','full','--formalization',goal,'--target',TARGET,
                          '--use-config-profiles','--nl0-effort','max','--lean-effort','xhigh',
                          '--max-concurrency','1','--output',str(run),
@@ -193,12 +193,29 @@ class SelectedEnvironment(unittest.TestCase):
                     imported.write_text('import Mathlib\nimport FixtureLib.Leaf\nnamespace ImportedExample\n'
                         'theorem add_zero (n : Nat) : n + 0 = n := by\n'
                         '  have _ : True := FixtureLib.witness\n  rfl\nend ImportedExample\n')
-                    command[3]=mode+'+imported-lean'
+                    command[3]=mode+'+imported-lean+reference'
                     command+=['--material',str(imported)]
                 result=subprocess.run(command,capture_output=True,text=True,timeout=300)
                 self.assertEqual(result.returncode,0,(result.stdout+'\n'+result.stderr)[-12000:])
                 job=json.loads((run/'job.json').read_text())
                 record=json.loads((run/'delivery/run.json').read_text())
+                references=[]
+                for path in run.rglob('tools.jsonl'):
+                    for line in path.read_text().splitlines():
+                        event=json.loads(line)
+                        if event.get('tool')=='consult_strategy':references.append(event['result'])
+                self.assertTrue(references)
+                complete=[r for r in references if r.get('status')=='cards']
+                self.assertTrue(complete)
+                reference_environment={'lean_version':self.selected['lean']['version_number'],
+                    'mathlib_commit':self.selected['mathlib']['rev'],'basis':'historical_configuration'}
+                for reply in references:
+                    self.assertIn(reply.get('status'),{'catalog','cards'},reply)
+                    self.assertTrue(reply['reference_only'])
+                    self.assertTrue(reply['current_environment_verification_required'])
+                    for item in reply[reply['status']]:
+                        self.assertEqual(item['reference_environments'],[reference_environment])
+                self.assertTrue(any(r['cards'] for r in complete))
                 self.assertEqual(job['lean_environment']['lean']['version_number'],selected['lean']['version_number'])
                 self.assertEqual(record['lean_environment'],job['lean_environment'])
                 if goal=='unconditional':

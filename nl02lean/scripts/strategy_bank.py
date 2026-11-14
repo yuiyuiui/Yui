@@ -21,10 +21,10 @@ DOMAINS={'general','analysis','algebra','geometry','probability','number_theory'
          'combinatorics','topology','logic','algorithms'}
 CARD_FIELDS={'id','revision','title','family','domains','tags','obstacle','preconditions',
              'contraindications','procedure','verification','positive_example',
-             'negative_example','evidence','lean_versions','status'}
+             'negative_example','evidence','reference_environments','status'}
 EVIDENCE_KINDS={'design_rule','generalized_observation','synthetic_control'}
 CASE_ID=re.compile(r'\b(?:[HRNTD]\d{3,}|bench_case_\d+|20\d{6}T\d{6}Z)\b')
-NATIVE_TIMEOUT_POLICY='native-timeout-st020-1'
+NATIVE_TIMEOUT_POLICY='native-timeout-st020-2'
 NATIVE_TIMEOUT_CARD='ST020'
 HEARTBEAT_ERROR=re.compile(
     r'^.*\.lean:\d+:\d+:\s+error(?:\([^\n)]*\))?:[^\n]*'
@@ -119,7 +119,7 @@ def install_reference(stage, bindings=None):
 
 
 def consult(stage, query):
-    """The stage supplies permissions and version. A card read confers no proof authority."""
+    """Permissions and immutable source data govern references, independently of Lean."""
     import artifact_protocol as protocol
     policy = reference_policy()
     names = policy.banks_for(stage.mode, stage.instruction_arm)
@@ -127,20 +127,16 @@ def consult(stage, query):
         protocol.validate(query, policy.query_schema(names))
     except ValueError as error:
         result = {'status':'invalid_query', 'error':str(error)}
-        protocol.validate(result, policy.contracts()['StrategyReply@1'])
+        protocol.validate(result, policy.contracts()[policy.REPLY_CONTRACT])
         return result
     name = query['bank']
     binding = stage.strategy_banks[name]
     try:
-        version = stage.native_timeout_lean_version
-        if version is None:
-            from runtime_config import scientific_pins
-            version = scientific_pins()['lean_version']
-        result = _consult_bank(name, binding, version, query.get('ids'))
+        result = _consult_bank(name, binding, query.get('ids'))
     except (OSError, ValueError, TypeError, KeyError) as error:
         result = {'bank':name, 'status':'unavailable',
                   'reason':error.strerror if isinstance(error, OSError) else str(error)}
-    protocol.validate(result, policy.contracts()['StrategyReply@1'])
+    protocol.validate(result, policy.contracts()[policy.REPLY_CONTRACT])
     return result
 
 
@@ -153,19 +149,21 @@ def bound_bank_data(binding):
         raise ValueError('Pinned strategy index changed')
     index = json.loads(raw_index)
     source = _inside(bank, 'strategies.json').read_bytes()
-    if (index['version'] != 2 or index['source_sha256'] != binding['source'] or
+    if (index['version'] != 3 or index['source_sha256'] != binding['source'] or
             hashlib.sha256(source).hexdigest() != binding['source']):
         raise ValueError('Pinned strategy source changed')
     return bank, index, source
 
 
-def _consult_bank(name, binding, version, ids):
+def _consult_bank(name, binding, ids):
     bank, index, source = bound_bank_data(binding)
-    metadata = {sid:row for sid,row in index['metadata'].items() if version in row['lean_versions']}
+    metadata = index['metadata']
     reply = {'bank':name, 'revision':binding['source']}
     if ids is None:
-        fields = ('revision', 'title', 'family', 'obstacle')
-        return {**reply, 'status':'catalog',
+        fields = ('revision', 'title', 'family', 'obstacle', 'reference_environments')
+        for row in metadata.values():
+            reference_policy().validate_environments(row['reference_environments'])
+        return {**reply, **reference_policy().reference_header(), 'status':'catalog',
                 'catalog':[{'id':sid, **{key:row[key] for key in fields}} for sid,row in metadata.items()]}
     unknown = [sid for sid in ids if sid not in metadata]
     if unknown:
@@ -183,7 +181,8 @@ def _consult_bank(name, binding, version, ids):
         validate_card(card, bank)
         selected.append(public_card(card))
     kept, omitted = reference_policy().bounded_cards(selected)
-    return {**reply, 'status':'cards', 'cards':kept, 'omitted':omitted}
+    return {**reply, **reference_policy().reference_header(),
+            'status':'cards', 'cards':kept, 'omitted':omitted}
 
 
 def public_card(card):
@@ -216,7 +215,7 @@ def freeze_native_timeout_policy(destination,bank=None):
            'status':'UNAVAILABLE','files':[],'bank_root':str(destination)}
     try:
         index=json.loads((bank/'index.json').read_text())
-        if index.get('version')!=2 or index['source_sha256']!=sha(bank/'strategies.json'):
+        if index.get('version')!=3 or index['source_sha256']!=sha(bank/'strategies.json'):
             raise ValueError('stale strategy index')
         meta=index['metadata'][NATIVE_TIMEOUT_CARD]
         relative=Path(meta['path']);card_path=(bank/relative).resolve()
@@ -252,7 +251,8 @@ def native_timeout_feedback(result,lean_version,snapshot):
     """Deliver frozen ST020 only after native resource failure; no LLM call."""
     kind=native_timeout_kind(result)
     if kind is None:return None
-    feedback={'policy':NATIVE_TIMEOUT_POLICY,'trigger':kind,'status':'UNAVAILABLE',
+    feedback={**reference_policy().reference_header(),
+              'policy':NATIVE_TIMEOUT_POLICY,'trigger':kind,'status':'UNAVAILABLE',
               'card_id':NATIVE_TIMEOUT_CARD,
               'next_action':('Localize and repair this candidate in the same stage, then recheck '
                              'the unchanged target and inputs. Advice grants no premise or acceptance.')}
@@ -270,7 +270,7 @@ def native_timeout_feedback(result,lean_version,snapshot):
         found=search(query,bank,limit=1)
         cards=found['strategies']
         if not cards or cards[0]['id']!=NATIVE_TIMEOUT_CARD:
-            feedback['reason']='No timeout card in the declared toolchain scope'
+            feedback['reason']='No matching native timeout reference in the frozen bank'
             return feedback
         feedback.update(status='ADVICE_DELIVERED',strategy=cards[0],
             next_action=('ST020 offers optional diagnostics for this native failure. '
@@ -293,12 +293,13 @@ def validate_card(card,bank):
     for key in ('title','obstacle','verification','positive_example','negative_example'):
         if not isinstance(card[key],str) or not card[key].strip():
             raise ValueError('missing card text: '+key)
-    for key in ('domains','tags','preconditions','contraindications','procedure','lean_versions'):
+    for key in ('domains','tags','preconditions','contraindications','procedure'):
         values=card[key]
         if not isinstance(values,list) or any(not isinstance(v,str) or not v.strip() for v in values):
             raise ValueError('invalid card list: '+key)
         if key not in {'preconditions','contraindications'} and not values:
             raise ValueError('empty card list: '+key)
+    reference_policy().validate_environments(card['reference_environments'])
     if not set(card['domains'])<=DOMAINS: raise ValueError('use only broad domain labels')
     if card['status'] not in {'GENERAL_GUIDANCE','OBSERVED_PATTERN'}:
         raise ValueError('invalid guidance evidence status')
@@ -342,11 +343,11 @@ def build(bank=BANK):
         sid=card['id']
         path=bank/'cards'/f'{sid}.json'
         path.write_text(json.dumps(card,ensure_ascii=False,indent=2)+'\n')
-        meta[sid]={k:card[k] for k in ('title','revision','family','obstacle','domains','tags','preconditions','contraindications','lean_versions','status')}
+        meta[sid]={k:card[k] for k in ('title','revision','family','obstacle','domains','tags','preconditions','contraindications','reference_environments','status')}
         meta[sid].update({'path':str(path.relative_to(bank)),'sha256':sha(path)})
         keys=['family:'+card['family']]+['tag:'+t.lower() for t in card['tags']]
         for key in keys: postings.setdefault(key,[]).append(sid)
-    index={'version':2,'source_sha256':sha(bank/'strategies.json'),'metadata':meta,
+    index={'version':3,'source_sha256':sha(bank/'strategies.json'),'metadata':meta,
            'postings':{k:sorted(v) for k,v in postings.items()}}
     (bank/'index.json').write_text(json.dumps(index,indent=2)+'\n')
     for path in (bank/'cards').glob('ST*.json'):
@@ -369,7 +370,7 @@ def search(query,bank=BANK,limit=3):
     path=bank/'index.json'
     stat=path.stat()
     index=_index(str(path),stat.st_mtime_ns,stat.st_size)
-    if index.get('version')!=2 or sha(bank/'strategies.json')!=index['source_sha256']:
+    if index.get('version')!=3 or sha(bank/'strategies.json')!=index['source_sha256']:
         raise ValueError('stale strategy index; rebuild from the current source')
     counts={'bank_size':len(index['metadata']),'metadata_scored':0,'full_cards_read':0,'truncated':False}
     if family=='unknown':
@@ -389,15 +390,11 @@ def search(query,bank=BANK,limit=3):
     counts['truncated']=len(candidates)>MAX_SCORED
     facts=set(query.get('facts',[]))
     excluded=set(query.get('contraindications',[]))
-    version=query.get('lean_version')
     ranked=[]
     rejected=[]
     for sid in chosen:
         meta=index['metadata'][sid]
         counts['metadata_scored']+=1
-        if version not in meta['lean_versions']:
-            rejected.append({'id':sid,'reason':'outside declared toolchain scope'})
-            continue
         if excluded & set(meta['contraindications']):
             rejected.append({'id':sid,'reason':'reported contraindication'})
             continue
@@ -418,7 +415,8 @@ def search(query,bank=BANK,limit=3):
         public=public_card(card)
         result.append({'id':sid,'score':score,'applicability':'CONDITIONAL' if missing else 'PRECONDITIONS_REPORTED',
                        'missing_preconditions':missing,'preconditions_independently_verified':False,'card':public})
-    return {'status':'CANDIDATES' if result else 'NO_APPLICABLE_CANDIDATE',
+    return {**reference_policy().reference_header(),
+            'status':'CANDIDATES' if result else 'NO_APPLICABLE_CANDIDATE',
             'strategies':result,'rejected':rejected,'counts':counts,
             'wall_milliseconds':1000*(time.perf_counter()-start),
             'boundary':'Recipes are proposals, not new mathematical facts or guaranteed fixes.'}
