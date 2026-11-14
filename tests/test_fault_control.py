@@ -207,6 +207,23 @@ class FaultControlTests(FaultFixture,unittest.TestCase):
         self.assertEqual(run.call_args.args[0],['/portable/codex','queue','--thread','owner-task','--message','fixed diagnostic'])
         self.assertEqual(run.call_args.kwargs['timeout'],15)
 
+    def test_diagnostic_wake_is_explicit_and_zero_exit_is_not_takeover(self):
+        response=Mock(returncode=0,stdout='queued',stderr='Warning: failed to resume owner')
+        with patch.dict(os.environ,{'YUI_CODEX_BINARY':'/portable/codex'}),patch.object(faults.subprocess,'run',return_value=response) as run:
+            row=faults.queue_notification('owner-task','diagnose this incident',resume=True)
+        self.assertIn('--resume',run.call_args.args[0]);self.assertEqual(row['status'],'QUEUED')
+        self.assertTrue(row['resume_requested']);self.assertEqual(row['takeover'],'UNCONFIRMED')
+        self.assertIn('failed to resume',row['stderr'])
+
+    def test_rejected_or_timed_out_wake_stays_pending(self):
+        for response in (Mock(returncode=2,stdout='',stderr='unknown option --resume'),
+                         subprocess.TimeoutExpired('codex queue --resume',15)):
+            with self.subTest(response=type(response).__name__),patch.dict(os.environ,{'YUI_CODEX_BINARY':'/portable/codex'}), \
+                    patch.object(faults.subprocess,'run',side_effect=response if isinstance(response,Exception) else None,
+                                 return_value=response):
+                row=faults.queue_notification('owner','diagnosis',resume=True)
+            self.assertEqual(row['status'],'PENDING');self.assertEqual(row['takeover'],'UNCONFIRMED')
+
     def test_missing_owner_remains_a_local_pending_notification(self):
         with patch.object(faults.subprocess,'run') as run:
             result=faults.queue_notification(None,'message')

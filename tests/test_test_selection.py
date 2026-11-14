@@ -25,6 +25,26 @@ class RequirementSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Unclassified'):
             selection.requirement('future_unreviewed.Test.test_case',value)
 
+    def test_cross_version_case_skips_without_a_distinct_lean_environment(self):
+        from test_imported_lean import ImportedLeanTests
+        from types import SimpleNamespace
+        current={'lean':{'version_number':'selected'},'mathlib':{'rev':'a'*40}}
+        for comparison in (None,current,{'lean':{'version_number':'selected'},'mathlib':{'rev':'b'*40}}):
+            case=ImportedLeanTests('test_actual_version_specific_original_passes_old_and_requires_current_port')
+            case.current=current;case.comparison=comparison;case.old=comparison or current
+            case.stage=SimpleNamespace(task_inputs={})
+            case.check=lambda **kwargs:self.fail('A same-version check cannot stand in for a cross-version test')
+            with self.subTest(comparison=comparison),self.assertRaisesRegex(unittest.SkipTest,'SKIPPED_COMPARISON'):
+                case.test_actual_version_specific_original_passes_old_and_requires_current_port()
+
+    def test_quiet_skip_reports_the_reason_and_never_records_pass(self):
+        class MissingComparison(unittest.TestCase):
+            def runTest(self):self.skipTest('SKIPPED_COMPARISON_ENVIRONMENT_REQUIRED: supply a second Lean version')
+        case=MissingComparison();stream=io.StringIO()
+        result=unittest.TextTestRunner(stream=stream,verbosity=0,resultclass=selection.Results).run(case)
+        self.assertEqual(result.outcomes[case.id()]['status'],'SKIP')
+        self.assertIn('SKIPPED_COMPARISON_ENVIRONMENT_REQUIRED',stream.getvalue())
+
     def test_history_mismatch_skips_before_class_initializer(self):
         touched=[]
         class History(unittest.TestCase):
@@ -63,6 +83,22 @@ class RequirementSelectionTests(unittest.TestCase):
             code=selection.dispatch(['test_fixture','--report',str(self.root/'all.json')],failed)
         self.assertEqual(code,1)
         self.assertFalse(json.loads((self.root/'all.json').read_text())['passed'])
+
+    def test_skipped_comparison_is_visible_in_the_overall_result(self):
+        data={'modules':{'test_fixture':{'lean':'none'}},'classes':{},'tests':{}}
+        host={'codex':{'binary_path':'/codex'},'tools':{'ripgrep':{'binary_path':'/rg'}}}
+        def skipped(arguments,*,test_env):
+            self.assertEqual(test_env['YUI_TEST_UPSTREAM_ENVIRONMENT'],'')
+            Path(test_env['YUI_TEST_WORKER_REPORT']).write_text(json.dumps({'group':'none','passed':True,
+                'tests':1,'outcomes':{'case':{'status':'SKIP','reason':'SKIPPED_COMPARISON_ENVIRONMENT_REQUIRED'}}}))
+            return 0
+        output=io.StringIO();path=self.root/'skipped.json'
+        with patch.object(selection,'catalogue',return_value=data),patch('runtime_config.host_tools',return_value=host), \
+                redirect_stdout(output):
+            code=selection.dispatch(['test_fixture','--report',str(path)],skipped)
+        value=json.loads(path.read_text());self.assertEqual(code,0)
+        self.assertEqual(value['status'],'PASSED_WITH_SKIPS');self.assertEqual(value['outcome_counts'],{'SKIP':1})
+        self.assertIn('PASSED_WITH_SKIPS',output.getvalue())
 
     def test_explicit_current_test_without_environment_is_a_failure(self):
         data={'modules':{'test_fixture':{'lean':'current'}},'classes':{},'tests':{}}

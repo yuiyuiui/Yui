@@ -67,6 +67,8 @@ def translate(ctx, data):
     suspends in place for the owning AI's bound diagnosis and recheck/wait or
     escalation, with one delayed recheck. Advice cannot grant process exit or
     proof acceptance; untouched proof work and the pending native call survive.
+    Diagnostic dispatch requests owner wake; only a fresh bound observation
+    acknowledges takeover. Missing acknowledgement requests attention once.
     """
     return dispatch(ctx, data, 'translate')
 def close(ctx, data): return dispatch(ctx, data, 'close')

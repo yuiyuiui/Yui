@@ -75,10 +75,10 @@ _original_run=_subprocess.run
 _original_notification=_faults.queue_notification
 
 
-def _offline_notification(thread,message):
+def _offline_notification(thread,message,**kwargs):
     if thread and _subprocess.run is _original_run:
         raise LiveModelAttemptBlocked('Software test attempted a real owner notification. Mock the local queue command or inject a notifier.')
-    return _original_notification(thread,message)
+    return _original_notification(thread,message,**kwargs)
 
 
 _faults.queue_notification=_offline_notification

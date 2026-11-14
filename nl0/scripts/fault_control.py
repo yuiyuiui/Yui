@@ -87,22 +87,26 @@ def verify_basis_choice(checkpoint):
     verify_bindings(bindings)
 
 
-def queue_notification(thread, message):
-    if not thread:return {'status': 'PENDING', 'reason': 'No owner task ID; use YUI_OWNER_THREAD_ID at dispatch'}
+def queue_notification(thread, message, *, resume=False):
+    request={'resume_requested':True,'takeover':'UNCONFIRMED'} if resume else {}
+    if not thread:return {'status': 'PENDING', 'reason': 'No owner task ID; use YUI_OWNER_THREAD_ID at dispatch',**request}
     binary = os.environ.get('YUI_CODEX_BINARY') or os.environ.get('CODEX_CLI_PATH') or shutil.which('codex')
     if not binary:
         try:
             from runtime_config import host_tools
             binary = host_tools()['codex']['binary_path']
         except (OSError, ValueError, KeyError):pass
-    if not binary:return {'status': 'PENDING', 'reason': 'No local Codex queue executable'}
+    if not binary:return {'status': 'PENDING', 'reason': 'No local Codex queue executable',**request}
     try:
-        value = subprocess.run([str(binary), 'queue', '--thread', thread, '--message', message],
+        command=[str(binary), 'queue', '--thread', thread, '--message', message]
+        if resume:command.append('--resume')
+        value = subprocess.run(command,
                                capture_output=True, text=True, timeout=15)
         return redact({'status': 'QUEUED' if value.returncode == 0 else 'PENDING',
-                       'exit_code': value.returncode, 'stdout': value.stdout, 'stderr': value.stderr})
+                       'exit_code': value.returncode, 'stdout': value.stdout, 'stderr': value.stderr,
+                       **request})
     except (OSError, subprocess.SubprocessError) as error:
-        return {'status': 'PENDING', 'reason': redact(type(error).__name__+': '+str(error))}
+        return {'status': 'PENDING', 'reason': redact(type(error).__name__+': '+str(error)),**request}
 
 
 class Gate:
@@ -160,6 +164,8 @@ class Gate:
             except (OSError,ValueError,KeyError):pass
         if self.notification_attempts >= 3:return
         self.notification_attempts += 1
+        operation=getattr(self,'operation',None)
+        if operation is not None and self.notification_attempts==1:operation.dispatch_started(self)
         text = ('[Yui ERROR PAUSED] '+self.state['fault']['category']+'; stage='+self.stage+
                 '; HTTP='+str(self.state['fault']['http_statuses'])+
                 '; automatic retries='+str(self.state['retries'])+'.\n'
@@ -170,7 +176,6 @@ class Gate:
                  '\nAutomatic resume is unavailable; inspect the diagnostic and choose an authorized repair or user action.')+
                 '\nCancel: '+shlex.join(self.state['cancel_command'])+
                 '\nThis is a fixed local Python alert; no model response is required.')
-        operation=getattr(self,'operation',None)
         if operation is not None:text=operation.notice(self)
         details=self.state.get('error',{})
         if isinstance(details,dict) and details.get('reason')=='REVIEW_NO_PROGRESS' and 'last_validation' in details:
@@ -185,7 +190,8 @@ class Gate:
             text+='\nExplicit user choices:\n'+'\n'.join(shlex.join(cmd) for cmd in self.state['decisions'].values())
         if case_deadline_error(self.state.get('error')):
             text+='\nThe explicit whole-case budget is exhausted. Ordinary resume cannot extend it; preserve this checkpoint or explicitly cancel. Any continuation needs a separately authorized budget and supported checkpoint.'
-        try:result = self.notify(self.owner(), text)
+        notify=operation.notify if operation is not None and self.notify is queue_notification else self.notify
+        try:result = notify(self.owner(), text)
         except Exception as error:result = {'status':'PENDING', 'reason':redact(str(error))}
         self.state['notification'] = {**result, 'attempts':self.notification_attempts, 'at_utc':execution.now()}
         self.persist()

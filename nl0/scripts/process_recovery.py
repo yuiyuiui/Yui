@@ -23,6 +23,7 @@ VERSION='yui-process-recovery-1'
 FAULT='NATIVE_CLEANUP_UNCONFIRMED'
 IDENTITY='PROCESS_IDENTITY_UNCONFIRMED'
 AUTO_RECHECK_SECONDS=60
+TAKEOVER_SECONDS=60
 
 
 def _active(root, incident):
@@ -101,6 +102,47 @@ class Recovery:
         self.clock=clock or time.monotonic
         self.auto_due=self.clock()+AUTO_RECHECK_SECONDS
         self.auto_done=False;self.directed_due=None;self.seen=set()
+        self.takeover_due=self.clock()+TAKEOVER_SECONDS;self.takeover_reminded=False
+
+    @staticmethod
+    def notify(owner, message):
+        from fault_control import queue_notification
+        return queue_notification(owner,message,resume=True)
+
+    def dispatch_started(self, gate):
+        if 'owner_takeover' in gate.state:return
+        observation=gate.logs/'diagnosis-observation.json'
+        gate.state['owner_takeover']={'status':'AWAITING_ACKNOWLEDGEMENT',
+            'previous_observation_sha256':bind(observation)['sha256'] if observation.is_file() else None,
+            'meaning':'Queue/resume success is not evidence that diagnosis has started.'}
+
+    def observe_takeover(self, gate):
+        observation=gate.logs/'diagnosis-observation.json';status=gate.state['owner_takeover']
+        if not observation.is_file():return
+        try:
+            binding=bind(observation)
+            if binding['sha256'] in {status.get('previous_observation_sha256'),status.get('observation',{}).get('sha256')}:return
+            _active(gate.root,gate.state['incident'])
+            value=json.loads(observation.read_text())
+            if (observation.is_symlink() or value.get('version')!=VERSION
+                    or value.get('incident')!=gate.state['incident']
+                    or value.get('checkpoint_sha256')!=gate.state['checkpoint']['binding']['sha256']):
+                raise ValueError('Stale or foreign diagnosis acknowledgement')
+            if status.pop('attention_required',False):gate.state['needs_user_decision']=False
+            status.update(status='ACKNOWLEDGED',observation=binding,at_utc=execution.now())
+            gate.persist()
+        except (OSError,ValueError,KeyError,TypeError) as error:
+            status['error']=str(error);gate.persist()
+
+    def takeover_timeout(self, gate):
+        if (self.takeover_reminded or self.clock()<self.takeover_due
+                or gate.state['owner_takeover']['status']=='ACKNOWLEDGED'):return False
+        self.takeover_reminded=True
+        gate.state['owner_takeover'].update(status='UNACKNOWLEDGED',at_utc=execution.now(),attention_required=True,
+            reason='No bound process-diagnose execution was observed within 60 seconds; owner takeover is unconfirmed.')
+        gate.state['needs_user_decision']=True
+        gate.state['notification']={'status':'PENDING'};gate.notification_attempts=0;gate.report()
+        return True
 
     def bind(self, gate):
         job=gate.root/'job.json'
@@ -152,10 +194,12 @@ class Recovery:
             'If a repair exceeds authority or cannot safely attach to this live checkpoint, present concrete options in the owning desktop chat.\n'
             'Checkpoint: '+json.dumps(gate.state['checkpoint'])+'\n'
             'Latest owner diagnosis: '+json.dumps(gate.state.get('owner_diagnosis'))+'; user decision required: '+str(gate.state.get('needs_user_decision',False))+'\n'
+            'Owner takeover: '+json.dumps(gate.state.get('owner_takeover'))+'\n'
             'One delayed native recheck is scheduled. AI advice never replaces actual cleanup and remaining trust checks.')
 
     def tick(self, gate):
         if self.recorder and self.recorder.deadline is not None:self.recorder.check(self.task)
+        self.observe_takeover(gate)
         control=gate.logs/'error-control'/(gate.state['incident']+'.json')
         if control.is_file():
             try:
@@ -181,7 +225,9 @@ class Recovery:
             gate.persist()
         due=(self.directed_due is not None and self.clock()>=self.directed_due)
         automatic=not self.auto_done and self.clock()>=self.auto_due
-        if not due and not automatic:return False
+        if not due and not automatic:
+            self.takeover_timeout(gate)
+            return False
         self.directed_due=None;self.auto_done=True
         try:
             _active(gate.root,gate.state['incident'])
@@ -199,7 +245,8 @@ class Recovery:
             gate.state.update(state='RESOLVED',resolved_at_utc=execution.now(),resolution=resolution)
             if self.recorder and self.task:self.recorder.task(self.task,state='RUNNING',activity=resolution)
         else:
-            gate.state['notification']={'status':'PENDING'};gate.notification_attempts=0;gate.report()
+            if not self.takeover_timeout(gate):
+                gate.state['notification']={'status':'PENDING'};gate.notification_attempts=0;gate.report()
         gate.persist()
         return bool(confirmed)
 

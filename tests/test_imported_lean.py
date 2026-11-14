@@ -26,7 +26,8 @@ class ImportedLeanTests(unittest.TestCase):
     def setUpClass(cls):
         cls.current=runtime_config.require_environment()
         path=os.environ.get('YUI_TEST_UPSTREAM_ENVIRONMENT')
-        cls.old=lean_environment.verify(json.loads(Path(path).read_text())) if path else cls.current
+        cls.comparison=lean_environment.verify(json.loads(Path(path).read_text())) if path else None
+        cls.old=cls.comparison or cls.current  # Ordinary source-error checks also work within one pair.
 
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
@@ -86,16 +87,18 @@ class ImportedLeanTests(unittest.TestCase):
         self.assertEqual(original['native']['exit_code'],1);self.assertEqual(context['native']['exit_code'],0)
 
     def test_actual_version_specific_original_passes_old_and_requires_current_port(self):
+        if self.comparison is None:
+            self.skipTest('SKIPPED_COMPARISON_ENVIRONMENT_REQUIRED: supply --comparison-environment with another Lean version')
+        if self.current['lean']['version_number']==self.comparison['lean']['version_number']:
+            self.skipTest('SKIPPED_COMPARISON_NOT_DISTINCT: this Lean-version guard needs two different Lean versions')
         version=self.old['lean']['version_number']
         self.stage.task_inputs['original.lean']='import Mathlib\nimport Lean\n#guard Lean.versionString == '+json.dumps(version)+'\n'+GOOD.removeprefix('import Mathlib\n')
         with patch.object(lean_imports,'original_environment',return_value=self.old):
-            result=self.check(upstream=self.upstream(),candidate=GOOD) if self.current!=self.old else self.check(upstream=self.upstream())
-        if self.current==self.old:self.assertEqual(result['status'],'LOCAL_REUSED')
-        else:
-            self.assertEqual(result['status'],'PORTED_CHECKED');self.assertEqual(result['original_route'],'COMPATIBILITY_PORT_REQUIRED')
-            old=json.loads(Path(result['upstream_check']['path']).read_text())
-            self.assertEqual(old['environment']['lean_version'],version)
-            self.assertEqual(old['native']['exit_code'],0)
+            result=self.check(upstream=self.upstream(),candidate=GOOD)
+        self.assertEqual(result['status'],'PORTED_CHECKED');self.assertEqual(result['original_route'],'COMPATIBILITY_PORT_REQUIRED')
+        old=json.loads(Path(result['upstream_check']['path']).read_text())
+        self.assertEqual(old['environment']['lean_version'],version)
+        self.assertEqual(old['native']['exit_code'],0)
 
     def test_upstream_selection_uses_declared_versions_instead_of_ambient_current_paths(self):
         with patch.object(lean_environment,'discover',return_value=([self.old,self.current] if self.old!=self.current else [self.old],[])), \

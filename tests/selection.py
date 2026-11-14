@@ -92,6 +92,7 @@ class Results(unittest.TextTestResult):
         super().addFailure(test,error);self.outcomes[test.id()]={'status':'FAIL'}
     def addSkip(self,test,reason):
         super().addSkip(test,reason);self.outcomes[test.id()]={'status':'SKIP','reason':reason}
+        if not self.showAll:self.stream.writeln('\nSKIP '+test.id()+': '+reason)
     def addSubTest(self,test,subtest,error):
         super().addSubTest(test,subtest,error)
         if error is not None:
@@ -144,6 +145,9 @@ def worker(arguments):
                 'outcomes':result.outcomes,'decisions':decisions,
                 'selected_environment':None if selected is None else {
                     'lean_version':selected['lean']['version_number'],'mathlib_commit':selected['mathlib']['rev']}}
+        comparison=json.loads(os.environ.get('YUI_TEST_COMPARISON_ENVIRONMENT','null'))
+        report['comparison_environment']=None if comparison is None else {
+            'lean_version':comparison['lean']['version_number'],'mathlib_commit':comparison['mathlib']['rev']}
         Path(os.environ['YUI_TEST_WORKER_REPORT']).write_text(json.dumps(report,indent=2)+'\n')
         return 0 if report['passed'] else 1
 
@@ -183,6 +187,8 @@ def dispatch(arguments,launch):
                       __import__('runtime_config').require_environment())
         import runtime_config
         host=runtime_config.host_tools()
+        comparison=(__import__('lean_environment').verify(json.loads(args.comparison_environment.read_text()))
+                    if args.comparison_environment else None)
         for group in groups:
             current=(__import__('lean_environment').verify(json.loads(args.historical_environment.read_text()))
                      if group=='exact' and args.historical_environment else selected)
@@ -190,6 +196,8 @@ def dispatch(arguments,launch):
             worker_file=args.report.with_name(args.report.stem+'-'+group+'.json')
             values={'YUI_TEST_GROUP':group,'YUI_TEST_WORKER_REPORT':str(worker_file.resolve()),
                 'YUI_FROZEN_LOCAL_CONFIG':'null','YUI_LEAN_ENVIRONMENT':json.dumps(current),
+                'YUI_TEST_COMPARISON_ENVIRONMENT':json.dumps(comparison),
+                'YUI_TEST_UPSTREAM_ENVIRONMENT':'','YUI_TEST_ALTERNATE_ENVIRONMENT':'',
                 'YUI_CODEX_BINARY':host['codex']['binary_path'],
                 'YUI_RG_BINARY':host['tools']['ripgrep']['binary_path']}
             if current is not None:
@@ -208,8 +216,13 @@ def dispatch(arguments,launch):
     except Exception as error:
         report['error']=type(error).__name__+': '+str(error)
         report['status']='ENVIRONMENT_REQUIRED_OR_TEST_SETUP_FAILED'
+    outcomes=[value['status'] for batch in report['batches'] for value in batch.get('outcomes',{}).values()]
+    report['outcome_counts']={status:outcomes.count(status) for status in sorted(set(outcomes))}
+    if 'error' not in report:
+        report['status']=('PASSED_WITH_SKIPS' if 'SKIP' in outcomes else 'PASSED') if report['passed'] else 'FAILED'
     save()
     print('test report: '+str(args.report.resolve()),flush=True)
+    print('test result: '+report['status']+' '+json.dumps(report['outcome_counts']),flush=True)
     print('test groups: '+', '.join(row['group']+'='+('PASS' if row['passed'] else 'FAIL')
                                   for row in report['batches']),flush=True)
     return 0 if report['passed'] else 1

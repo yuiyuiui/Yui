@@ -73,6 +73,92 @@ class ProcessRecoveryTests(unittest.TestCase):
         self.assertIn('process-diagnose',self.messages[0]);self.assertNotIn('no model response is required',self.messages[0])
         self.assertTrue(self.source.is_file());self.assertEqual(operation.process.poll(),0)
 
+    def test_queued_notification_needs_an_actual_bound_diagnosis_acknowledgement(self):
+        turns=[]
+        def wait(g):
+            if not turns:
+                self.assertEqual(g.state['owner_takeover']['status'],'AWAITING_ACKNOWLEDGEMENT')
+                turns.append(True);self.owner_action(g)
+        gate,operation=self.gate(lambda:True,wait)
+        gate.pause('cleanup pending',resumable=False,operation=operation)
+        self.assertEqual(gate.state['owner_takeover']['status'],'ACKNOWLEDGED')
+        verify_bindings([gate.state['owner_takeover']['observation']])
+
+    def test_real_local_queue_wakes_an_idle_owner_and_uses_the_public_diagnosis_cli(self):
+        # This executable is a deterministic desktop/AI substitute. The genuine
+        # notifier and both public operator commands run in separate processes.
+        cli=self.root/'fake-codex';awake=self.root/'awake'
+        write(cli.with_suffix('.json'),{'python':sys.executable,'entry':str(harness_support.CORE/'nl0/scripts/yui.py'),
+                                       'awake':str(awake)})
+        cli.write_text('#!'+sys.executable+'\n'+'''import json,sys,subprocess
+from pathlib import Path
+c=json.loads(Path(__file__).with_suffix('.json').read_text())
+if '--resume' not in sys.argv:
+    print('queued');raise SystemExit(0)
+message=sys.argv[sys.argv.index('--message')+1]
+fields=dict(line.split(': ',1) for line in message.splitlines() if line.startswith(('Run: ','Incident: ')))
+tail=[fields['Run'],'--incident',fields['Incident']]
+args=[c['python'],'-B',c['entry']]
+d=json.loads(subprocess.run([*args,'process-diagnose',*tail],check=True,capture_output=True,text=True).stdout)
+report={'version':'yui-process-diagnosis-1','incident':fields['Incident'],
+ 'checkpoint_sha256':d['checkpoint_sha256'],'observation_sha256':d['observation']['sha256'],
+ 'assessment':'UNKNOWN','observations':['Synthetic AI read the bound native checkpoint and process observations.'],
+ 'unknowns':['The initial query delay has no established cause.'],'options':['Repeat actual native cleanup.'],'action':'recheck'}
+file=Path(__file__).with_suffix('.decision.json');file.write_text(json.dumps(report))
+subprocess.run([*args,'process-decision',*tail,'--report',str(file)],check=True,capture_output=True,text=True)
+Path(c['awake']).write_text('Synthetic owner started and executed the real commands.')
+print('queued')
+''')
+        cli.chmod(0o700);original=subprocess.run;calls=[]
+        def invoke(command,*args,**kwargs):
+            if command[0]==str(cli):calls.append(command)
+            return original(command,*args,**kwargs)
+        gate=fault_control.Gate(self.case/'logs/process-recovery/idle-owner',recorder=self.rec,task='T001',
+                               wait=lambda _:self.fail('The queued owner stayed idle'))
+        operation=recovery.Recovery(self.process,self.owner,self.work,self.source,{'exit_code':0},self.rec,'T001',lambda:True)
+        with patch.dict(os.environ,{'YUI_CODEX_BINARY':str(cli)}),patch.object(subprocess,'run',side_effect=invoke):
+            gate.pause('pending',resumable=False,operation=operation)
+        self.assertTrue(awake.is_file());self.assertEqual(len(calls),1);self.assertIn('--resume',calls[0])
+        self.assertEqual(gate.state['owner_takeover']['status'],'ACKNOWLEDGED')
+        self.assertEqual(gate.state['state'],'RESOLVED')
+
+    def test_a_foreign_observation_cannot_acknowledge_takeover(self):
+        def wait(g):
+            write(g.logs/'diagnosis-observation.json',{'version':recovery.VERSION,'incident':'0'*32,
+                'checkpoint_sha256':g.state['checkpoint']['binding']['sha256']})
+            operation.observe_takeover(g)
+            self.assertEqual(g.state['owner_takeover']['status'],'AWAITING_ACKNOWLEDGEMENT')
+            self.assertIn('foreign',g.state['owner_takeover']['error'])
+            write(self.case/'cancel-request.json',{})
+        gate,operation=self.gate(lambda:self.fail('No real exit confirmation'),wait)
+        with self.assertRaises(execution.Cancelled):gate.pause('pending',resumable=False,operation=operation)
+
+    def test_missing_acknowledgement_escalates_once_and_keeps_the_case(self):
+        now=[0];turns=[]
+        def wait(g):
+            if not turns:turns.append(True);now[0]=61
+            else:
+                self.assertEqual(g.state['owner_takeover']['status'],'UNACKNOWLEDGED')
+                self.assertTrue(g.state['needs_user_decision']);self.assertEqual(len(self.messages),2)
+                operation.tick(g);self.assertEqual(len(self.messages),2)
+                write(self.case/'cancel-request.json',{})
+        gate,operation=self.gate(lambda:False,wait)
+        operation.clock=lambda:now[0];operation.auto_due=60;operation.takeover_due=60
+        with self.assertRaises(execution.Cancelled):gate.pause('pending',resumable=False,operation=operation)
+        self.assertTrue(self.source.is_file())
+
+    def test_late_acknowledgement_clears_only_the_takeover_attention_request(self):
+        now=[0];turns=[];checks=iter([False,True])
+        def wait(g):
+            if not turns:turns.append(True);now[0]=61
+            else:
+                self.assertTrue(g.state['needs_user_decision']);self.owner_action(g)
+        gate,operation=self.gate(lambda:next(checks),wait)
+        operation.clock=lambda:now[0];operation.auto_due=60;operation.takeover_due=60
+        gate.pause('pending',resumable=False,operation=operation)
+        self.assertEqual(gate.state['owner_takeover']['status'],'ACKNOWLEDGED')
+        self.assertFalse(gate.state['needs_user_decision'])
+
     def test_whole_file_recovery_without_a_local_task_does_not_create_a_phantom_node(self):
         gate,operation=self.gate(lambda:True,lambda g:self.owner_action(g))
         gate.task=None;operation.task=None

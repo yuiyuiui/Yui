@@ -25,6 +25,9 @@ The Yui case owns the process group, budget, material requests, decisions, check
 OS process queries use fresh 5/15/30-second attempts. If native shutdown still
 cannot be confirmed, the caller preserves its live handle and checkpoint and
 requests diagnosis from the owning AI. Read the supplied process-recovery entry;
+diagnostic dispatch requests owner resume and confirms takeover only after a
+fresh bound diagnostic observation. Missing acknowledgement is recorded and
+escalated once after sixty seconds; queue success alone grants no takeover.
 `process-diagnose RUN --incident ID` collects bounded observations and
 `process-decision RUN --incident ID --report FILE` submits located owner advice.
 Only fresh identity/group checks release the suspended operation. A delayed
