@@ -27,6 +27,7 @@ import assembly
 import lean_names
 import correspondence
 import review_materials
+import inspection_evidence
 from shared_lemmas import hashed
 
 HERE = Path(__file__).resolve().parents[1]
@@ -152,7 +153,8 @@ def prepare(cpath,ppath,bpath,out,**source):
     originals = [cpath,ppath,bpath,source_file,*[p.resolve() for p in source_paths]]
     tools = [Path(__file__),Path(source_preparation.__file__),HERE/'scripts/audit_probe.lean',Path(ir.__file__),
              Path(assembly.__file__),Path(lean_names.__file__),Path(correspondence.__file__),Path(review_materials.__file__),
-             HERE/'scripts/local_helpers.py', HERE/'scripts/helper_modules.py', HERE/'scripts/dependency_instances.py',
+             Path(inspection_evidence.__file__),
+             HERE/'scripts/local_helpers.py', HERE/'scripts/helper_modules.py', HERE/'scripts/basis_export.lean', HERE/'scripts/dependency_instances.py',
              ir.ROOT/'workflow/blocks/lean_input_instances.py',
              HERE/'scripts/shared_lemmas.py',HERE.parent/'nl0/scripts/nl0.py',HERE.parent/'nl0/scripts/closure.py',
              HERE.parent/'nl0/scripts/source_qualification.py',
@@ -216,13 +218,12 @@ def inherited_machine_evidence(out):
     ir.need(m['passed'] and not m['errors'] and m['compiler_exit_code']==0,'original mechanical gate did not pass')
     ir.need(m['assembly']['status']=='ASSEMBLY-PASSED' and m['inspection']['status']=='KERNEL_INSPECTION_PASSED','original assembly/inspection incomplete')
     ir.need(all(ir.native_succeeded(v) for v in m['local_checks'].values()),'original local check incomplete')
-    native=ir.load(out/'compiler.json');evidence=ir.load(out/'elaborated.json')
-    emitted=re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',native['stdout'])
-    ir.need(ir.native_succeeded(native) and emitted and json.loads(emitted[-1])==evidence,'native output/elaborated evidence mismatch')
+    native=ir.load(out/'compiler.json');evidence=inspection_evidence.verify(native, out)
+    __import__('helper_modules').bound_proof_module(out)
     ir.need(evidence['dependencies']['truncated'] is False and all(r['definitionally_equal'] for r in evidence['comparisons']),'original inspection/signature check incomplete')
     for d in evidence['dependencies']['declarations']:
         ir.need(not (set(d['axioms'])-AXIOMS),'unexpected original axiom')
-        ir.need(d['imported'] or d['kind'] not in {'axiom','opaque'},'unproved original project declaration')
+        ir.need(not inspection_evidence.project_owned(d) or d['kind'] not in {'axiom','opaque'},'unproved original project declaration')
     c=ir.contract(manifest['contract']);validate_mapping(c,ir.load(out/'source-inventory.json'),ir.load(out/'mapping.json'))
     proof_bundle(Path(manifest['contract']),Path(manifest['plan']),Path(manifest['proofs']))
     return manifest,m
@@ -341,10 +342,6 @@ def validate_mapping(c,inventory,mapping):
         ir.proof_text(body)
 
 
-def export_source(c,mapping,level_metadata=None):
-    return assembly.export_source(c,mapping,level_metadata)
-
-
 def frozen_endpoints(c, inventory):
     premises={p['id']:p for p in c['premises']}
     retained=[p for p in c['premises'] if p['kind']!='mathlib']
@@ -372,9 +369,6 @@ def build(out, *, frozen_contract=None):
     frozen=ir.contract(frozen_contract) if frozen_contract else c
     checks += [('__frozen__'+sid,selector,typ) for sid,(selector,typ) in frozen_endpoints(frozen,inventory).items()]
     rows = [(*row, lean_names.parts(row[1][5:]) if row[1].startswith('decl:') else []) for row in checks]
-    array = '#['+', '.join('('+', '.join(('#['+', '.join(json.dumps(p,ensure_ascii=False) for p in x)+']')
-                          if isinstance(x,list) else json.dumps(x,ensure_ascii=False) for x in row)+')' for row in rows)+']'
-    probe = (HERE/'scripts/audit_probe.lean').read_text().replace('__AUDIT_CHECKS__',array)
     formal = ir.render(cpath,plan,proofs)
     # Header commands are reviewed input, but missing proofs or executable
     # metaprogramming cannot serve as administrative project definitions.
@@ -383,27 +377,34 @@ def build(out, *, frozen_contract=None):
     from native_workspace import temporary
     with temporary('audit-b-build-',logs=out/'native-workspaces') as work:
         (work/'input').mkdir();(work/'output').mkdir()
-        assembled = assembly.build(c,mapping,formal,out,work)
+        assembled = assembly.build(c,mapping,formal,out,work,checks=rows)
         inspected = {'status':'NOT_STARTED','compiler_exit_code':None}
         if assembled['status']=='ASSEMBLY-PASSED':
-            source = (out/'Proof.lean').read_text()+'\n'+probe
+            import helper_modules
+            module = helper_modules.bound_proof_module(out)
+            array = '#['+', '.join('('+', '.join(('#['+', '.join(json.dumps(p,ensure_ascii=False) for p in x)+']')
+                if isinstance(x,list) else json.dumps(x,ensure_ascii=False) for x in row)+')' for row in module['checks'])+']'
+            probe = (HERE/'scripts/audit_probe.lean').read_text().replace('#[] -- YUI_OWNED_MODULES',
+                '#['+json.dumps(module['name'])+'] -- YUI_OWNED_MODULES').replace('__AUDIT_CHECKS__',array)
+            source = 'import '+module['name']+'\n'+probe
             file = work/'output/Audit.lean';file.write_text(source)
             import lean_timeout_policy
             with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='audit-inspection'):
-                result = ir.run_lean(file,work)
+                result = ir.run_lean(file,work,extra=[work/'output'])
             inspected = {'status':'KERNEL_INSPECTION_PASSED' if ir.native_succeeded(result) else 'KERNEL_INSPECTION_FAILED',
                          'compiler_exit_code':result['exit_code'],'wall_seconds':result['wall_seconds']}
             if result['exit_code'] and 'maximum number of heartbeats' in result['stdout']:
                 inspected['status']='INSPECTION_HEARTBEAT_EXHAUSTED'
         else:
             result=ir.load(out/'assembly-compiler.json')
-            source=(out/('Proof.lean' if (out/'Proof.lean').exists() else 'AssemblyInputs.lean')).read_text()
-        ir.write(out/'inspection.json',inspected)
+            source=(out/'Proof.lean').read_text()
         (out/'Audit.lean').write_text(source)
+        evidence = inspection_evidence.capture(result, work, out)
+        if inspected['status']=='KERNEL_INSPECTION_PASSED' and evidence is None:
+            inspected.update(status='KERNEL_INSPECTION_FAILED',
+                evidence_error=result.get('inspection_evidence_error','Complete native inspection evidence is missing'))
+        ir.write(out/'inspection.json',inspected)
         ir.write(out/'compiler.json',result)
-        found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',result['stdout'])
-        evidence = json.loads(found[-1]) if found else None
-        ir.write(out/'elaborated.json',evidence)
         errors=[]
         if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
         if assembled['status']!='ASSEMBLY-PASSED': errors.append('SOURCE_FACING_ASSEMBLY_FAILED')
@@ -419,7 +420,7 @@ def build(out, *, frozen_contract=None):
             if deps['truncated']: errors.append('DEPENDENCY_INSPECTION_TRUNCATED')
             for d in deps['declarations']:
                 if set(d['axioms'])-AXIOMS: errors.append('UNPERMITTED_AXIOM:'+d['name'])
-                if not d['imported'] and d['kind'] in {'axiom','opaque'}:
+                if inspection_evidence.project_owned(d) and d['kind'] in {'axiom','opaque'}:
                     errors.append('UNPROVED_PROJECT_DECLARATION:'+d['name'])
         # Imported theorems in the pinned environment are globally available.
         # No name, count, per-node edge or arithmetic-permission comparison
@@ -444,7 +445,8 @@ def build(out, *, frozen_contract=None):
             'source_counts':{k:sum(p['kind']==k for p in inventory['propositions']) for k in KINDS},
             'mapping_sha256':ir.digest(out/'mapping.json'),'manifest_sha256':ir.digest(out/'manifest.json'),
             'artifacts':{name:ir.digest(out/name) for name in ('Audit.lean','compiler.json','elaborated.json','review-packet.json','source-context.json','source-original.txt',
-                'AssemblyInputs.lean','assembly-inputs-compiler.json','assembly-compiler.json','assembly.json','inspection.json',
+                'compiled-module.json','assembly-compiler.json','assembly.json','inspection.json',
+                *(['incomplete-inspection.json'] if (out/'incomplete-inspection.json').exists() else []),
                 *(['Proof.lean'] if (out/'Proof.lean').exists() else []))},
             'semantic_review_performed':False}
         ir.write(out/'mechanical.json',mechanical)

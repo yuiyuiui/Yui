@@ -98,6 +98,13 @@ For long reductions, `save_basis_draft` saves partial work without running Lean;
 JSON-pointer pagination. A context-reset checkpoint names the newest draft and
 last machine-checked candidate separately. Saving does not make a proof complete.
 
+Finish and select the complete natural-language route before new Lean proof
+work, including imported proof rewrites. Use `prepare_basis_graph` with
+`prove:false` for selection only. The ordinary preparation/submission path
+records the same route before dispatching workers. Existing declarations and
+unchanged source checks remain available during planning. Later route changes
+need selection again; they do not erase independent checked work.
+
 ## Early statement and use review
 
 Only a submitted, machine-checked basis enters the separate basis reviewer role.

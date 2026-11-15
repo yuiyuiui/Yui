@@ -129,6 +129,27 @@ class ArtifactProtocolTests(unittest.TestCase):
             self.assertEqual(len(c.progress()['remaining']),len(c.required)-1)
         finally:shutil.rmtree(stage.work)
 
+    def test_located_subjudgment_uses_existing_tools_and_cannot_complete_the_parent(self):
+        c=self.contract(count=1)
+        stage=ArtifactStage(self.root/'parts','Synthetic review.',phase='audit-a-global',library=False,validator=c)
+        try:
+            pointer=c.required[0]
+            args={'pointer':pointer,'part':'premise transition 1','coverage':'assessed','judgment':row()}
+            schema=next(t for t in stage.tools if t['name']=='record_review_item')['inputSchema']
+            p.validate(args,schema)
+            result=stage.dispatch('record_review_item',args)
+            self.assertFalse(result['stage_complete'])
+            self.assertEqual(c.items[pointer]['coverage'],'unread')
+            saved=stage.dispatch('read_review_progress',{'pointer':pointer,'part':'premise transition 1'})
+            self.assertEqual(saved['item']['judgment'],row())
+            stage.dispatch('record_review_item',{'pointer':pointer,'part':'read only','coverage':'read','judgment':None})
+            self.assertEqual(c.progress()['part_count'],2)
+            self.assertEqual(len(c.progress(limit=1)['parts']),1)
+            self.assertEqual(c.progress(limit=1)['next_offset'],1)
+            incomplete=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,'summary':{'findings':[]}}})
+            self.assertFalse(incomplete['accepted']);self.assertIsNone(stage.accepted)
+        finally:shutil.rmtree(stage.work)
+
     def test_full_and_selective_global_fields_come_from_selected_scopes(self):
         for index,(count,selective) in enumerate([(0,True),(1,True),(7,False)]):
             root=self.root/str(index);shape=global_case(root,count,selective)

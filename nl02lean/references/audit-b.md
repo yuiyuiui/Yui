@@ -156,8 +156,10 @@ cold whole-workflow success or measured acceleration. Changing proofs or source
 requires the appropriate new checks, rather than this review-only path.
 
 `audit_b.py prepare/build/check` binds the source, accepted A, contract, plan,
-proofs, tool versions and environment hashes. Build compiles standalone
-`Proof.lean` before adding inspection. It checks E/P against their declared
+proofs, tool versions and environment hashes. Build compiles the stable
+`Proof.lean` source and its bound expected expressions into a case-owned module
+once. Native level discovery and export happen in that same compilation.
+A small import wrapper then inspects E/P against their declared
 encoded types, modulo definitional equality and bijective universe renaming.
 It does not prove equivalence between natural-language text and Lean.
 Distinct universes must not be collapsed; changed types or hypotheses must not
@@ -168,6 +170,29 @@ local axiom/opaque substitute or undeclared foundation may be introduced.
 Local bodies still compile against their own task inputs and the pinned
 library; every required producer must exist. Assembly, inspection and semantic
 review have separate recorded outcomes.
+
+Compiled modules bind exact source, toolchain, library manifests, native options
+and every compiler output companion. Changed, corrupt, timed-out or incomplete
+entries cannot be reused. Imported generated modules remain project-owned for
+full dependency and axiom traversal. Final basis closure uses a small wrapper
+when its original scope can be replayed safely; private/local contexts retain a
+complete native source check. Delivered `Proof.lean` remains self-contained and
+can rebuild without this private cache.
+
+The inspector writes one complete `yui-kernel-inspection-2` artifact, retained as
+`elaborated.json`. Small compiler records bind its exact bytes. The inspector
+emits a completion marker to stdout; ordinary compiler diagnostics remain.
+Missing, changed or incomplete evidence cannot pass. Raw output from a timed-out
+or invalid inspection is retained once as `incomplete-inspection.json`, marked
+diagnostic-only; it cannot supply accepted signatures or closure evidence.
+All declarations retain ownership, direct dependencies, universes and transitive
+axioms. Full type/binder views are retained for checked endpoints, active instances and
+project axioms, opaque declarations and datatype interfaces. Other dependencies
+avoid redundant type expansion. Shared axiom sets are computed once across the
+local graph, including cycles; imported boundaries use Lean's native collector.
+Instance flags describe the inspected environment. Expected expressions are
+compiled in the original source context before import, so local instance,
+notation or private-name resolution cannot change a frozen signature.
 
 Use a current version-2 receipt. Start a new bound audit when policy, source,
 code or evidence changes. Pending templates

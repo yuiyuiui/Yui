@@ -13,7 +13,7 @@ from proof_obligations import parallel, private_proof
 ITEM = p.obj({'id':basis_graph.BASIS,'statement':p.TEXT,'consumers':p.array(
     p.obj({'id':p.TEXT,'required_use':p.TEXT}),minItems=1)})
 FRONTIER = p.obj({'obligations':p.array(ITEM,minItems=1)})
-PLAN = p.obj({'candidate':{'type':'integer','minimum':1}})
+PLAN = p.obj({'candidate':{'type':'integer','minimum':1},'prove':{'type':'boolean'}},required=['candidate'])
 RESULT = p.obj({'route':{'enum':['mathlib','public-library','derivation','open']},'statement':p.TEXT,
     'argument':p.TEXT,'source':p.TEXT,'consumer_uses':p.array(p.obj({'id':p.TEXT,'application':p.TEXT})),
     'evidence':p.array(p.obj({'path':p.TEXT,'sha256':p.TEXT}))})
@@ -110,6 +110,49 @@ def check_types(stage,candidate):
     write(saved,bind(attempt/'check.json'))
 
 
+def route_path(validator,candidate):
+    from basis_preapproval import plan_identity
+    return validator.out/'routes'/plan_identity(basis_graph.optimize(candidate))/'route.json'
+
+
+def require_selected_route(validator,candidate):
+    """Ordering evidence only: an exact complete NL route precedes new proof work."""
+    file=route_path(validator,candidate)
+    if not file.is_file() or file.is_symlink():
+        raise ValueError('Save and select the complete natural-language route before writing Lean proofs; use prepare_basis_graph with prove=false')
+    value=ir.load(file)
+    from basis_preapproval import plan_identity
+    if value.get('plan_identity')!=plan_identity(basis_graph.optimize(candidate)):raise ValueError('Changed natural-language route')
+    verify_bindings([value['candidate'],value['inputs'],*value['evidence']])
+    return bind(file)
+
+
+def guard_proofs(validator,candidate):
+    if validator.owner_stage is None:return
+    proofs={r['id']:r['lean']['proof'] for r in candidate.get('dependencies',[])
+            if isinstance(r,dict) and isinstance(r.get('lean'),dict) and r['lean'].get('proof') is not None}
+    if not proofs:return
+    try:require_selected_route(validator,candidate)
+    except ValueError:
+        prior=validator.out/'inputs/prior-basis.json'
+        existing={r['id']:r['lean']['proof'] for r in ir.load(prior)['dependencies']} if prior.is_file() else {}
+        if any(existing.get(key)!=proof for key,proof in proofs.items()):raise
+
+
+def select_route(stage,candidate,shape,*,number=None):
+    import basis
+    from basis_preapproval import plan_identity
+    basis.validate(shape,stage.validator.target)
+    evidence=basis.evidence_bindings(shape,stage.validator.out/'inputs',stage.logs)
+    file=route_path(stage.validator,candidate)
+    if file.exists():return require_selected_route(stage.validator,candidate)
+    source=stage.validator.out/'candidates'/f'{number or stage.validator.attempt:04d}'/'basis.json'
+    write(file,{'version':'yui-basis-route-1','plan_identity':plan_identity(basis_graph.optimize(candidate)),
+        'candidate':bind(source),'inputs':bind(stage.validator.out/'inputs/inputs.json'),'evidence':evidence,
+        'scope':'Complete selected NL route saved before proof work; no mathematical acceptance.'})
+    return bind(file)
+
+
 def prepare(stage,args):
     import basis
     from copy import deepcopy
@@ -118,13 +161,16 @@ def prepare(stage,args):
     if n not in stage.validator.drafts:
         raise ValueError('Save the proposed complete route before dispatch')
     candidate=basis_graph.optimize(stage.validator.drafts[n])
+    guard_proofs(stage.validator,candidate)
     pending=[r for r in candidate['dependencies'] if r['category']!=4 and r['lean']['proof'] is None]
     # Validate the complete graph, names, source paths and typed interfaces before paying workers.
     shape=deepcopy(candidate)
     for row in shape['dependencies']:
         if row['category']!=4 and row['lean']['proof'] is None:row['lean']['proof']='trivial'
     rows,_=basis.validate(shape,stage.validator.target)
-    basis.evidence_bindings(shape,stage.validator.out/'inputs',stage.logs)
+    route=select_route(stage,candidate,shape,number=n)
+    if args.get('prove') is False:
+        return {'candidate':n,'route_ready':True,'route':route,'proof_workers_started':False,'stage_complete':False}
     if pending:check_types(stage,candidate)
     if pending and any(r['category']==4 for r in candidate['dependencies']):
         import basis_preapproval
@@ -149,6 +195,6 @@ def prepare(stage,args):
     for row,proof in zip(pending,proofs):
         row['lean']['proof']=proof
     new,_=stage.validator.save(candidate)
-    return {'candidate':stage.validator.attempt,'prepared':[r['id'] for r in pending],
+    return {'candidate':stage.validator.attempt,'route_ready':True,'route':route,'proof_workers_started':bool(pending),'prepared':[r['id'] for r in pending],
             'active':[r['id'] for r in new['dependencies']],'stage_complete':False,
             'next':'check_draft or submit_draft with accept_candidate and this candidate number'}

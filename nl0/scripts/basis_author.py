@@ -23,7 +23,7 @@ class BasisStage(ArtifactStage):
         import basis_planning as planning
         for name,description,shape in [
                 ('investigate_basis_frontier','Investigate the remaining independent foundations in parallel. Give each statement and every consumer and required use. Read the returned proposals and select a compatible route.',planning.FRONTIER),
-                ('prepare_basis_graph','Prove the active dependencies of a saved v2 graph. Set lean.proof to null on each selected 1/2/3 for a proof worker. Receives a new saved candidate with checked proof bodies.',planning.PLAN)]:
+                ('prepare_basis_graph','Select the saved COMPLETE natural-language route before writing Lean proofs. Use prove:false to select without workers, or leave prove:true to prove its missing dependencies. New proof bodies are accepted only after route selection.',planning.PLAN)]:
             self.tools.append(pilot.carrier.tool(name,description,shape['properties'],shape['required']))
         self.tool_names={t['name'] for t in self.tools};self.native_tools=list(self.tools)
         self.input_prompt+='''\nUse save_basis_draft for actual partial work and
@@ -44,6 +44,10 @@ concrete step. Only actual located source/math/execution blockers justify stoppi
                 'A saved partial or rejected draft is not a completed basis.']}
 
     def dispatch(self,name,args):
+        if name=='check_imported_lean' and args.get('candidate') is not None:
+            import basis_planning
+            try:basis_planning.require_selected_route(self.validator,self.validator.drafts[self.validator.attempt])
+            except (ValueError,KeyError) as error:return {'accepted':False,'stage_complete':False,'error':str(error)}
         if name=='report_obstacle':
             value=args
             if isinstance(value,dict) and value.get('status')=='TASK_INCOMPLETE':

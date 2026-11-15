@@ -37,8 +37,8 @@ theorem naturalIdentity (n : Nat) : n = n := rfl
         source += (HERE/'scripts/audit_probe.lean').read_text().replace('__AUDIT_CHECKS__', encoded)
         path = cls.work/'output/Signatures.lean'; path.write_text(source)
         cls.native = ir.run_lean(path, cls.work)
-        matches = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})', cls.native['stdout'])
-        cls.rows = {r['id']:r for r in json.loads(matches[-1])['comparisons']} if matches else {}
+        evidence = cls.work/'output/yui-inspection.json'
+        cls.rows = {r['id']:r for r in json.loads(evidence.read_text())['comparisons']} if evidence.exists() else {}
 
     @classmethod
     def tearDownClass(cls):

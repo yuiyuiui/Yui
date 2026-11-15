@@ -35,6 +35,48 @@ def draft():
 
 
 class ReviewProgressTests(unittest.TestCase):
+    def test_native_interruption_restores_only_same_review_parts_and_still_requires_parent_judgment(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);hold=threading.Event()
+            partial={'pointer':'/items/B001','part':'source statement','coverage':'assessed',
+                'judgment':{'verdict':'UNVERIFIED','notes':'Synthetic saved source subjudgment.',
+                            'locations':['/items/B001/statement']}}
+            unfinished={'from_saved_review':True,'summary':{}}
+            def interrupted(f,handler,n,payload):
+                if n==1:
+                    f.code(handler,n,'text(await tools.record_review_item('+json.dumps(partial)+'));'
+                        +'text(await tools.submit_draft('+json.dumps({'artifact':unfinished})+'));')
+                else:
+                    hold.wait(5)
+                    f.code(handler,n,'text(await tools.read_review_progress({}));')
+            with NativeFixture(root/'first',validator=contract(root/'review'),responder=interrupted) as first:
+                first.start();first.wait(lambda:len(first.calls)>=2 and first.stage.validator.part_sequence==1,seconds=15)
+                self.assertIsNone(first.stage.accepted)
+                self.assertEqual(first.stage.validator.progress()['remaining'],['/items/B001'])
+                __import__('execution_state').request_cancel(first.recorder.root);hold.set()
+                first.wait(seconds=10)
+                self.assertEqual(first.outcomes[0][0]['status'],'CANCELLED')
+            first.recorder.done.set()
+            restored=contract(root/'review')
+            def resumed(f,handler,n,payload):
+                code='text(await tools.read_review_progress('+json.dumps({'pointer':partial['pointer'],'part':partial['part']})+'));'
+                code+='text(await tools.submit_draft('+json.dumps({'artifact':unfinished})+'));'
+                code+='text(await tools.record_review_item('+json.dumps({'pointer':'/items/B001','coverage':'assessed',
+                    'judgment':draft()['items']['B001']})+'));'
+                code+='text(await tools.submit_draft('+json.dumps({'artifact':unfinished})+'));'
+                f.code(handler,n,code)
+            with NativeFixture(root/'resumed',validator=restored,responder=resumed) as second:
+                self.assertEqual(restored.progress()['part_count'],1)
+                self.assertEqual(restored.progress()['remaining'],['/items/B001'])
+                second.start();second.wait(seconds=15)
+                self.assertEqual(second.outcomes[0][0]['status'],'ACCEPTED')
+                self.assertEqual(second.stage.accepted['items']['B001']['verdict'],'UNVERIFIED')
+                log=[json.loads(line) for line in (second.stage.logs/'tools.jsonl').read_text().splitlines()]
+                self.assertEqual(log[0]['result']['item']['judgment'],partial['judgment'])
+                self.assertFalse(log[1]['result']['accepted'])
+                self.assertTrue(log[-1]['result']['stage_complete'])
+            second.recorder.done.set()
+
     def test_unchanged_valid_preview_across_all_encodings_stops_without_acceptance(self):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw)

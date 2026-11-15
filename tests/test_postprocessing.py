@@ -63,6 +63,27 @@ class PostprocessingTests(unittest.TestCase):
         frozen={'authority':{'fragment':str(ip)},'contract':str(cp)}
         return mapping.MappingContract(out),value,frozen
 
+    def test_assembly_input_reader_keeps_the_actual_failed_module_and_expected_type_lines(self):
+        import helper_modules
+        out=self.root/'author';candidate=out/'candidates/0001';candidate.mkdir(parents=True)
+        source='import Mathlib\nnamespace AuditBExport\ntheorem P : True := True.intro\nend AuditBExport\n'
+        (candidate/'Proof.lean').write_text(source)
+        work=self.root/'native';(work/'input').mkdir(parents=True);(work/'output').mkdir()
+        checks=[('P','decl:AuditBExport.P','YuiMissingExpectedSymbol',['AuditBExport','P'])]
+        native,link=helper_modules.compile_proof_module(source,checks,candidate,work)
+        self.assertNotEqual(native['exit_code'],0);self.assertIsNone(link['receipt'])
+        mapping.ir.write(out/'feedback/0001.json',{'native_candidate':str(candidate)})
+        stage=mapping.AssemblyStage(out/'stage','Synthetic assembly control.',phase='audit-b-assembly',
+            library=False,validator=SimpleNamespace(out=out,attempt=1))
+        try:
+            page=stage.dispatch('read_assembly_feedback',{'candidate':1,'kind':'assembly_inputs','start':1,'end':250})
+            self.assertIn('YuiMissingExpectedSymbol',page['text'])
+            self.assertNotIn('YuiMissingExpectedSymbol',(candidate/'Proof.lean').read_text())
+            path=Path(link['source']['path']);path.write_text(path.read_text()+'\n-- changed input\n')
+            rejected=stage.dispatch('read_assembly_feedback',{'candidate':1,'kind':'assembly_inputs','start':1,'end':250})
+            self.assertFalse(rejected['accepted'])
+        finally:shutil.rmtree(stage.work)
+
     def test_check_then_identical_submit_reuses_only_unchanged_native_evidence(self):
         validator,value,frozen=self.prepared()
         original=mapping.audit_b.build

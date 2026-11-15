@@ -185,4 +185,7 @@ class ReviewShape:
                 obj({'pointer': literal(key), 'coverage': literal('assessed'), 'judgment': schema}),
                 obj({'pointer': literal(key), 'coverage': {'enum': ['unread', 'read']},
                      'judgment': {'type': 'null'}})])
+        alternatives.append(obj({'pointer':{'type':'string','enum':list(self.rows)},
+            'part':{**TEXT,'maxLength':200},'coverage':{'enum':['unread','read','assessed']},
+            'judgment':nullable(obj({'verdict':VERDICT,'notes':TEXT,'locations':array({},minItems=1)},extra=True))}))
         return {'type':'object',**choice(*alternatives)} if alternatives else obj({}, extra=False)

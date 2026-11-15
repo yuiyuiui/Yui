@@ -174,6 +174,7 @@ class ArtifactStage(pilot.Stage):
             from review_contract import ReviewProgressGuard
             if self.background_review:
                 self.validator.base['background_notes'] = []
+            self.validator.bind_context({'inputs':self.task_inputs,'phase':phase,'prompt':prompt,'model':self.model_selection})
             self.review_guard = ReviewProgressGuard(self.validator)
             self.continuation_prompt = (
                 'Continue this same review. Call read_review_progress for the saved judgments, last review_feedback '
@@ -184,8 +185,9 @@ class ArtifactStage(pilot.Stage):
             self.input_prompt += INSTRUCTIONS+'\nRequired review items: '+json.dumps(list(self.validator.required))
             self.tools += [pilot.carrier.tool('record_review_item','Save an actual own-stage judgment and coverage; does not finish review.',
                 {'pointer':{'type':'string'},'coverage':{'type':'string','enum':['unread','read','assessed']},
-                 'judgment':self.validator.judgment_schema},['pointer','coverage','judgment']),
-                pilot.carrier.tool('read_review_progress','Read saved judgments, remaining work and the latest review feedback.',{},[]),
+                 'judgment':self.validator.judgment_schema,'part':{'type':'string','maxLength':200}},['pointer','coverage','judgment']),
+                pilot.carrier.tool('read_review_progress','Read saved judgments, remaining work and bounded subjudgment indexes; pointer+part reads one actual subjudgment.',
+                    {'pointer':{'type':'string'},'part':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'}},[]),
                 pilot.carrier.tool('submit_review_blocker','Finish an explicitly incomplete review after a located real defect. Does not grant acceptance.',
                     {'finding':self.validator.blocker_schema()},['finding'])]
             if self.validator.shape:
@@ -480,6 +482,8 @@ class ArtifactStage(pilot.Stage):
                 raise ValueError('Stage is already complete')
             if name=='check_imported_lean':
                 import lean_imports
+                if self.mode=='basis-frontier' and args.get('candidate') is not None:
+                    raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
                 result=lean_imports.check(self,allow_publish=self.imported_lean_publication,**args)
             elif name in {'read_lean_library','search_lean_library'}:
                 import lean_libraries
@@ -547,9 +551,9 @@ class ArtifactStage(pilot.Stage):
                         if isinstance(pointer,str) and pointer in self.validator.items:
                             raise ValueError(f'{pointer}: {error}') from error
                         raise
-                result=self.validator.record(args['pointer'],args['coverage'],args.get('judgment'))
+                result=self.validator.record(args['pointer'],args['coverage'],args.get('judgment'),part=args.get('part'))
             elif name == 'read_review_progress':
-                result=self.validator.progress()
+                result=self.validator.progress(**args)
                 if self.background_review:result['background_notes']=deepcopy(self.background_notes)
             elif name == 'submit_review_blocker':
                 self.accepted=self.validator.blocker(args['finding'])

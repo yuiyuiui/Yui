@@ -77,15 +77,15 @@ reviews until one passes; an evidence-backed disagreement is a disclosed dispute
 '''
 
 
-def comparison_schema():
+def comparison_schema(*, source_documents=None):
     def side(names):
         return protocol.obj({'document':{'enum':names},'pointer':protocol.STRING,'quote':protocol.TEXT})
-    return protocol.obj({'source':side(['spec.json','nl0.json','background-supplement.json']),
+    return protocol.obj({'source':side(source_documents or ['spec.json','nl0.json','background-supplement.json']),
                          'formal':side(['contract.json','plan.json']),'difference':protocol.TEXT})
 
 
-def validate_comparison(comparison,docs):
-    protocol.validate(comparison,comparison_schema(),'/comparison')
+def validate_comparison(comparison,docs, *, source_documents=None):
+    protocol.validate(comparison,comparison_schema(source_documents=source_documents),'/comparison')
     import audit_b
     for side,allowed in [('source',{'spec.json','nl0.json','background-supplement.json'}),('formal',{'contract.json','plan.json'})]:
         row=comparison[side]

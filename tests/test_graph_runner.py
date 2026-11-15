@@ -19,6 +19,41 @@ class PackagingTests(unittest.TestCase):
 
     def tearDown(self): shutil.rmtree(self.temp)
 
+    def test_body_repair_reuses_only_identical_case_owned_native_checks(self):
+        import concurrency,execution_state
+        problem=self.temp/'problem.md';problem.write_text('Synthetic local repair cache test.')
+        job=harness_support.direct_controller_job(problem,track='full',profiles=harness_support.PROFILES,output=self.temp/'owned')
+        recorder=execution_state.Recorder(Path(job['root']),'synthetic',concurrency.resolve(1))
+        self.addCleanup(recorder.done.set)
+        with execution_state.activate(recorder,'T001'),patch.object(ir,'run_lean',wraps=ir.run_lean) as native:
+            first=ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
+            repeat=ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
+            self.assertEqual(native.call_count,1);self.assertTrue(repeat['native_reused'])
+            self.assertEqual(repeat['axioms'],first['axioms'])
+            ir.check(self.cpath,self.plan,{'T002':SUP},only='T002')
+            failed=ir.check(self.cpath,self.plan,{'T001':'exact True.intro'},only='T001')
+            self.assertNotEqual(failed['exit_code'],0)
+            ir.check(self.cpath,self.plan,{'T002':SUP},only='T002')
+            self.assertEqual(native.call_count,3)
+            file=Path(repeat['reused_native']['path']);file.write_text('{}')
+            with self.assertRaises(ValueError):ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
+
+    def test_private_proof_constructor_connects_diagnosis_to_the_actual_owner_path(self):
+        import proof_obligations,proof_diagnosis,model_pilot,concurrency
+        observed=[]
+        class StopBeforeModel(BaseException):pass
+        def execute(stage):
+            self.assertIsNotNone(stage.diagnose_obstruction)
+            with patch.object(proof_diagnosis,'run_private',return_value={'route':'UNRESOLVED'}) as diagnostic:
+                self.assertEqual(stage.diagnose_obstruction(stage,{'located':'actual'},stage.logs/'diagnostic'),{'route':'UNRESOLVED'})
+                observed.append(diagnostic.call_args.args[1])
+            stage.release_resources('USER_CANCELLED')
+            raise StopBeforeModel()
+        with patch.object(model_pilot.Stage,'execute',execute),self.assertRaises(StopBeforeModel):
+            proof_obligations.private_proof(self.temp/'private',identity='B001',header='import Mathlib\n',parameters=[],
+                premises=[],target='True',statement='Truth.',route='Use True.intro.',budget=concurrency.Budget(concurrency.resolve(1)))
+        self.assertEqual(observed,[{'located':'actual'}])
+
     def test_packaged_graph_keeps_exact_input_binding(self):
         copied, plan = run_graph.package(self.cpath, self.ppath, self.temp/'run')
         self.assertEqual(ir.digest(copied), ir.digest(self.cpath))

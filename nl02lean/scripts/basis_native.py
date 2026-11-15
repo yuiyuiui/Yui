@@ -14,6 +14,7 @@ import tempfile
 import audit_b
 import ir
 import lean_names
+import inspection_evidence
 from controller_common import bind, write
 
 
@@ -37,7 +38,7 @@ def type_probes(header, rows):
     return source + '\nend YuiBasis\n', checks
 
 
-def inspector(checks, roots):
+def inspector(checks, roots, *, owned_modules=()):
     rows = [(key, ('value:' if name.startswith(TYPE_PREFIX) else 'decl:')+name,
              typ, lean_names.parts(name)) for key, name, typ in checks]
     array = '#['+', '.join('('+', '.join(
@@ -45,7 +46,27 @@ def inspector(checks, roots):
         else json.dumps(value, ensure_ascii=False) for value in row)+')' for row in rows)+']'
     template = (audit_b.HERE/'scripts/audit_probe.lean').read_text()
     root_array = '#['+', '.join('`'+name for name in roots)+']'
-    return template.replace('__AUDIT_CHECKS__', array).replace('#[`AuditBExport.P]', root_array)
+    return template.replace('#[`AuditBExport.P]', root_array).replace(
+        '#[] -- YUI_OWNED_MODULES', '#['+', '.join(map(json.dumps,owned_modules))+'] -- YUI_OWNED_MODULES').replace(
+        '__AUDIT_CHECKS__', array)
+
+
+def inspection_source(source, checks, roots, prefix=None):
+    """A small final wrapper only when the original scope can be replayed safely."""
+    if prefix is None:return source+'\n'+inspector(checks, roots), None
+    import helper_modules
+    from controller_common import verify_bindings
+    verify_bindings(list(prefix.values()))
+    c=ir.contract(prefix['contract']['path'])
+    replay=helper_modules.replay(c['header'])
+    ir.need(replay is not None, 'Final module context cannot be replayed safely; use the full native source')
+    conditional=Path(prefix['source']['path']).read_text()
+    ir.need(source.startswith(conditional), 'Final source does not extend the exact checked conditional proof')
+    directory=Path(prefix['source']['path']).parent
+    ir.need(bind(directory/'compiled-module.json')==prefix['module'], 'Changed conditional module selection')
+    module=helper_modules.bound_proof_module(directory)
+    wrapper='import '+module['name']+'\n'+replay+'\n'+source[len(conditional):]
+    return wrapper+'\n'+inspector(checks, roots, owned_modules=[module['name']]), module
 
 
 def errors(native, evidence, checks, roots):
@@ -63,17 +84,17 @@ def errors(native, evidence, checks, roots):
         problems.append('DEPENDENCY_INSPECTION_INCOMPLETE')
     for row in declarations:
         if set(row.get('axioms', []))-audit_b.AXIOMS:problems.append('UNPERMITTED_AXIOM:'+row['name'])
-        if not row.get('imported') and row.get('kind') in {'axiom', 'opaque'}:
+        if inspection_evidence.project_owned(row) and row.get('kind') in {'axiom', 'opaque'}:
             problems.append('UNPROVED_PROJECT_DECLARATION:'+row['name'])
     return sorted(set(problems))
 
 
-def check(source, checks, roots, out):
+def check(source, checks, roots, out, *, compiled_prefix=None):
     """Retain source/compiler/inspection evidence; always release native scratch."""
     out = Path(out);out.mkdir(parents=True, exist_ok=False)
     environment = audit_b.environment()
     (out/'Proof.lean').write_text(source)
-    inspected = source+'\n'+inspector(checks, roots)
+    inspected, module = inspection_source(source, checks, roots, compiled_prefix)
     (out/'Inspection.lean').write_text(inspected)
     work = Path(tempfile.mkdtemp(prefix='yui-basis-native-')).resolve()
     from run_resources import register_workspace
@@ -83,8 +104,12 @@ def check(source, checks, roots, out):
         raise
     try:
         (work/'input').mkdir();(work/'output').mkdir()
+        if module:
+            receipt=Path(module['receipt']['path'])
+            for name in ir.load(receipt)['artifacts']:shutil.copyfile(receipt.parent/name,work/'output'/name)
         file = work/'output/Inspection.lean';file.write_text(inspected)
-        native = ir.run_lean(file, work)
+        native = ir.run_lean(file, work, **({'extra':[work/'output']} if module else {}))
+        evidence = inspection_evidence.capture(native, work, out)
     except BaseException as error:
         # Do not delete ownership evidence when a native call cannot confirm its
         # process shutdown. The case/test cleanup boundary can reclaim it later.
@@ -93,14 +118,13 @@ def check(source, checks, roots, out):
         raise
     else:shutil.rmtree(work)
     write(out/'compiler.json', native)
-    found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})', native['stdout'])
-    evidence = json.loads(found[-1]) if found else None
-    write(out/'elaborated.json', evidence)
     problems = errors(native, evidence, checks, roots)
-    result = {'version':'yui-basis-native-1', 'passed':not problems, 'errors':problems,
+    result = {'version':'yui-basis-native-2', 'passed':not problems, 'errors':problems,
         'timeout_diagnostic_model_called':bool(native.get('timeout_reviews')),
         'checks':checks, 'roots':roots, 'environment':environment,
-        'bindings':[bind(out/name) for name in ('Proof.lean','Inspection.lean','compiler.json','elaborated.json')],
+        'compiled_prefix':compiled_prefix,
+        'bindings':[bind(out/name) for name in ('Proof.lean','Inspection.lean','compiler.json','elaborated.json',
+            *(['incomplete-inspection.json'] if (out/'incomplete-inspection.json').exists() else []))],
         'scope':'Native types, signatures and proof trust only; no mathematical source review.'}
     write(out/'check.json', result)
     return result
@@ -108,13 +132,14 @@ def check(source, checks, roots, out):
 
 def verify(path):
     path = Path(path);value = ir.load(path)
-    ir.need(value['version']=='yui-basis-native-1', 'Unknown basis native receipt')
+    ir.need(value['version']=='yui-basis-native-2', 'Unknown basis native receipt')
     from controller_common import verify_bindings
     verify_bindings(value['bindings'])
     ir.need(value['environment']==audit_b.environment(), 'Basis pinned environment changed')
-    native = ir.load(path.parent/'compiler.json');evidence = ir.load(path.parent/'elaborated.json')
-    found = re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})', native['stdout'])
-    ir.need(found and json.loads(found[-1])==evidence, 'Basis native output/evidence mismatch')
+    native = ir.load(path.parent/'compiler.json')
+    evidence = inspection_evidence.verify(native, path.parent)
+    inspected,_=inspection_source((path.parent/'Proof.lean').read_text(),value['checks'],value['roots'],value['compiled_prefix'])
+    ir.need((path.parent/'Inspection.lean').read_text()==inspected, 'Changed actual native inspection source')
     expected = errors(native, evidence, value['checks'], value['roots'])
     ir.need(value['passed'] is True and not expected and value['errors']==expected, 'Basis native acceptance failed')
     return value

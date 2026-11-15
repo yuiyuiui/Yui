@@ -138,3 +138,16 @@ actual retries/waits and all reported usage. Selected proof rounds use bound
 `proof-selection.json`; retained earlier failures are not free or new successes.
 Missing usage or actual service tier remains unknown; cached/reasoning tokens are
 subsets. Owner monitoring is bounded read-only observation and supplies no hints.
+
+Within an owned case, an identical local Lean program may reuse its bound
+successful native check under the same compiler, dependencies and explicit
+libraries. A changed body, statement or context does not hit that receipt.
+Failures and incomplete checks never populate it. Reuse preserves actual cost
+history and cancellation; the final whole-proof closure still runs. A changed
+T statement follows the existing affected-consumer calculation.
+
+Private foundation/helper workers use the same located diagnostic boundary.
+Before a public NL0 interface exists, the diagnostic reads their actual
+`source.json` obligation and declared sources. A genuine private statement or
+context defect returns to its owning author with completed siblings retained.
+It does not authorize a global rewrite or a protected H/E/P change.

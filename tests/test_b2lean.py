@@ -66,7 +66,27 @@ class BasisDischargeTests(unittest.TestCase):
         self.assertTrue(self.result['closure']['kernel_closed'])
         self.assertEqual(self.result['concurrency'],self.intermediate['concurrency'])
         self.assertEqual(self.result['proof_phase_wall_seconds'],self.intermediate['proof_phase_wall_seconds'])
+        self.assertTrue((self.out/'Inspection.lean').read_text().startswith('import YuiProof'))
+        self.assertLess((self.out/'Inspection.lean').stat().st_size,(self.out/'Proof.lean').stat().st_size+12000)
+        self.assertTrue(ir.load(self.out/'check.json')['compiled_prefix'])
+        rows={r['name']:r for r in native['dependencies']['declarations']}
+        self.assertTrue(rows['AuditBExport.P']['imported'])
+        self.assertTrue(rows['AuditBExport.P']['project_owned'])
+        self.assertIn('Translation.T001',rows)
         b2lean.validate_receipt(self.out)
+
+    def test_complete_delivered_source_rebuilds_without_private_compiled_cache(self):
+        source=(self.out/'Proof.lean').read_text()
+        original=ir.load(self.out/'check.json')
+        checked=basis_native.check(source,original['checks'],original['roots'],self.root/'portable-rebuild')
+        self.assertTrue(checked['passed'],checked)
+        self.assertIsNone(checked['compiled_prefix'])
+
+    def test_private_scope_uses_the_conservative_complete_source_path(self):
+        file=self.root/'private-contract.json';value=ir.contract(workflow.bound(self.workflow)['contract'])
+        value['header']+='private def yuiScopeFixture : Nat := 1\n';write(file,value)
+        with patch.object(ir,'contract',return_value=value):
+            self.assertIsNone(b2lean.compiled_prefix({'contract':str(file)},self.workflow/'audit-b/Proof.lean'))
 
     def test_real_final_closure_uses_thirty_minutes_on_its_first_native_check(self):
         actual=pilot_common._run_lean;limits=[]

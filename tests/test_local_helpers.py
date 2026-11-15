@@ -5,11 +5,13 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import assembly
 import ir
 import local_helpers
 import model_pilot
+import helper_modules
 from lean_fixtures import shared_fixture, LIFT, SUP
 
 
@@ -147,6 +149,104 @@ class LocalHelperTests(unittest.TestCase):
         packet=ir.local_packet(self.cp,self.plan,'T001')
         self.assertEqual([r['id'] for r in packet['inputs']],['H001'])
         self.assertEqual(ir.load(self.stage.logs/'local-helpers.json'),self.proof['helpers'])
+
+
+class CompiledProofTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
+        self.out=self.root/'audit';self.out.mkdir()
+        self.work=self.root/'native';(self.work/'input').mkdir(parents=True);(self.work/'output').mkdir()
+        self.source='import Mathlib\nprivate def yuiFixtureSecret : Nat := 2\nnamespace AuditBExport\ntheorem P : yuiFixtureSecret = yuiFixtureSecret := rfl\nend AuditBExport\n'
+        self.checks=[('P','decl:AuditBExport.P','yuiFixtureSecret = yuiFixtureSecret',['AuditBExport','P'])]
+
+    def tearDown(self):self.temp.cleanup()
+
+    def test_cold_hot_exact_source_and_companion_corruption(self):
+        with patch.object(ir,'run_lean',wraps=ir.run_lean) as native:
+            first,link=helper_modules.compile_proof_module(self.source,self.checks,self.out,self.work)
+            self.assertEqual(first['exit_code'],0,first)
+            self.assertFalse(link['reused'])
+            again,reused=helper_modules.compile_proof_module(self.source,self.checks,self.out,self.work)
+            self.assertEqual(native.call_count,1)
+            self.assertTrue(reused['reused']);self.assertTrue(ir.native_succeeded(again))
+            changed=self.source+'-- exact source change\n'
+            third,new=helper_modules.compile_proof_module(changed,self.checks,self.out,self.work)
+            self.assertEqual(third['exit_code'],0,third)
+            self.assertNotEqual(new['name'],link['name']);self.assertEqual(native.call_count,2)
+        path=Path(reused['receipt']['path']);row=ir.load(path)
+        for filename in row['artifacts']:
+            file=path.parent/filename;raw=file.read_bytes()
+            try:
+                file.write_bytes(raw+b'corrupt')
+                with self.subTest(filename=filename),self.assertRaisesRegex(ValueError,'artifact'):
+                    helper_modules.verify_proof_module(path,self.source,self.checks)
+            finally:file.write_bytes(raw)
+        # Expected signatures and selected native options also own the key.
+        name=helper_modules.proof_module_spec(self.source,self.checks)[0]
+        changed_checks=[('P','decl:AuditBExport.P','True',['AuditBExport','P'])]
+        self.assertNotEqual(name,helper_modules.proof_module_spec(self.source,changed_checks)[0])
+        with patch('runtime_config.native_heartbeats',return_value=123):
+            self.assertNotEqual(name,helper_modules.proof_module_spec(self.source,self.checks)[0])
+
+    def test_imported_cached_project_axiom_is_still_rejected_and_private_context_is_preserved(self):
+        import inspection_evidence,basis_native
+        for index,source in enumerate((self.source,
+                'import Mathlib\naxiom fixtureHole : True\nnamespace AuditBExport\ntheorem P : True := fixtureHole\nend AuditBExport\n',
+                'import Mathlib\nclass YuiScopeClass where\n  holds : Prop\n'
+                'def yuiScopeValue : YuiScopeClass := ⟨True⟩\nattribute [local instance] yuiScopeValue\n'
+                'namespace AuditBExport\ntheorem P : YuiScopeClass.holds := True.intro\nend AuditBExport\n')):
+            out=self.root/str(index);out.mkdir()
+            checks=self.checks if index==0 else [('P','decl:AuditBExport.P',
+                'True' if index==1 else 'YuiScopeClass.holds',['AuditBExport','P'])]
+            native,link=helper_modules.compile_proof_module(source,checks,out,self.work)
+            self.assertEqual(native['exit_code'],0,native)
+            template=(harness_support.LEAN/'scripts/audit_probe.lean').read_text()
+            rows=link['checks']
+            import json
+            array='#['+', '.join('('+', '.join('#['+', '.join(json.dumps(p) for p in x)+']'
+                if isinstance(x,list) else json.dumps(x) for x in row)+')' for row in rows)+']'
+            probe=template.replace('__AUDIT_CHECKS__',array).replace('#[] -- YUI_OWNED_MODULES',
+                '#['+json.dumps(link['name'])+'] -- YUI_OWNED_MODULES')
+            file=self.work/'output/Inspect.lean';file.write_text('import '+link['name']+'\n'+probe)
+            inspected=ir.run_lean(file,self.work,extra=[self.work/'output'])
+            self.assertEqual(inspected['exit_code'],0,inspected)
+            evidence=inspection_evidence.capture(inspected,self.work,out)
+            self.assertTrue(evidence['comparisons'][0]['definitionally_equal'])
+            root=next(r for r in evidence['dependencies']['declarations'] if r['name']=='AuditBExport.P')
+            self.assertTrue(root['imported']);self.assertTrue(root['project_owned'])
+            problems=basis_native.errors(inspected,evidence,[('P','AuditBExport.P','True')],['AuditBExport.P'])
+            if index==1:
+                self.assertIn('UNPROVED_PROJECT_DECLARATION:fixtureHole',problems)
+                self.assertIn('UNPERMITTED_AXIOM:AuditBExport.P',problems)
+            else:self.assertEqual(problems,[])
+            if index==2:
+                value=next(r for r in evidence['dependencies']['declarations'] if r['name']=='yuiScopeValue')
+                self.assertFalse(value['instance_declaration'])
+                self.assertTrue(value['project_owned'])
+
+    def test_partial_zero_exit_or_timeout_never_publishes_a_compiled_cache(self):
+        for code in (0,124):
+            out=self.root/f'timeout-{code}';out.mkdir()
+            native={'exit_code':code,'timed_out':True,'wall_seconds':0,'stdout':'','stderr':''}
+            with patch.object(ir,'run_lean',return_value=native):
+                _,link=helper_modules.compile_proof_module(self.source,self.checks,out,self.work)
+            self.assertIsNone(link['receipt'])
+            self.assertFalse(list(out.glob('compiled-proofs/*/module.json')))
+
+    def test_frozen_runtime_paths_keep_the_same_identity_but_changed_tool_bytes_do_not(self):
+        import pilot_common
+        modules=(helper_modules,ir,pilot_common)
+        copied={}
+        for module in modules:
+            file=self.root/'frozen'/Path(module.__file__).name;file.parent.mkdir(exist_ok=True)
+            shutil.copyfile(module.__file__,file);copied[module]=file
+        expected=helper_modules.proof_module_spec(self.source,self.checks)[0]
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            for module,file in copied.items():stack.enter_context(patch.object(module,'__file__',str(file)))
+            self.assertEqual(helper_modules.proof_module_spec(self.source,self.checks)[0],expected)
+            file=copied[ir];file.write_text(file.read_text()+'\n# Changed native generator bytes\n')
+            self.assertNotEqual(helper_modules.proof_module_spec(self.source,self.checks)[0],expected)
 
 
 if __name__=='__main__':unittest.main()

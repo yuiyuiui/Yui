@@ -9,6 +9,18 @@ Give the Yui operator a proof, its complete target and one of three goals. Use `
 
 The unconditional entry freezes the reviewed foundations and supplies a structured route seed. The NL0 global author can keep that seed or revise intermediate statements and edges. Local authors work against one version. A located graph defect goes back to the NL0 global author, who can publish a replacement under the same foundations. Independent Audit A seals the resulting complete graph for delivery or Lean. The native case adapter invokes the mathematical workers and checkers in the pinned Yui runtime. Their prompts, native check policies, compatible cached libraries and recovery histories remain with those workers.
 
+Before any new foundation proof bodies, the basis author saves and selects the
+complete natural-language source-to-target route using the existing preparation
+tool. Private proof diagnoses return located defects to that owner while retaining
+independent checked work. Reviewers may save actual subjudgments in their own
+review; these neither complete a parent item nor become a new independent review.
+
+Stable proof compilation uses case-owned modules with exact source/environment
+bindings. Small wrappers still inspect all project dependencies and axioms,
+including imported generated modules. Unsafe scope replay falls back to full
+source checking. Delivered source rebuilds without the cache. One complete native
+inspection artifact is retained; compiler records reference its exact bytes.
+
 The local author uses `report_graph_issue` for a missing dependency, a wrong inference interface or an incorrect intermediate statement. The report identifies the inference and the affected field. A true mathematical obstacle keeps its own outcome. A protected foundation defect uses `report_basis_defect`. Global Audit A examines the overall proof structure and sources, and local Audit A checks each inference. A changed graph must be reviewed in its new context. An identical rejected graph pauses immediately. The definition bounds distinct global repair rounds. A first-pass request records its first nonpass.
 
 For a basis entry the global author receives a numbered graph. Each directly used foundation has one working M/E label, shared by all its consumers. Graph repairs can rename that label by B identity before the Audit A seal. The Lean translator and final exporter use the same selected revision. An author cites a staged document by its declared input ID. The receiving validator binds the actual local bytes.

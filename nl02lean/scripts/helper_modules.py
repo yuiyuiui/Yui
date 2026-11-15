@@ -12,6 +12,128 @@ import runtime_config
 
 VERSION = 'yui-helper-module-1'
 ALLOWED = {'propext', 'Classical.choice', 'Quot.sound'}
+PROOF_MODULE_VERSION = 'yui-compiled-proof-1'
+
+
+def proof_module_spec(source, checks):
+    """Keep expected expressions in their original private/notation context."""
+    import lean_libraries
+    import lean_environment
+    import pilot_common
+    namespace = 'YuiExpected' + local_helpers.digest([source, checks])
+    body = source + '\nnamespace '+namespace+'\n'
+    converted = []
+    for index, (key, selector, expected, parts) in enumerate(checks):
+        name = namespace+'.item_'+str(index)
+        body += 'def item_'+str(index)+' : Prop := ('+expected+')\n'
+        converted.append((key, selector, 'value:'+name, parts))
+    body += 'end '+namespace+'\n'
+    identity = {'schema':PROOF_MODULE_VERSION, 'source_sha256':digest(source),
+        'compiled_source_sha256':digest(body), 'logical_checks':checks,
+        'environment':lean_environment.identity(runtime_config.require_environment()),
+        'dependencies':runtime_config.load_lock()['dependencies'], 'libraries':lean_libraries.identity(),
+        'tools':{Path(p).name:ir.digest(p) for p in
+            (__file__, ir.__file__, pilot_common.__file__)},
+        'options':{'jobs':1, 'max_heartbeats':runtime_config.native_heartbeats()}}
+    name = 'YuiProof'+local_helpers.digest(identity)
+    return name, body, converted, identity
+
+
+def verify_proof_module(path, source, checks):
+    path = Path(path)
+    row = ir.load(path)
+    name, body, converted, identity = proof_module_spec(source, checks)
+    ir.need(row.get('identity') == json.loads(json.dumps(identity)) and row.get('name') == name
+            and row.get('compiled_only') is True and ir.native_succeeded(row.get('native', {})),
+            'Changed or incomplete compiled proof module')
+    ir.need(row.get('checks') == json.loads(json.dumps(converted)), 'Changed compiled signature bindings')
+    required = {name+'.lean', name+'.olean'}
+    ir.need(required <= row.get('artifacts', {}).keys(), 'Incomplete compiled proof output')
+    for filename, sha in row['artifacts'].items():
+        ir.need(filename in {name+suffix for suffix in
+            ('.lean', '.olean', '.olean.private', '.olean.server', '.ilean')}, 'Unexpected compiled module file')
+        file = path.parent/filename
+        ir.need(file.is_file() and not file.is_symlink() and ir.digest(file) == sha,
+                'Changed compiled proof artifact: '+filename)
+    ir.need((path.parent/(name+'.lean')).read_text() == body, 'Compiled module no longer matches its exact source')
+    return row
+
+
+def compile_proof_module(source, checks, out, work):
+    """Case-owned reuse only. Compilation alone never grants Audit B acceptance."""
+    import shutil
+    from execution_state import current
+    from controller_common import bind, write
+    recorder, task = current()
+    if recorder:recorder.check(task)
+    name, body, converted, identity = proof_module_spec(source, checks)
+    root = recorder.root if recorder else Path(out)
+    cache = root/'compiled-proofs'/name
+    cache.mkdir(parents=True, exist_ok=True)
+    ir.need(not cache.is_symlink(), 'Compiled proof cache cannot be a symbolic link')
+    receipt = cache/'module.json'
+    target = Path(work)/'output'
+    target.mkdir(parents=True, exist_ok=True)
+    with (cache/'compile.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        reused = receipt.is_file()
+        cache_source=cache/(name+'.lean')
+        if cache_source.exists():
+            ir.need(not cache_source.is_symlink() and cache_source.read_text()==body, 'Changed compiled proof input')
+        else:cache_source.write_text(body)
+        link = {'schema':PROOF_MODULE_VERSION, 'name':name, 'checks':converted,
+                'logical_checks':checks, 'source':bind(cache_source), 'reused':reused, 'receipt':None}
+        write(Path(out)/'compiled-module.json', link)
+        if reused:
+            row = verify_proof_module(receipt, source, checks)
+            for filename in row['artifacts']:shutil.copyfile(cache/filename, target/filename)
+            native = dict(row['native'])
+        else:
+            file = target/(name+'.lean');file.write_text(body)
+            native = ir.run_lean(file, Path(work), output=file.with_suffix('.olean'))
+            if ir.native_succeeded(native):
+                artifacts = {}
+                for suffix in ('.lean', '.olean', '.olean.private', '.olean.server', '.ilean'):
+                    file = target/(name+suffix)
+                    if file.is_file():
+                        shutil.copyfile(file, cache/file.name)
+                        artifacts[file.name] = ir.digest(file)
+                row = {'name':name, 'identity':identity, 'checks':converted, 'artifacts':artifacts,
+                       'native':native, 'compiled_only':True,
+                       'scope':'Stable source compilation only; signatures, full dependencies and trust still require native inspection.'}
+                if recorder:recorder.check(task)
+                write(receipt, row)
+                verify_proof_module(receipt, source, checks)
+        link['receipt']=bind(receipt) if receipt.exists() else None
+        write(Path(out)/'compiled-module.json', link)
+    if recorder:recorder.check(task)
+    return native, link
+
+
+def compiled_input(out):
+    """The exact failed or successful compiler input, including expected types."""
+    from controller_common import verify_bindings
+    out = Path(out)
+    link = ir.load(out/'compiled-module.json')
+    ir.need(link.get('schema')==PROOF_MODULE_VERSION, 'Unknown compiled proof input')
+    verify_bindings([link['source']])
+    name,body,converted,_=proof_module_spec((out/'Proof.lean').read_text(),link['logical_checks'])
+    file=Path(link['source']['path'])
+    ir.need(name==link['name'] and file.name==name+'.lean' and file.read_text()==body
+            and link['checks']==json.loads(json.dumps(converted)), 'Changed actual assembly input')
+    return file
+
+
+def bound_proof_module(out):
+    from controller_common import verify_bindings
+    out = Path(out)
+    compiled_input(out)
+    link = ir.load(out/'compiled-module.json')
+    ir.need(link.get('schema') == PROOF_MODULE_VERSION and link.get('receipt'), 'Missing compiled proof receipt')
+    verify_bindings([link['receipt']])
+    row = verify_proof_module(link['receipt']['path'], (out/'Proof.lean').read_text(), link['logical_checks'])
+    ir.need(link['name'] == row['name'] and link['checks'] == row['checks'], 'Changed compiled module link')
+    return link
 
 
 def _code(text):

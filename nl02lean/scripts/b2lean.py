@@ -52,6 +52,17 @@ def actual_residual(context,retained,graph=None):
     return sorted(r['id'] for p,r in ports.items() if r['category']==4 and p in retained)
 
 
+def compiled_prefix(frozen, conditional):
+    """Private/local scope keeps the full native path; never guess a replay."""
+    import helper_modules
+    contract=ir.contract(frozen['contract'])
+    if helper_modules.replay(contract['header']) is None:return None
+    conditional=Path(conditional)
+    helper_modules.bound_proof_module(conditional.parent)
+    return {'source':bind(conditional),'contract':bind(frozen['contract']),
+            'module':bind(conditional.parent/'compiled-module.json')}
+
+
 def finish(directory, out, *, context, intermediate, before_publish=None):
     started=time.monotonic()
     directory,out=Path(directory).resolve(),Path(out).resolve()
@@ -66,7 +77,8 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
         ir.load(directory/'audit-b/assembly.json')['universe_parameters'],graph=ir.load(frozen['authority']['graph']))
     import lean_timeout_policy
     with lean_timeout_policy.whole_file_scope(out.parent/'lean-timeouts', key='basis-closure'):
-        checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out)
+        checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out,
+                                  compiled_prefix=compiled_prefix(frozen,conditional))
     if not checked['passed']:
         raise StageFailure('BASIS_FINAL_CLOSURE_FAILED','Prepared proofs did not close the actual frozen target',
             phase='basis-final-closure',evidence=out/'check.json',details={'errors':checked['errors']})

@@ -43,7 +43,7 @@ class ReviewProgressGuard:
 
     def saved_digest(self):
         # Own-stage checkpoints include optional fields such as saved background notes.
-        return self.digest([self.contract.items, self.contract.base])
+        return self.digest([self.contract.items, self.contract.base,self.contract.part_sequence])
 
     def resume(self):
         feedback = self.blocked['last_validation'] if self.blocked else self.feedback
@@ -202,33 +202,64 @@ class ReviewContract:
         self.finding_validator=finding_validator
         self.complete_assessment=complete_assessment
         self.items={p:{'coverage':'unread','judgment':None} for p in self.required}
-        self.sequence=0
-        self._write()
+        self.sequence=0;self.parts={};self.part_sequence=0;self.context=None
+        self.pending_restore=(self.directory/'progress.json').exists()
+        if not self.pending_restore:self._write()
+
+    def bind_context(self, context):
+        identity=ReviewProgressGuard.digest([context,self.base,self.required,self.schema])
+        file=self.directory/'context.json'
+        if file.exists() and json.loads(file.read_text()).get('sha256')!=identity:
+            raise ValueError('Changed review inputs; preserve the old judgments and start a new review')
+        if self.pending_restore:
+            if not file.exists():raise ValueError('Original review inputs are not bound; do not overwrite old progress')
+            saved=json.loads((self.directory/'progress.json').read_text())
+            if set(saved['items'])!=set(self.required):raise ValueError('Changed review inputs or required items')
+            self.items={p:self.validated_item(p,row['coverage'],row['judgment']) for p,row in saved['items'].items()}
+            self.sequence=saved['sequence'];self.pending_restore=False
+        self.context=identity
+        if not file.exists():atomic(file,{'sha256':identity})
+        for path in sorted((self.directory/'parts').glob('*/*.json')):
+            value=json.loads(path.read_text())
+            if value['context']!=identity:raise ValueError('Changed review inputs in a saved subjudgment')
+            item=self.validated_item(value['pointer'],value['item']['coverage'],value['item']['judgment'],partial=True)
+            self.parts[(value['pointer'],value['part'])]={**value,'item':item}
+            self.part_sequence=max(self.part_sequence,value['sequence'])
 
     @classmethod
     def structured(cls, directory, shape, validator, **kwargs):
         return cls(directory, shape.base, shape.required, validator, shape=shape, **kwargs)
 
     def _write(self):
+        if self.pending_restore:raise ValueError('Bind original review inputs before changing saved judgments')
         self.sequence+=1
         row={'schema':'yui-review-progress-1','sequence':self.sequence,'items':self.items,
              'scope':'Coverage is reviewer-reported; reading alone is not mathematical assessment.'}
         atomic(self.directory/'progress.json',row)
         atomic(self.directory/'history'/f'{self.sequence:04d}.json',row)
 
-    def progress(self):
+    def progress(self, *, pointer=None, part=None, offset=0, limit=100):
+        if self.pending_restore:raise ValueError('Bind original review inputs before reading saved judgments')
+        if pointer is not None or part is not None:
+            if (pointer,part) not in self.parts:raise ValueError('Unknown saved review subjudgment')
+            return deepcopy(self.parts[(pointer,part)])
+        if type(offset) is not int or type(limit) is not int or offset<0 or not 1<=limit<=250:
+            raise ValueError('Read at most 250 review subjudgment index entries')
+        index=[{'pointer':p,'part':label,'coverage':row['item']['coverage']} for (p,label),row in sorted(self.parts.items())]
         return {'required':list(self.required),'items':deepcopy(self.items),
                 'remaining':[p for p,row in self.items.items() if row['coverage']!='assessed'],
+                'part_count':len(index),'parts':index[offset:offset+limit],
+                'next_offset':offset+limit if offset+limit<len(index) else None,
                 'scope':'Actual own-stage notes only; no new premise or generated PASS.'}
 
-    def validated_item(self, pointer, coverage, judgment=None):
+    def validated_item(self, pointer, coverage, judgment=None, *, partial=False):
         if pointer not in self.items or coverage not in {'unread','read','assessed'}:
             raise ValueError('Use a required review pointer and unread/read/assessed coverage')
         if coverage=='assessed':
             if not isinstance(judgment,dict):
                 raise ValueError(f'{pointer}: an assessed item needs a judgment object')
-            if self.shape: protocol.validate(judgment, self.shape.rows[pointer], pointer)
-            if self.row_validator: self.row_validator(pointer,judgment)
+            if self.shape and not partial: protocol.validate(judgment, self.shape.rows[pointer], pointer)
+            if self.row_validator and not partial:self.row_validator(pointer,judgment)
             if (judgment.get('verdict') not in ('PASS','FAIL','UNVERIFIED')
                     or not isinstance(judgment.get('notes'),str) or not judgment['notes'].strip()
                     or not isinstance(judgment.get('locations'),list) or not judgment['locations']):
@@ -237,7 +268,20 @@ class ReviewContract:
             raise ValueError('Unread/read items have no assessed verdict; use assessed UNVERIFIED for an evaluated uncertainty')
         return {'coverage':coverage,'judgment':deepcopy(judgment)}
 
-    def record(self, pointer, coverage, judgment=None):
+    def record(self, pointer, coverage, judgment=None, *, part=None):
+        if part is not None:
+            if self.context is None:raise ValueError('Bind review inputs before saving subjudgments')
+            if not isinstance(part,str) or not part.strip() or len(part)>200:raise ValueError('Use a short stable review-part label')
+            item=self.validated_item(pointer,coverage,judgment,partial=True)
+            if self.parts.get((pointer,part),{}).get('item')!=item:
+                self.part_sequence+=1
+                value={'pointer':pointer,'part':part,'context':self.context,'sequence':self.part_sequence,'item':item,
+                       'scope':'Own partial judgment only; the parent review item remains incomplete.'}
+                key=ReviewProgressGuard.digest([pointer,part])
+                atomic(self.directory/'parts'/key/f'{self.part_sequence:06d}.json',value)
+                self.parts[(pointer,part)]=value
+            return {'recorded':pointer,'part':part,'coverage':coverage,'stage_complete':False,
+                    'parent_coverage':self.items[pointer]['coverage']}
         item = self.validated_item(pointer,coverage,judgment)
         self._commit({pointer:item})
         remaining=[p for p,row in self.items.items() if row['coverage']!='assessed']
@@ -318,7 +362,11 @@ item pointers are listed below. For a full draft add coverage:{pointer:"assessed
 UNVERIFIED judgment. An actually evaluated uncertainty can be assessed UNVERIFIED
 with its specific reason. An ordinary incomplete draft continues in this same
 stage and remaining budget. Prefer a complete artifact with all actual judgments and coverage in one submission.
-Use record_review_item for useful checkpoints; after a context reset inspect read_review_progress. To assemble saved actual rows submit
+Use record_review_item for useful checkpoints; after a context reset inspect read_review_progress.
+For a long definition, premise or obligation use record_review_item with a short stable part label
+to save its actual judgment now. Read part indexes, then retrieve one with read_review_progress(pointer,part).
+Subjudgments do not assess the parent automatically; finish each required parent judgment yourself.
+To assemble saved actual rows submit
 {from_saved_review:true,summary:{...}}; use exactly the summary fields in the
 generated submission schema, never saved judgment containers or fields copied
 from another stage's format. No PASS is filled by the controller. A located

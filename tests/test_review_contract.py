@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from review_contract import ReviewContract
+from review_contract import ReviewContract, ReviewProgressGuard
 from clean_stage import ArtifactStage
 from execution_health import qualification, require_review_execution, StageFailure
 
@@ -20,6 +20,21 @@ class ReviewCompletionTests(unittest.TestCase):
     def row(self,verdict='PASS'):
         return {'verdict':verdict,'notes':'Synthetic coverage fixture only.','locations':['/explicit']}
 
+    def test_same_input_subjudgments_survive_reconstruction_without_completing_parent(self):
+        self.c.bind_context({'source':'fixed source'})
+        self.c.record('/checks/a','assessed',self.row(),part='definition D001')
+        self.assertEqual(self.c.progress()['remaining'],['/checks/a','/checks/b'])
+        restored=ReviewContract(self.root/'review',{'checks':{}},['/checks/a','/checks/b'],lambda v:{'actual':v})
+        restored.bind_context({'source':'fixed source'})
+        self.assertEqual(restored.progress(pointer='/checks/a',part='definition D001')['item']['judgment'],self.row())
+        self.assertEqual(restored.progress()['part_count'],1)
+        before=(self.root/'review/progress.json').read_bytes()
+        stale=ReviewContract(self.root/'review',{'checks':{}},['/checks/a','/checks/b'],lambda v:v)
+        with self.assertRaisesRegex(ValueError,'review inputs'):stale.bind_context({'source':'changed'})
+        self.assertEqual((self.root/'review/progress.json').read_bytes(),before)
+        with self.assertRaisesRegex(ValueError,'REVIEW_INCOMPLETE'):
+            restored({'from_saved_review':True,'summary':{'findings':[]}})
+
     def test_unread_submission_continues_and_preserves_assessed_work(self):
         value={'checks':{'a':self.row()},'findings':[],
                'coverage':{'/checks/a':'assessed','/checks/b':'unread'}}
@@ -31,6 +46,19 @@ class ReviewCompletionTests(unittest.TestCase):
         self.c(complete)
         self.assertEqual(complete['checks']['b']['verdict'],'UNVERIFIED')
         self.assertNotIn('coverage',complete)
+
+    def test_identical_partial_checkpoint_cannot_invent_progress_or_duplicate_history(self):
+        self.c.bind_context({'source':'fixed source'})
+        guard=ReviewProgressGuard(self.c)
+        args={'pointer':'/checks/a','part':'definition D001','coverage':'assessed','judgment':self.row()}
+        guard.observe('record_review_item',args,self.c.record(**args))
+        for _ in range(3):
+            guard.observe('submit_draft',{'artifact':{'from_saved_review':True,'summary':{}}},
+                          {'accepted':False,'error':'Synthetic missing parent judgment'})
+        self.assertIsNotNone(guard.blocked)
+        guard.observe('record_review_item',args,self.c.record(**deepcopy(args)))
+        self.assertIsNotNone(guard.blocked)
+        self.assertEqual(len(list((self.c.directory/'parts').glob('*/*.json'))),1)
 
     def test_missing_judgment_cannot_be_synthesized_from_summary(self):
         self.c.record('/checks/a','assessed',self.row())

@@ -30,7 +30,7 @@ class FinalAcceptanceTests(unittest.TestCase):
     def test_timeout_flags_in_native_records_cannot_be_overridden_by_passed_summaries(self):
         out=self.normal/'audit-b';mechanical=out/'mechanical.json'
         original=mechanical.read_bytes()
-        for name in ('compiler.json','assembly-inputs-compiler.json','assembly-compiler.json'):
+        for name in ('compiler.json','assembly-compiler.json'):
             path=out/name;raw=path.read_bytes()
             try:
                 native=ir.load(path);native.update(timed_out=True,error_kind='LEAN_TIMEOUT')

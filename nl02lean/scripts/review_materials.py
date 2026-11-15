@@ -7,6 +7,7 @@ from pathlib import Path
 
 import ir
 import correspondence
+from inspection_evidence import project_owned
 
 SCHEMA = 'yui-audit-b-review-view-1'
 GLOBAL_LOCATIONS = ['/scope', '/endpoints', '/mechanical_summary']
@@ -54,7 +55,7 @@ def native_summary(mechanical, evidence, *, foundations):
             'permitted_foundations':sorted(foundations),
             'unexpected_axioms':sorted(set(actual_axioms) - set(foundations)),
             'unproved_project_declarations':[d['name'] for d in declarations
-                if not d.get('imported') and d.get('kind') in {'axiom','opaque'}]},
+                if project_owned(d) and d.get('kind') in {'axiom','opaque'}]},
         'semantic_review':'NOT_PERFORMED',
         'scope':'Actual machine results only. Declared external assumptions are conditional inputs; no mathematical source-to-Lean verdict is generated.'}
 

@@ -173,7 +173,7 @@ def diagnostics(candidate):
 
 class AssemblyStage(ArtifactStage):
     """One author thread with read-only access to its own assembly feedback."""
-    FILES={'proof_source':'Proof.lean','audit_source':'Audit.lean','assembly_inputs':'AssemblyInputs.lean',
+    FILES={'proof_source':'Proof.lean','audit_source':'Audit.lean','assembly_inputs':None,
            'mechanical':'mechanical.json','assembly':'assembly.json','inspection':'inspection.json',
            'compiler_stdout':'compiler.json','compiler_stderr':'compiler.json',
            'assembly_stdout':'assembly-compiler.json','assembly_stderr':'assembly-compiler.json'}
@@ -202,7 +202,8 @@ class AssemblyStage(ArtifactStage):
                 feedback=ir.load(out/'feedback'/f'{number:04d}.json')
                 native=Path(feedback.get('native_candidate') or out/'candidates'/f'{number:04d}')
                 if not native.resolve().is_relative_to((out/'candidates').resolve()):raise ValueError('Invalid own native candidate binding')
-                path=native/self.FILES[kind]
+                path=(__import__('helper_modules').compiled_input(native) if kind=='assembly_inputs'
+                      else native/self.FILES[kind])
                 text=(ir.load(path)['stdout' if kind.endswith('stdout') else 'stderr']
                       if kind.endswith(('stdout','stderr')) else path.read_text())
             result=read_page(text,args['start'],args['end'],column=args.get('column',0),metadata={'candidate':number,'kind':kind})

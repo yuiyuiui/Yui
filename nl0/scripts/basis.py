@@ -232,8 +232,11 @@ not class 4. Record replaced dependencies and concrete derivations in the proof.
 First outline the global proof and its actual consumers. Investigate remaining independent hard
 foundations together with investigate_basis_frontier. Try a pinned declaration, a textbook derivation,
 or a weaker theorem sufficient at every consumer. Optimize the selected graph jointly for shared
-dependencies and independent natural cuts. Save a yui-basis-2 draft. Supply existing proofs for
-1/2/3 or leave lean.proof null in a planning draft and call prepare_basis_graph. Independent workers
+dependencies and independent natural cuts. Finish the COMPLETE natural-language route before
+writing Lean proofs. Save a yui-basis-2 draft with lean.proof null, then select it using
+prepare_basis_graph (prove:false selects without starting workers). Only after that selection
+write proofs or call prepare_basis_graph to dispatch them. Existing declarations and unchanged
+source may be inspected first; rewriting imported proofs must also wait. Independent workers
 produce the missing proofs under the frozen direct premises. Actual signatures, source fidelity and
 eventual discharge are checked. Class 4 requires an explicit user decision. Supply the global NL0
 skeleton with standalone mathematical statements. Put graph IDs in inference input/output fields.
@@ -269,6 +272,9 @@ class BasisContract:
             own = {n:json.dumps({'spec':v,'graph':{}}) for n,v in self.drafts.items()}
             expanded, _ = expand_submission(command, documents, own);candidate = expanded['spec']
         else:candidate = deepcopy(value)
+        if self.owner_stage is not None:
+            import basis_planning
+            basis_planning.guard_proofs(self,candidate)
         self.attempt += 1;directory = self.out/'candidates'/f'{self.attempt:04d}'
         write(directory/'basis.json',candidate);self.drafts[self.attempt]=candidate
         self.selected = None
@@ -292,6 +298,12 @@ class BasisContract:
         try:
             if self.version and candidate.get('version')!=self.version:
                 raise ValueError('This author must submit '+self.version)
+            if self.owner_stage is not None:
+                import basis_planning
+                shape=deepcopy(candidate)
+                for row in shape.get('dependencies',[]):
+                    if row['category']!=4:row['lean']['proof']='trivial'
+                basis_planning.select_route(self.owner_stage,candidate,shape)
             if (self.owner_stage is not None and candidate.get('version')==basis_graph.VERSION and
                     any(r.get('category')!=4 and isinstance(r.get('lean'),dict) and r['lean'].get('proof') is None
                         for r in candidate.get('dependencies',[]) if isinstance(r,dict))):
@@ -564,7 +576,7 @@ def check_graph_sources(context, registry, graph):
                 continue
             visited.add(name)
             entry=declarations.get(name)
-            if entry and not entry['imported']:
+            if entry and __import__('inspection_evidence').project_owned(entry):
                 pending.extend(entry['direct_constants'])
         cited=re.findall(r"[\w']+(?:\.[\w']+)*",row['origin']['reference'])
         if selector not in visited and selector not in cited:

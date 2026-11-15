@@ -14,7 +14,8 @@ For an explicit unconditional request, select `--track full --formalization
 unconditional` and follow [2basis and b2lean](nl0/references/basis.md).
 2basis may rewrite the original proof route before the one shared NL0/Audit A;
 the original target/H remain immutable. Audit A receives both original task and
-basis proof and replacements. Prepare used class 1/2/3 Lean proofs in 2basis.
+basis proof and replacements. Complete and select the entire natural-language
+route before the 2basis author or its workers write new class 1/2/3 Lean proofs.
 An independent reviewer compares the printed Lean propositions with the source and
 all intended uses. Remaining class 4 requires the user's
 exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean

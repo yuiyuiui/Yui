@@ -37,8 +37,11 @@ class AssemblyTests(unittest.TestCase):
             result=audit_b.build(out)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED')
         self.assertIn(('Check.lean',360),calls)
-        for name in ('AssemblyInputs.lean','Proof.lean','Audit.lean'):
-            self.assertIn((name,1800),calls)
+        compiled = [row for row in calls if row[0].startswith('YuiProof')]
+        self.assertEqual(len(compiled),1)
+        self.assertEqual(compiled[0][1],1800)
+        self.assertIn(('Audit.lean',1800),calls)
+        self.assertNotIn('theorem T001',(out/'Audit.lean').read_text())
 
     def test_valid_partial_inspector_output_cannot_pass_after_timeout(self):
         cp,pp,bp,ip=fixture(self.base/'case','mathlib')
@@ -84,7 +87,7 @@ class AssemblyTests(unittest.TestCase):
                 result=assembly.build(c,mapping,'-- synthetic incomplete source\n',out,work)
             self.assertEqual(run.call_count,1)
             self.assertEqual(result['status'],'ASSEMBLY-FAILED')
-            self.assertFalse((out/'Proof.lean').exists())
+            self.assertNotEqual(result['standalone_proof'],'KERNEL_CHECKED')
 
     def run_assembly(self, *, generic=False, invalid_library=False):
         cp, pp, bp, _ = fixture(self.base / 'case')
@@ -110,7 +113,7 @@ class AssemblyTests(unittest.TestCase):
         self.assertEqual(report['status'], 'ASSEMBLY-PASSED', ir.load(out / 'assembly-compiler.json'))
         self.assertTrue(report['universe_parameters']['parameters'])
         self.assertFalse(report['universe_parameters']['export_used_parameters'])
-        self.assertIn('Translation.P.{0}', (out / 'Proof.lean').read_text())
+        self.assertIn('yui_assembly_export%', (out / 'Proof.lean').read_text())
         self.assertNotIn('(h_M001', (out / 'Proof.lean').read_text().split('namespace AuditBExport')[1].split('theorem P ')[1])
 
     def test_retained_generic_parameter_is_not_specialized_to_zero(self):
@@ -119,13 +122,18 @@ class AssemblyTests(unittest.TestCase):
         self.assertTrue(report['universe_parameters']['export_used_parameters'])
         source = (out / 'Proof.lean').read_text()
         self.assertIn('theorem P (A : Type*) (x : A)', source)
-        self.assertIn('Translation.P.{_', source)
+        self.assertIn('yui_assembly_export%', source)
+        # Native closure of this generic target forbids specializing A to Type 0.
+        import basis_native
+        checked=basis_native.check(source,[('P','AuditBExport.P','∀ (A : Type*) (x : A), x = x')],
+                                   ['AuditBExport.P'],self.base/'generic-signature')
+        self.assertTrue(checked['passed'],checked)
 
     def test_failed_library_discharge_cannot_reach_standalone_pass(self):
         out, report = self.run_assembly(invalid_library=True)
         self.assertEqual(report['status'], 'ASSEMBLY-FAILED')
-        self.assertEqual(report['standalone_proof'], 'NOT_STARTED')
-        self.assertFalse((out / 'Proof.lean').exists())
+        self.assertEqual(report['standalone_proof'], 'FAILED')
+        self.assertFalse((out/'compiled-module.json').is_file() and ir.load(out/'compiled-module.json')['receipt'])
         self.assertIn('DoesNotExist', ir.load(out / 'assembly-compiler.json')['stdout'])
 
     def test_unicode_and_quoted_names_are_data_not_commands(self):
@@ -212,6 +220,23 @@ class AssemblyTests(unittest.TestCase):
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-FAILED')
         self.assertEqual(ir.load(out/'assembly-compiler.json')['exit_code'],0)
         self.assertFalse(ir.load(out/'mechanical.json')['passed'])
+
+    def test_zero_exit_without_the_complete_native_artifact_is_an_inspection_nonpass(self):
+        cp,pp,bp,ip=fixture(self.base/'case','mathlib')
+        out=self.base/'audit';audit_b.prepare(cp,pp,bp,out,fragment=ip)
+        value=ir.load(out/'mapping.json');value['library_terms']['M001']='exact Nat.add_comm a b'
+        ir.write(out/'mapping.json',value)
+        actual=ir.run_lean
+        def controlled(file,work,**kwargs):
+            if Path(file).name=='Audit.lean':
+                return {'exit_code':0,'stdout':'NL2LEAN_AUDIT_FILE:yui-inspection.json\n',
+                        'stderr':'','wall_seconds':0,'synthetic_control':True}
+            return actual(file,work,**kwargs)
+        with patch.object(ir,'run_lean',side_effect=controlled):result=audit_b.build(out)
+        self.assertEqual(result['assembly'],'ASSEMBLY-PASSED')
+        self.assertEqual(result['inspection'],'KERNEL_INSPECTION_FAILED')
+        self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-FAILED')
+        self.assertIn('inspection_evidence_error',ir.load(out/'compiler.json'))
 
 
 if __name__ == '__main__':

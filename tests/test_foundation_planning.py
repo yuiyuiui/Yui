@@ -28,6 +28,55 @@ def mixed():
 
 
 class FrozenRoute(unittest.TestCase):
+    def test_owned_author_cannot_save_new_proofs_before_selecting_a_complete_route(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);(root/'inputs').mkdir();(root/'inputs/problem.md').write_text(TARGET);manifest(root/'inputs')
+            contract=basis.BasisContract(root,TARGET,version=basis_graph.VERSION)
+            contract.owner_stage=SimpleNamespace()
+            with self.assertRaisesRegex(ValueError,'natural-language route'):contract.save(mixed())
+            draft=mixed()
+            for row in draft['dependencies']:row['lean']['proof']=None
+            contract.save(draft)
+            stage=SimpleNamespace(validator=contract,logs=root/'stage')
+            result=basis_planning.prepare(stage,{'candidate':1,'prove':False})
+            self.assertTrue(result['route_ready']);self.assertFalse(result['proof_workers_started'])
+            contract.save(mixed())
+            changed=mixed();changed['proof']+=' Different route.'
+            with self.assertRaisesRegex(ValueError,'natural-language route'):contract.save(changed)
+
+    def test_route_is_saved_before_the_first_proof_worker_and_partial_routes_do_not_dispatch(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);(root/'inputs').mkdir();(root/'inputs/problem.md').write_text(TARGET);manifest(root/'inputs')
+            contract=basis.BasisContract(root,TARGET,version=basis_graph.VERSION)
+            stage=SimpleNamespace(validator=contract,logs=root/'stage')
+            draft=mixed()
+            for row in draft['dependencies']:row['lean']['proof']=None
+            contract.save(draft)
+            def worker(*args,**kwargs):
+                basis_planning.require_selected_route(contract,contract.drafts[1])
+                return 'trivial'
+            with patch.object(basis_planning,'private_proof',side_effect=worker),patch.object(basis_planning,'check_types'):
+                result=basis_planning.prepare(stage,{'candidate':1})
+            self.assertTrue(result['proof_workers_started'])
+            bad=deepcopy(draft);bad['global_graph']['inferences'].pop()
+            contract.save(bad)
+            with patch.object(basis_planning,'private_proof',side_effect=AssertionError('No incomplete-route worker')):
+                with self.assertRaises(ValueError):basis_planning.prepare(stage,{'candidate':contract.attempt})
+
+    def test_pruning_unused_alternatives_does_not_block_inline_proofs_of_the_selected_route(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);(root/'inputs').mkdir();(root/'inputs/problem.md').write_text(TARGET);manifest(root/'inputs')
+            contract=basis.BasisContract(root,TARGET,version=basis_graph.VERSION)
+            contract.owner_stage=SimpleNamespace()
+            value=mixed();value['dependencies'].append(dependency('B003',category=2))
+            for row in value['dependencies']:row['lean']['proof']=None
+            contract.save(value)
+            stage=SimpleNamespace(validator=contract,logs=root/'stage')
+            basis_planning.prepare(stage,{'candidate':1,'prove':False})
+            value['dependencies'][0]['lean']['proof']='exact Nat.add_zero'
+            contract.save(value)
+            self.assertEqual(contract.attempt,2)
+
     def test_only_current_category_rules_are_accepted(self):
         old=artifact(dependency(),dependency('B002',3));new=mixed()
         old['version']='yui-basis-1'

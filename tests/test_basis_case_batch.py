@@ -92,7 +92,8 @@ class BasisCaseBatchTests(unittest.TestCase):
                     import json
                     tools=(run/'2basis/0001/stage/tools.jsonl').read_text().splitlines()
                     replies=[e['result'] for line in tools if (e:=json.loads(line))['tool']=='submit_draft']
-                    self.assertIn('misspelled.pdf',replies[0]['error'])
+                    selections=[e['result'] for line in tools if (e:=json.loads(line))['tool']=='prepare_basis_graph']
+                    self.assertIn('misspelled.pdf',selections[0]['error'])
                     self.assertTrue(replies[-1]['stage_complete'])
                 authors=sorted((run/'2basis').glob('*/stage/result.json'))
                 reviewers=sorted((run/'2basis').glob('*/review/stage/result.json'))

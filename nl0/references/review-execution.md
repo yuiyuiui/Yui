@@ -59,6 +59,14 @@ assemble the review. Use exactly its summary fields. For example, an Audit A
 global summary contains findings; the local report's verdict and notes do not
 belong there. The controller never supplies a missing judgment or fills PASS.
 
+For a long item, `record_review_item` also accepts a short stable `part` label
+and that part's actual located judgment. `read_review_progress` lists bounded
+part indexes; `pointer` plus `part` retrieves one judgment. A part never marks
+its parent assessed. After a context reset or reconstruction, continue the same
+review against the identical bound inputs; changed inputs require a new review.
+These are the reviewer's own notes, not a new independent review or sibling
+verdicts. No new checkpoint frequency or decomposition is mandatory.
+
 A submission with unread work continues the same stage and remaining budget.
 An evaluated uncertainty may finish UNVERIFIED, with a specific reason. A local or interface reviewer may submit a real located blocker early through
 `submit_review_blocker` after saving its assessed FAIL item. The global reviewer

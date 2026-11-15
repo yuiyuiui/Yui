@@ -400,6 +400,35 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
 
 def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=None):
     lean = render(cpath, plan, proofs, only, types_only)
+    cache=None
+    if only and not types_only:
+        from execution_state import current
+        recorder,task=current()
+        if recorder is not None and (recorder.root/'.yui-run.json').is_file():
+            recorder.check(task)
+            import lean_libraries,lean_environment,pilot_common
+            lock=load_lock()
+            identity=hashlib.sha256(json.dumps([lean,lean_environment.identity(lock),lock['dependencies'],
+                lean_libraries.identity(),digest(__file__),digest(pilot_common.__file__)],sort_keys=True).encode()).hexdigest()
+            cache=recorder.root/'native-local-checks'/identity
+            manifest=cache/'receipt.json'
+            if manifest.is_file():
+                from controller_common import verify_bindings
+                receipt=load(manifest);verify_bindings([receipt['native']])
+                result=load(receipt['native']['path'])
+                need(receipt['identity']==identity and native_succeeded(result)
+                     and result.get('status')=='LOCAL-PROOF-CHECKED'
+                     and result.get('lean_sha256')==hashlib.sha256(lean.encode()).hexdigest()
+                     and isinstance(result.get('axioms'),list)
+                     and not set(result['axioms'])-{'propext','Classical.choice','Quot.sound'},'Invalid retained local check')
+                recorder.check(task)
+                result.update(contract_sha256=digest(cpath),scope=only,native_reused=True,
+                    observed_native_wall_seconds=result['wall_seconds'],wall_seconds=0,
+                    reused_native=receipt['native'])
+                if out:
+                    target=Path(out);target.mkdir(parents=True,exist_ok=False)
+                    (target/'Check.lean').write_text(lean);write(target/'result.json',result)
+                return result
     from native_workspace import temporary
     with temporary('nl0-ir-check-') as work:
         (work / 'input').mkdir()
@@ -442,7 +471,18 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
             out.mkdir(parents=True, exist_ok=False)
             (out / 'Check.lean').write_text(lean)
             write(out / 'result.json', result)
+        if cache is not None and native_succeeded(result):
+            from controller_common import bind,write as atomic_write
+            attempt=Path(tempfile.mkdtemp(prefix='checked-',dir=_cache_directory(cache)))
+            atomic_write(attempt/'native.json',result)
+            atomic_write(cache/'receipt.json',{'identity':identity,'native':bind(attempt/'native.json')})
         return result
+
+
+def _cache_directory(path):
+    path.mkdir(parents=True,exist_ok=True)
+    need(not path.is_symlink(),'Unsafe local-check cache')
+    return path
 
 
 def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=False):

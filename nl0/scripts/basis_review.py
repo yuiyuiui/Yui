@@ -47,7 +47,7 @@ def native_basis_dependencies(name, declarations, basis_names):
         seen.add(current)
         if current in basis_names:
             found.add(basis_names[current])
-        elif current in declarations and not declarations[current]['imported']:
+        elif current in declarations and __import__('inspection_evidence').project_owned(declarations[current]):
             pending.extend(declarations[current]['direct_constants'])
     return sorted(found)
 

@@ -4,6 +4,7 @@ from pathlib import Path
 import audit_b
 import ir
 import source_preparation
+import inspection_evidence
 
 SCHEMA='yui-frozen-interface-acceptance-1'
 INTERFACE_ERRORS={'ELABORATED_SIGNATURE_MISMATCH','FROZEN_INTERFACE_MISMATCH'}
@@ -19,18 +20,17 @@ def proof_integrity(directory):
     ir.need(m['compiler_exit_code']==0 and m['assembly']['status']=='ASSEMBLY-PASSED' and
         m['inspection']['status']=='KERNEL_INSPECTION_PASSED','Actual standalone compilation/inspection required')
     ir.need(all(ir.native_succeeded(row) for row in m['local_checks'].values()),'Internal proof closure failed')
-    compiler=ir.load(out/'compiler.json');evidence=ir.load(out/'elaborated.json')
-    import json,re
-    emitted=re.findall(r'NL2LEAN_AUDIT_JSON:(\{[^\n]*\})',compiler['stdout'])
-    ir.need(ir.native_succeeded(compiler) and emitted and json.loads(emitted[-1])==evidence,'Native inspection output differs from saved evidence')
-    for name in ('assembly-inputs-compiler.json', 'assembly-compiler.json'):
+    compiler=ir.load(out/'compiler.json');evidence=inspection_evidence.verify(compiler, out)
+    for name in ('assembly-compiler.json',):
         ir.need(ir.native_succeeded(ir.load(out/name)), 'Actual standalone compilation required: '+name)
     deps=evidence['dependencies'];ir.need(not deps['truncated'],'Incomplete dependency inspection')
     for row in deps['declarations']:
         ir.need(not set(row['axioms'])-audit_b.AXIOMS,'Unpermitted axiom in actual proof')
-        ir.need(row['imported'] or row['kind'] not in {'axiom','opaque'},'Unproved internal declaration')
+        ir.need(not inspection_evidence.project_owned(row) or row['kind'] not in {'axiom','opaque'},'Unproved internal declaration')
     assembly=ir.load(out/'assembly.json')
     ir.need(assembly['proof_sha256']==ir.digest(out/'Proof.lean'),'Actual compiled proof changed')
+    import helper_modules
+    helper_modules.bound_proof_module(out)
     return manifest,m,evidence
 
 

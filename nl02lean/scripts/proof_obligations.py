@@ -64,7 +64,7 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
         verify_bindings([prior['source'],prior['result']])
         ir.need(ir.load(prior['source']['path'])==packet,'Private proof authority changed')
         result=ir.load(prior['result']['path'])
-        ir.need(result['exit_code']==0 and result['proof_sha256']==local_helpers.digest(prior['proof']),
+        ir.need(ir.native_succeeded(result) and result['proof_sha256']==local_helpers.digest(prior['proof']),
                 'Private proof result changed')
         return prior['proof']
     attempt=Path(tempfile.mkdtemp(prefix='attempt-',dir=directory))
@@ -87,7 +87,13 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
         stage_document(path,view);docs[f'S{index:03d} '+path.name]=bind(view)
     stage=model_pilot.Stage(attempt/'worker',cpath,'proof',None,plan,'T001',budget=budget,private_worker=True,
                             private_sources=docs)
+    import proof_diagnosis
+    stage.diagnose_obstruction=lambda author,request,out:proof_diagnosis.run_private(author,request,out,budget=budget)
     result,selected=stage.execute()
+    if result.get('repair_request'):
+        request=result['repair_request']
+        raise ValueError('Private proof '+identity+' needs owner-local repair; completed siblings are retained. '+
+                         __import__('json').dumps(request.get('diagnosis',request),ensure_ascii=False))
     from execution_health import require_review_execution, StageFailure
     try:require_review_execution(result,stage.logs/'result.json',phase='private-proof')
     except StageFailure as error:
@@ -100,7 +106,7 @@ def private_proof(directory, *, identity, header, parameters, premises, target, 
     import lean_timeout_policy
     with lean_timeout_policy.stage_scope(stage, 'transition'):
         native=ir.check(cpath,plan,{'T001':value},only='T001')
-    if native['exit_code']:
+    if not ir.native_succeeded(native):
         raise ValueError('Private proof failed complete-source check: '+ir.compiler_feedback(native))
     body=local_helpers.as_tactic(value,ir.local_packet(cpath,plan,'T001'))
     body=local_helpers.NAME.sub(lambda m:'yui_nested_'+identity+'_'+m[0][8:],body)

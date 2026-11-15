@@ -144,6 +144,40 @@ class LiveDiagnosisTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Changed live attempt'):
             proof_diagnosis.prepare_live(s,request,interface,self.root/'tampered')
 
+    def test_private_obligation_uses_its_actual_source_in_the_native_diagnostic(self):
+        import audit_b_mapping
+        from native_fixture import NativeFixture
+        s=self.stage();request=proof_repair.obstruction(s,self.request(s))
+        quote=ir.contract(self.cp)['source_steps'][0]['text']
+        # The private source is an obligation packet, before NL0/spec exists.
+        source=self.cp.parent/'source.json'
+        packet={'statement':quote,'route':quote};ir.write(source,packet)
+        contract=ir.load(self.cp);contract['source']['sha256']=ir.digest(source);ir.write(self.cp,contract)
+        self.plan['contract_sha256']=ir.digest(self.cp)
+        request=proof_repair.obstruction(s,self.request(s))
+        value={'route':'INTERNAL_INTERFACE_REPAIR','explanation':'Synthetic source/typed obligation mismatch.',
+            'locations':[{'document':'source.json','pointer':'/statement'},
+                         {'document':'plan.json','pointer':'/steps/0/statement'}],
+            'repair_advice':'Return this located obligation to its owner; preserve completed siblings.',
+            'comparison':{'source':{'document':'source.json','pointer':'/statement','quote':quote},
+                'formal':{'document':'plan.json','pointer':'/steps/0/statement','quote':self.plan['steps'][0]['statement']},
+                'difference':'Synthetic paired mismatch to exercise the actual private diagnostic contract.'}}
+        def respond(fixture,handler,number,payload):fixture.tool(handler,number,'submit_draft',value)
+        actual=audit_b_mapping.AssemblyStage
+        with NativeFixture(self.root/'private-provider',responder=respond) as fixture:
+            def stage(*args,**kwargs):
+                fixture.stage.release_resources('USER_CANCELLED')
+                kwargs['timeout']=20
+                created=actual(*args,**kwargs);fixture.stage=created
+                return created
+            with patch.object(audit_b_mapping,'AssemblyStage',side_effect=stage):
+                result=proof_diagnosis.run_private(s,request,self.root/'private-diagnosis',budget=s.budget)
+            self.assertEqual(result['route'],'INTERNAL_INTERFACE_REPAIR')
+            self.assertTrue(result['execution']['record_context_qualified'])
+            self.assertEqual(len(fixture.calls),1)
+            self.assertNotIn('spec.json',str(result['locations']))
+        self.assertEqual(s.thread_id,'same-native-author');self.assertFalse(s.submission_closed)
+
     def test_pause_reuses_only_an_unchanged_sent_source_notice(self):
         out=self.root/'run';ir.write(out/'.yui-run.json',{})
         notice=out/'source-issues/one.json';ir.write(notice,{'notification':{'status':'QUEUED'}})

@@ -175,11 +175,19 @@ def scripted(stage):
                 frontier=call('investigate_basis_frontier',obligations=[
                     {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
                     for r in value['dependencies']])
-            return prefix+frontier+call('submit_draft',artifact=value)
+            route=deepcopy(value)
+            for row in route['dependencies']:
+                if row['category']!=4:row['lean']['proof']=None
+            return prefix+frontier+call('save_basis_draft',artifact=route)+call('prepare_basis_graph',candidate=stage.validator.attempt+1,prove=False)+call('submit_draft',artifact=value)
         value=active_artifact(artifact(row))
         if mode=='stalled-graph' or (mode=='global-revision' and revision=='0001'):
             next(p for p in value['global_graph']['propositions'] if p['id']=='N001')['statement']='Both numbers vanish.'
-        return call('submit_draft',artifact=value)
+        route=deepcopy(value)
+        for row in route['dependencies']:
+            if row['category']!=4:row['lean']['proof']=None
+        if mode=='evidence-repair' and requests[stage.logs]==1:
+            return call('save_basis_draft',artifact=route)+call('prepare_basis_graph',candidate=stage.validator.attempt+1,prove=False)
+        return call('save_basis_draft',artifact=route)+call('prepare_basis_graph',candidate=stage.validator.attempt+1,prove=False)+call('submit_draft',artifact=value)
     if stage.mode=='basis-frontier':
         item=json.loads(stage.task_inputs['frontier-item.json'])
         return call('submit_draft',artifact={'route':'derivation','statement':item['statement'],'argument':NOTE,
