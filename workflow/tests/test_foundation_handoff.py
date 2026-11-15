@@ -8,6 +8,16 @@ import foundation_handoff as handoff
 
 
 class Handoff(unittest.TestCase):
+    def test_native_and_prepared_sources_have_distinct_exact_references_before_freeze(self):
+        native={'id':'B004','category':1,'compatibility':'native','origin':{'declaration':'Geometry.full_theorem'}}
+        self.assertEqual(handoff.source_reference(native),{'mode':'native','declaration':'Geometry.full_theorem'})
+        derived={**native,'category':3,'compatibility':'internal'}
+        self.assertEqual(handoff.source_reference(derived),{'mode':'prepared','declaration':'YuiBasis.B004'})
+        adapted={**native,'compatibility':'adapted'}
+        self.assertEqual(handoff.source_reference(adapted),{'mode':'prepared','declaration':'YuiBasis.B004'})
+        with self.assertRaisesRegex(ValueError,'explicit'):
+            handoff.source_reference({**native,'origin':{'reference':'One lemma, another lemma'}})
+
     def setUp(self):
         self.inventory = {
             'dependencies': [

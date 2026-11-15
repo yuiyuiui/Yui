@@ -15,6 +15,15 @@ tool. Private proof diagnoses return located defects to that owner while retaini
 independent checked work. Reviewers may save actual subjudgments in their own
 review; these neither complete a parent item nor become a new independent review.
 
+Before the final foundation freeze, the existing native inspection checks that
+each native M names one imported theorem with the whole registered type. A
+bundle or adaptation uses its checked prepared E instead. The existing basis
+review explicitly covers classification, source support, actual types, consumers
+and these exact downstream references. NL0 inherits native source metadata from
+the reviewed package; neither a new probe nor model retyping is required.
+Unchanged successful compilation can survive metadata-only repairs. Changed
+source, type, checks, tools or environment must pass their native checks again.
+
 Stable proof compilation uses case-owned modules with exact source/environment
 bindings. Small wrappers still inspect all project dependencies and axioms,
 including imported generated modules. Unsafe scope replay falls back to full

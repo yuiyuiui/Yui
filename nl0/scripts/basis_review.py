@@ -10,7 +10,7 @@ from review_contract import ReviewContract
 import artifact_protocol as protocol
 import ir
 
-VERSION = 'yui-basis-fidelity-1'
+VERSION = 'yui-basis-fidelity-2'
 PACKET = 'basis-comparison.json'
 ROLE = 'basis-reviewer'
 STAGE_FILES = ('accepted.json', 'execution-manifest.json', 'exposure-audit.json', 'result.json', 'tools.jsonl')
@@ -21,11 +21,19 @@ proposition produced by the pinned compiler. Use the declared source documents a
 tools as needed. Locate its use in the rewritten argument. Compare quantifier order,
 uniformity and constants, domains, binder/instance assumptions, implication direction,
 definitions, and any adapter or specialization. Compare the original H and target to the rewritten application. For class 4 review the exact residual
-assumption and the complete textbook evidence; this does not prove the theorem. For each prepared class 3 check its actual derivation and every consumer, including the scope of any specialization. Review the required set in this one role.
+assumption and the complete textbook evidence; this does not prove the theorem. For each prepared class 3 check its actual derivation and every consumer, including the scope of any specialization.
+Check category and compatibility explicitly. Class 1/native must be ONE existing Mathlib
+declaration with the WHOLE displayed type; a conjunction assembled from several facts,
+an adapter or a specialization is a prepared E, not a native M merely because its proof
+uses Mathlib. Check the handoff: native uses its frozen source; prepared uses the exact
+YuiBasis.B declaration, never a Mathlib query for that task-local name. Reuse the supplied
+successful kernel inspection; this review needs no repeat compilation. Review the required set in this one role.
 Use the generated submission schema for the selected items and coverage.
-In notes explain the specific correspondence or
-mismatch. locations must include the exact pointers /items/B001/statement and
-/items/B001/actual_type for that item. In source identify the declaration/text and why it
+In notes explain the specific correspondence or mismatch. In classification justify
+the category and native/adapted/internal/unresolved status; in handoff check the exact
+reference that the next stage will use. locations must include /items/B001/statement,
+/items/B001/actual_type, /items/B001/category, /items/B001/compatibility and
+/items/B001/handoff for that item. In source identify the declaration/text and why it
 supports the claim, or precisely what is missing. If revision_objection names this item, include
 a resolution field that answers that exact earlier objection against the revised proposition and use. In application identify the actual use
 and whether the available hypotheses suffice. Assess every required item. Do not rewrite
@@ -61,8 +69,11 @@ def material(artifact, native, originals, evidence, revision_report=None):
     items = {}
     source_docs = {Path(r['path']).name:r['sha256'] for r in originals}
     external = {r['sha256']:'basis-source-'+r['sha256']+'.txt' for r in evidence}
+    import basis_sources
+    handoff=basis_sources.material(artifact,native)
     for row in artifact['dependencies']:
         item = deepcopy(row)
+        item['handoff']=handoff[row['id']]
         if row['lean'] is not None:
             item['actual_type'] = types[row['id']]
             name = ('YuiBasis.type_' if row['category']==4 else 'YuiBasis.')+row['id']
@@ -111,6 +122,7 @@ def item_keys(packet, rule=None):
 JUDGMENT_FIELDS = {
     'verdict': protocol.VERDICT,
     'notes': protocol.TEXT, 'source': protocol.TEXT, 'application': protocol.TEXT,
+    'classification':protocol.TEXT, 'handoff':protocol.TEXT,
     'locations': {'type':'array','items':{'type':'string'}},
 }
 
@@ -136,7 +148,7 @@ def validate_judgment(key, row, objection=None, packet=None):
     locations = row['locations']
     if not isinstance(locations, list) or not all(isinstance(p, str) and p.startswith('/') for p in locations):
         raise ValueError(f'{path}/locations: expected a list of absolute JSON pointers')
-    missing = {path+'/statement', path+'/actual_type'} - set(locations)
+    missing = {path+'/statement', path+'/actual_type',path+'/category',path+'/compatibility',path+'/handoff'} - set(locations)
     if missing:
         raise ValueError(f'{path}/locations: include {sorted(missing)}')
     if packet is not None:

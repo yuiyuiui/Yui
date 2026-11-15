@@ -128,9 +128,23 @@ def inventory(repo, outputs=None):
                         records.append(row['process'])
                     elif base.name == 'resources' and filename.startswith('workspace-'):
                         row = load(path); work = Path(row['workspace'])
+                        owner_base=base
+                        if Path(row['logs']).resolve()!=base.parent.resolve():
+                            # Older assembly publication copied an already released
+                            # workspace receipt. Only its intact authoritative
+                            # original in this exact run can establish ownership.
+                            original=Path(row['logs'])/'resources'/filename
+                            if (work.exists() or not original.is_file() or original.is_symlink()
+                                    or not original.resolve().is_relative_to(root)
+                                    or any(p.is_symlink() for p in original.parents if p.is_relative_to(root))
+                                    or original.read_bytes()!=path.read_bytes()):
+                                raise ValueError('Invalid copied workspace binding: '+str(path))
+                            row=load(original)
+                            # Validate against the original location, never the copy.
+                            owner_base=original.parent
                         if (row.get('schema_version') != SCHEMA or work.is_symlink() or
                             work.resolve().parent != temp_root or
-                            Path(row['logs']).resolve() != base.parent.resolve()):
+                            Path(row['logs']).resolve() != owner_base.parent.resolve()):
                             raise ValueError('Invalid workspace binding: '+str(path))
                         if work.exists():
                             if not (work/MARKER).is_file() or (work/MARKER).is_symlink() or load(work/MARKER) != row:

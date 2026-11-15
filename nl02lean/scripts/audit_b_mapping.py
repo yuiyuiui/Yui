@@ -230,7 +230,8 @@ def adopt(out):
     directory=Path(ir.load(out/'authority.json')['workflow']);workflow.bound(directory)
     if (directory/'audit-b.initial-pending').exists():raise ValueError('Preserve prior adopted audit; use a new workflow')
     (directory/'audit-b').rename(directory/'audit-b.initial-pending')
-    shutil.copytree(candidate,directory/'audit-b')
+    shutil.copytree(candidate,directory/'audit-b',ignore=lambda parent,names:
+                    {'resources'} if Path(parent).name=='native-workspaces' else set())
     if choice.get('proof_patches'):
         write(directory/'assembly-proof-patches.json',{'patches':choice['proof_patches'],
             'actual_author_submission':bind(out/'stage/accepted.json'),'compiled_proof':bind(directory/'audit-b/Proof.lean')})

@@ -309,7 +309,9 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
             'Supply id, inputs, output and definitions for each inference. Local proof paragraphs come later. ')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
-                 'Supply actual source metadata for every allocated node, including successful probes for native M. '
+                 'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
+                 'you may omit its source except hypotheses. Do not query or replace the frozen declaration. '
+                 'Prepared E references the checked YuiBasis.B proof; supply its semantic attribution and notation map. '
                  'Use declared document IDs in E evidence, e.g. {"input":"problem.md"}. '
                  'For the numbered seed submit spec, '
                  'proposition_details and inference_definitions. To revise N/R statements or dependencies, submit '

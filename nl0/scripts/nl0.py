@@ -231,6 +231,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                     if path.suffix == ".json":
                         payload = load(path)
                         if isinstance(payload, dict) and payload.get("probe_version") == 1:
+                            if 'inheritance' in payload:
+                                import basis_sources
+                                basis_sources.verify_probe(payload,key,base,spec,graph)
                             probes.append(payload)
                 require(any(probe.get("exit_code") == 0
                             and probe.get("mathlib_commit") == source["mathlib_commit"]

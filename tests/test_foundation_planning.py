@@ -136,7 +136,7 @@ class FrozenRoute(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             c=basis.BasisContract(Path(raw),TARGET,version=basis_graph.VERSION)
             old=artifact();old['version']='yui-basis-1'
-            with self.assertRaisesRegex(ValueError,'submit yui-basis-2'):c(old)
+            with self.assertRaisesRegex(ValueError,'submit yui-basis-3'):c(old)
             self.assertIsNone(c.selected)
 
     def test_preflight_checks_the_proposition_value_and_rejects_changed_types(self):

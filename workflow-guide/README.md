@@ -208,7 +208,7 @@ The model adapter reduce receives Job@1 and returns a named port and its payload
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Select and check foundations. An author may consult the optional basis catalog while choosing the route.
+Finish the NL route, prepare proofs and machine-check complete native source types.  The existing independent basis review covers classification, sources, uses and exact handoff references. Findings return to the editable author before the accepted package is frozen. An author may consult the optional catalog.
 
 [reduce implementation](#handler-reduce)
 
@@ -232,7 +232,7 @@ The python adapter freeze\_basis receives Foundation@2 and returns a named port 
 
 The adapter must reuse the operation ID when retrying an external effect.
 
-Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint.
+Pin the exact reviewed classification, source, type, proof and handoff; honor the optional checkpoint.
 
 [freeze\_basis implementation](#handler-freeze_basis)
 
@@ -423,7 +423,7 @@ The model adapter basis\_outline receives Foundation@2 and returns a named port 
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0.
+Assign one M/E label per frozen foundation and inherit its checked source for NL0.
 
 [basis\_outline implementation](#handler-basis_outline)
 
@@ -473,7 +473,7 @@ The tool adapter translate receives Audited@2 and returns a named port and its p
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  Every native wall timeout receives a source-located diagnosis. Local checks start at six minutes and rise by six to thirty only for workload findings. Complete-file assembly/export/inspection and final basis closure start at thirty minutes and rise by fifteen to sixty. Code repair retains its current allowance; partial output from a timed-out check cannot pass acceptance. A complete local round may retain GRAPH\_ASSEMBLY\_REPAIR\_REQUIRED while selection, reading and assembly preparation pass its exact bound files to connection repair. Incomplete rounds remain available to diagnosis/reuse under their own gates. Final acceptance requires actual compiled evidence.
+Authors may consult strategy cards. Check helper declarations incrementally, compile the combined proof and audit the export.  Every native wall timeout receives a source-located diagnosis. Local checks start at six minutes and rise by six to thirty only for workload findings. Complete-file assembly/export/inspection and final basis closure start at thirty minutes and rise by fifteen to sixty. Code repair retains its current allowance; partial output from a timed-out check cannot pass acceptance. A complete local round may retain GRAPH\_ASSEMBLY\_REPAIR\_REQUIRED while selection, reading and assembly preparation pass its exact bound files to connection repair. Incomplete rounds remain available to diagnosis/reuse under their own gates. Final acceptance requires actual compiled evidence. OS snapshots use fresh 5/15/30-second attempts. Exhausted native cleanup suspends in place for the owning AI's bound diagnosis and recheck/wait or escalation, with one delayed recheck. Advice cannot grant process exit or proof acceptance; untouched proof work and the pending native call survive. Diagnostic dispatch requests owner wake; only a fresh bound observation acknowledges takeover. Missing acknowledgement requests attention once.
 
 [translate implementation](#handler-translate)
 
@@ -1654,7 +1654,7 @@ Python excerpts and docstrings come from this checkout. Model reasoning, remote 
 
 #### audit
 
-adapters.py · line 50
+adapters.py · line 55
 
 ```python
 def audit(ctx, data):
@@ -1666,7 +1666,7 @@ def audit(ctx, data):
 
 #### audit\_exit
 
-adapters.py · line 42
+adapters.py · line 47
 
 ```python
 def audit_exit(ctx, data):
@@ -1678,11 +1678,11 @@ def audit_exit(ctx, data):
 
 #### basis\_outline
 
-adapters.py · line 26
+adapters.py · line 31
 
 ```python
 def basis_outline(ctx, data):
-    """Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0."""
+    """Assign one M/E label per frozen foundation and inherit its checked source for NL0."""
     return dispatch(ctx, data, 'basis_outline')
 ```
 
@@ -1690,7 +1690,7 @@ def basis_outline(ctx, data):
 
 #### close
 
-adapters.py · line 68
+adapters.py · line 79
 
 ```python
 def close(ctx, data): return dispatch(ctx, data, 'close')
@@ -1700,7 +1700,7 @@ def close(ctx, data): return dispatch(ctx, data, 'close')
 
 #### detail
 
-adapters.py · line 46
+adapters.py · line 51
 
 ```python
 def detail(ctx, data):
@@ -1712,7 +1712,7 @@ def detail(ctx, data):
 
 #### direct\_outline
 
-adapters.py · line 22
+adapters.py · line 27
 
 ```python
 def direct_outline(ctx, data):
@@ -1724,11 +1724,11 @@ def direct_outline(ctx, data):
 
 #### freeze\_basis
 
-adapters.py · line 30
+adapters.py · line 35
 
 ```python
 def freeze_basis(ctx, data):
-    """Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint."""
+    """Pin the exact reviewed classification, source, type, proof and handoff; honor the optional checkpoint."""
     return dispatch(ctx, data, 'freeze_basis')
 ```
 
@@ -1736,7 +1736,7 @@ def freeze_basis(ctx, data):
 
 #### publish
 
-adapters.py · line 69
+adapters.py · line 80
 
 ```python
 def publish(ctx, data): return dispatch(ctx, data, 'publish')
@@ -1750,7 +1750,12 @@ adapters.py · line 19
 
 ```python
 def reduce(ctx, data):
-    """Select and check foundations. An author may consult the optional basis catalog while choosing the route."""
+    """Finish the NL route, prepare proofs and machine-check complete native source types.
+
+    The existing independent basis review covers classification, sources, uses
+    and exact handoff references. Findings return to the editable author before
+    the accepted package is frozen. An author may consult the optional catalog.
+    """
     return dispatch(ctx, data, 'reduce')
 ```
 
@@ -1788,7 +1793,7 @@ def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_uncond
 
 #### revise\_graph
 
-adapters.py · line 34
+adapters.py · line 39
 
 ```python
 def revise_graph(ctx, data):
@@ -1800,7 +1805,7 @@ def revise_graph(ctx, data):
 
 #### seal\_audit
 
-adapters.py · line 38
+adapters.py · line 43
 
 ```python
 def seal_audit(ctx, data):
@@ -1812,7 +1817,7 @@ def seal_audit(ctx, data):
 
 #### translate
 
-adapters.py · line 54
+adapters.py · line 59
 
 ```python
 def translate(ctx, data):
@@ -1827,6 +1832,12 @@ def translate(ctx, data):
     selection, reading and assembly preparation pass its exact bound files to
     connection repair. Incomplete rounds remain available to diagnosis/reuse
     under their own gates. Final acceptance requires actual compiled evidence.
+    OS snapshots use fresh 5/15/30-second attempts. Exhausted native cleanup
+    suspends in place for the owning AI's bound diagnosis and recheck/wait or
+    escalation, with one delayed recheck. Advice cannot grant process exit or
+    proof acceptance; untouched proof work and the pending native call survive.
+    Diagnostic dispatch requests owner wake; only a fresh bound observation
+    acknowledges takeover. Missing acknowledgement requests attention once.
     """
     return dispatch(ctx, data, 'translate')
 ```

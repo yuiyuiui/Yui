@@ -1,5 +1,6 @@
 """Bounded own-draft tools and retained native-fault evidence; no model calls."""
 import harness_support
+from copy import deepcopy
 from basis_fixtures import artifact, dependency, TARGET
 import json
 from pathlib import Path
@@ -29,22 +30,29 @@ class BasisDraftTests(unittest.TestCase):
     def test_missing_evidence_is_repairable_in_the_same_stage(self):
         row=dependency()
         row['origin']['evidence']=[{'path':'external-sources/misspelled.txt','sha256':'0'*64}]
-        result=self.stage.dispatch('submit_draft',{'artifact':artifact(row)})
-        self.assertEqual(result['feedback_kind'],'candidate_rejected')
+        route=artifact(row);route['dependencies'][0]['lean']['proof']=None
+        self.assertTrue(self.stage.dispatch('save_basis_draft',{'artifact':route})['saved'])
+        result=self.stage.dispatch('prepare_basis_graph',{'candidate':1,'prove':False})
         self.assertIn('B001',result['error'])
         self.assertIn('misspelled.txt',result['error'])
         self.assertIsNone(self.stage.accepted)
-        fixed=self.stage.dispatch('submit_draft',{'artifact':{'base_candidate':1,'patches':[
-            {'op':'replace','path':'/dependencies/0/origin/evidence','value':[{'input':'problem.md'}]}]}})
+        route['dependencies'][0]['origin']['evidence']=[{'input':'problem.md'}]
+        self.stage.dispatch('save_basis_draft',{'artifact':route})
+        self.assertTrue(self.stage.dispatch('prepare_basis_graph',{'candidate':2,'prove':False})['route_ready'])
+        route['dependencies'][0]['lean']['proof']=row['lean']['proof']
+        fixed=self.stage.dispatch('submit_draft',{'artifact':route})
         self.assertTrue(fixed['stage_complete'])
-        self.assertEqual(self.validator.last_checked,2)
+        self.assertEqual(self.validator.last_checked,3)
 
     def test_selecting_the_checked_candidate_reuses_only_the_verified_native_receipt(self):
         value=artifact(dependency())
+        route=deepcopy(value);route['dependencies'][0]['lean']['proof']=None
+        self.stage.dispatch('save_basis_draft',{'artifact':route})
+        self.assertTrue(self.stage.dispatch('prepare_basis_graph',{'candidate':1,'prove':False})['route_ready'])
         with patch.object(basis_native,'check',wraps=basis_native.check) as compiler:
             checked=self.stage.dispatch('check_draft',{'artifact':value})
             self.assertFalse(checked['stage_complete'])
-            accepted=self.stage.dispatch('submit_draft',{'artifact':{'accept_candidate':1}})
+            accepted=self.stage.dispatch('submit_draft',{'artifact':{'accept_candidate':2}})
             self.assertTrue(accepted['stage_complete'])
             self.assertEqual(compiler.call_count,1)
         self.assertEqual(self.stage.accepted,value)
@@ -52,7 +60,7 @@ class BasisDraftTests(unittest.TestCase):
         path=Path(self.validator.last_receipt['path'])
         path.write_text('{}')
         with self.assertRaises(RuntimeError):
-            self.validator({'accept_candidate':1})
+            self.validator({'accept_candidate':2})
 
     def test_genuine_filesystem_fault_and_loss_of_a_declared_input_are_execution_errors(self):
         value=artifact(dependency(category=4))

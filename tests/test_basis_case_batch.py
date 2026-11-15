@@ -17,6 +17,32 @@ import target_selection
 
 
 class BasisCaseBatchTests(unittest.TestCase):
+    def test_native_source_handoff_reaches_real_public_export_and_safe_cleanup(self):
+        import cleanup
+        import delivery
+        import b2lean
+        import json
+        with tempfile.TemporaryDirectory() as raw:
+            program=('import sys,json;from pathlib import Path;sys.path.insert(0,'+repr(str(harness_support.TESTS))+');'
+                     'from test_basis_case_batch import BasisCaseBatchTests;'
+                     '[(run,result)]=BasisCaseBatchTests().batch(Path(sys.argv[1]),["native-source"]);'
+                     '(Path(sys.argv[1])/"terminal.json").write_text(json.dumps({"run":str(run),"result":result}))')
+            completed=subprocess.run([sys.executable,'-B','-c',program,raw],capture_output=True,text=True,timeout=240)
+            self.assertEqual(completed.returncode,0,completed.stdout+completed.stderr)
+            terminal=ir.load(Path(raw)/'terminal.json');run=Path(terminal['run']);result=terminal['result']
+            self.assertEqual(result['status'],'WORKFLOW-PASSED',result)
+            self.assertEqual(result['closure']['remaining_premises'],['H001'])
+            graph=ir.load(run/'delivery/nl0/global.json')['graph']
+            native=next(p for p in graph['propositions'] if p['id']=='M001')
+            self.assertEqual(native['source']['declaration'],'Nat.div_right_comm')
+            b2lean.validate_receipt(run/'b2lean')
+            self.assertFalse(list((run/'nl0-to-lean/0001/workflow/audit-b/native-workspaces').glob('resources/workspace-*')))
+            cleaned=cleanup.clean(outputs=[run],apply=True,grace=0)
+            self.assertEqual(cleaned['status'],'CLEANED',cleaned)
+            self.assertEqual(cleaned['residual_pids'],[])
+            self.assertEqual({p.name for p in run.iterdir()},{'delivery'})
+            delivery.verify(run/'delivery')
+
     def batch(self, root, modes, prepared=None):
         selected=list(prepared or []);children=[]
         for index, mode in enumerate(modes if prepared is None else []):

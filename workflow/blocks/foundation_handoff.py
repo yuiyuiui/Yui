@@ -11,6 +11,17 @@ def prefix(row):
     return 'M' if row['category'] == 1 and row['compatibility'] == 'native' else 'E'
 
 
+def source_reference(row):
+    """One existing theorem for native M; a prepared task-local proof for E."""
+    if row['category']==4:return {'mode':'residual','declaration':None}
+    if prefix(row)=='M':
+        name=row['origin'].get('declaration')
+        if not isinstance(name,str) or not name.strip():
+            raise ValueError('Native foundation requires an explicit existing declaration')
+        return {'mode':'native','declaration':name}
+    return {'mode':'prepared','declaration':'YuiBasis.'+row['id']}
+
+
 def allocate(row, occupied):
     first = int(row['id'][1:])
     kind = prefix(row)

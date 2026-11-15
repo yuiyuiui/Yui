@@ -11,10 +11,10 @@ TARGET='For natural numbers a and b, if a=b, then a+0=b.'
 
 
 def dependency(key='B001', category=1, *, port=None, compatibility=None, typ='∀ n : ℕ, n + 0 = n', proof='intro n; exact Nat.add_zero n'):
-    compatibility=compatibility or {1:'native',2:'adapted',3:'internal',4:'unresolved'}[category]
+    compatibility=compatibility or {1:'adapted',2:'adapted',3:'internal',4:'unresolved'}[category]
     if category in {2,3,4} or compatibility=='adapted':port=port or 'E'+key[1:]
     return {'id':key,'category':category,'statement':'For every natural number n, n+0=n.',
-        'origin':{'kind':{1:'mathlib',2:'lean-library',3:'derivation',4:'textbook'}[category],
+        'origin':{**({'declaration':None} if category==1 else {}),'kind':{1:'mathlib',2:'lean-library',3:'derivation',4:'textbook'}[category],
             'reference':'SYNTHETIC attribution control; the actual native proof is elementary.',
             'revision':'SYNTHETIC fixture version','evidence':[{'input':'problem.md'}] if category in {2,4} else []},
         'compatibility':compatibility,'uses':['B001'] if category==3 else [],'port':port,
@@ -96,7 +96,9 @@ def reviewed_value(stage, verdicts=None):
     for key in packet['required']:
         items[key]={'verdict':(verdicts or {}).get(key,'PASS'),
             'notes':'Synthetic located operator/quantifier comparison for software testing.',
-            'locations':['/items/'+key+'/statement','/items/'+key+'/actual_type'],
+            'locations':['/items/'+key+'/'+field for field in ('statement','actual_type','category','compatibility','handoff')],
+            'classification':'Synthetic fixture uses a prepared proof, or the checked direct source, according to its recorded class.',
+            'handoff':'Use the exact checked native declaration or the prepared task-local YuiBasis declaration as displayed.',
             'source':'Synthetic fixture declaration; no research-source verdict.',
             'application':'Synthetic additive-identity application at the displayed natural number.'}
         if (packet.get('revision_objection') or {}).get('basis_id')==key:

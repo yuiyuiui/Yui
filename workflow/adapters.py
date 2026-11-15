@@ -17,18 +17,23 @@ def request_audit(ctx, data): return dispatch(ctx, data, 'request_audit')
 def request_conditional(ctx, data): return dispatch(ctx, data, 'request_conditional')
 def request_unconditional(ctx, data): return dispatch(ctx, data, 'request_unconditional')
 def reduce(ctx, data):
-    """Select and check foundations. An author may consult the optional basis catalog while choosing the route."""
+    """Finish the NL route, prepare proofs and machine-check complete native source types.
+
+    The existing independent basis review covers classification, sources, uses
+    and exact handoff references. Findings return to the editable author before
+    the accepted package is frozen. An author may consult the optional catalog.
+    """
     return dispatch(ctx, data, 'reduce')
 def direct_outline(ctx, data):
     """Construct the first working graph from the original proof."""
     return dispatch(ctx, data, 'direct_outline')
 
 def basis_outline(ctx, data):
-    """Assign one M/E label per directly used frozen foundation and stage the numbered graph for NL0."""
+    """Assign one M/E label per frozen foundation and inherit its checked source for NL0."""
     return dispatch(ctx, data, 'basis_outline')
 
 def freeze_basis(ctx, data):
-    """Pin the reviewed mathematical foundations and honor the optional 2basis checkpoint."""
+    """Pin the exact reviewed classification, source, type, proof and handoff; honor the optional checkpoint."""
     return dispatch(ctx, data, 'freeze_basis')
 
 def revise_graph(ctx, data):

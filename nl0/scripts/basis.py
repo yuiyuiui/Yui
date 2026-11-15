@@ -23,7 +23,7 @@ import basis_graph
 
 VERSION = basis_graph.VERSION
 CONTEXT = 'proof-context.json'
-CONTEXT_VERSION = 'yui-basis-context-2'
+CONTEXT_VERSION = 'yui-basis-context-3'
 MODES = {'conditional', 'unconditional'}
 
 
@@ -48,12 +48,14 @@ def artifact_schema(version=None, *, planning=False):
     evidence=p.choice(p.obj({'input':p.TEXT}),p.obj({'path':p.TEXT,'sha256':p.TEXT}))
     branches=[]
     for category,kind in [(1,'mathlib'),(2,'lean-library'),(3,'derivation'),(4,'textbook')]:
+        origin={'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
+                'evidence':p.array(evidence,minItems=1 if category==4 or category==2 else 0)}
+        if category==1:origin['declaration']=p.nullable(p.TEXT)
         branches.append(p.obj({'id':{'type':'string','pattern':r'^B\d{3,}$'},'category':p.literal(category),
             'statement':p.TEXT,'justification':p.TEXT,'uses':p.array(p.TEXT,uniqueItems=True),
             'port':p.nullable({'type':'string','pattern':r'^[EM]\d{3}$'}),
             'compatibility':{'enum':['native','adapted','internal','unresolved']},
-            'origin':p.obj({'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
-                'evidence':p.array(evidence,minItems=1 if category==4 or category==2 else 0)}),
+            'origin':p.obj(origin),
             'lean':p.obj({'type':p.TEXT,
                 'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if planning else p.TEXT})}))
     dependency=p.choice(*branches)
@@ -90,6 +92,9 @@ def validate(value, target):
         if origin['kind']!={1:'mathlib',2:'lean-library',3:'derivation',4:'textbook'}[category]:
             raise ValueError('Basis category/origin mismatch')
         for name in ('reference','revision'):text(origin[name], 'source '+name)
+        if category==1 and row['compatibility']=='native':
+            import lean_names
+            lean_names.parts(origin['declaration'])
         if not isinstance(origin['evidence'], list):raise ValueError('Source evidence must be a list')
         if category==4 and not origin['evidence']:raise ValueError('Class 4 requires retained complete textbook evidence')
         if not isinstance(row['uses'], list) or any(not isinstance(k,str) for k in row['uses']) or len(set(row['uses']))!=len(row['uses']):
@@ -163,6 +168,8 @@ def declarations(value, *, omit=()):
             roots.append(check[1])
             checks.append(check)
     source += '\nend YuiBasis\n'
+    import basis_sources
+    checks.extend(basis_sources.checks([rows[key] for key in order if key not in omit]))
     return source, checks, roots
 
 
@@ -233,7 +240,7 @@ First outline the global proof and its actual consumers. Investigate remaining i
 foundations together with investigate_basis_frontier. Try a pinned declaration, a textbook derivation,
 or a weaker theorem sufficient at every consumer. Optimize the selected graph jointly for shared
 dependencies and independent natural cuts. Finish the COMPLETE natural-language route before
-writing Lean proofs. Save a yui-basis-2 draft with lean.proof null, then select it using
+writing Lean proofs. Save a yui-basis-3 draft with lean.proof null, then select it using
 prepare_basis_graph (prove:false selects without starting workers). Only after that selection
 write proofs or call prepare_basis_graph to dispatch them. Existing declarations and unchanged
 source may be inspected first; rewriting imported proofs must also wait. Independent workers
@@ -255,6 +262,7 @@ class BasisContract:
         self.out = Path(out);self.target = target;self.attempt = 0;self.drafts = {};self.selected = None
         self.last_checked = None
         self.last_receipt = None
+        self.reusable_native = None
         from payload_protocols import editable
         self.schema=editable(artifact_schema(version,planning=True))
         self.owner_stage=None
@@ -314,15 +322,34 @@ class BasisContract:
             validate(candidate, self.target)
             evidence = evidence_bindings(candidate, self.out/'inputs', self.out/'stage')
             declarations_, checks, roots = declarations(candidate)
-            native = basis_native.check(candidate['lean_header']+declarations_, checks, roots, directory/'native')
+            source=candidate['lean_header']+declarations_
+            native_ref=None
+            reusable=ir.load(self.last_receipt['path'])['native'] if self.last_receipt else self.reusable_native
+            if reusable:
+                prior_dir=Path(reusable['path']).parent
+                if ((prior_dir/'Proof.lean').read_text()==source and
+                        ir.load(reusable['path'])['checks']==[list(c) for c in checks] and
+                        (prior_dir/'Inspection.lean').read_text()==basis_native.inspection_source(source,checks,roots)[0]
+                        and ir.load(reusable['path'])['environment']==basis_native.audit_b.environment()):
+                    verify_bindings([reusable,*([self.last_receipt] if self.last_receipt else [])])
+                    native=basis_native.verify(reusable['path']);native_ref=reusable
+            if native_ref is None:
+                native=basis_native.check(source, checks, roots, directory/'native')
+                native_ref=bind(directory/'native/check.json')
             if not native['passed']:
                 compiler = ir.load(directory/'native/compiler.json')
-                raise ValueError(', '.join(native['errors'])+'\n'+ir.compiler_feedback(compiler))
-            verify_native_edges(candidate,directory/'native')
+                inspected=ir.load(directory/'native/elaborated.json') or {}
+                source_errors=[r['id'].removeprefix('__native__')+': '+r['selector']+
+                    ' does not supply the whole registered type. Use a checked prepared adaptation/derivation (E), '
+                    'or select the one correct complete native theorem before freeze.'
+                    for r in inspected.get('comparisons',[]) if r['id'].startswith('__native__')
+                    and not r['definitionally_equal']]
+                raise ValueError(', '.join(native['errors'])+'\n'+'\n'.join(source_errors)+'\n'+ir.compiler_feedback(compiler))
+            verify_native_edges(candidate,Path(native_ref['path']).parent)
             self.selected = directory
             self.last_checked = self.attempt
             write(directory/'checked.json',{'basis':bind(directory/'basis.json'),
-                'native':bind(directory/'native/check.json'),'evidence':evidence})
+                'native':native_ref,'evidence':evidence})
             self.last_receipt=bind(directory/'checked.json')
         except (ValueError,KeyError,TypeError) as error:
             raise ValueError(f'Basis candidate {self.attempt} retained; repair with base_candidate. {error}') from error
@@ -353,7 +380,7 @@ def run(job, budget, progress):
     from basis_author import BasisStage
     from role_sessions import Sessions
     root = Path(job['root']);sessions = Sessions();previous = None;revision = 0
-    history = {};findings = None
+    history = {};findings = None;reusable_native=None
     resume=job.get('resume') or {}
     if resume.get('mode')=='basis-revision':
         late_finding=ir.load(resume['report']['path'])['finding']
@@ -385,6 +412,7 @@ def run(job, budget, progress):
             else:
                 prompt += '\nThe user selected continue reducing class 4. Preserve the prior basis and accumulated work; eliminate the remaining dependencies without changing the original goal.'
         manifest(inputs);validator = BasisContract(out,target,version=basis_graph.VERSION)
+        validator.reusable_native=reusable_native
         validator.concurrency = job.get('max_concurrency','auto')
         progress(job['case'],'BASIS_AUTHORING',directory=str(out))
         stage = BasisStage(out/'stage',prompt,phase='basis-authoring',inputs=inputs/'inputs.json',
@@ -415,6 +443,7 @@ def run(job, budget, progress):
             basis_defect.require_revision(artifact,resume,late_finding)
         progress(job['case'],'BASIS_CHECKED',directory=str(out))
         checked = ir.load(validator.selected/'checked.json')
+        reusable_native=checked['native']
         context = {'version':CONTEXT_VERSION,'formalization':'unconditional','full_target':target,
             'basis':bind(out/'stage/accepted.json'), 'native':checked['native'],
             'original_inputs':[bind(root/'inputs'/r['path']) for r in ir.load(root/'inputs/inputs.json')['inputs']],
@@ -556,31 +585,18 @@ def source_context(graph, spec):
 
 
 def check_graph_sources(context, registry, graph):
-    """A working M label names a theorem used in its checked proof or its reviewed citation."""
-    if 'foundation_ports' not in graph:
-        return
+    """A native M retains the exact whole-proposition source checked before freeze."""
     ports=basis_graph.handoff().by_port(registry,graph)
     native=[p for p in graph['propositions'] if p['id'] in ports and p['kind']=='mathlib']
     if not native:
         return
-    inspected=ir.load(Path(context['native']['path']).parent/'elaborated.json')
-    declarations={r['name']:r for r in inspected['dependencies']['declarations']}
+    import basis_sources
+    sources=basis_sources.material(registry,context['native'])
     for prop in native:
         row=ports[prop['id']]
-        selector=prop['source']['declaration']
-        pending=['YuiBasis.'+row['id']]
-        visited=set()
-        while pending:
-            name=pending.pop()
-            if name in visited:
-                continue
-            visited.add(name)
-            entry=declarations.get(name)
-            if entry and __import__('inspection_evidence').project_owned(entry):
-                pending.extend(entry['direct_constants'])
-        cited=re.findall(r"[\w']+(?:\.[\w']+)*",row['origin']['reference'])
-        if selector not in visited and selector not in cited:
-            raise ValueError(f"{prop['id']}: {selector} is not the checked or cited Mathlib source of {row['id']}")
+        expected=sources[row['id']]['source']
+        if any(prop['source'].get(k)!=expected[k] for k in basis_sources.FIELDS):
+            raise ValueError(f"{prop['id']}: changed frozen whole-proposition native source for {row['id']}")
 
 
 def universe_ports(ports, inspected):

@@ -645,6 +645,9 @@ class NL0Contract:
                     aliases.append({'id': identifier, 'field': 'statement', 'from': 'spec.conclusion'})
             if kind in {'mathlib', 'external'}:
                 source = proposition.get('source')
+                if kind=='mathlib' and identifier in ports:
+                    if source is None:source={};proposition['source']=source
+                    if isinstance(source,dict):source.setdefault('hypotheses',[])
                 if not isinstance(source,dict):
                     raise ValueError(f'FIELDS: {identifier}.source must be an object; provide source metadata and select declared evidence with {{"input":"ID"}}')
                 if 'statement' not in source and 'statement' in proposition:
@@ -661,6 +664,12 @@ class NL0Contract:
                 self.bind_external_source(identifier,source,ports.get(identifier),context,working='foundation_ports' in graph)
             if kind != 'mathlib':
                 continue
+            foundation=ports.get(identifier)
+            if foundation is not None:
+                import basis_sources
+                basis_sources.inherit(self.directory,context,registry,
+                                      identifier,foundation,source)
+                continue
             __import__('runtime_config').require_environment()
             identifier, source = proposition.get('id'), proposition.get('source', {})
             if not isinstance(source, dict):
@@ -676,6 +685,8 @@ class NL0Contract:
                 if (report.get('probe_version') != 1 or report.get('exit_code') != 0
                         or report.get('mathlib_commit') != lock['mathlib']['rev']):continue
                 for original_id,row in sources.items():
+                    if report.get('inheritance'):
+                        continue  # Cross-stage inheritance is only through the frozen basis above.
                     # A report-level alias describes its sole actual source,
                     # never an absent ID or another row in a multi-source file.
                     selectors={row.get('declaration')}

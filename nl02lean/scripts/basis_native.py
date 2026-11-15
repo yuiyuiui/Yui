@@ -35,6 +35,9 @@ def type_probes(header, rows):
         declaration, check = proposition_probe(row)
         source += declaration
         checks.append(check)
+    import basis_sources
+    checks.extend((key,name,'value:'+TYPE_PREFIX+key[len(basis_sources.PREFIX):])
+                  for key,name,_ in basis_sources.checks(rows))
     return source + '\nend YuiBasis\n', checks
 
 
@@ -119,12 +122,19 @@ def check(source, checks, roots, out, *, compiled_prefix=None):
     else:shutil.rmtree(work)
     write(out/'compiler.json', native)
     problems = errors(native, evidence, checks, roots)
-    result = {'version':'yui-basis-native-2', 'passed':not problems, 'errors':problems,
+    import basis_sources
+    sources={}
+    if not problems:
+        try:sources=basis_sources.native_sources(evidence,checks,environment)
+        except ValueError as error:problems.append('NATIVE_SOURCE: '+str(error))
+    result = {'version':'yui-basis-native-3', 'passed':not problems, 'errors':problems,
         'timeout_diagnostic_model_called':bool(native.get('timeout_reviews')),
         'checks':checks, 'roots':roots, 'environment':environment,
+        'native_sources':sources,
         'compiled_prefix':compiled_prefix,
         'bindings':[bind(out/name) for name in ('Proof.lean','Inspection.lean','compiler.json','elaborated.json',
-            *(['incomplete-inspection.json'] if (out/'incomplete-inspection.json').exists() else []))],
+            *(['incomplete-inspection.json'] if (out/'incomplete-inspection.json').exists() else []))]+
+            [bind(Path(ir.load_lock()['mathlib']['local_path'])/s['source_path']) for s in sources.values()],
         'scope':'Native types, signatures and proof trust only; no mathematical source review.'}
     write(out/'check.json', result)
     return result
@@ -132,7 +142,7 @@ def check(source, checks, roots, out, *, compiled_prefix=None):
 
 def verify(path):
     path = Path(path);value = ir.load(path)
-    ir.need(value['version']=='yui-basis-native-2', 'Unknown basis native receipt')
+    ir.need(value['version']=='yui-basis-native-3', 'Unknown basis native receipt')
     from controller_common import verify_bindings
     verify_bindings(value['bindings'])
     ir.need(value['environment']==audit_b.environment(), 'Basis pinned environment changed')
@@ -141,5 +151,8 @@ def verify(path):
     inspected,_=inspection_source((path.parent/'Proof.lean').read_text(),value['checks'],value['roots'],value['compiled_prefix'])
     ir.need((path.parent/'Inspection.lean').read_text()==inspected, 'Changed actual native inspection source')
     expected = errors(native, evidence, value['checks'], value['roots'])
+    import basis_sources
+    sources=basis_sources.native_sources(evidence,value['checks'],value['environment']) if not expected else {}
+    ir.need(value.get('native_sources')==sources,'Changed native whole-proposition source evidence')
     ir.need(value['passed'] is True and not expected and value['errors']==expected, 'Basis native acceptance failed')
     return value

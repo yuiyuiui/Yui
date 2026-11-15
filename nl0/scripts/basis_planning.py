@@ -172,6 +172,13 @@ def prepare(stage,args):
     if args.get('prove') is False:
         return {'candidate':n,'route_ready':True,'route':route,'proof_workers_started':False,'stage_complete':False}
     if pending:check_types(stage,candidate)
+    import basis_sources
+    # Direct library facts need no model proof author. Their complete source
+    # signature is still compared by the final trusted basis inspection.
+    for row in pending:
+        if basis_sources.direct(row):
+            row['lean']['proof']='exact @'+row['origin']['declaration']
+    pending=[r for r in pending if r['lean']['proof'] is None]
     if pending and any(r['category']==4 for r in candidate['dependencies']):
         import basis_preapproval
         basis_preapproval.approve(stage,candidate)

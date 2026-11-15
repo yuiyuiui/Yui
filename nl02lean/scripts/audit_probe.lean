@@ -165,6 +165,8 @@ elab "#nl2lean_audit_probe" : command => do
         let .defnInfo value ← getConstInfo (nameOf (((expectedText.drop 6).toString.splitOn ".").toArray))
           | throwError "Expected a bound signature definition"
         pure value.value
+      else if expectedText.startsWith "decl:" then
+        pure (← getConstInfo (nameOf (((expectedText.drop 5).toString.splitOn ".").toArray))).type
       else do
         let stx ← ofExcept <| Parser.runParserCategory (← getEnv) `term expectedText
         Term.elabTerm stx none

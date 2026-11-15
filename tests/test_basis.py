@@ -241,7 +241,7 @@ class BasisNativeTests(unittest.TestCase):
             self.assertFalse(result['passed']);self.assertIn('LEAN_COMPILE_FAILED',result['errors'])
 
     def test_transitive_hidden_axiom_and_sorry_are_rejected(self):
-        for name,source in [('axiom','import Mathlib\naxiom hidden : False\ntheorem Bad : True := hidden.elim\n'),
+        for name,source in [('axiom','import Mathlib\naxiom YuiHiddenAxiom : False\ntheorem Bad : True := YuiHiddenAxiom.elim\n'),
                 ('sorry','import Mathlib\ntheorem Bad : True := by sorry\n')]:
             result=basis_native.check(source,[('bad','Bad','True')],['Bad'],self.root/name)
             self.assertFalse(result['passed']);self.assertTrue(any('UNPERMITTED_AXIOM' in e for e in result['errors']))

@@ -34,7 +34,7 @@ The [foundation planning strategy](basis-planning.md) covers parallel research, 
 Submit an object with exactly:
 
 ```text
-version: "yui-basis-2"
+version: "yui-basis-3"
 global_graph: {propositions:[{id,statement}], inferences:[{id,inputs,output,basis:[B IDs]}]}
 full_target: exact target-selection.json full_target
 proof: complete basis-reduced natural-language proof
@@ -53,7 +53,7 @@ Each dependency has exactly:
 id: B001 (three or more digits)
 category: 1 | 2 | 3 | 4
 statement: complete mathematical statement
-origin: {kind, reference, revision, evidence:[evidence reference, ...]}
+origin: {kind, reference, revision, evidence:[evidence reference, ...], declaration:... only for class 1}
 compatibility: native | adapted | internal | unresolved
 uses: [other B IDs]
 port: E001 | M001 | null
@@ -66,10 +66,17 @@ Reference identifies the actual declaration/public source/theorem or derivation;
 revision identifies its version/edition. Category and compatibility are distinct:
 a Mathlib result from another version is still class 1, possibly `adapted`.
 
-- Class 1/native uses an M label in the working graph.
+- Class 1/native supplies `origin.declaration`, a data-only exact Mathlib name.
+  One imported proved declaration must have the **whole** submitted Lean type,
+  modulo definitional equality and bijective universe renaming. The existing
+  native inspection checks this automatically, along with complete trust and
+  dependency inspection. A correct proof of a bundle does not make one of its
+  component declarations a source for the bundle. Its working label is M.
 - Class 1/adapted and class 2: provisional E port with actual checked proof in
   the pinned target environment. Prepare needed adapters and retained source
-  attribution now; no whole-library migration prerequisite.
+  attribution now; no whole-library migration prerequisite. A class 1 adaptation
+  sets `origin.declaration` to its source name or null; it is not claimed to have
+  that declaration's unchanged complete type.
 - Class 3 is a checked derivation with nonempty `uses`. Supply a pinned type and proof. Its direct consumers use an E label. The final export applies the prepared proof.
 - Class 4: `unresolved`, E port, `lean:{type,proof:null}`. Retain a verified
   complete textbook theorem and evidence. Missing sources, contradictions,
@@ -91,7 +98,11 @@ the basis reviewer checks source completeness and classification before release.
 Use `base_candidate:N` with JSON-pointer patches into the basis object, or
 `accept_candidate:N`. `base_input:"prior-basis.json"` continues user-requested
 reduction. Every revised artifact receives the same real native checks.
-Compiler/resource nonpass is feedback, not mathematical impossibility.
+Compiler/resource nonpass is feedback, not mathematical impossibility. The
+natural-language route selection is a working checkpoint, not final acceptance.
+Classification/source repairs remain with the basis author before review and
+final freeze. If a route change needs selection again, save the revised route
+with proof bodies null, select it, then reuse the retained unchanged bodies.
 
 For long reductions, `save_basis_draft` saves partial work without running Lean;
 `read_basis_draft` reads only that author's actual saved candidates, with bounded
@@ -113,6 +124,22 @@ rewritten use and the propositions printed by Lean. For class 4 it reads the
 value of the proposition definition. The comparison covers quantifier order,
 uniform constants, domains, assumptions, direction, definitions and adapters.
 The basis reviewer checks each prepared class 3 and its consumers.
+It explicitly reports `classification` and `handoff` judgments, with locations
+at the item's category, compatibility and machine-generated handoff as well as
+statement and actual type. Native source support is enforced deterministically;
+the reviewer still owns NL/type correspondence, applicability and attribution.
+This is the existing single review batch, not an additional full proof audit.
+
+The handoff exists before review: native entries carry the actual module,
+declaration, full type and source bytes; prepared entries name `YuiBasis.Bddd`.
+Only the exact accepted package is frozen. Downstream M metadata is generated
+from that package and labeled inherited evidence, without another native probe
+or model transcription. A later conflicting selector or technical source field
+is rejected. A prepared theorem is never looked up as an imported Mathlib name.
+The same checked source, inspection program, checks and environment can reuse a
+successful native receipt across metadata-only revisions, including reviewer
+repairs. Changed Lean, signatures, inspection tools or environment require a new
+native check. Failed, timed-out or corrupted evidence cannot be reused.
 
 The reviewer submits a located PASS, FAIL or UNVERIFIED for every assigned item.
 A normal-policy nonpass goes back to the same basis author with the prior

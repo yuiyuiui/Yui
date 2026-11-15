@@ -66,6 +66,34 @@ class CleanupTests(unittest.TestCase):
         for pid in (row['child'],):
             if pid in table:os.kill(pid,9)
 
+    def copied_workspace(self):
+        import tempfile
+        work=Path(tempfile.mkdtemp(prefix='yui-cleanup-copy-')).resolve();self.workspaces.append(work)
+        original=self.output/'assembly/candidate/native-workspaces'
+        program='from pathlib import Path;import sys;sys.path.insert(0,'+repr(str(CORE/'nl0/scripts'))+');from run_resources import register_workspace;register_workspace(Path(sys.argv[1]),Path(sys.argv[2]))'
+        subprocess.run([sys.executable,'-B','-c',program,str(work),str(original)],check=True)
+        source=next((original/'resources').glob('workspace-*'))
+        copy=self.output/'audit-b/native-workspaces/resources'/source.name
+        copy.parent.mkdir(parents=True);shutil.copyfile(source,copy)
+        return work,source,copy
+
+    def test_released_assembly_copy_uses_its_exact_same_run_original(self):
+        work,source,copy=self.copied_workspace();shutil.rmtree(work)
+        self.assertEqual(c.inventory(CORE,[self.output])['errors'],[])
+        self.assertEqual(self.clean(apply=True,grace=0)['status'],'CLEANED')
+        self.assertFalse(self.output.exists())
+
+    def test_live_changed_missing_and_foreign_workspace_copies_block_cleanup(self):
+        work,source,copy=self.copied_workspace()
+        self.assertEqual(self.clean()['status'],'BLOCKED')
+        shutil.rmtree(work)
+        original=source.read_bytes()
+        copy.write_text('{}');self.assertEqual(self.clean()['status'],'BLOCKED')
+        copy.write_bytes(original);source.unlink();self.assertEqual(self.clean()['status'],'BLOCKED')
+        source.write_bytes(original)
+        row=json.loads(original);row['logs']=str(self.root/'foreign')
+        copy.write_text(json.dumps(row));self.assertEqual(self.clean()['status'],'BLOCKED')
+
     def test_unmarked_input_and_symlink_cannot_be_removed(self):
         with self.assertRaises(ValueError):c.clean(outputs=[self.problem.parent],apply=True)
         alias=self.root/'alias';alias.symlink_to(self.output,target_is_directory=True)

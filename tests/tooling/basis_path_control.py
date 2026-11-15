@@ -62,6 +62,14 @@ def author_code(stage):
             if stage.mode==fg.LOCAL or 'prior-global.json' in stage.task_inputs:
                 registry['dependencies']=[r for r in registry['dependencies'] if r['port']!='E003']
         add_external_applications(graph,registry,evidence)
+        if mode=='native-source':
+            row=registry['dependencies'][0]
+            graph['propositions'].append({'id':'M001','kind':'mathlib','statement':row['statement'],
+                'definitions':[],'binders':[],'objects':[]})
+            step=graph['inferences'][-1];step['inputs'].append('M001')
+            step['argument'][-1]['uses'].append('M001')
+            step['applications'].append({'id':'A001','input':'M001','at':step['argument'][-1]['id'],
+                'bindings':'Specialize the displayed division identity at a, 1 and 1.','hypothesis_checks':[]})
     if mode=='direct-external':
         add_external_applications(graph,artifact(dependency(category=2)),evidence)
     if mode=='local-gap' and stage.mode==fg.LOCAL:
@@ -123,7 +131,7 @@ def review_value(stage):
                 props=json.loads(stage.task_inputs['nl0.json'])['propositions']
                 bad=next((i for i,p in enumerate(props) if p['statement']=='Both numbers vanish.'),None)
                 if bad is not None:row.update(verdict='FAIL',notes='Equality does not imply both numbers vanish.',locations=[f'nl0.json#/propositions/{bad}/statement'])
-            if pointer.startswith('/source_reviews/'):
+            if pointer.startswith('/source_reviews/E'):
                 row['citation_checks']={k:deepcopy(row) for k in audit_a_campaign.nl0.EXTERNAL_CHECKS}
         else:
             row['locations']=['/inference/argument']
@@ -144,6 +152,12 @@ def scripted(stage):
         wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision','relabel-residual'} and revision=='0001'
         cat=4 if wants_residual else 2
         row=dependency(category=cat)
+        if mode=='native-source':
+            row=dependency(category=1,compatibility='native',
+                typ='∀ a b c : ℕ, a / b / c = a / c / b',
+                proof='intro a b c; exact Nat.div_right_comm a b c')
+            row['port']=None;row['origin']['declaration']='Nat.div_right_comm'
+            row['statement']='For all natural numbers a, b and c, a / b / c = a / c / b.'
         if mode=='universe-use':
             row['statement']='In an additive structure with zero, adding zero on the right preserves each element.'
             row['lean']={'type':'∀ (A : Type*) [AddZeroClass A] (x : A), x + 0 = x',
@@ -214,6 +228,9 @@ def scripted(stage):
     if stage.mode=='interface-authoring':
         value=addition_interface()
         if mode=='local-edge' or mode.startswith('relabel-'):value['steps'][-1]['inputs'].append('H001')
+        if mode=='native-source':
+            value['premise_types']['M001']='∀ a b c : ℕ, a / b / c = a / c / b'
+            value['steps'][-1]['inputs'].append('M001')
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
@@ -235,6 +252,8 @@ def scripted(stage):
                                   {'name':'x','type':'A'}],'args':['A','x'],'expected':'x + 0 = x'}]}]}})
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
+        if mode=='native-source' and stage.step=='T002':
+            return call('submit_transition',proof='have _ := h_M001 a 1 1\nsimpa only [Nat.add_zero] using h_T001.symm')
         if mode=='universe-use' and stage.step in ('T003','T002'):
             proof='intro A _ x; exact h_E001 A x' if stage.step=='T003' else 'exact (h_T003 ℕ a).trans h_T001.symm'
             return call('submit_transition',proof=proof)
@@ -256,6 +275,10 @@ def scripted(stage):
             return call('submit_transition',proof='simpa only [h_E002 a] using h_T001.symm')
         return call('submit_transition',proof='exact h_H001.symm' if stage.step=='T001'
                     else 'simpa only [h_E001 a] using h_T001.symm' if job['formalization']=='unconditional' or mode=='direct-external' else 'simpa using h_T001.symm')
+    if stage.mode=='audit-b-assembly' and mode=='native-source':
+        mapping=json.loads(stage.task_inputs['mapping.json'])
+        mapping['library_terms']['M001']='exact @Nat.div_right_comm'
+        return call('submit_draft',artifact=mapping)
     raise AssertionError('Unexpected stage '+stage.mode)
 
 
@@ -263,7 +286,8 @@ def respond(f,handler,number,payload):
     stage=f.stage;requests[stage.logs]+=1
     try:
         if requests[stage.logs]>2:
-            detail=(stage.logs/'tools.jsonl').read_text()[-12000:] if (stage.logs/'tools.jsonl').exists() else ''
+            rows=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()] if (stage.logs/'tools.jsonl').exists() else []
+            detail=json.dumps([{'tool':r['tool'],'result':r['result']} for r in rows if r.get('result',{}).get('error')][-4:])
             raise AssertionError('Repeated fixture request: '+stage.mode+' '+detail)
         # The HTTP fixture is a separate server thread, not a Yui proof worker.
         # Read its oracle's contract under the declared job environment. Actual

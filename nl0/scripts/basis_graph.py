@@ -6,7 +6,7 @@ import re
 import artifact_protocol as p
 from closure import standalone_statement
 
-VERSION = 'yui-basis-2'
+VERSION = 'yui-basis-3'
 PROP = {'type':'string','pattern':r'^(?:[HEMN]\d{3,}|P)$'}
 BASIS = {'type':'string','pattern':r'^B\d{3,}$'}
 
@@ -91,6 +91,8 @@ def active(value, *, prune=False):
     for k,r in props.items():
         if k.startswith('E') and k not in by_port:
             raise ValueError('External proposition has no basis authority: '+k)
+        if k.startswith('M') and k not in by_port:
+            raise ValueError('Native proposition has no basis authority: '+k)
         if k in by_port and r['statement']!=by_port[k]['statement']:
             raise ValueError('Basis statement differs from frozen proposition '+k)
     if not prune and selected!=set(rows):

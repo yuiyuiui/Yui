@@ -16,8 +16,13 @@ unconditional` and follow [2basis and b2lean](nl0/references/basis.md).
 the original target/H remain immutable. Audit A receives both original task and
 basis proof and replacements. Complete and select the entire natural-language
 route before the 2basis author or its workers write new class 1/2/3 Lean proofs.
-An independent reviewer compares the printed Lean propositions with the source and
-all intended uses. Remaining class 4 requires the user's
+Before the final foundation freeze, the existing independent reviewer checks
+classification, complete source support, printed types, intended uses and the
+downstream reference. Native M requires one imported Mathlib theorem with the
+whole type, checked automatically in the existing kernel inspection. Prepared E
+uses its checked task-local proof. NL0 inherits native source metadata instead
+of rediscovering it. Reviewing or reading unchanged evidence never recompiles it.
+Remaining class 4 requires the user's
 exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean
 must check the actual closed export and transitive trust. Never present an
 approved conditional fallback or source-qualified result as unconditional.
