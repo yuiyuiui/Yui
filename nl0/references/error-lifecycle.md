@@ -74,6 +74,25 @@ Yui does not invent per-HTTP success/reset observations. Lifetime retry totals
 remain cumulative and explicit manual resume starts a new bounded incident.
 Faults, elapsed time, checkpoints and known usage remain retained.
 
+Before the next turn after a failed native request, the shared carrier supplies
+a bounded structured progress index. This applies to every role, including a
+worker that dispatched its own workers. It contains actual same-owner call and
+return identities, small draft counters, and direct child states from the
+existing task recorder. Heartbeats and elapsed time do not trigger reconstruction;
+an empty index leaves the ordinary continuation unchanged.
+
+`read_recovery_state` reads that owner's exact arguments or returned JSON by
+call ID and content hash, with pages of at most 12000 characters. The reminder
+shows at most 16 calls and 16 direct children; its index reader also pages older
+entries. Full returns remain in the existing tool history and tool log. Identical
+reconnects reuse one small immutable progress record. A result flushed to carrier
+stdin remains available even when model receipt is uncertain. The owner LLM
+decides whether it needs to read a return, wait, continue or repair locally.
+Recovery itself starts no model/Lean work and never cancels or repeats a child.
+Saved progress and returned proposals do not grant mathematical acceptance.
+The native input audit binds each reminder to its same-thread calls and actual
+tool returns. A revised role starts a new progress index under its current inputs.
+
 A successful submission is saved before requesting native interruption. The
 matching native completion confirms the handoff. An unexpected native stdout
 EOF, invalid JSON, foreign thread/turn/tool or local evidence failure pauses as

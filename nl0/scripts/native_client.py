@@ -55,6 +55,7 @@ def bind_inputs(stage, user, continuation):
     if not path.is_file():return
     receipt=json.loads(path.read_text())
     receipt['allowed_user_message_sha256']=[hashlib.sha256(value.encode()).hexdigest() for value in (user,continuation)]
+    receipt.pop('recovery_inputs',None)
     path.write_text(json.dumps(receipt,indent=2)+'\n')
 
 
@@ -201,6 +202,8 @@ def audit(directory, *, write_receipt=True):
     root=Path(directory);receipt=root/'native-client.json';errors=[]
     if not receipt.is_file():raise ValueError('Native client receipt is missing')
     data=json.loads(receipt.read_text());config=root/'effective-config.toml'
+    from native_carrier import native_recovery
+    if not native_recovery.verify_inputs(root,data):errors.append('unbound_recovery_input')
     if hashlib.sha256(config.read_bytes()).hexdigest()!=data['config_sha256']:errors.append('native_config_changed')
     import tomllib
     settings=tomllib.loads(config.read_text());profile=data['profile']

@@ -181,6 +181,7 @@ class Stage(carrier.NativeCarrier):
             self.tools.append(carrier.tool('prove_independent_helpers',
                 'Prove a batch of independent private lemma statements under your exact frozen binders. Supply their natural proof routes. Children can use incremental helpers. Read each checked helper and use it to prove the original target.',
                 shape['properties'],shape['required']))
+        self.tools += carrier.native_recovery.tools()
         self.tool_names = {t['name'] for t in self.tools}
         self.accepted = None
         self.own_lean_drafts={'proof':{},'auxiliary':{}}
@@ -208,6 +209,7 @@ class Stage(carrier.NativeCarrier):
         self.allowed_user_messages = set()
         self.proc = None
         self.model_calls, self.tool_history = {}, {}
+        self.recovery_calls = {}
         self.continuation_count = 0
         self.turn_results = []
         self.last_turn_event = self.active_turn_id = self.pending_turn_start_id = None

@@ -47,7 +47,7 @@ model or messaging the user.
 | Installation and current-format jobs | `test_local_setup`, `test_setup_native`, `test_job_entry`, `test_lean_environment`, `test_runtime_snapshot` |
 | Current NL0 structure and independent Audit A | `test_closure`, `test_review_contract`, `test_nl0_review_loop`, `test_review_controllers` |
 | Four-stage routing and dependency discharge | `test_basis`, `test_basis_workflow`, `test_basis_case_batch`, `test_b2lean`, `test_basis_closure_levels` |
-| Current native client, errors and accounting | `test_native_protocol`, `test_native_client`, `test_native_faults`, `test_carrier_reader`, `test_execution_state` |
+| Current native client, errors and accounting | `test_native_protocol`, `test_native_client`, `test_native_faults`, `test_native_recovery`, `test_carrier_reader`, `test_execution_state` |
 | Lean interfaces, local proofs and final assembly | `test_interface_gate`, `test_graph_runner`, `test_assembly`, `test_audit_b`, `test_final_acceptance` |
 | Retained work, cancellation and cleanup | `test_interrupted_resume`, `test_proof_io_recovery`, `test_basis_closure_recovery`, `test_controller_cleanup`, `test_process_queries`, `test_process_recovery` |
 | Version-independent strategy references | `test_bank_versions`, `test_strategy_bank`, workflow strategy-reference suites |
@@ -58,6 +58,14 @@ research task and do not certify a theorem or model capability. Source and
 review metadata in deterministic provider controls are labeled synthetic.
 Mathematical examples and model benchmarks belong in the separate Yui-results
 repository, not the installed harness.
+
+Reconnect controls reproduce a parent stream failure while its dispatched tool
+is still working, then read the finished batch from the recovering turn without
+dispatching it again. An intentional generic-continuation variant must fail that
+acceptance case. A separate real Codex/Code Mode test reads the saved return after
+a local provider disconnect and checks the native input provenance. These are
+deterministic fault-injection tests, not measurements of VPN outage duration or
+proof-performance benchmarks.
 
 Process recovery controls exercise an actual slow subprocess, the public
 diagnosis/decision CLI, and real Lean compilation followed by injected process

@@ -252,6 +252,7 @@ class ArtifactStage(pilot.Stage):
         import basis_defect
         basis_defect.enable(self)
         pilot.strategy_bank.install_reference(self)
+        self.tools += pilot.carrier.native_recovery.tools()
         self.tool_names = {t['name'] for t in self.tools}
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()

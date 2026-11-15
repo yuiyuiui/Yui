@@ -17,12 +17,18 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timezone
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 from pilot_common import transport_sandbox_profile
 from runtime_config import model_profile
 import remote_retry
 from execution_state import CaseDeadlineExceeded, Cancelled
+
+_recovery_spec = spec_from_file_location('yui_native_recovery',
+    Path(__file__).resolve().parents[2]/'workflow/blocks/native_recovery.py')
+native_recovery = module_from_spec(_recovery_spec)
+_recovery_spec.loader.exec_module(native_recovery)
 
 REMOTE_RETRY_POLICY = remote_retry.POLICY
 
@@ -183,12 +189,18 @@ class NativeCarrier:
                 params = msg['params']
                 self.validate_tool_rpc(params)
                 call_id=params['callId']
+                native_recovery.begin_call(self,params)
                 if call_id in self.tool_history:
                     result=json.loads(json.dumps(self.tool_history[call_id]))
                     append(self.logs/'controller.jsonl',{'event':'exact_tool_result_redelivered',
                         'call_id':call_id,'tool':params['tool'],'dispatch_repeated':False})
                 else:
-                    try:result = self.dispatch(params['tool'], params['arguments'])
+                    try:
+                        if params['tool']==native_recovery.TOOL:
+                            result=native_recovery.read(self,params['arguments'])
+                            append(self.logs/'tools.jsonl',{'tool':params['tool'],
+                                'arguments':params['arguments'],'result':result,'wall_seconds':0})
+                        else:result = self.dispatch(params['tool'], params['arguments'])
                     except CaseDeadlineExceeded:
                         self.budget_exhausted=True
                         self.proc.stdin.write(json.dumps({'id':msg['id'], 'error':{
@@ -242,6 +254,12 @@ class NativeCarrier:
         """The provenance receipt is the immutable JSON value actually delivered."""
         delivered=json.dumps(result,ensure_ascii=False)
         self.tool_history[call_id]=json.loads(delivered)
+        native_recovery.complete_call(self,call_id,delivered)
+        row=self.recovery_calls.get(call_id)
+        if row is not None:
+            append(self.logs/'request-lifecycle.jsonl',{'event':'TOOL_RESULT_SAVED',
+                **{key:row[key] for key in ('call_id','tool','arguments_sha256','result_sha256')},
+                'delivery_confirmed':False})
         return delivered
 
     def check_runtime_state(self):
@@ -431,15 +449,16 @@ class NativeCarrier:
                     else:
                         self.pause_error(fault,retries=incident_retries)
                         incident_retries=0
-                    self.allowed_user_messages.add(continuation_prompt)
-                    message=continuation_prompt
+                    message=native_recovery.recover(self,continuation_prompt)
+                    self.allowed_user_messages.add(message)
                     continue
                 fault=fault or {'code':'unknown','message':'Model turn ended without completion'}
                 local=bool(getattr(self,'local_protocol_fault',None))
                 if local:fault={'code':'harness_bug','cause':fault,'message':'A local protocol/provenance fault requires verified repair'}
                 self.pause_error(fault,retries=incident_retries,resumable=not local)
                 incident_retries=0
-                self.allowed_user_messages.add(continuation_prompt);message=continuation_prompt
+                message=native_recovery.recover(self,continuation_prompt)
+                self.allowed_user_messages.add(message)
                 continue
             incident_retries=0
             if self.accepted:

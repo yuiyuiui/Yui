@@ -74,4 +74,14 @@ standalone compilation, kernel closure and the semantic authority. Portable
 reader/state cases are registered in [checks.json](checks.json); the parent
 repository also tests the actual frozen-interface handoff and native repair.
 
+The private [native recovery policy](blocks/native_recovery.py) supplies bounded
+same-owner progress after a failed native request, including direct children and
+exact returned-call references. Its read tool pages existing results; it neither
+dispatches replacement work nor decides mathematical acceptance. Identical
+disconnects reuse the same small index, and revised role inputs start a fresh
+index. Independent cases in [checks.json](checks.json) cover scope, pending and
+failed work, uncertain delivery, paging and input provenance. The parent tests
+also inject a failure while a tool is serving its children and exercise result
+retrieval through the real native Codex/Code Mode client with a local fake provider.
+
 Install [requirements](requirements.txt) in the local Yui Python environment. Use `python scripts/flow.py check`, `plan`, `diagram` and `test` to inspect the same definition the cases execute. Edit a consumer contract at its owner, version incompatible changes, and add an independent expectation to [acceptance.json](acceptance.json) before regenerating path tests. Audit the package with the registered workflow-builder before and after a change. Run the parent Yui regression suite, including native CLI and Lean tests, before recording a new maintenance baseline. The protocol fixtures exercise every declared route using offline adapters. Real proof acceptance comes from the corresponding native reviews, Lean checks and actual output.
