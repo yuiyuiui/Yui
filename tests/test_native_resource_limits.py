@@ -16,10 +16,10 @@ class NativeResourceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw)
             for value in [0,-1,True,False,None,'20000000',2.5]:
-                ir.write(root/'config.json',{'lean':{'max_heartbeats':value}})
+                ir.write(root/'yui-config.json',{'lean':{'max_heartbeats':value}})
                 with self.subTest(value=value),patch.object(runtime_config,'CORE',root),self.assertRaises(ValueError):
                     runtime_config.native_heartbeats()
-            ir.write(root/'config.json',{'lean':{'max_heartbeats':20000000}})
+            ir.write(root/'yui-config.json',{'lean':{'max_heartbeats':20000000}})
             with patch.object(runtime_config,'CORE',root):self.assertEqual(runtime_config.native_heartbeats(),20000000)
 
     def test_real_lean_reads_20m_and_shorter_call_deadline_is_recorded(self):

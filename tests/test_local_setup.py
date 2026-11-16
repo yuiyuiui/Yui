@@ -30,7 +30,9 @@ class LocalSetupTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name).resolve()/'renamed installation with spaces';self.root.mkdir()
-        (self.root/'config.json').write_bytes((harness_support.CORE/'config.json').read_bytes())
+        config=self.root/'nl0/templates/yui-config.json'
+        config.parent.mkdir(parents=True,exist_ok=True)
+        config.write_bytes((harness_support.CORE/'nl0/templates/yui-config.json').read_bytes())
         (self.root/'SKILL.md').write_text('---\nname: rigorous-proof\ndescription: Synthetic registration fixture.\n---\n')
         for name in ('nl0/scripts/local_setup.py','nl0/scripts/setup_checks.py','nl0/scripts/local_config.py',
                      'nl0/scripts/runtime_config.py','nl0/scripts/lean_environment.py','nl0/scripts/native_runtime.py',

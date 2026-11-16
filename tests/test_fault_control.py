@@ -300,7 +300,7 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         t.api_calls=0;t.proc=Mock();t.proc.poll.return_value=None;t.execution=None;t.execution_task='worker'
         t.request_lock=threading.Lock();t.native_turn_generation=0;t.request_turns={};t.last_response_success=None
         t.tool_history={'old-call':{'result':'retained'}};t.check_runtime_state=Mock()
-        t._fault_gate=self.gate();t.refresh_after_error_pause=Mock()
+        t._fault_gate=self.gate();t.budget=None;t.recovery_calls={}
         values=[terminal(i,error) for i,error in enumerate(errors)]+[terminal(len(errors))]
         t.rpc=Mock(side_effect=lambda *a,**k:{'turn':{'id':str(t.rpc.call_count-1)}})
         t.receive_until=Mock(side_effect=lambda *a:values.pop(0));t.wait_remote_retry=Mock()
@@ -319,21 +319,18 @@ class ActualTurnTreatmentTests(FaultFixture,unittest.TestCase):
         t=self.trial([{'httpStatusCode':403}])
         t._fault_gate.wait=lambda _:faults.resume(self.root,t._fault_gate.state['incident'])
         self.assertEqual(t.solve_turns('Frozen original task'),terminal(1))
-        t.wait_remote_retry.assert_not_called();t.refresh_after_error_pause.assert_called_once()
+        t.wait_remote_retry.assert_not_called()
+        self.assertEqual([call.args[0] for call in t.rpc.call_args_list], ['turn/start','turn/start'])
         self.assertTrue(all(c.args[1]['threadId']=='retained-thread' for c in t.rpc.call_args_list))
 
-    def test_same_account_credentials_refresh_without_replacing_context(self):
-        t=self.trial([]);t.work=self.root/'workspace';(t.work/'state').mkdir(parents=True)
-        old={'tokens':{'access_token':'synthetic-old','account_id':'synthetic-account'}}
-        new={'tokens':{'access_token':'synthetic-refreshed','account_id':'synthetic-account'}}
-        execution.atomic(t.work/'state/auth.json',old)
-        home=self.root/'authentication';home.mkdir();execution.atomic(home/'auth.json',new)
-        with patch('runtime_config.auth_home',return_value=home),patch.object(native_carrier,'system_https_proxy',return_value=None):
-            native_carrier.NativeCarrier.refresh_after_error_pause(t)
-        self.assertEqual(json.loads((t.work/'state/auth.json').read_text()),old)
-        t.rpc.assert_called_with('account/read',{'refreshToken':True})
-        self.assertFalse(hasattr(t,'resumed_auth_headers'))
-        self.assertEqual(t.thread_id,'retained-thread');self.assertEqual(t.tool_history,{'old-call':{'result':'retained'}})
+    def test_manual_resume_goes_directly_back_to_work_even_if_the_next_request_disconnects(self):
+        t=self.trial([{'httpStatusCode':403}, {'code':'network_error'}])
+        t._fault_gate.wait=lambda _:faults.resume(self.root,t._fault_gate.state['incident'])
+        self.assertEqual(t.solve_turns('Frozen task'),terminal(2))
+        self.assertEqual([call.args[0] for call in t.rpc.call_args_list], ['turn/start']*3)
+        self.assertTrue(all(call.args[1]['threadId']=='retained-thread' for call in t.rpc.call_args_list))
+        self.assertEqual(t.tool_history,{'old-call':{'result':'retained'}})
+        t.wait_remote_retry.assert_called_once()
 
     def test_retry_exhaustion_resumes_only_after_operator_action(self):
         t=self.trial([{'code':'network_error'}]*31)

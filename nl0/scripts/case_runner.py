@@ -259,7 +259,8 @@ def execute(job, root=None):
     import lean_environment
     selected = job['lean_environment']
     import lean_libraries
-    with use_profiles(job['profiles']), use_environment(selected), lean_libraries.use(job.get('lean_libraries',[])), \
+    import project_config
+    with project_config.use(project_config.for_run(job)), use_profiles(job['profiles']), use_environment(selected), lean_libraries.use(job.get('lean_libraries',[])), \
             lean_libraries.generated(root/'imported-lean'):
         recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job['max_concurrency']),
             phase='nl0-authoring' if job['track'] in {'nl0','full'} else 'translation-preparation',
@@ -268,7 +269,13 @@ def execute(job, root=None):
         budgets=a.concurrency.CaseBudgets(job['max_concurrency'],execution=recorder);result={}
         def progress(case,phase,**extra):
             from runtime_config import model_profile
-            profile=model_profile('audit-a' if phase.startswith(('NL0_','ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_','BASIS_AUTHOR','BASIS_CHECKED','BASIS_SEMANTIC_REVIEW','BASIS_REVIEWED','BASIS_REVISION_')) else 'translation-preparation')
+            if phase.startswith(('ACTUAL_AUDIT_A','SOURCE_AUDIT_A','AUDIT_A_')):
+                model_phase='audit-a'
+            elif phase.startswith(('NL0_','BASIS_','AUDIT_B_')):
+                model_phase=phase
+            else:
+                model_phase='translation-preparation'
+            profile=model_profile(model_phase)
             # Delivery records an already-authorized artifact; it starts no new work.
             if phase=='DIFFERENT_RESULT_DELIVERED':
                 if recorder.cancelled():raise execution.Cancelled('External cancellation requested during delivery')

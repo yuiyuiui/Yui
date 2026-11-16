@@ -16,6 +16,7 @@ from source_qualification import usable
 import audit_b
 import concurrency
 import ir
+import project_config
 import run_graph
 import source_preparation as source
 import execution_state
@@ -128,7 +129,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'nl0/scripts').glob('*.py'),
                    *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
-        ir.ROOT/'SKILL.md',ir.ROOT/'config.json',
+        ir.ROOT/'SKILL.md',project_config.source(ir.ROOT),
         ir.ROOT/'workflow/blocks/proof_rounds.py',
         *(ir.ROOT/'nl0/references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
         *(ir.ROOT/'nl0/templates').glob('*.md'),*(ir.HERE/'templates').glob('*.md')]

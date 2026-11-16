@@ -14,7 +14,7 @@ from native_carrier import NativeCarrier
 
 class UnlimitedExecutionTests(unittest.TestCase):
     def test_workflow_unlimited_with_separate_native_feedback_limit(self):
-        config = json.loads((runtime_config.CORE / 'config.json').read_text())
+        config = json.loads((runtime_config.CORE / 'nl0/templates/yui-config.json').read_text())
         for scope in ('case', 'stage'):
             self.assertIsNone(runtime_config.configured_timeout(scope))
         self.assertEqual(runtime_config.configured_timeout('native'), 360)
@@ -78,7 +78,7 @@ class UnlimitedExecutionTests(unittest.TestCase):
         t.started = 10
         t.timeout = None
         with tempfile.TemporaryDirectory() as raw:
-            root=Path(raw);config=root/'config.json'
+            root=Path(raw);config=root/'yui-config.json'
             config.write_text(json.dumps({'timeouts':{'native_seconds':None}}))
             with patch.object(runtime_config,'CORE',root), patch('native_carrier.time.monotonic',return_value=20):
                 self.assertIsNone(t.lean_timeout())

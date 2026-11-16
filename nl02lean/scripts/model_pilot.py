@@ -18,6 +18,7 @@ import time
 import traceback
 
 import ir
+import project_config
 import strategy_bank
 import concurrency
 import execution_state as execution
@@ -583,13 +584,13 @@ class Stage(carrier.NativeCarrier):
         user = self.prompt()
         if not (self.logs/'execution-manifest.json').exists():
             files = []
-            for path in [*ir.ROOT.glob('nl0/scripts/*.py'), *ir.HERE.glob('scripts/*.py'),
-                         *ir.ROOT.glob('workflow/blocks/*.py'),
-                         ir.ROOT/'config.json']:
-                target = self.logs/'harness-snapshot'/path.relative_to(ir.ROOT)
+            paths = [*ir.ROOT.glob('nl0/scripts/*.py'), *ir.HERE.glob('scripts/*.py'),
+                     *ir.ROOT.glob('workflow/blocks/*.py')]
+            for path,relative in project_config.runtime_files(ir.ROOT,paths):
+                target = self.logs/'harness-snapshot'/relative
                 target.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(path,target)
-                files.append({'path':str(path.relative_to(ir.ROOT)),'sha256':sha256(target)})
+                files.append({'path':str(relative),'sha256':sha256(target)})
             if self.lean_writing_rules is not None:
                 relative = 'nl02lean/references/lean-writing.md'
                 target = self.logs/'harness-snapshot'/relative

@@ -28,7 +28,7 @@ mathematical acceptance.
    status/cancel commands only if neither observation mode is available.
 
 Keep owner metadata separate from the frozen mathematical inputs, receipts and
-worker usage. The scheduled proposal's defaults live in `config.json`. Entries
+worker usage. The scheduled proposal's interval comes from the project’s frozen `yui-config.json`. Entries
 can request an update at every interval through their own monitor settings.
 
 ## One bounded observation per interval

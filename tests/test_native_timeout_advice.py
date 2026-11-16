@@ -147,8 +147,7 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
 
     def test_new_job_runtime_bindings_include_strategy_data(self):
         core=self.root/'runtime';core.mkdir(parents=True)
-        for name in ('SKILL.md','config.json'):
-            (core/name).write_text('{}')
+        (core/'SKILL.md').write_text('Test skill')
         shutil.copytree(bank.BANK,core/'nl02lean/bank')
         with patch.object(controller_common,'CORE',core):rows=controller_common.runtime_bindings()
         card=core/'nl02lean/bank/cards/ST020.json'

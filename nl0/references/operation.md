@@ -11,8 +11,8 @@ Yui repository. Keep case materials and outputs outside the installation.
 Formalization goal is separate from the stage track. Keep `conditional` as the
 default, including `--track full`. For an explicit complete/unconditional request
 use `--track full --formalization unconditional` and follow
-[basis preparation and discharge](basis.md). It reuses the existing NL0/Lean
-profiles and worker settings. Do not repeat configuration collection.
+[basis preparation and discharge](basis.md). It uses the project's stage profiles
+and worker settings.
 Class-4 choices use `yui.py basis-decision RUN --incident ID --action
 stop|continue|accept-conditional`, only after the actual user selects an action.
 Show exact residuals and their retained source evidence. This choice is separate
@@ -36,21 +36,36 @@ The invoking agent checks that mathematical notation survives extraction before
 freezing it as the supplied proof; a successful pdftotext exit is not a fidelity
 judgment. Use an explicitly checked text source when the extraction is ambiguous.
 
-Reuse profiles selected during local adaptation unless the user overrides them.
-Ask once for each active phase whose model, reasoning effort or speed remains
-missing. Retain choices supplied in the current request or already authorized
-in the conversation. NL0 authors and Audit A share the NL0 profile. Source preparation,
-local source review, interface authoring, all Lean proof jobs, assembly and Audit B
-share the Lean profile. Do not ask about an unused phase. Do not invoke a separate
-intent-classification model. Defaults in config.json require an explicit choice
-(`--use-config-profiles`); installation defaults are not permission to bypass the
-configuration question. The current isolated subscription carrier supports
-Standard speed only. Unknown models/efforts/speeds are rejected explicitly;
-model/effort availability is checked against local backend metadata and actual
-transmitted/observed settings are recorded. No fallback or automatic upgrade.
+### Project configuration
 
-Collect the following settings before preparing or dispatching a new run.
-A phase profile means model, reasoning effort and speed:
+On the first `prepare` or `run`, Yui creates `yui-config.json` beside the input
+proof. Nested inputs reuse the nearest existing project configuration up to the
+Git root. To select the project for a new nested input explicitly, pass
+`--project-dir /path/to/project`.
+To edit settings before the first run, use
+`yui.py init-config /path/to/project`. Both commands preserve an existing file.
+Each input in a batch uses its own project unless an explicit project directory
+is shared.
+
+The generated file starts with the saved local model choices, or the factory
+defaults on a fresh installation. `model` supplies the NL0 model settings;
+`phase_models.nl0_to_lean` supplies the Lean settings. The six entries in
+`stages` accept independent overrides of `id`, `reasoning_effort`, `speed`
+and `automatic_fallback`. Empty entries inherit the corresponding defaults.
+For example, set both base efforts to `xhigh` and edit the generated entry
+`"2basis": {"reasoning_effort": "max"}` to use max for every foundation role,
+including its private Lean workers. The other stage keys are `nl0`, `audit-a`,
+`nl02lean`, `audit-b` and `b2lean`. The native carrier supports standard
+speed and checks active model/effort availability without fallback.
+
+Explicit CLI model options set the base profile for this run. Stage-specific
+settings take precedence. CLI limits override their project values for that
+run. New files record explicit initial choices; later runs never overwrite an
+existing project file. Each prepared run binds its effective settings in
+`RUN/runtime/yui-config.json`. Edit the project file for future runs. Execution,
+detached workers and supported recovery use the run's bound settings. A bounded
+continuation records the time remaining before the original deadline.
+The setup command separately records tool, environment and authentication locations.
 
 Formal tracks also use [per-run Lean/Mathlib selection](lean-environments.md).
 Discover and verify local pairs, preserve explicit user paths/versions and ask
@@ -58,14 +73,13 @@ once when the choice is missing, incompatible or ambiguous. Pure NL0 needs no
 Lean selection. Every private worker inherits its run's profiles and scientific
 environment while owning a separate role conversation.
 
-| Requested track | Required user settings |
+| Requested track | Project model defaults |
 | --- | --- |
-| NL0 and Audit A only (`nl0`) | NL0 phase profile; optional worker cap N |
-| Accepted NL0/Audit A to Lean (`translate`) | Lean phase profile; optional worker cap N |
-| Complete workflow (`full`) | NL0 phase profile and Lean phase profile; optional worker cap N |
+| NL0 and Audit A only (`nl0`) | NL0 |
+| Accepted NL0/Audit A to Lean (`translate`) or Audit B alone (`audit-b`) | Lean |
+| Complete workflow (`full`) | NL0 and Lean |
 
-Ask for all missing phase-profile settings together and retain supplied values.
-Do not ask for an omitted worker count: the default `auto` uses the current
+Read the worker count from the project file. Its initial value `auto` uses the current
 phase's full node count, R for local Audit A review/repair and T for local Lean
 proofs, including shared lemmas and representation conversions. Resolve R after
 global acceptance and T from the frozen Lean plan; recompute auto if a reviewed
@@ -96,8 +110,9 @@ python3 -B /path/to/Yui/nl0/scripts/yui.py run /papers/example/proof.md \
   --max-concurrency 5 --target-file /papers/example/target-selection.json --detach
 ```
 
-Supply several problem paths to run independent cases together. For different
-per-case sources, materials or profiles, `prepare` each separately, then use
+Supply several problem paths to run independent cases together. Each project can
+use different model settings in the same batch. For different per-case source
+attachments or materials, `prepare` each separately, then use
 `execute RUN_A RUN_B`. `prepare` makes no model calls; formal tracks perform an
 isolated native environment-compatibility check before freezing the job. `--detach` starts
 owned background case processes and returns their exact run paths; a parent
@@ -110,13 +125,13 @@ restricted, unavailable or unsuccessful, continue the same run with ten-minute
 waits in the owning turn and one bounded observation per interval. The entry
 records the selected mode for subsequent observation.
 
-For translation pass `--track translate --source /accepted/nl0-case` and the Lean
-profile. Optionally pass `--max-concurrency N` to cap local work. For audit-only pass
+For translation pass `--track translate --source /accepted/nl0-case`. This entry
+uses the project's Lean profile. Optionally pass `--max-concurrency N` to cap local work. For audit-only pass
 `--track audit-b --audit /checked/native-audit-dir`.
 An audit-only continuation discloses inherited native evidence and does not
 claim a new proof, compilation or cold workflow result.
 
-The public `run`/`prepare` entry defaults to `--max-concurrency auto` for NL0,
+The public `run`/`prepare` entry uses the project's `max_concurrency` for NL0,
 full and translation tracks. Auto resolves independently to the current R/T
 node count. An optional positive N limits both separate local phases, not all
 model stages. Existing frozen jobs retain their bound settings/runtime.

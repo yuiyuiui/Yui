@@ -9,7 +9,7 @@ from controller_common import CORE,bind,write,verify_bindings
 VERSION='yui-runtime-snapshot-3'
 
 
-def capture(run,rows,*,core=CORE):
+def capture(run,rows,*,core=CORE,configuration=None):
     run,core=Path(run).resolve(),Path(core).resolve()
     destination=run/'runtime';destination.mkdir(exist_ok=False)
     files=[];seen=set()
@@ -23,6 +23,13 @@ def capture(run,rows,*,core=CORE):
         copy_input(original,target)
         if bind(target)['sha256']!=row['sha256']:raise ValueError('Runtime snapshot copy changed')
         files.append({'relative_path':str(relative),'sha256':row['sha256'],'original':row})
+    if configuration is not None:
+        from project_config import NAME
+        target=destination/NAME
+        if target.exists():raise ValueError('Project configuration collides with a runtime input')
+        write(target,configuration)
+        files.append({'relative_path':NAME,'sha256':bind(target)['sha256'],
+                      'source':'effective project configuration'})
     path=run/'runtime-manifest.json'
     write(path,{'version':VERSION,'original_core':str(core),'runtime_root':str(destination),
                 'files':files,'scope':'Declared executable data only; no credentials, memories or task outputs.'})

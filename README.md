@@ -30,6 +30,11 @@ Yui completed this benchmark **2.67 times as fast**, using **13.8% more observed
 
 You can use this workflow to review a proof just in natural language level with low time and tokens cost. Yui builds a proof graph (**NL0**) that records what each step assumes and what it establishes. In **Audit A**, independent reviewers check the overall argument and each local deduction. You receive the graph and the review outcome.
 
+Each proof project owns a `yui-config.json`. Yui creates it beside the input
+on the first run. To configure stages beforehand, run
+`python3 -B /path/to/Yui/nl0/scripts/yui.py init-config /path/to/project`.
+See [stage settings and project directory selection](nl0/references/operation.md#project-configuration).
+
 ## 4. Installation and requirements
 
 After downloading Yui, ask Codex to execute [the local adaptation entry](setup/README.md), then start using the skill.

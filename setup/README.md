@@ -66,7 +66,8 @@ missing model choices. Do not silently select the newest pair.
 The shared tools stay outside this repository. Do not run lake update in an
 existing pinned installation or overwrite old environments.
 
-Model defaults come from the existing local configuration or config.json.
+Setup seeds new projects from the existing local choices or the packaged factory template.
+Each proof project owns its editable `yui-config.json`.
 Verify advertised model/reasoning availability. When a different selection is
 necessary, write a small owned JSON file containing the nl0 and lean profile
 slots, then supply --profiles-file. Never silently substitute a model.

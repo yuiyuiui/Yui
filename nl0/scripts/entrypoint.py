@@ -8,12 +8,16 @@ import sys
 from controller_common import CORE, write
 from runtime_config import validate_profile, auth_home
 import jobs
+import project_config
 
 
 def parsers(commands):
+    init=commands.add_parser('init-config',help='Create or read a project-local yui-config.json without starting a job')
+    init.add_argument('directory',type=Path)
     for name in ('prepare','run'):
         p=commands.add_parser(name,help='Organize arbitrary supplied proof(s); outputs stay beside each problem')
         p.add_argument('problems',nargs='+',type=Path)
+        p.add_argument('--project-dir',type=Path,help='Explicit project directory for yui-config.json (otherwise reuse the nearest project file)')
         p.add_argument('--track',choices=sorted(jobs.TRACKS),required=True)
         p.add_argument('--formalization',choices=['conditional','unconditional'],default='conditional',
                        help='Lean goal; unconditional adds 2basis and final b2lean closure to track=full')
@@ -27,13 +31,13 @@ def parsers(commands):
         p.add_argument('--source',type=Path);p.add_argument('--audit',type=Path);p.add_argument('--output',type=Path)
         p.add_argument('--target',help='Complete requested statement or semicolon-separated theorem labels')
         p.add_argument('--target-file',type=Path,help='Source-bound, reviewed target-selection JSON')
-        p.add_argument('--max-concurrency',metavar='auto|N',default='auto',
+        p.add_argument('--max-concurrency',metavar='auto|N',
                        help='Per-case local review/proof limit; default auto uses the current R/T node count')
         p.add_argument('--case-concurrency',type=int)
         p.add_argument('--stop-after',choices=['2basis','nl0','nl02lean'],help='Hold a live case at the verified stage boundary')
         p.add_argument('--policy',choices=['normal','first-pass'],default='normal')
         p.add_argument('--time-budget-seconds',type=int)
-        p.add_argument('--use-config-profiles',action='store_true',help='Explicitly select the installed defaults for missing profiles')
+        p.add_argument('--use-config-profiles',action='store_true',help='Use the project model settings (also the default)')
         for phase in ('nl0','lean'):
             p.add_argument('--'+phase+'-model');p.add_argument('--'+phase+'-effort');p.add_argument('--'+phase+'-speed')
         p.add_argument('--detach',action='store_true',help='Run independent owned case processes and return their locations')
@@ -86,27 +90,29 @@ def parsers(commands):
     p.add_argument('--action',choices=['stop','continue','accept-conditional'],required=True)
 
 
-def profiles(args):
-    config=json.loads((CORE/'config.json').read_text());selected={}
-    import local_config
-    local=local_config.current()
-    required={'nl0','lean'} if args.track=='full' else {'nl0'} if args.track=='nl0' else {'lean'}
-    for phase in required:
-        values=[getattr(args,phase+'_'+field) for field in ('model','effort','speed')]
-        default=(local['profiles'][phase] if local is not None else
-                 config['model'] if phase=='nl0' else config['phase_models']['nl0_to_lean'])
-        if args.use_config_profiles or local is not None:
-            values=[value if value is not None else default[key] for value,key in zip(values,('id','reasoning_effort','speed'))]
-        if any(value is None for value in values):
-            raise ValueError('Ask once for the missing '+phase+' model, reasoning effort and speed, or explicitly choose --use-config-profiles')
-        selected[phase]=validate_profile(dict(zip(('id','reasoning_effort','speed'),values),automatic_fallback=False))
-    for phase in {'nl0','lean'}-required:selected[phase]=dict(next(iter(selected.values())))
-    return selected
+def model_overrides(args):
+    overrides={'nl0':{},'lean':{}}
+    for phase,settings in overrides.items():
+        for field,key in (('model','id'),('effort','reasoning_effort'),('speed','speed')):
+            value=getattr(args,phase+'_'+field,None)
+            if value is not None:
+                settings[key]=value
+    return overrides
 
 
-def proof_workers(args):
-    """Keep auto deferred until the current phase's R/T nodes are known."""
-    requested='auto' if args.max_concurrency is None else args.max_concurrency
+def profiles(args, configuration=None):
+    if configuration is None:
+        import local_config
+        local=local_config.current()
+        bases=local['profiles'] if local else project_config.groups(json.loads(project_config.template().read_bytes()))
+    else:
+        bases=project_config.groups(configuration)
+    overrides=model_overrides(args)
+    return {phase:validate_profile({**base,**overrides[phase]}) for phase,base in bases.items()}
+
+
+def proof_workers(args, default='auto'):
+    requested=default if args.max_concurrency is None else args.max_concurrency
     import concurrency
     configuration=concurrency.resolve(requested)
     return 'auto' if requested=='auto' else configuration['effective']
@@ -117,13 +123,23 @@ def preflight_profiles(job):
     path=auth_home()/'models_cache.json'
     if not path.is_file():raise ValueError('No local backend model metadata; refresh authenticated Codex models first')
     available={row['slug']:row for row in json.loads(path.read_text()).get('models',[])}
-    phases={'nl0','lean'} if job['track']=='full' else {'nl0'} if job['track']=='nl0' else {'lean'}
-    for phase in phases:
-        p=job['profiles'][phase];model=available.get(p['id'])
-        if model is None:raise ValueError('Selected model is unavailable in backend metadata: '+p['id'])
-        supported={row['effort'] for row in model.get('supported_reasoning_levels',[])}
-        if p['reasoning_effort'] not in supported:
-            raise ValueError('Backend does not advertise '+p['id']+'/'+p['reasoning_effort']+'; supported: '+', '.join(sorted(supported)))
+    stages={'nl0':('nl0','audit-a'),'translate':('nl02lean','audit-b'),'audit-b':('audit-b',),
+            'full':('nl0','audit-a','nl02lean','audit-b')}[job['track']]
+    if job.get('formalization')=='unconditional':
+        stages=('2basis',*stages,'b2lean')
+    overrides={}
+    if 'runtime_snapshot' in job:
+        overrides=json.loads(project_config.for_run(job).read_bytes()).get('stages',{})
+    for stage in stages:
+        groups=(('nl0','lean') if stage=='2basis' else
+                ('nl0',) if stage in ('nl0','audit-a') else ('lean',))
+        for group in groups:
+            p={**job['profiles'][group],**overrides.get(stage,{})}
+            model=available.get(p['id'])
+            if model is None:raise ValueError('Selected model is unavailable in backend metadata: '+p['id'])
+            supported={row['effort'] for row in model.get('supported_reasoning_levels',[])}
+            if p['reasoning_effort'] not in supported:
+                raise ValueError('Backend does not advertise '+p['id']+'/'+p['reasoning_effort']+'; supported: '+', '.join(sorted(supported)))
 
 
 def launch(prepared, *, detached=False, case_concurrency=None):
@@ -156,6 +172,9 @@ def launch(prepared, *, detached=False, case_concurrency=None):
 
 
 def dispatch(args):
+    if args.command=='init-config':
+        config=project_config.open_project(args.directory)
+        return {'path':str(args.directory.resolve()/project_config.NAME),'configuration':config}
     if args.command in {'process-diagnose','process-decision'}:
         import process_recovery
         return (process_recovery.diagnose(args.run,args.incident) if args.command=='process-diagnose'
@@ -217,7 +236,15 @@ def dispatch(args):
         if len(args.problems)>1 and any((args.material,args.source,args.audit,args.output,getattr(args,'lean_library',[]))):
             raise ValueError('For per-case materials/source/output, prepare separate explicit jobs and execute them together')
         import target_selection
-        chosen=profiles(args);workers=proof_workers(args);prepared=[]
+        prepared=[]
+        configurations={}
+        for problem in args.problems:
+            proof=jobs.input_file(problem)
+            directory=getattr(args,'project_dir',None) or project_config.directory_for(proof)
+            config=project_config.open_project(directory,model_overrides=model_overrides(args),
+                workers=proof_workers(args) if args.max_concurrency is not None else None,
+                seconds=args.time_budget_seconds)
+            configurations[problem]=(directory,config)
         import lean_environment
         explicit = any(getattr(args,key,None) is not None for key in (
             'lean_root','mathlib_root','lean_version','mathlib_version'))
@@ -237,8 +264,15 @@ def dispatch(args):
         for specification in getattr(args,'lean_library',[]):
             configured=[row for row in local['libraries'] if row['name']==str(specification)] if local and 'libraries' in local else []
             libraries.append(Path(configured[0]['specification']['path']) if configured else specification)
+        settings=[]
         for problem in args.problems:
+            directory,config=configurations[problem]
+            chosen=profiles(args,config)
+            workers=proof_workers(args,config['max_concurrency'])
+            settings.append({'configuration':str(Path(directory).resolve()/project_config.NAME),
+                             'profiles':chosen,'stages':config['stages'],'max_concurrency':workers})
             prepared.append(jobs.prepare(problem,track=args.track,profiles=chosen,max_concurrency=workers,
+                configuration=config,
                 materials=args.material,source=args.source,audit=args.audit,output=args.output,
                 policy=args.policy,time_budget_seconds=args.time_budget_seconds,
                 target=selections.get(str(problem)),formalization=selected_mode,stop_after=getattr(args,'stop_after',None),
@@ -251,6 +285,10 @@ def dispatch(args):
         summary['lean_environment']=selected_environment
         summary['source_policy_notice']='Unavailable primary sources can produce only an explicitly conditional result with warn.json/warn.md, never an unqualified PASS.'
         summary['audit_r_concurrency']=__import__('concurrency').resolve(workers) if args.track in {'nl0','full'} else None
+        summary['project_settings']=settings
+        if any(item['profiles']!=chosen for item in settings):summary['profiles']=None
+        if any(item['max_concurrency']!=workers for item in settings):
+            summary['proof_concurrency']=summary['audit_r_concurrency']=None
         if args.command=='prepare':return summary
         launched=launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
         launched['source_policy_notice']=summary['source_policy_notice']

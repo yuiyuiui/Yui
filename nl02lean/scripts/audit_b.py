@@ -19,6 +19,7 @@ import tempfile
 import time
 
 import ir
+import project_config
 from staging_storage import copy_input
 import source_preparation
 import background
@@ -239,10 +240,11 @@ def prepare_review_reuse(original,out):
         shutil.copyfile(original/name,out/name)
     runtime={}
     core=HERE.parent
-    for p in [*(core/'nl0/scripts').glob('*.py'),*(core/'nl0/scripts').glob('*.mjs'),
-              *(HERE/'scripts').glob('*.py'),core/'config.json',
-              core/'SKILL.md',*(HERE/'references').glob('*.md'),*(HERE/'templates').glob('*.md')]:
-        relative=p.relative_to(core);dest=out/'review-runtime'/relative
+    paths=[*(core/'nl0/scripts').glob('*.py'),*(core/'nl0/scripts').glob('*.mjs'),
+              *(HERE/'scripts').glob('*.py'),
+              core/'SKILL.md',*(HERE/'references').glob('*.md'),*(HERE/'templates').glob('*.md')]
+    for p,relative in project_config.runtime_files(core,paths):
+        dest=out/'review-runtime'/relative
         dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dest)
         runtime[str(p.resolve())]={'sha256':ir.digest(p),'snapshot':str(dest.relative_to(out))}
     origin={'schema':'yui-audit-b-machine-reuse-1','original':str(original),

@@ -213,8 +213,8 @@ messages for `other` stream disconnect/idle-timeout errors are recognized only
 at this error boundary; arbitrary mathematical/tool prose is never scanned for
 HTTP codes. Unrecognized native failures pause with `model_unknown`.
 
-An explicit resume asks Codex to refresh its own account state, preserving the
-same process/thread. Python does not extract access tokens or construct headers.
+An explicit resume sends the next work request to the retained Codex thread directly.
+A further disconnect follows the ordinary request error and retry path.
 Post-submission native interruption is an expected handoff after durable save,
 not a remote fault or authorization to close the role. Unexpected native stdout
 EOF, invalid messages or local I/O errors remain actual execution faults.

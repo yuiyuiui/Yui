@@ -167,10 +167,10 @@ class OwnerObservationTests(unittest.TestCase):
 
     def test_invalid_interval_is_rejected_before_any_host_scheduling(self):
         fake = self.root/'config'; fake.mkdir()
-        data = json.loads((harness_support.CORE/'config.json').read_text())
+        data = json.loads((harness_support.CORE/'nl0/templates/yui-config.json').read_text())
         for value in (0, True, 30, 1.5):
             data['owner_observation']['interval_seconds'] = value
-            (fake/'config.json').write_text(json.dumps(data))
+            (fake/'yui-config.json').write_text(json.dumps(data))
             with self.subTest(value=value), patch.object(owner, 'CORE', fake), self.assertRaises(ValueError):
                 owner.policy()
 

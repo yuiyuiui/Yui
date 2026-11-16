@@ -14,6 +14,8 @@ import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 
+import project_config
+
 CORE = Path(__file__).resolve().parents[2]
 _profiles = ContextVar('yui_phase_profiles', default=None)
 _UNSELECTED = object()
@@ -70,6 +72,7 @@ def validate_profile(profile):
     if (not isinstance(profile, dict) or set(profile) != {'id', 'reasoning_effort', 'speed', 'automatic_fallback'}
             or not isinstance(profile['id'], str) or not profile['id'].strip()
             or any(c in profile['id'] for c in '\n\r"\\')
+            or not isinstance(profile['reasoning_effort'],str)
             or profile['reasoning_effort'] not in {'none','minimal','low','medium','high','xhigh','max','ultra'}
             or profile['speed'] != 'standard' or profile['automatic_fallback'] is not False):
         raise ValueError('Select an explicit model and reasoning effort; this isolated carrier currently supports Standard speed only, without fallback')
@@ -98,7 +101,7 @@ def time_limit(value):
 
 
 def configured_timeout(scope):
-    return time_limit(json.loads((CORE / 'config.json').read_text())['timeouts'][scope + '_seconds'])
+    return time_limit(json.loads(project_config.source(CORE).read_bytes())['timeouts'][scope + '_seconds'])
 
 
 def native_timeout(requested=None):
@@ -110,7 +113,7 @@ def native_timeout(requested=None):
 
 def native_heartbeats():
     """Controller-owned budget for one elaboration; never a model-turn cap."""
-    value = json.loads((CORE / 'config.json').read_text())['lean']['max_heartbeats']
+    value = json.loads(project_config.source(CORE).read_bytes())['lean']['max_heartbeats']
     if type(value) is not int or value <= 0:
         raise ValueError('lean.max_heartbeats must be a positive integer')
     return value
@@ -118,21 +121,28 @@ def native_heartbeats():
 
 def model_profile(phase=None):
     """Resolve a declared phase without changing another live stage's model."""
-    raw = (CORE / 'config.json').read_bytes()
+    file = project_config.source(CORE)
+    raw = file.read_bytes()
     config = json.loads(raw)
     name = str(phase or '').lower().replace('_', '-')
-    translation = name in {'proof', 'plan', 'interface', 'assembly'} or name.startswith(
+    translation = name in {'proof', 'plan', 'interface', 'assembly', 'nl02lean', 'b2lean'} or name.startswith(
         ('interface-', 'audit-b', 'translation-', 'nl0-to-lean', 'frozen-lean-', 'basis-final-'))
     key = 'nl0_to_lean' if translation else 'model'
     selected = _profiles.get()
     import local_config
-    local = local_config.current()
+    local = local_config.current() if selected is None and file == project_config.template(CORE) else None
     if selected is None and local is not None:
         selected = local['profiles']
     profile = validate_profile(selected['lean' if translation else 'nl0'] if selected else
                                config['phase_models'][key] if translation else config['model'])
+    stage = project_config.stage_name(name, translation)
+    override = config.get('stages', {}).get(stage, {})
+    if override:
+        profile = validate_profile({**profile, **override})
+        key = stage
     return {**profile, 'profile_key': key, 'config_sha256': hashlib.sha256(raw).hexdigest(),
             'selection_origin': ('explicit_run' if _profiles.get() else
+                                 'project_config' if file != project_config.template(CORE) else
                                  'local_setup' if local is not None else 'installation_defaults')}
 
 

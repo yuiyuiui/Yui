@@ -9,6 +9,7 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import project_config
 import re
 import shutil
 import stat
@@ -376,6 +377,7 @@ def decision(root, artifact, budget, *, planning=False):
     return receipt
 
 
+@project_config.stage('2basis')
 def run(job, budget, progress):
     from basis_author import BasisStage
     from role_sessions import Sessions

@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from datetime import datetime,timezone
 from pathlib import Path
+import project_config
 import fcntl
 import importlib.util
 import json
@@ -216,7 +217,7 @@ def _run(args,storage):
         except (ValueError,OSError,KeyError):previous=None
         args.mode=args.mode or (previous['mode'] if previous else 'lean')
         report['mode']=args.mode
-        defaults=json.loads((CORE/'config.json').read_text())
+        defaults=json.loads(project_config.template(CORE).read_bytes())
         profiles=(json.loads(args.profiles_file.read_text()) if args.profiles_file else
                   previous['profiles'] if previous else
                   {'nl0':defaults['model'],'lean':defaults['phase_models']['nl0_to_lean']})

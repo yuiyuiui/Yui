@@ -492,14 +492,6 @@ class NativeCarrier:
             checkpoint={'thread_id':getattr(self,'thread_id',None),'turn_id':getattr(self,'active_turn_id',None),
                 'workspace':str(getattr(self,'work','')),'profile':getattr(self,'model_selection',{}),
                 'preserve_tool_history':True,'restart_whole_workflow':False})
-        if resumable and not (isinstance(error,dict) and error.get('reason')=='REVIEW_NO_PROGRESS'):
-            self.refresh_after_error_pause()
-
-    def refresh_after_error_pause(self):
-        """Codex owns authentication and connection renewal; keep this exact role."""
-        self.rpc('account/read',{'refreshToken':True})
-        append(self.logs/'controller.jsonl',{'event':'explicit_native_resume',
-            'thread_id':self.thread_id,'credential_handling':'official Codex client'})
 
     def wait_remote_retry(self, seconds, reason, turn, deadline):
         """Wait without model calls, retaining this exact thread and candidates."""

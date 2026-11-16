@@ -35,8 +35,7 @@ def budget_outcome(stages):
 def qualification(result):
     """Identity/input/health qualification is separate from usage completeness."""
     exposure=result.get('exposure', {})
-    configured=json.loads((Path(__file__).resolve().parents[2]/'config.json').read_text())['model']['id']
-    expected_model=result.get('model',configured)
+    expected_model=result.get('model') or __import__('runtime_config').model_profile(result.get('mode'))['id']
     native=(exposure.get('status')=='NATIVE-CODEX-CONTEXT-CHECK-PASSED'
             and exposure.get('configured_model')==expected_model and not exposure.get('errors'))
     identity=native

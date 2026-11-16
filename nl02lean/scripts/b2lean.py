@@ -14,6 +14,7 @@ import basis
 import basis_native
 import final_acceptance
 import ir
+import project_config
 import workflow
 from controller_common import bind, write, verify_bindings
 from execution_health import StageFailure
@@ -63,6 +64,7 @@ def compiled_prefix(frozen, conditional):
             'module':bind(conditional.parent/'compiled-module.json')}
 
 
+@project_config.stage('b2lean')
 def finish(directory, out, *, context, intermediate, before_publish=None):
     started=time.monotonic()
     directory,out=Path(directory).resolve(),Path(out).resolve()

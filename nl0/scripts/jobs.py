@@ -14,8 +14,10 @@ import shutil
 import subprocess
 import uuid
 
+import project_config
+
 from controller_common import CORE, bind, write, runtime_bindings, verify_bindings
-from runtime_config import validate_profile
+from runtime_config import time_limit, validate_profile
 from variant import OUTPUT_DIRECTORY
 
 VERSION = 'yui-case-job-6'
@@ -57,12 +59,10 @@ def stage_document(source, destination):
     return 'exact_utf8_bytes'
 
 
-def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal',
+def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
             resume=None, resume_bindings=(), target=None, formalization='conditional', stop_after=None,
-            lean_environment=None, lean_libraries=()):
-    import concurrency
-    from runtime_config import time_limit
+            lean_environment=None, lean_libraries=(), configuration=None):
     if track not in TRACKS or policy not in {'normal','first-pass'}:
         raise ValueError('Unknown track or execution policy')
     from basis import validate_mode
@@ -73,8 +73,6 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
     if set(profiles) != {'nl0','lean'}:
         raise ValueError('Freeze both profile slots; unused slots are not dispatched')
     profiles = {key:validate_profile(row) for key,row in profiles.items()}
-    concurrency.resolve(max_concurrency)
-    time_limit(time_budget_seconds)
     import lean_environment as environments
     if resume and lean_libraries:raise ValueError('Recovery inherits frozen Lean libraries; do not attach a replacement')
     if resume:
@@ -84,9 +82,28 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
         selected = prior['lean_environment']
         if lean_environment is not None and lean_environment != selected:
             raise ValueError('Recovery cannot change the frozen Lean environment')
+        config_path = project_config.for_run(prior)
+        if bind(config_path) not in prior['runtime']:
+            raise ValueError('Prior project configuration binding changed')
+        configuration=json.loads(config_path.read_bytes())
+        # Pre-project-config jobs selected their two profiles directly in job.json.
+        configuration.setdefault('stages',{key:{} for key in project_config.STAGES})
+        max_concurrency=prior['max_concurrency']
+        original_limit=prior['time_budget_seconds']
+        if original_limit is not None and (time_budget_seconds is None or time_limit(time_budget_seconds)>original_limit):
+            raise ValueError('Recovery requires the remaining time under the original case deadline')
+        if profiles!=prior['profiles']:
+            raise ValueError('Recovery cannot change the frozen model profiles')
     else:
+        problem=input_file(problem)
+        if configuration is None:
+            configuration=project_config.open_project(project_config.directory_for(problem), profiles=profiles, workers=max_concurrency,
+                                                      seconds=time_budget_seconds)
+        if max_concurrency is None:max_concurrency=configuration['max_concurrency']
+        if time_budget_seconds is None:time_budget_seconds=configuration['timeouts']['case_seconds']
         selected = lean_environment if lean_environment is not None else (
             __import__('runtime_config').require_environment() if track != 'nl0' or lean_libraries else None)
+    configuration=project_config.effective(configuration,profiles,max_concurrency,time_budget_seconds)
     if selected is not None:
         selected = environments.verify(selected)
     from runtime_config import use_environment
@@ -163,7 +180,7 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
                 raise ValueError('Primary proof differs from the accepted NL0 inputs; do not translate a different problem under its receipt')
             write(inputs/'inputs.json',{'inputs':[{k:row[k] for k in ('id','path','sha256')} for row in documents]})
             import runtime_snapshot
-            snapshot,runtime=runtime_snapshot.capture(root,runtime_bindings(),core=CORE)
+            snapshot,runtime=runtime_snapshot.capture(root,runtime_bindings(),core=CORE,configuration=configuration)
             job={'version':VERSION,'id':case_id+'-'+run_id,'case':case_id,'run_id':run_id,
                  'track':track,'policy':policy,'problem':str(problem),'root':str(root),
                  'profiles':profiles,'max_concurrency':max_concurrency,'documents':documents,
@@ -209,19 +226,23 @@ def prepare(problem, *, track, profiles, max_concurrency='auto', policy='normal'
 
 @contextmanager
 def scientific_context(job):
-    """Use one job's frozen environment, attachments and generated public units."""
+    """Use the job's bound settings, scientific environment and public units."""
     if not isinstance(job,dict) or not isinstance(job.get('root'),str) or not Path(job['root']).is_absolute():
         raise ValueError('A frozen scientific context requires its absolute owned job root')
     import lean_environment as environments
     import lean_libraries
-    from runtime_config import use_environment
+    from runtime_config import use_environment, use_profiles
     if job.get('version') != VERSION:
         raise ValueError('Unsupported task format; start a new task with the current Yui version')
     if 'lean_environment' not in job:
         raise ValueError('Task must record its Lean environment or explicit NL0 null')
     selected=job['lean_environment']
     import local_config
-    with local_config.use(job.get('local_configuration')),use_environment(selected),lean_libraries.generated(None),lean_libraries.use(job.get('lean_libraries',[])), \
+    # A prepared snapshot also binds model selections, including older CLI overrides.
+    profiles=use_profiles(job.get('profiles',{})) if 'runtime_snapshot' in job else nullcontext()
+    with project_config.use(project_config.for_run(job)),profiles, \
+            local_config.use(job.get('local_configuration')),use_environment(selected), \
+            lean_libraries.generated(None),lean_libraries.use(job.get('lean_libraries',[])), \
             lean_libraries.generated(Path(job['root'])/'imported-lean'):
         yield
 

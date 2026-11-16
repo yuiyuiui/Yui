@@ -109,20 +109,22 @@ class JobEntryTests(unittest.TestCase):
                 self.job('translate',source=source)
 
     def test_run_profiles_are_phase_local_and_survive_worker_thread_context(self):
-        original=(CORE/'config.json').read_bytes()
+        original=(CORE/'nl0/templates/yui-config.json').read_bytes()
         with config.use_profiles(PROFILES):
             self.assertEqual(config.model_profile('audit-a-global')['id'],'gpt-6.1-sol')
             self.assertEqual(config.model_profile('audit-b-review')['id'],'gpt-6-luna')
             with ThreadPoolExecutor(1) as pool:
                 result=pool.submit(copy_context().run,config.model_profile,'proof').result()
             self.assertEqual(result['reasoning_effort'],'medium')
-        self.assertEqual((CORE/'config.json').read_bytes(),original)
+        self.assertEqual((CORE/'nl0/templates/yui-config.json').read_bytes(),original)
         self.assertEqual(config.model_profile('proof')['selection_origin'],'installation_defaults')
 
-    def test_missing_profiles_request_configuration_without_model_or_output(self):
+    def test_first_intake_creates_project_settings_before_target_selection(self):
         command=[sys.executable,'-B',str(CORE/'nl0/scripts/yui.py'),'prepare',str(self.problem),'--track','full']
         r=subprocess.run(command,capture_output=True,text=True)
-        self.assertNotEqual(r.returncode,0);self.assertIn('Ask once',r.stdout)
+        self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+        self.assertIn(json.loads(r.stdout)['status'],{'TARGET_SELECTION_REQUIRED','TARGET_REVIEW_REQUIRED'})
+        self.assertTrue((self.problem.parent/'yui-config.json').is_file())
         self.assertFalse((self.problem.parent/'rigorous-proof').exists())
 
     def test_invalid_worker_limits_fail_before_preparation(self):

@@ -26,10 +26,11 @@ Remaining class 4 requires the user's
 exact stop/continue/accept-conditional decision. After the shared Audit B, b2lean
 must check the actual closed export and transitive trust. Never present an
 approved conditional fallback or source-qualified result as unconditional.
-These optional stages reuse the two existing model profiles and controllers.
+Each project can select model settings independently for 2basis, NL0, Audit A,
+nl02lean, Audit B and b2lean in its own `yui-config.json`.
 
 The installed skill root is the directory containing this `SKILL.md`. Keep
-`config.json`, `nl0/` and `nl02lean/` beside it; no enclosing
+`nl0/` and `nl02lean/` beside it; no enclosing
 `rigorous-proof/` subdirectory or particular checkout name is required.
 
 New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A basis request freezes the reviewed foundation inventory and supplies a structured graph seed. Direct NL0 builds its working graph from the original input. In both routes NL0 owns intermediate statements and dependency edges. Local authors may request a located graph repair. Independent Audit A reviews the selected complete revision before delivery or Lean. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
@@ -43,15 +44,16 @@ statement(s), including standing assumptions, as an explicit job input.
 
 The invoking agent owns request/configuration collection and dispatch. Follow
 [installed operation](nl0/references/operation.md) to identify explicit proof inputs,
-reuse the verified local model profiles or ask once for missing active-phase settings, then call
+initialize or read the project's stage settings, then call
 `nl0/scripts/yui.py run` (or prepare/execute). Retain settings already supplied by
-the user; do not call a separate intent-classification model. An omitted worker
-count or `auto` uses the current phase's node count: R nodes for local Audit A
+the user; do not call a separate intent-classification model. Use the project's
+worker count unless the user supplies a run override. The initial setting
+`auto` uses the current phase's node count: R nodes for local Audit A
 review/repair and T nodes for local Lean proofs, including shared lemmas and
 representation conversions. Resolve each count when that phase is ready; do not
 ask for a worker count or fall back to two. An explicit positive integer N caps
-both separate phases. NL0/Audit A and
-Lean preparation/proofs/assembly/Audit B have separate phase profiles. The user
+both separate phases. The project file supplies the NL0 and Lean model defaults
+and any overrides for each of the six stages. The user
 does not prepare queues, task packets or controller jobs manually.
 Before first use or an environment switch, execute [the local adaptation entry](setup/README.md).
 It publishes the checked local default; do not fill versions or paths into source files.
@@ -258,9 +260,8 @@ tool schemas/results, reported model identity, phase, usage and health. Native
 Codex manages model networking and context; Yui does not intercept HTTP payloads.
 Actual tier and per-response usage coverage remain unknown when not exposed. Never execute model-generated Python or shell text.
 
-Collect the active phase profiles as described above. The verified local setup
-supplies the user's saved choices; `config.json` supplies defaults only when
-explicitly selected. The current isolated native Codex carrier requests
+Use or initialize `yui-config.json` in the user's project before dispatch.
+Apply requested phase choices there and freeze the effective settings with the job. The current isolated native Codex carrier requests
 Standard speed and checks model/effort availability without fallback. Freeze
 and record each stage's selected profile;
 never silently substitute a stronger model or fallback.

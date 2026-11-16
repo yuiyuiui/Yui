@@ -16,8 +16,13 @@ from datetime import datetime
 from controller_common import CORE, bind
 
 
-def policy():
-    value = json.loads((CORE/'config.json').read_text())['owner_observation']
+def policy(run=None):
+    import project_config
+    file = project_config.source(CORE)
+    if run is not None:
+        frozen = project_config.for_run({'root':run})
+        if frozen.is_file():file=frozen
+    value = json.loads(file.read_bytes())['owner_observation']
     if (value.get('foreground') != 'end_turn_after_handoff'
             or value.get('scheduler') != 'host_heartbeat'
             or value.get('notifications') != 'meaningful_changes_only'
@@ -47,7 +52,7 @@ def owned_runs(runs):
 
 def handoff(runs):
     selected = owned_runs(runs)
-    settings = policy()
+    settings = min((policy(run) for run in selected),key=lambda item:item['interval_seconds'])
     command = [sys.executable, '-B', str(CORE/'nl0/scripts/yui.py'),
                'observe', *map(str, selected)]
     prompt = (
@@ -128,7 +133,7 @@ def group_present(group, records, table):
 
 def snapshot(runs):
     selected = owned_runs(runs)
-    settings = policy()
+    settings = min((policy(run) for run in selected),key=lambda item:item['interval_seconds'])
     try:
         table = process_table()
         process_error = None

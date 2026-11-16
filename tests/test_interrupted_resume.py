@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import contextmanager, ExitStack
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 CORE=Path(__file__).resolve().parents[1]
@@ -97,6 +98,36 @@ class InterruptedResumeTests(unittest.TestCase):
                              ('failed',{'code':'local_protocol_rejected'})]:
             self.failed_turn(self.stage,status=status,error=error)
             with self.assertRaisesRegex(ValueError,'not a positively identified'):self.prepare()
+
+    def test_recovery_uses_the_bound_configuration_after_a_project_edit(self):
+        from project_config import NAME, for_run
+        original=for_run(self.old).read_bytes()
+        (self.problem.parent/NAME).write_text('{"stages":"changed after the first attempt"}')
+        job=self.prepare()
+        self.assertEqual(for_run(job).read_bytes(),original)
+        jobs.validate(job)
+        with jobs.scientific_context(job):
+            from project_config import source
+            self.assertEqual(source(),for_run(job))
+
+    def test_continuation_freezes_remaining_time_instead_of_the_original_budget(self):
+        from project_config import for_run
+        old=jobs.prepare(self.problem,track='full',profiles=PROFILES,time_budget_seconds=600)
+        run=Path(old['root'])
+        stage=run/'nl0/0001/stage'
+        self.write(stage/'result.json',self.failure)
+        self.failed_turn(stage)
+        self.write(run/'case-result.json',{'result':{'status':'AUTHOR_ARTIFACT_INELIGIBLE',
+            'evidence':str(stage/'result.json'),'completion':{'acceptance_target_satisfied':False}}})
+        deadline=datetime.now(timezone.utc)+timedelta(seconds=90)
+        self.write(run/'execution-status.json',{'time_budget':{'deadline_at_utc':deadline.isoformat()}})
+        with patch.object(interrupted,'inspect',return_value=EXITED):
+            new=interrupted.prepare(run)
+        remaining=new['time_budget_seconds']
+        self.assertGreater(remaining,0)
+        self.assertLessEqual(remaining,90)
+        self.assertEqual(json.loads(for_run(new).read_bytes())['timeouts']['case_seconds'],remaining)
+        self.assertEqual(json.loads(for_run(old).read_bytes())['timeouts']['case_seconds'],600)
 
     def test_new_job_binds_the_prior_result_and_cannot_hide_later_changes(self):
         job=self.prepare();self.write(self.stage/'result.json',{})

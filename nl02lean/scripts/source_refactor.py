@@ -13,6 +13,7 @@ from execution_health import require_review_execution, StageFailure
 import audit_a_campaign as a
 import source_preparation as source
 import ir
+import project_config
 from staging_storage import copy_input
 import artifact_protocol as protocol
 from shared_lemmas import hashed
@@ -86,7 +87,7 @@ def run(authority, out, budget, *, sessions=None, prior_artifact=None, findings=
     # The narrow local reviews are translation work and use the Lean profile.
     profile=model_profile('translation-preparation')
     selected={k:profile[k] for k in ('id','reasoning_effort','speed','automatic_fallback')}
-    with use_profiles({'nl0':selected,'lean':selected}):
+    with project_config.stage('nl02lean'), use_profiles({'nl0':selected,'lean':selected}):
         producer_reviews(case,plan,out/'producer-reviews',budget,sessions=sessions)
         cut_reviews(case,plan,out/'cut-reviews',budget,sessions=sessions)
     failures=[]

@@ -10,6 +10,7 @@ import shutil
 import sys
 import time
 
+import project_config
 from runtime_config import CORE
 from acceptance import AcceptanceContract
 import own_state
@@ -257,14 +258,13 @@ class ArtifactStage(pilot.Stage):
         snapshot = self.logs/'harness-snapshot'
         snapshot.mkdir()
         source_files = [*CORE.glob('nl0/scripts/*.py'), *CORE.glob('nl02lean/scripts/*.py'),
-                        *CORE.glob('workflow/blocks/*.py'),
-                        CORE/'config.json']
+                        *CORE.glob('workflow/blocks/*.py')]
         files = []
-        for path in source_files:
-            destination = snapshot/path.relative_to(CORE)
+        for path,relative in project_config.runtime_files(CORE,source_files):
+            destination = snapshot/relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             copy_input(path, destination)
-            files.append({'path':str(path.relative_to(CORE)), 'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
+            files.append({'path':str(relative), 'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()})
         for raw, text in self.rule_texts.items():
             relative=Path(raw).relative_to(CORE)
             if relative==Path('SKILL.md'):

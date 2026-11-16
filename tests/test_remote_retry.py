@@ -30,7 +30,7 @@ class RemoteRetryTests(unittest.TestCase):
 
     def trial(self):
         t=native_carrier.NativeCarrier.__new__(native_carrier.NativeCarrier)
-        t.logs=self.root;t.thread_id='same-isolated-thread';t.timeout=None
+        t.logs=self.root;t.thread_id='same-isolated-thread';t.timeout=None;t.recovery_calls={}
         t.after_unaccepted_turn=lambda:True
         t.model_selection={'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'}
         t.allowed_user_messages=set();t.continuation_count=0;t.turn_results=[];t.accepted=None

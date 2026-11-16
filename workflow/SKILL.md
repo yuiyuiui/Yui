@@ -36,6 +36,12 @@ For a basis entry the global author receives a numbered graph. Each directly use
 
 ## Operators
 
+The first `prepare` or `run` creates `yui-config.json` in the proof project.
+Use `init-config PROJECT` to configure the six stages before preparing a job.
+Each prepared case freezes its effective settings in `runtime/yui-config.json`.
+After an explicit resume of a connection error, the controller sends work
+directly to the same Codex thread.
+
 Foundation planning and Lean authoring expose the optional `consult_strategy`
 tool. Omit `ids` to read a short catalog, then select any relevant IDs for
 complete guidance. The query and reply contracts live in the same workflow
