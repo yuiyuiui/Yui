@@ -35,7 +35,11 @@ on the first run. To configure stages beforehand, run
 `python3 -B /path/to/Yui/nl0/scripts/yui.py init-config /path/to/project`.
 See [stage settings and project directory selection](nl0/references/operation.md#project-configuration).
 
-## 4. Installation and requirements
+## 4. Real cases
+
+1. **Local smoothing, Theorem 1.2 (critical annular estimate)** — unconditional Lean formalization. [Case record](https://github.com/yuiyuiui/Yui-results/blob/main/case/critical-annular-estimate.md) · [Formalization repository](https://github.com/yuiyuiui/critical-annular-estimate-lean).
+
+## 5. Installation and requirements
 
 After downloading Yui, ask Codex to execute [the local adaptation entry](setup/README.md), then start using the skill.
 
