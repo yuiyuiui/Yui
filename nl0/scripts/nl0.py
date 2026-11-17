@@ -21,6 +21,11 @@ _CLOSURE_SPEC = importlib.util.spec_from_file_location("nl0_closure", Path(__fil
 closure = importlib.util.module_from_spec(_CLOSURE_SPEC)
 _CLOSURE_SPEC.loader.exec_module(closure)
 
+_USAGE_SPEC = importlib.util.spec_from_file_location(
+    'yui_proposition_usage', Path(__file__).resolve().parents[2] / 'workflow/blocks/proposition_usage.py')
+usage = importlib.util.module_from_spec(_USAGE_SPEC)
+_USAGE_SPEC.loader.exec_module(usage)
+
 
 class Invalid(ValueError):
     pass
@@ -185,7 +190,7 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         require(kind in prefixes and key.startswith(prefixes[kind]), "KIND", f"invalid proposition kind/ID {key}")
         extra = {"source"} if kind in {"external", "mathlib"} else {"origin"} if kind == "internal" else set()
         record(item, {"id", "kind", "statement", "definitions"} | extra
-               | ({"binders", "objects"}), key)
+               | {"binders", "objects"}, key, optional={'usage'})
         string(item["statement"], key)
         strings(item["definitions"], f"{key}.definitions")
         definition_closure(item["definitions"])
@@ -361,6 +366,10 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         for did in definition_closure(refs):
             require(set(definitions[did]["requires"]) <= available, "DEFINITION-PREREQUISITE", f"{key} uses {did} before its proof guard")
 
+    # Legacy artifacts retain their original bytes and review hashes. Every new working
+    # graph carries a complete usage index, including an empty one on unconsumed nodes.
+    if any('usage' in prop for prop in propositions.values()):
+        closed_call(usage.bind, graph, {item['path'] for item in spec['inputs']}, check=True)
     closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
     if global_only:
         return {"status":"GLOBAL-GRAPH-STRUCTURALLY-VALID", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
@@ -522,9 +531,9 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
     return result, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
 
-def closed_call(function, *args):
+def closed_call(function, *args, **kwargs):
     try:
-        return function(*args)
+        return function(*args, **kwargs)
     except ValueError as error:
         raise Invalid(str(error)) from error
 

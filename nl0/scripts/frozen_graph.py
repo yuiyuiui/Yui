@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import artifact_protocol as protocol
+import basis_graph
 import nl0
 from artifact_validation import NL0Contract
 from controller_common import bind, manifest, verify_bindings, write
@@ -46,22 +47,29 @@ def evidence(source, graph, target):
 
 def checked_receipt(source, owner, *, foundation=None, previous=None):
     source = Path(source)
-    nl0.validate(source/'nl0.json',source/'spec.json',global_only=True)
+    _, graph, _, *_ = nl0.validate(source/'nl0.json',source/'spec.json',global_only=True)
+    if not all('usage' in prop for prop in graph['propositions']):
+        raise ValueError('USAGE: new working graphs must index every proposition before selection')
     receipt = source/'checked-global.json'
-    version = 'yui-working-graph-3' if 'foundation_ports' in nl0.load(source/'nl0.json') else 'yui-working-graph-2'
-    write(receipt, {'version':version,'owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
+    write(receipt, {'version':'yui-working-graph-4','owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
                     'graph':bind(source/'nl0.json'),**({'foundation':foundation} if foundation else {})})
     return bind(receipt)
 
 def read_receipt(binding):
     verify_bindings([binding])
     record = nl0.load(binding['path'])
-    owners={'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,)}
+    owners={'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,),
+            'yui-working-graph-4':(DIRECT,BASIS)}
     if record['owner'] not in owners.get(record['version'],()):
         raise ValueError('Unknown global graph authority')
     verify_bindings([record['spec'],record['graph']]+([record['foundation']] if 'foundation' in record else []))
     _, graph, spec, *_ = nl0.validate(record['graph']['path'],record['spec']['path'],global_only=True)
-    if record['version']=='yui-working-graph-3' and 'foundation_ports' not in graph:
+    if record['version']=='yui-working-graph-4':
+        if not all('usage' in prop for prop in graph['propositions']):
+            raise ValueError('USAGE: a version 4 working graph must index every proposition')
+        if ('foundation_ports' in graph) != (record['owner']==BASIS):
+            raise ValueError('Working graph labels do not match its producing entry')
+    elif record['version']=='yui-working-graph-3' and 'foundation_ports' not in graph:
         raise ValueError('Missing reviewed foundation labels in working graph')
     return {'spec':spec, 'graph':graph}
 
@@ -88,17 +96,18 @@ class AuthorContract(NL0Contract):
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
         self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
         if self.registry:
-            from basis_graph import handoff
-            self.seed, self.labels = handoff().numbered_seed(self.registry, self.prior['graph'] if self.prior else None)
+            self.seed, self.labels = basis_graph.handoff().numbered_seed(self.registry, self.prior['graph'] if self.prior else None)
         step = protocol.obj({'id':protocol.STRING, 'inputs':protocol.array(protocol.STRING),
                              'output':protocol.STRING, 'definitions':protocol.array(protocol.STRING)})
         if phase in (DIRECT,BASIS):
-            form = protocol.obj({'spec':OBJECT,'propositions':protocol.array(OBJECT),
+            proposition = basis_graph.with_usage(OBJECT, allow_index=True)
+            form = protocol.obj({'spec':OBJECT,'propositions':protocol.array(proposition),
                                  'inferences':protocol.array(step,minItems=1)})
             if phase==BASIS:
                 # A revised route can name B identities directly on its inference rows.
                 step['properties']['basis'] = protocol.array(protocol.STRING,uniqueItems=True)
-                compact = protocol.obj({'spec':OBJECT, 'proposition_details':OBJECT,'inference_definitions':OBJECT})
+                compact = protocol.obj({'spec':OBJECT, 'proposition_details':protocol.obj({}, extra=proposition),
+                                        'inference_definitions':OBJECT})
                 for option in (compact,form):
                     option['properties']['rename_foundations'] = OBJECT
                 form['properties']['foundation_ports'] = OBJECT
@@ -153,8 +162,7 @@ class AuthorContract(NL0Contract):
         return result
 
     def bind_graph(self, graph, renames):
-        from basis_graph import handoff
-        rules = handoff()
+        rules = basis_graph.handoff()
         seed_steps = indexed(self.seed['inferences'])
         labels = dict(self.labels)
         props = indexed(graph['propositions'])
@@ -180,6 +188,12 @@ class AuthorContract(NL0Contract):
                     raise ValueError(f'{step["id"]} uses {key}: supply {label} source metadata from the frozen registry; its input edge is automatic')
                 if label not in step['inputs']:
                     step['inputs'].append(label)
+        for source in self.seed['propositions']:
+            if source['id'] in props:
+                rules.inherit_usage(props[source['id']], source)
+        for key, label in labels.items():
+            if label in props:
+                rules.inherit_usage(props[label], rows[key])
         rules.attach(self.registry,graph,labels)
         if renames:
             previous=dict(graph[rules.FIELD]['labels'])
@@ -197,6 +211,15 @@ class AuthorContract(NL0Contract):
             spec = expanded['spec']
             if any(spec.get(key) != self.prior['spec'][key] for key in ORIGINAL_FIELDS):
                 raise ValueError('SOURCE_CHANGE_REQUIRES_USER: preserve the original target, parameters and hypotheses')
+            prior_props = indexed(self.prior['graph']['propositions'])
+            for prop in expanded['graph']['propositions']:
+                prior = prior_props.get(prop['id'], {}).get('usage', {})
+                if prior and 'usage' not in prop:
+                    prop['usage'] = {'references': deepcopy(prior.get('references', []))}
+                usage = prop.get('usage')
+                if isinstance(usage,dict) and 'inferences' in usage and usage['inferences'] == prior.get('inferences'):
+                    # Recompute the inherited reverse index from the revised edges.
+                    del usage['inferences']
         if self.frozen:
             check_assignment(self.frozen, expanded['spec'],expanded['graph'])
         return super()._validate(expanded)
@@ -222,7 +245,8 @@ def preserve_originals(prior, current, *, basis):
         target=next_label.get(key,key)
         if target in new:
             expected={**row,'id':target}
-            actual=new[target]
+            expected.pop('usage',None)
+            actual={k:v for k,v in new[target].items() if k!='usage'}
             if row['kind']=='mathlib':
                 # Each revision independently verifies these probe receipts against pinned source bytes.
                 expected=deepcopy(expected)
@@ -306,6 +330,8 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     prompt=('Choose natural small inference nodes suitable for independent Lean workers. Keep shared witnesses and local scopes intact. '
             'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
             'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
+            'Write the mathematical claim in statement. For source uses add usage.references with '
+            'document (exact inputs/ path) and locator (e.g. Lemma 2.1). The controller derives usage.inferences from the graph edges. '
             'Supply id, inputs, output and definitions for each inference. Local proof paragraphs come later. ')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '

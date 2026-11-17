@@ -52,13 +52,13 @@ def artifact_schema(version=None, *, planning=False):
         origin={'kind':p.literal(kind),'reference':p.TEXT,'revision':p.TEXT,
                 'evidence':p.array(evidence,minItems=1 if category==4 or category==2 else 0)}
         if category==1:origin['declaration']=p.nullable(p.TEXT)
-        branches.append(p.obj({'id':{'type':'string','pattern':r'^B\d{3,}$'},'category':p.literal(category),
+        branches.append(basis_graph.with_usage(p.obj({'id':{'type':'string','pattern':r'^B\d{3,}$'},'category':p.literal(category),
             'statement':p.TEXT,'justification':p.TEXT,'uses':p.array(p.TEXT,uniqueItems=True),
             'port':p.nullable({'type':'string','pattern':r'^[EM]\d{3}$'}),
             'compatibility':{'enum':['native','adapted','internal','unresolved']},
             'origin':p.obj(origin),
             'lean':p.obj({'type':p.TEXT,
-                'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if planning else p.TEXT})}))
+                'proof':{'type':'null'} if category==4 else p.nullable(p.TEXT) if planning else p.TEXT})})))
     dependency=p.choice(*branches)
     return p.obj({'version':p.literal(version),'global_graph':basis_graph.schema(),'full_target':p.TEXT,'proof':p.TEXT,'lean_header':p.TEXT,
         'dependencies':p.array(dependency),'replacements':p.array(p.obj({
@@ -188,6 +188,15 @@ def verify_native_edges(value, directory):
 
 def evidence_bindings(value, inputs, stage):
     result = []
+    annotated = [row for row in (*value['dependencies'], *value.get('global_graph', {}).get('propositions', []))
+                 if 'usage' in row]
+    if annotated:
+        import nl0
+        documents = {'inputs/' + r['id'] for r in ir.load(Path(inputs)/'inputs.json')['inputs']
+                     if r['id'] not in {'prior-basis.json', 'repair-findings.json'}}
+        documents.add('inputs/basis-proof.md')  # Published from this candidate's proof.
+        for row in annotated:
+            nl0.usage.references(row['usage'], documents, row['id'])
     for row in value['dependencies']:
         for evidence in row['origin']['evidence']:
             if not isinstance(evidence,dict):raise ValueError('Invalid source evidence reference')
@@ -248,6 +257,9 @@ source may be inspected first; rewriting imported proofs must also wait. Indepen
 produce the missing proofs under the frozen direct premises. Actual signatures, source fidelity and
 eventual discharge are checked. Class 4 requires an explicit user decision. Supply the global NL0
 skeleton with standalone mathematical statements. Put graph IDs in inference input/output fields.
+For manuscript usage locations add usage.references alongside the proposition or foundation statement,
+e.g. [{"document":"inputs/material-001.md","locator":"Lemma 2.1"}]. Identify the actual submitted
+document (or inputs/basis-proof.md for this route). The controller derives graph consumers from edges.
 Correct rejected statements before submission; downstream authors elaborate the checked local steps. The separate Audit A reviews the
 original target, the active basis proof, applications and replacement map.
 Submit the complete basis artifact through submit_draft. Continue from saved

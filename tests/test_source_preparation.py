@@ -35,6 +35,24 @@ class RevisionTests(unittest.TestCase):
         self.assertEqual(new['inferences'][2],old['inferences'][2])
         self.assertEqual(ir.digest(out/'case/spec.json'),ir.digest(self.s))
 
+    def test_shared_extraction_rebuilds_consumers_and_retains_document_locations(self):
+        graph=ir.load(self.g)
+        location={'document':'problem.txt','locator':'line 1'}
+        graph['propositions'][0]['usage']={'references':[location]}
+        source.nl0.usage.bind(graph,{'problem.txt'})
+        ir.write(self.g,graph)
+        patch=ir.load(self.p)
+        patch['baseline_graph_sha256']=ir.digest(self.g)
+        ir.write(self.p,patch)
+        self.audit=synthetic_audit(self.g,self.s)
+        out=self.stage()
+        props={p['id']:p for p in ir.load(out/'case/nl0.json')['propositions']}
+        self.assertEqual(props['H001']['usage'],{'inferences':['R004'],'references':[location]})
+        self.assertEqual(props['N003']['usage'],{'inferences':['R001','R002'],'references':[]})
+        self.assertEqual(ir.load(self.g),graph)
+        synthetic_local_reviews(out)
+        self.assertEqual(source.check(out)['coverage']['new_full_reviews'],['R004'])
+
     def test_pending_reviews_cannot_pass(self):
         with self.assertRaisesRegex(ir.Invalid,'unperformed'):source.check(self.stage())
 

@@ -4,7 +4,6 @@ from functools import lru_cache
 import re
 
 import artifact_protocol as p
-from closure import standalone_statement
 
 VERSION = 'yui-basis-3'
 PROP = {'type':'string','pattern':r'^(?:[HEMN]\d{3,}|P)$'}
@@ -18,8 +17,18 @@ def handoff():
     return block_module(CORE / 'workflow', 'foundation_handoff')
 
 
+def with_usage(schema, *, allow_index=False):
+    """Advertise document locations on both entries and allow re-submission of a working index."""
+    reference = p.obj({'document': p.TEXT, 'locator': p.TEXT})
+    fields = {'references': p.array(reference, uniqueItems=True)}
+    if allow_index:
+        fields['inferences'] = p.array(p.TEXT, uniqueItems=True)
+    usage = p.obj(fields, required=[] if allow_index else ['references'])
+    return {**schema, 'properties': {**schema.get('properties', {}), 'usage': usage}}
+
+
 def schema():
-    return p.obj({'propositions':p.array(p.obj({'id':PROP,'statement':p.TEXT}),minItems=1),
+    return p.obj({'propositions':p.array(with_usage(p.obj({'id':PROP,'statement':p.TEXT})),minItems=1),
         'inferences':p.array(p.obj({'id':{'type':'string','pattern':r'^R\d{3,}$'},
             'inputs':p.array(PROP,uniqueItems=True),'output':PROP,
             'basis':p.array(BASIS,uniqueItems=True)}),minItems=1)})
@@ -43,8 +52,6 @@ def active(value, *, prune=False):
     graph = value['global_graph']
     p.validate(graph,schema())
     props, steps = indexed(graph['propositions']), indexed(graph['inferences'])
-    for key, proposition in props.items():
-        standalone_statement(proposition['statement'], key)
     rows = indexed(value['dependencies'])
     by_port = {r['port']:r for r in rows.values() if r['port']}
     if len(by_port)!=sum(bool(r['port']) for r in rows.values()):raise ValueError('Duplicate basis port')

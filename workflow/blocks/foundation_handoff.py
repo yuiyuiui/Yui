@@ -34,6 +34,19 @@ def allocate(row, occupied):
     raise ValueError(f'All three-digit {kind} premise labels are occupied')
 
 
+def inherit_usage(prop, source):
+    """Carry reviewed document locations independently of the editable graph edges."""
+    if not source.get('usage', {}).get('references'):
+        return
+    usage = prop.setdefault('usage', {})
+    if not isinstance(usage, dict) or not isinstance(usage.get('references', []), list):
+        raise ValueError(f'USAGE: {prop["id"]}: expected a references list')
+    refs = usage.setdefault('references', [])
+    for ref in source['usage']['references']:
+        if ref not in refs:
+            refs.append(deepcopy(ref))
+
+
 def numbered_seed(registry, previous=None):
     """Allocate labels only for direct uses, preserving existing seed labels."""
     graph = deepcopy(registry['global_graph'])
@@ -42,6 +55,8 @@ def numbered_seed(registry, previous=None):
         original = {step['id']:step for step in graph['inferences']}
         graph = {'propositions':[{k:p[k] for k in ('id','statement')} for p in previous['propositions']],
                  'inferences':[{k:s[k] for k in ('id','inputs','output')} for s in deepcopy(previous['inferences'])]}
+        for row, previous_row in zip(graph['propositions'], previous['propositions']):
+            inherit_usage(row, previous_row)
         owners = by_port(registry, previous)
         for step in graph['inferences']:
             step['basis'] = [owners[p]['id'] for p in step['inputs'] if p in owners]
@@ -62,7 +77,9 @@ def numbered_seed(registry, previous=None):
         labels[key] = label
         occupied.add(label)
         if label not in props:
-            graph['propositions'].append({'id':label, 'statement':row['statement']})
+            props[label] = {'id':label, 'statement':row['statement']}
+            graph['propositions'].append(props[label])
+        inherit_usage(props[label], row)
     for step in graph['inferences']:
         step['inputs'] = list(dict.fromkeys([*step['inputs'], *(labels[b] for b in step['basis'])]))
     return graph, labels
@@ -95,6 +112,12 @@ def by_port(registry, graph=None):
         prop = props[label]
         if prop.get('statement') != row['statement'] or prop.get('kind') != ('mathlib' if prefix(row)=='M' else 'external'):
             raise ValueError(f'Changed frozen foundation statement or kind at {label} ({key})')
+        locations = row.get('usage', {}).get('references', [])
+        if locations:
+            usage = prop.get('usage')
+            refs = usage.get('references') if isinstance(usage, dict) else None
+            if not isinstance(refs, list) or any(ref not in refs for ref in locations):
+                raise ValueError(f'USAGE: {label} must retain the reviewed document locations of {key}')
         resolved[label] = row
     initial = {p['id']:p for p in registry['global_graph']['propositions']}
     original_ports = {r['port'] for r in rows.values() if r['port']}

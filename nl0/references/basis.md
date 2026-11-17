@@ -35,7 +35,7 @@ Submit an object with exactly:
 
 ```text
 version: "yui-basis-3"
-global_graph: {propositions:[{id,statement}], inferences:[{id,inputs,output,basis:[B IDs]}]}
+global_graph: {propositions:[{id,statement,usage?}], inferences:[{id,inputs,output,basis:[B IDs]}]}
 full_target: exact target-selection.json full_target
 proof: complete basis-reduced natural-language proof
 lean_header: "import Mathlib\n" followed by needed object definitions
@@ -47,12 +47,13 @@ With an [explicitly attached Lean library](lean-libraries.md), listed entry
 imports may follow `import Mathlib` before the object definitions. Unattached
 imports remain rejected; this does not grant semantic or foundation acceptance.
 
-Each dependency has exactly:
+Each dependency uses the following fields.
 
 ```text
 id: B001 (three or more digits)
 category: 1 | 2 | 3 | 4
 statement: complete mathematical statement
+usage (optional): {references:[{document: exact inputs/ path, locator: place of use}]}
 origin: {kind, reference, revision, evidence:[evidence reference, ...], declaration:... only for class 1}
 compatibility: native | adapted | internal | unresolved
 uses: [other B IDs]

@@ -119,7 +119,11 @@ class SourceHandoff(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.scratch=tempfile.TemporaryDirectory();cls.root=Path(cls.scratch.name)
-        cls.value=artifact(direct())
+        row=direct()
+        cls.location={'document':'inputs/basis-proof.md','locator':'Lemma 2.1'}
+        row['usage']={'references':[cls.location]}
+        cls.value=artifact(row)
+        cls.value['proof']='Lemma 2.1. '+cls.value['proof']
         cls.context=checked_context(cls.root/'2basis/0001',cls.value)
 
     @classmethod
@@ -131,6 +135,7 @@ class SourceHandoff(unittest.TestCase):
         documents={'proof-context.json':self.context,'basis-registry.json':self.value}
         import json
         docs={key:json.dumps(value,ensure_ascii=False,indent=2)+'\n' for key,value in documents.items()}
+        docs['basis-proof.md']=self.value['proof']
         contract=frozen_graph.AuthorContract(directory,docs,'closed-addition-format-example',frozen_graph.BASIS)
         original=ir.load(harness_support.FIXTURES/'closed-addition/nl0.json')
         details={p['id']:{k:v for k,v in p.items() if k not in ('id','statement')} for p in original['propositions']}
@@ -149,6 +154,7 @@ class SourceHandoff(unittest.TestCase):
             directory,payload=self.author('inherited')
         prop=next(p for p in payload['graph']['propositions'] if p['id']=='M001')
         self.assertEqual(prop['source']['declaration'],'Nat.div_right_comm')
+        self.assertEqual(prop['usage'],{'inferences':['R002'],'references':[self.location]})
         report=ir.load(directory/prop['source']['evidence'][0]['path'])
         self.assertEqual(report['inheritance']['basis_id'],'B001')
         self.assertNotIn('result',report)  # Reused evidence is not reported as fresh execution.
@@ -158,6 +164,7 @@ class SourceHandoff(unittest.TestCase):
         _,payload=self.author('renumbered',rename=True)
         prop=next(p for p in payload['graph']['propositions'] if p['id']=='M014')
         self.assertEqual(prop['source']['declaration'],'Nat.div_right_comm')
+        self.assertEqual(prop['usage'],{'inferences':['R002'],'references':[self.location]})
         with self.assertRaisesRegex(ValueError,'changed frozen source'):
             self.author('override',change={'declaration':'Nat.succ_injective'})
 

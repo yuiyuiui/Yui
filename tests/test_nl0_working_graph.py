@@ -1,6 +1,7 @@
 """Independent boundaries for working NL0 revisions and protected mathematical inputs."""
 from copy import deepcopy
 from pathlib import Path
+import json
 import shutil
 import tempfile
 import unittest
@@ -21,25 +22,78 @@ class WorkingGraphTests(unittest.TestCase):
         self.seed=self.registry['global_graph']
         self.source=support.TESTS/'fixtures/closed-addition'
 
+    def test_pre_usage_basis_review_only_applies_to_the_original_format(self):
+        import basis_review
+        packet = {'items':{'B001':{}}, 'global_graph':{'propositions':[{'id':'P'}]}}
+        rule = basis_review.PRE_USAGE_RULE
+        self.assertEqual(basis_review.rule_for(packet, rule), rule)
+        for row in (packet['items']['B001'], packet['global_graph']['propositions'][0]):
+            row['usage'] = {'references':[]}
+            with self.assertRaisesRegex(ValueError, 'Unknown basis review rules'):
+                basis_review.rule_for(packet, rule)
+            del row['usage']
+        with self.assertRaisesRegex(ValueError, 'Unknown basis review rules'):
+            basis_review.rule_for(packet, 'unknown')
+
+    def test_direct_global_and_local_authors_share_usage_and_revision_rebuilds_consumers(self):
+        spec = nl0.load(self.source/'spec.json')
+        complete = nl0.load(self.source/'nl0.json')
+        docs = {'paper.md':'First manuscript.', 'appendix.md':'Separate appendix.'}
+        refs = [{'document':'inputs/'+name, 'locator':'Lemma 2.1'} for name in docs]
+        draft = {'spec':deepcopy(spec), **fg.shape(deepcopy(complete))}
+        claim = next(p for p in draft['propositions'] if p['id']=='N001')
+        claim['statement'] += ' Used in Lemma 2.1 (see H001).'
+        claim['usage'] = {'references':refs}
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            directory = root/'global-graphs/0001/stage/case'
+            author = fg.AuthorContract(directory,docs,spec['case_id'],fg.DIRECT)
+            malformed = deepcopy(draft)
+            next(p for p in malformed['propositions'] if p['id']=='N001')['usage']['references'] = ['Lemma 2.1']
+            with self.assertRaisesRegex(ValueError, 'usage/references/0'):
+                fg.protocol.validate(malformed, author.schema)
+            author(draft)
+            chosen = fg.select({'root':str(root)},fg.checked_receipt(directory,fg.DIRECT))
+            assigned = fg.read_working(chosen)
+            prop = next(p for p in assigned['graph']['propositions'] if p['id']=='N001')
+            self.assertEqual(prop['usage'], {'inferences':['R002'], 'references':refs})
+            local = fg.AuthorContract(root/'local',{**docs,fg.ASSIGNED:json.dumps(assigned)},spec['case_id'],fg.LOCAL)
+            proofs = [{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in complete['inferences']]
+            local({'local_proofs':proofs})
+            self.assertEqual(nl0.load(local.directory/'nl0.json')['propositions'],assigned['graph']['propositions'])
+            next_author = fg.AuthorContract(root/'revised',{**docs,'prior-global.json':json.dumps(assigned)},
+                                           spec['case_id'],fg.DIRECT)
+            revision = {'spec':deepcopy(assigned['spec']), **fg.shape(deepcopy(assigned['graph']))}
+            revision['inferences'][-1]['inputs'].append('H001')
+            next_author(revision)
+            changed = nl0.load(next_author.directory/'nl0.json')['propositions']
+            self.assertEqual(next(p for p in changed if p['id']=='H001')['usage']['inferences'],['R001','R002'])
+            self.assertEqual(next(p for p in changed if p['id']=='N001')['usage'],prop['usage'])
+
     def test_a_matching_graph_label_cannot_substitute_an_unrelated_native_theorem(self):
         import basis
-        registry=active_artifact(artifact(dependency()))
+        import basis_sources
+        from controller_common import manifest
+        from test_basis_sources import direct
+        row=direct()
+        row['usage']={'references':[{'document':'inputs/problem.md','locator':'Lemma 2.1'}]}
+        registry=artifact(row)
         rules=basis_graph.handoff()
         graph,labels=rules.numbered_seed(registry)
-        for row in graph['propositions']:
-            if row['id']=='M001':
-                row.update(kind='mathlib',source={'declaration':'Nat.add_zero'})
-        rules.attach(registry,graph,labels)
         with tempfile.TemporaryDirectory() as raw:
-            path=Path(raw)/'elaborated.json'
-            write(path,{'dependencies':{'declarations':[
-                {'name':'YuiBasis.B001','imported':False,'direct_constants':['YuiBasis.B001.helper']},
-                {'name':'YuiBasis.B001.helper','imported':False,'direct_constants':['Nat.add_zero']}]}})
-            context={'native':{'path':str(Path(raw)/'check.json')}}
-            basis.check_graph_sources(context,registry,graph)
+            root=Path(raw)
+            (root/'inputs').mkdir()
+            (root/'inputs/problem.md').write_text(registry['full_target'])
+            manifest(root/'inputs')
+            author=basis.BasisContract(root,registry['full_target'])
+            author(registry)
+            context=nl0.load(author.last_receipt['path'])
             native=next(p for p in graph['propositions'] if p['id']=='M001')
+            native.update(kind='mathlib',source=basis_sources.material(registry,context['native'])['B001']['source'])
+            rules.attach(registry,graph,labels)
+            basis.check_graph_sources(context,registry,graph)
             native['source']['declaration']='Nat.mul_zero'
-            with self.assertRaisesRegex(ValueError,'M001.*Nat.mul_zero.*B001'):
+            with self.assertRaisesRegex(ValueError,'M001.*B001'):
                 basis.check_graph_sources(context,registry,graph)
 
     def test_frozen_foundations_allow_splitting_merging_and_reusing_intermediates(self):
@@ -93,6 +147,7 @@ class WorkingGraphTests(unittest.TestCase):
                 graph=nl0.load(source/'nl0.json')
                 graph.update(fg.shape(graph))
                 next(p for p in graph['propositions'] if p['id']=='N001')['statement']=statement
+                nl0.usage.bind(graph, set())
                 write(source/'nl0.json',graph)
                 return fg.checked_receipt(source,fg.DIRECT,previous=previous)
             job={'root':str(root)}

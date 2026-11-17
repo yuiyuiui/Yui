@@ -612,6 +612,8 @@ class NL0Contract:
         # Bind reproducibility metadata and explicitly omitted duplicate aliases.
         # The author's primary statements and all proof text remain unchanged.
         spec['inputs'] = self.expected_inputs
+        if self.global_only:
+            nl0.usage.bind(graph, {item['path'] for item in spec['inputs']})
         spec['pins'] = __import__('runtime_config').scientific_pins()
         lock = load_lock()
         # The author selects a declaration and writes its mathematical meaning.

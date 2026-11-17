@@ -29,9 +29,6 @@ _NUMBERED = re.compile(
 _OUTSIDE = re.compile(
     r"\b(?:as in|as defined in|as proved in|as shown in|notation from|defined in)"
     r"\s+(?:the\s+)?(?:original|paper|manuscript|source|previous section)\b", re.I)
-_INPUT_SHORTCUT = re.compile(
-    r"\b(?:as\s+)?(?:specified|stated|given|defined|described|set out)\s+in\s+"
-    r"(?:the\s+)?(?:target(?:\s+(?:theorem|proposition|statement))?|problem(?:\s+statement)?)\b", re.I)
 
 
 def need(condition, code, message):
@@ -52,17 +49,6 @@ def names(items, where):
 def opaque(text, where):
     need(not _NUMBERED.search(text) and not _OUTSIDE.search(text), "OPAQUE-REFERENCE",
          f"{where}: expand the mathematical content; use input IDs or previously proved local F IDs")
-
-
-def standalone_statement(text, where):
-    """Intrinsic prose checks shared by the editable basis and NL0 graph owners."""
-    opaque(text, where)
-    need(not _INPUT_SHORTCUT.search(text), "OPAQUE-REFERENCE",
-         f"{where}: a standalone statement/definition must contain its complete mathematical content, not refer to the target/problem for it")
-    match = _IDS.search(text)
-    if match:
-        raise ValueError(f"OPAQUE-STATEMENT: {where}: a proposition ID cannot replace content; "
-                         f"spell out {match.group()} in the statement and keep IDs in inference inputs")
 
 
 def binders(items, reserved, where):
@@ -109,19 +95,18 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         need(primitive["symbol"] not in global_names, "SHADOW", "primitive shadows a global object")
         global_names.add(primitive["symbol"])
 
-    def statement(item, where, body="statement", allowed=None):
+    def statement(item, where, allowed):
         local = binders(item["binders"], global_names, where + ".binders")
-        objects(item, (global_names if allowed is None else allowed) | local, where)
-        standalone_statement(item[body], where)
+        objects(item, allowed | local, where)
 
     for key, d in defs.items():
         allowed = {p["symbol"] for p in spec["parameters"]} | {p["symbol"] for p in primitives}
         allowed |= {defs[x]["symbol"] for x in definition_closure(d["depends_on"])} | {d["symbol"]}
-        statement(d, key, "definition", allowed)
+        statement(d, key, allowed)
     for key, p in props.items():
         allowed = {p["symbol"] for p in spec["parameters"]} | {p["symbol"] for p in primitives}
         allowed |= {defs[x]["symbol"] for x in definition_closure(p["definitions"])}
-        statement(p, key, allowed=allowed)
+        statement(p, key, allowed)
 
     for inference_index, (rid, r) in enumerate(steps.items()):
         ids = [s["id"] for s in r["argument"]]

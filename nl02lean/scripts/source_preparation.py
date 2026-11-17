@@ -119,7 +119,7 @@ def patch_schema():
         required=['version','baseline_graph_sha256','spec_sha256','candidates'])
 
 
-def apply_patch(graph, patch):
+def apply_patch(graph, patch, *, inputs=()):
     import artifact_protocol as protocol
     protocol.validate(patch,patch_schema(),error_type=ir.Invalid)
     ir.need(patch['version'] == VERSION and isinstance(patch['candidates'], list), 'unsupported extraction patch')
@@ -211,6 +211,12 @@ def apply_patch(graph, patch):
                 'scope': 'old_derivation is THIS consumer\'s replaced baseline proof. producer_source_derivation is where the shared proof was copied ONCE; it may be a different consumer with a different final goal. Review shared intermediate conclusion and this substitution, not equality of supplier/consumer final goals. Whole-A acceptance is a separate program gate. Internal N uses are inputs/prose, not E/M source-application records.'}
     ir.need(all(next(p for p in revised['propositions'] if p['id'] == pid) == value for pid,value in props.items()), 'existing proposition changed')
     ir.need(all(next(r for r in revised['inferences'] if r['id'] == rid) == value for rid,value in steps.items() if rid not in changed), 'unlisted proof changed')
+    if changed and any('usage' in p for p in revised['propositions']):
+        # Existing propositions just acquired new edges. Keep their document locations.
+        for prop in revised['propositions']:
+            if prop['id'] in props and 'usage' in prop:
+                prop['usage'].pop('inferences', None)
+        nl0.usage.bind(revised, {item['path'] for item in inputs})
     return revised, cut_packets
 
 
@@ -227,7 +233,7 @@ def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
     ir.need(data[1]['format_version'] == 2, 'incremental acceptance requires the current source format')
     patch = ir.load(patch_path)
     ir.need(patch['baseline_graph_sha256'] == ir.digest(graph) and patch['spec_sha256'] == ir.digest(spec), 'patch binds a different baseline')
-    revised, cuts = apply_patch(data[1], patch)
+    revised, cuts = apply_patch(data[1], patch, inputs=data[2]['inputs'])
     changed={p['consumer'] for p in cuts.values()}
     ir.need(not any(data[0].get('background_notes',{}).get(rid) for rid in changed),
             'changed consumer has accepted background notes: complete its scoped re-review before extraction; unchanged notes may be inherited')
@@ -266,7 +272,8 @@ def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
                              'incremental': str(Path(incremental).resolve()) if incremental else None},
                 'bindings': [binding(x) for x in dict.fromkeys(baseline_paths + new_paths)],
                 'tools': [binding(Path(__file__)), binding(Path(ir.__file__)), binding(Path(__file__).with_name('shared_lemmas.py')),
-                          binding(PARENT/'nl0.py'), binding(PARENT/'closure.py'), binding(PARENT/'background.py')],
+                          binding(PARENT/'nl0.py'), binding(Path(nl0.usage.__file__)),
+                          binding(PARENT/'closure.py'), binding(PARENT/'background.py')],
                 'new_producers': sorted(new_rids), 'changed_consumers': sorted({p['consumer'] for p in cuts.values()}),
                 'inherited_inferences': sorted(old_rids - {p['consumer'] for p in cuts.values()}),
                 'cut_ids': sorted(cuts), 'stage_wall_seconds': time.monotonic() - started,
@@ -295,7 +302,7 @@ def check(directory, *, active=None, write=True):
     baseline, baseline_paths = read_source(**authority, active=active)
     patch = ir.load(out/'patch.json')
     ir.need(patch['baseline_graph_sha256'] == ir.digest(authority['graph']) and patch['spec_sha256'] == ir.digest(authority['spec']), 'patch baseline binding changed')
-    expected, cuts = apply_patch(baseline[1], patch)
+    expected, cuts = apply_patch(baseline[1], patch, inputs=baseline[2]['inputs'])
     cut_context(cuts, baseline[2])
     ir.need(ir.load(case/'nl0.json') == expected and ir.digest(case/'spec.json') == ir.digest(authority['spec']), 'revision escaped the allowlisted patch')
     data = nl0.validate(case/'nl0.json', case/'spec.json')

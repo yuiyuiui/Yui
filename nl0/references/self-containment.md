@@ -42,8 +42,10 @@ argument. Include the actual equalities/inequalities, binder types, hypotheses,
 parameter windows, constant dependencies, representatives and a.e./pointwise
 meaning. Global defined notation can be expanded from the packet. A formula
 number, theorem name, or paragraph location cannot replace mathematical content.
-Source locators belong in provenance fields. New mathematical prose uses direct
-input IDs and previously proved local F IDs, not inherited numbered references.
+Record numbered uses in a specific document in `usage.references`. At global
+handoff the controller derives graph uses from the actual input edges. Audit A
+decides whether a statement with a citation supplies enough mathematics for its
+consumer. Local arguments cite their direct inputs and previously proved local F IDs.
 
 ## Object closure
 

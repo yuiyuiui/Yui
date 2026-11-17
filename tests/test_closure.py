@@ -110,12 +110,11 @@ class ClosureChecks(unittest.TestCase):
         self.graph['inferences'][0]['argument'][0]['uses'].append('P')
         with self.assertRaisesRegex(nl0.Invalid,'CYCLE'):self.data()
 
-    def test_numbered_formula_cannot_replace_output_content(self):
+    def test_numbered_formula_in_a_global_claim_is_left_to_mathematical_review(self):
         self.graph["propositions"][1]["statement"] = "The identity (8.3) holds."
-        with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-REFERENCE"):
-            self.data()
+        self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
 
-    def test_target_or_problem_shortcut_is_not_a_standalone_statement(self):
+    def test_global_statement_spelling_is_not_an_acceptance_verdict(self):
         original=copy.deepcopy(self.graph)
         for index in range(len(self.graph['propositions'])):
             self.graph=copy.deepcopy(original)
@@ -123,17 +122,17 @@ class ClosureChecks(unittest.TestCase):
             p['statement']='The objects are as specified in the target statement.'
             if p['kind']=='hypothesis':self.spec['hypotheses'][0]['statement']=p['statement']
             if p['kind']=='target':self.spec['conclusion']=p['statement']
-            with self.assertRaisesRegex(nl0.Invalid,'OPAQUE-REFERENCE'):self.data()
+            self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
             self.spec=nl0.load(ROOT/'tests/fixtures/closed-addition/spec.json')
 
     def test_proof_metacommentary_does_not_supply_or_replace_a_statement(self):
         self.graph['inferences'][1]['argument'][1]['text']+=' This proves the target.'
         self.assertEqual(self.data()[0]['status'],'STRUCTURE-PASSED')
 
-    def test_definition_cannot_use_the_problem_as_its_content(self):
+    def test_global_definition_prose_is_reviewed_with_its_actual_contents(self):
         self.spec['definitions']=[dict(id='D001',symbol='d',type='natural number',
             definition='d is as defined in the problem.',depends_on=[],requires=[],binders=[],objects=['a'])]
-        with self.assertRaisesRegex(nl0.Invalid,'OPAQUE-REFERENCE'):self.data()
+        self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
 
     def test_scope_owner_label_must_name_actual_inference(self):
         local=self.graph['inferences'][1]['locals'][0]
@@ -162,10 +161,10 @@ class ClosureChecks(unittest.TestCase):
         self.assertIn('declaration[c]',str(failure.exception))
         self.assertIn("missing=['d']",str(failure.exception))
 
-    def test_proposition_id_cannot_replace_statement(self):
+    def test_an_id_in_a_statement_is_not_an_inference_edge(self):
         self.graph["propositions"][1]["statement"] = "The conclusion of H001 holds."
-        with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-STATEMENT"):
-            self.data()
+        self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
+        self.assertEqual(self.graph['inferences'][1]['inputs'], ['N001'])
 
     def test_paper_notation_cannot_supply_an_object(self):
         self.graph["inferences"][1]["argument"][1]["text"] = "Use the notation as defined in the original manuscript."

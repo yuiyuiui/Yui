@@ -119,6 +119,18 @@ These are inventories, not a parser-generated list. Audit A must find omitted
 objects by reading actual prose/formulas. Export all formulas and conditions;
 another N ID or an original equation number cannot replace their content.
 
+Both routes into NL0 local authoring also deliver `usage` alongside the mathematical
+`statement`. For example, a proposition used by R001 and R006 may carry
+`"usage":{"inferences":["R001","R006"],"references":[{"document":"inputs/material-001.md","locator":"Lemma 2.1"}]}`.
+The controller derives the inference IDs from actual input edges in graph order.
+Each inference's output identifies the theorem proved there. Authors supply only
+known manuscript locations, using the exact case-relative path in the input manifest.
+An empty list means there are no direct consumers or no recorded source locations,
+respectively. The same locator in two documents identifies two distinct uses.
+The working graph retains these annotations through local authoring and delivery.
+An isolated Audit A packet exposes its own premises and conclusion; global usage
+metadata supplies no mathematical premise.
+
 | kind | ID | Producer | Additional fields |
 |---|---|---|---|
 | `hypothesis` | Hddd | none | exactly matches frozen H statement |
@@ -400,8 +412,9 @@ that two spellings have the same mathematical meaning, that a hidden theorem
 was not used, that a local witness did not escape the prose, or that an argument
 is valid. Those are explicit Audit A obligations. Neither a JSON PASS nor a
 fabricated complete audit receipt is a mathematical certificate.
-Numbered-reference diagnostics reject common opaque references, not every
-possible paraphrase or hidden import. Behavioral tests must actually ask an
+Global handoff accepts numbered references in prose. Audit A checks whether each
+claim states the mathematical content needed by its consumer. The local proof-body
+checks still diagnose common opaque references. Behavioral tests must actually ask an
 auditor to review unseen controls; manually prefilled FAIL records only test
 receipt rejection and must be reported as such.
 

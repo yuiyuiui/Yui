@@ -39,6 +39,8 @@ a resolution field that answers that exact earlier objection against the revised
 and whether the available hypotheses suffice. Assess every required item. Do not rewrite
 the proof or approve residual assumptions for the user. Report all located findings."""
 RULE = hashed([VERSION, PROMPT, ir.digest(Path(__file__).resolve().parents[1]/'references/basis.md')])
+# The previous author format is part of the rule hash on already issued reviews.
+PRE_USAGE_RULE = 'da143cb767a159fb8adb03ad8b299b4e1bf1e732a27497525f635b5088f6d498'
 
 
 def native_basis_dependencies(name, declarations, basis_names):
@@ -92,9 +94,13 @@ def material(artifact, native, originals, evidence, revision_report=None):
 
 
 def rule_for(packet, rule):
-    if rule != RULE:
-        raise ValueError('Unknown basis review rules for this protocol')
-    return rule
+    if rule == RULE:
+        return rule
+    if rule == PRE_USAGE_RULE:
+        rows = [*packet['items'].values(), *packet.get('global_graph', {}).get('propositions', [])]
+        if all('usage' not in row for row in rows):
+            return rule
+    raise ValueError('Unknown basis review rules for this protocol')
 
 
 def item_keys(packet, rule=None):

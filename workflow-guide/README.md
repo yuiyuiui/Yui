@@ -142,7 +142,7 @@ The model adapter direct\_outline receives Job@1 and returns a named port and it
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Construct the first working graph from the original proof.
+Select a working graph with each proposition's direct consumers and document locations.
 
 [direct\_outline implementation](#handler-direct_outline)
 
@@ -423,7 +423,7 @@ The model adapter basis\_outline receives Foundation@2 and returns a named port 
 
 An uncertain external effect requires a receipt for the same operation before the run continues.
 
-Assign one M/E label per frozen foundation and inherit its checked source for NL0.
+Assign M/E labels and retain reviewed statements and document locations in the same working graph format.
 
 [basis\_outline implementation](#handler-basis_outline)
 
@@ -1682,7 +1682,7 @@ adapters.py · line 31
 
 ```python
 def basis_outline(ctx, data):
-    """Assign one M/E label per frozen foundation and inherit its checked source for NL0."""
+    """Assign M/E labels and retain reviewed statements and document locations in the same working graph format."""
     return dispatch(ctx, data, 'basis_outline')
 ```
 
@@ -1716,7 +1716,7 @@ adapters.py · line 27
 
 ```python
 def direct_outline(ctx, data):
-    """Construct the first working graph from the original proof."""
+    """Select a working graph with each proposition's direct consumers and document locations."""
     return dispatch(ctx, data, 'direct_outline')
 ```
 
