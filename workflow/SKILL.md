@@ -80,6 +80,13 @@ standalone compilation, kernel closure and the semantic authority. Portable
 reader/state cases are registered in [checks.json](checks.json); the parent
 repository also tests the actual frozen-interface handoff and native repair.
 
+The private [Lean handoff contract](blocks/private_proof_handoff.py) owns the
+versioned request and result manifests within `translate`. Its registered
+filesystem examples cover conditional result fields, relative file bindings
+and wrong-task rejection. The parent repository exercises native declaration
+checks, interrupted publication, repeated intake and actual use of the returned
+lemma in the parent proof.
+
 The private [native recovery policy](blocks/native_recovery.py) supplies bounded
 same-owner progress after a failed native request, including direct children and
 exact returned-call references. Its read tool pages existing results; it neither

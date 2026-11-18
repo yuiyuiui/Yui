@@ -8,7 +8,8 @@ import basis_graph
 import ir
 import local_helpers
 from controller_common import bind, copy_problem_documents, manifest, verify_bindings, write
-from proof_obligations import parallel, private_proof
+import private_handoff
+from proof_obligations import parallel, deliver, receive_foundation
 
 ITEM = p.obj({'id':basis_graph.BASIS,'statement':p.TEXT,'consumers':p.array(
     p.obj({'id':p.TEXT,'required_use':p.TEXT}),minItems=1)})
@@ -191,13 +192,15 @@ def prepare(stage,args):
             definitions.append('have h_'+name+' : '+up['lean']['type']+' := @YuiBasis.'+dep)
         consumers=[step for step in candidate['global_graph']['inferences'] if row['id'] in step['basis']]
         identity=local_helpers.digest([row,consumers,candidate['full_target']])
-        body=private_proof(stage.logs/'foundation-proofs',identity=identity[:20],header=candidate['lean_header'],
+        request=private_handoff.issue(stage.logs/'foundation-proofs',identity=identity[:20],parent_node='2basis/'+row['id'],
+                parent_context=identity,header=candidate['lean_header'],
                 parameters=[],premises=inputs,target=row['lean']['type'],statement=row['statement'],
                 route=row['justification']+'\nOriginal target: '+candidate['full_target']+'\nSource: '+str(row['origin'])+
                       '\nConsumers: '+str(consumers)+'\nUse the supplied direct hypothesis binders for the selected dependencies.',
-                budget=budget,evidence=basis.evidence_bindings({'dependencies':[row,*[rows[d] for d in row['uses']]]},
+                evidence=basis.evidence_bindings({'dependencies':[row,*[rows[d] for d in row['uses']]]},
                     stage.validator.out/'inputs',stage.logs))
-        return '\n'.join([*definitions,body])
+        result=deliver(request,budget)
+        return '\n'.join([*definitions,receive_foundation(request,result)])
     proofs=parallel(stage,pending,solve,requested=stage.validator.concurrency)
     for row,proof in zip(pending,proofs):
         row['lean']['proof']=proof

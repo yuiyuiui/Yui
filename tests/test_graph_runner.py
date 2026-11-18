@@ -39,7 +39,7 @@ class PackagingTests(unittest.TestCase):
             with self.assertRaises(ValueError):ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
 
     def test_private_proof_constructor_connects_diagnosis_to_the_actual_owner_path(self):
-        import proof_obligations,proof_diagnosis,model_pilot,concurrency
+        import proof_obligations,proof_diagnosis,model_pilot,concurrency,private_handoff
         observed=[]
         class StopBeforeModel(BaseException):pass
         def execute(stage):
@@ -50,8 +50,9 @@ class PackagingTests(unittest.TestCase):
             stage.release_resources('USER_CANCELLED')
             raise StopBeforeModel()
         with patch.object(model_pilot.Stage,'execute',execute),self.assertRaises(StopBeforeModel):
-            proof_obligations.private_proof(self.temp/'private',identity='B001',header='import Mathlib\n',parameters=[],
-                premises=[],target='True',statement='Truth.',route='Use True.intro.',budget=concurrency.Budget(concurrency.resolve(1)))
+            request=private_handoff.issue(self.temp/'private',identity='B001',header='import Mathlib\n',parameters=[],
+                premises=[],target='True',statement='Truth.',route='Use True.intro.')
+            proof_obligations.deliver(request,concurrency.Budget(concurrency.resolve(1)))
         self.assertEqual(observed,[{'located':'actual'}])
 
     def test_packaged_graph_keeps_exact_input_binding(self):

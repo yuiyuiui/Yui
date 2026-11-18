@@ -3,12 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from contextvars import copy_context
 from pathlib import Path
-import tempfile
+import re
+
+import private_handoff as handoff
 
 import concurrency
 import ir
 import local_helpers
-from controller_common import bind, write, verify_bindings
+from controller_common import bind, write
 
 
 def parallel(owner, items, work, *, requested='auto', role='foundation'):
@@ -31,7 +33,7 @@ def parallel(owner, items, work, *, requested='auto', role='foundation'):
         with independent():
             if not recorder:return work(item,budget)
             key='private-'+local_helpers.digest([str(owner.logs),role,item])[:24]
-            recorder.task(key,parent_task=parent_task,role=role,state='PENDING')
+            recorder.task(key,parent_task=parent_task,role=role)
             with activate(recorder,key):
                 recorder.check(key)
                 return work(item,budget)
@@ -51,95 +53,353 @@ def complete_private(stage, receipt):
         stage.execution.task(stage.execution_task,state='FINISHED',role_state='CLOSED',activity='PRIVATE_WORK_DELIVERED',finished_at_utc=now())
 
 
-def private_proof(directory, *, identity, header, parameters, premises, target, statement, route, budget, evidence=()):
-    """Run the normal Lean author on exactly the selected conditional statement."""
+def batch_schema():
+    import artifact_protocol as p
+    return p.obj({'obligations':p.array(p.obj({'statement':p.TEXT,'explanation':p.TEXT}),minItems=1)})
+
+
+def publish_result(req, number, status, files):
+    result=req.root/f'result-{number:03d}.json'
+    record={'schema':handoff.wire.RESULT,'request':handoff.wire.reference(req.root,req.path),
+            'attempt':number,'status':status,'files':{k:handoff.wire.reference(req.root,path) for k,path in files.items()}}
+    handoff.wire.validate_result(record,result,req.path)
+    handoff.publish(result,record)
+    return result
+
+
+def problem_result(req, attempt, number, status, **fields):
+    field=handoff.wire.OUTCOMES[status][0]
+    path=attempt/(field+'.json')
+    records={}
+    names=('worker/result.json','worker/accepted.json','worker/proof-repair-request.json','worker/tools.jsonl',
+           'worker/usage.json','declaration-error.json','native-error.json','proof.json','check.json')
+    material=[*(attempt/name for name in names),*sorted((attempt/'worker/lean-drafts').glob('*.json'))]
+    for file in material:
+        if file.is_file():
+            ir.need(file.resolve()==file,'Linked private proof diagnostic evidence')
+            records[file.relative_to(attempt).as_posix()]=handoff.wire.reference(attempt,file)
+    handoff.publish(path,{'request_sha256':ir.digest(req.path),'attempt':number,'records':records,**fields})
+    return publish_result(req,number,status,{field:path})
+
+
+def start_worker(req, attempt, budget):
     import model_pilot
-    packet={'identity':identity,'header':header,'parameters':parameters,'premises':premises,
-            'type':target,'statement':statement,'route':route,'evidence':list(evidence),'pins':ir.load_lock()['mathlib']['rev']}
-    directory=Path(directory)/local_helpers.digest(packet)
-    directory.mkdir(parents=True,exist_ok=True)
-    receipt=directory/'checked.json'
-    if receipt.is_file():
-        prior=ir.load(receipt)
-        verify_bindings([prior['source'],prior['result']])
-        ir.need(ir.load(prior['source']['path'])==packet,'Private proof authority changed')
-        result=ir.load(prior['result']['path'])
-        ir.need(ir.native_succeeded(result) and result['proof_sha256']==local_helpers.digest(prior['proof']),
-                'Private proof result changed')
-        return prior['proof']
-    attempt=Path(tempfile.mkdtemp(prefix='attempt-',dir=directory))
-    source=attempt/'source.json';write(source,packet)
-    steps=[{'id':'S001','text':route}]
-    cpath=attempt/'contract.json'
-    write(cpath,{'version':2,'id':'PrivateProof','source':{'path':source.name,'sha256':ir.digest(source)},
-        'source_steps':steps,'pins':{'lean_version':ir.load_lock()['lean']['version_number'],'mathlib_commit':packet['pins']},
-        'header':header,'parameters':parameters,'premises':premises,'conclusion':{'statement':statement,'type':target},
-        'representation':{'scope':'Private conditional proof under the listed ports'},
-        'review':{'mode':'development_owner_review','scope':'Local implementation; full parent acceptance required'}})
-    plan={'version':2,'contract_sha256':ir.digest(cpath),'representation_notes':'Use the exact enclosing types and binders.',
-          'steps':[{'id':'T001','statement':target,'inputs':[p['id'] for p in premises],
-                    'source_steps':['S001'],'explanation':route}],'terminal':'T001'}
-    from jobs import stage_document
-    docs={}
-    verify_bindings(evidence)
-    for index,ref in enumerate(evidence,1):
-        path=Path(ref['path']);view=attempt/f'source-{index:03d}.txt'
-        stage_document(path,view);docs[f'S{index:03d} '+path.name]=bind(view)
-    stage=model_pilot.Stage(attempt/'worker',cpath,'proof',None,plan,'T001',budget=budget,private_worker=True,
-                            private_sources=docs)
     import proof_diagnosis
+    stage=model_pilot.Stage(attempt/'worker',req.contract,'proof',None,req.plan,'T001',
+                            budget=budget,private_worker=True,private_sources=req.documents)
     stage.diagnose_obstruction=lambda author,request,out:proof_diagnosis.run_private(author,request,out,budget=budget)
-    result,selected=stage.execute()
-    if result.get('repair_request'):
-        request=result['repair_request']
-        raise ValueError('Private proof '+identity+' needs owner-local repair; completed siblings are retained. '+
-                         __import__('json').dumps(request.get('diagnosis',request),ensure_ascii=False))
-    from execution_health import require_review_execution, StageFailure
-    try:require_review_execution(result,stage.logs/'result.json',phase='private-proof')
-    except StageFailure as error:
-        if error.result['status']=='EXECUTION_UNQUALIFIED':raise RuntimeError(str(error)) from error
-        raise
-    if not selected or 'proof' not in selected:
-        raise RuntimeError('Private proof worker did not deliver checked source: '+str(attempt/'worker/result.json'))
-    value=selected['proof']
-    # A stored worker handoff still needs an independent complete-source check.
+    return stage
+
+
+def finish_checked(req, attempt, number, stage):
+    """The proof and check each survive a failure at the following publication."""
     import lean_timeout_policy
-    with lean_timeout_policy.stage_scope(stage, 'transition'):
-        native=ir.check(cpath,plan,{'T001':value},only='T001')
-    if not ir.native_succeeded(native):
-        raise ValueError('Private proof failed complete-source check: '+ir.compiler_feedback(native))
-    body=local_helpers.as_tactic(value,ir.local_packet(cpath,plan,'T001'))
-    body=local_helpers.NAME.sub(lambda m:'yui_nested_'+identity+'_'+m[0][8:],body)
-    native['proof_sha256']=local_helpers.digest(body)
-    write(attempt/'complete.json',native)
-    write(receipt,{'source':bind(source),'result':bind(attempt/'complete.json'),'proof':body})
-    complete_private(stage,receipt)
+    proof_path=attempt/'proof.json'
+    proof=handoff.read_proof(req,number,proof_path)
+    check=attempt/'check.json'
+    if not check.exists():
+        with lean_timeout_policy.stage_scope(stage,'transition') if stage is not None else nullcontext():
+            native=ir.check(req.contract,req.plan,{'T001':proof},only='T001')
+        if not ir.native_succeeded(native):
+            write(attempt/'native-error.json',native)
+            return problem_result(req,attempt,number,'execution_error',step='complete-source check',
+                                  error_type=native.get('error_kind') or native['status'],message=ir.compiler_feedback(native) or native['status'])
+        handoff.validate_native(req,native,proof)
+        handoff.publish(check,{'request_sha256':ir.digest(req.path),'attempt':number,'proof_sha256':ir.digest(proof_path),'native':native})
+    files={'proof':proof_path,'check':check}
+    handoff.checked_body(req,number,files)
+    return publish_result(req,number,'checked',files)
+
+
+def finish_role(req, number, result, stage, budget):
+    worker=req.root/f'attempt-{number:03d}'/'worker'
+    if not (worker/'accepted.json').is_file():
+        return
+    if stage is None:
+        recorder=getattr(budget,'execution',None)
+        stage=next((s for s,_ in getattr(recorder,'retained_stages',[]) if Path(s.logs).resolve()==worker),None)
+    if stage is not None and not getattr(stage,'_resources_released',False):
+        complete_private(stage,result)
+    elif not (worker/'role-completion.json').exists():
+        # An offline readback has no live stage to release. The normal case cleanup owns any retained workspace.
+        write(worker/'role-completion.json',{'boundary':'PRIVATE_WORK_DELIVERED','role':'proof',
+              'submission':bind(worker/'accepted.json'),'evidence':[bind(result)]})
+
+
+def worker_outcome(req, attempt, number, report, selected):
+    from execution_health import require_review_execution, StageFailure, record_qualification
+    if report.get('repair_request') and record_qualification(report)['record_context_qualified']:
+        repair=report['repair_request']
+        return problem_result(req,attempt,number,'needs_parent_repair',
+                              location=', '.join(repair['locations']),required_change=repair['explanation'])
+    if report.get('status') in {'CANCELLED','REPAIR_WAIT'} or (report.get('status')=='UNFINISHED' and
+            not report.get('execution_fault') and report.get('execution_health')!='FAULT'):
+        return problem_result(req,attempt,number,'unfinished',reason=report.get('stop_reason') or report['status'])
+    try:
+        require_review_execution(report,attempt/'worker/result.json',phase='private-proof')
+    except StageFailure as error:
+        if error.result['status']=='EXECUTION_UNQUALIFIED':
+            return problem_result(req,attempt,number,'execution_error',step='worker qualification',
+                                  error_type=error.result['status'],message=str(error))
+        return problem_result(req,attempt,number,'unfinished',reason=error.result['status'])
+    if not isinstance(selected,dict) or 'proof' not in selected:
+        return problem_result(req,attempt,number,'execution_error',step='read accepted submission',
+                              error_type='MISSING_PROOF',message='The qualified worker supplied no proof.')
+    handoff.publish(attempt/'proof.json',{'request_sha256':ir.digest(req.path),'attempt':number,'proof':selected['proof']})
+    return None
+
+
+def run_attempt(req, attempt, number, budget):
+    from execution_state import Cancelled, CaseDeadlineExceeded
+    stage=None
+    # The outcome detail can survive a failure writing its manifest, just like a native check.
+    for status in handoff.DETAILS:
+        key=handoff.wire.OUTCOMES[status][0];detail=attempt/(key+'.json')
+        if detail.exists():
+            return publish_result(req,number,status,{key:detail})
+    types=req.root/'declaration-check.json'
+    if not types.exists():
+        native=ir.check(req.contract,req.plan,types_only=True)
+        if not ir.native_succeeded(native):
+            write(attempt/'declaration-error.json',native)
+            if native.get('timed_out') or native.get('error_kind'):
+                return problem_result(req,attempt,number,'execution_error',step='declaration check',
+                    error_type=native.get('error_kind') or 'NATIVE_TIMEOUT',message=ir.compiler_feedback(native) or native['status'])
+            return problem_result(req,attempt,number,'needs_parent_repair',location='/files/contract/conclusion/type',
+                                  required_change=ir.compiler_feedback(native) or 'Correct the private declaration.')
+        handoff.validate_native(req,native)
+        handoff.publish(types,native)
+    handoff.validate_native(req,ir.load(types))
+    proof=attempt/'proof.json'
+    legacy=req.root/'legacy-candidate.json'
+    if not proof.exists() and legacy.exists() and number==1:
+        prior=ir.load(legacy)
+        ir.need(prior['request_sha256']==ir.digest(req.path),'Legacy source belongs to another request')
+        handoff.publish(proof,{'request_sha256':ir.digest(req.path),'attempt':number,'proof':prior['proof']})
+    if not proof.exists():
+        logs=attempt/'worker'
+        if not (logs/'result.json').exists():
+            if logs.exists():
+                return problem_result(req,attempt,number,'unfinished',reason='WORKER_INTERRUPTED_BEFORE_RESULT')
+            try:
+                stage=start_worker(req,attempt,budget)
+                stage.execute()
+            except (Cancelled,CaseDeadlineExceeded):
+                raise
+            except Exception as error:
+                return problem_result(req,attempt,number,'execution_error',step='worker execution',
+                                      error_type=type(error).__name__,message=str(error) or type(error).__name__)
+            if not (logs/'result.json').is_file():
+                return problem_result(req,attempt,number,'execution_error',step='read worker result',
+                                      error_type='MISSING_RESULT',message='Worker returned without a persisted result.')
+        report=handoff.wire.read(logs/'result.json')
+        selected=handoff.wire.read(logs/'accepted.json') if (logs/'accepted.json').is_file() else None
+        result=worker_outcome(req,attempt,number,report,selected)
+        if result is not None:
+            return result
+    result=finish_checked(req,attempt,number,stage)
+    if ir.load(result)['status']=='checked':
+        finish_role(req,number,result,stage,budget)
+    return result
+
+
+def recover_checked_work(req, previous, attempt, number):
+    """Rebind a retained proof after a controller fault, keeping issued attempts immutable."""
+    proof_path=previous/'proof.json'
+    if not proof_path.is_file() or (previous/'native-error.json').exists():
+        return
+    proof=handoff.read_proof(req,number-1,proof_path)
+    check=previous/'check.json'
+    if check.is_file():
+        handoff.checked_body(req,number-1,{'proof':proof_path,'check':check})
+    new=attempt/'proof.json'
+    handoff.publish(new,{'request_sha256':ir.digest(req.path),'attempt':number,'proof':proof})
+    if check.is_file():
+        handoff.publish(attempt/'check.json',{'request_sha256':ir.digest(req.path),'attempt':number,
+                        'proof_sha256':ir.digest(new),'native':ir.load(check)['native']})
+
+
+def recorded_result(result):
+    from execution_state import current, now
+    recorder,task=current()
+    if recorder is not None and task and task.startswith('private-'):
+        status=ir.load(result)['status']
+        state={'checked':'FINISHED','needs_parent_repair':'FINISHED','unfinished':'UNFINISHED','execution_error':'UNFINISHED'}[status]
+        activity='PRIVATE_WORK_DELIVERED' if status=='checked' else 'PRIVATE_'+status.upper()
+        recorder.task(task,state=state,activity=activity,private_result=bind(result),finished_at_utc=now())
+    return result
+
+
+def deliver(request, budget):
+    """The worker accepts only an issued request and returns only a result manifest path."""
+    from execution_state import Cancelled, CaseDeadlineExceeded
+    req=handoff.read_request(request)
+    with handoff.locked(req.root,'.worker.lock'):
+        numbers=[int(match[1]) for path in req.root.iterdir() if (match:=re.fullmatch(r'attempt-([0-9]+)',path.name))]
+        number=max(numbers,default=1)
+        result=req.root/f'result-{number:03d}.json'
+        previous=None
+        if result.exists():
+            row,_=handoff.read_result(req.path,result)
+            if row['status']=='checked':
+                finish_role(req,number,result,None,budget)
+                return recorded_result(result)
+            if row['status']=='needs_parent_repair':
+                return recorded_result(result)
+            if row['status']=='execution_error':
+                previous=req.root/f'attempt-{number:03d}'
+            number+=1
+        attempt=req.root/f'attempt-{number:03d}'
+        ir.need(not attempt.is_symlink(),'Linked private proof attempt')
+        attempt.mkdir(exist_ok=True)
+        if previous is None and number>1 and not (attempt/'check.json').exists():
+            earlier=req.root/f'result-{number-1:03d}.json'
+            if earlier.is_file() and handoff.read_result(req.path,earlier)[0]['status']=='execution_error':
+                previous=req.root/f'attempt-{number-1:03d}'
+        if previous is not None:
+            recover_checked_work(req,previous,attempt,number)
+        try:
+            result=run_attempt(req,attempt,number,budget)
+        except (Cancelled,CaseDeadlineExceeded) as error:
+            problem_result(req,attempt,number,'unfinished',reason=type(error).__name__+': '+str(error))
+            raise
+        except (OSError,RuntimeError,NameError) as error:
+            if (req.root/f'result-{number:03d}.json').exists():
+                raise
+            step='prepare private request'
+            if (attempt/'check.json').is_file():
+                step='publish result manifest'
+            elif (attempt/'proof.json').is_file():
+                step='save complete-source check'
+            elif (attempt/'worker/result.json').is_file():
+                step='save submitted proof'
+            result=problem_result(req,attempt,number,'execution_error',step=step,
+                                  error_type=type(error).__name__,message=str(error) or type(error).__name__)
+        return recorded_result(result)
+
+
+def restore_private_work(request, previous_stage):
+    """Bring only a matching child's durable proof/check into an explicitly continued case."""
+    req=handoff.read_request(request)
+    previous=Path(previous_stage).resolve()
+    old=previous/'private-proofs'/req.root.name
+    if previous==req.root.parent.parent or handoff.run_id(previous)!=req.record['run_id'] or not (old/'request.json').is_file():
+        return
+    ir.need(old.resolve()==old,'Linked prior private proof directory')
+    with handoff.locked(old,'.worker.lock'):
+        issued=handoff.read_request(old/'request.json')
+        ir.need(ir.digest(issued.path)==ir.digest(req.path),'Prior private request differs from the issued task')
+        attempts=sorted((p for p in old.iterdir() if re.fullmatch(r'attempt-[0-9]+',p.name)),
+                        key=lambda p:int(p.name.split('-')[1]),reverse=True)
+        if not attempts:
+            return
+        saved=attempts[0];number=int(saved.name.split('-')[1])
+        ir.need(saved.resolve()==saved,'Linked prior private attempt')
+        result=old/f'result-{number:03d}.json'
+        if result.exists():
+            row,_=handoff.read_result(issued.path,result)
+            if row['status'] not in {'checked','execution_error'}:
+                return
+        proof=saved/'proof.json';check=saved/'check.json'
+        if not proof.is_file() or (saved/'native-error.json').exists():
+            return
+        proof_value=handoff.read_proof(issued,number,proof)
+        if check.is_file():
+            handoff.checked_body(issued,number,{'proof':proof,'check':check})
+        with handoff.locked(req.root,'.worker.lock'):
+            attempt=req.root/'attempt-001'
+            if (attempt/'worker').exists() or (req.root/'result-001.json').exists():
+                return
+            attempt.mkdir(exist_ok=True)
+            types=old/'declaration-check.json'
+            if types.exists():
+                native=ir.load(types);handoff.validate_native(req,native)
+                handoff.publish(req.root/types.name,native)
+            target=attempt/'proof.json'
+            handoff.publish(target,{'request_sha256':ir.digest(req.path),'attempt':1,'proof':proof_value})
+            if check.is_file():
+                handoff.publish(attempt/'check.json',{'request_sha256':ir.digest(req.path),'attempt':1,
+                                'proof_sha256':ir.digest(target),'native':ir.load(check)['native']})
+
+
+def receive_foundation(request, result):
+    """Foundation intake reads the checked file before adding dependency binders."""
+    row,body=handoff.read_result(request,result)
+    if row['status']!='checked':
+        raise_outcome(row,body,result)
+    handoff.publish(request.parent/'checked.json',{'schema':'yui-foundation-private-input-1',
+        'request':handoff.wire.reference(request.parent,request),'result':handoff.wire.reference(request.parent,result)})
     return body
 
 
+def raise_outcome(row, detail, result):
+    from execution_state import Cancelled
+    status=row['status']
+    if status=='unfinished' and detail['reason'] in {'CANCELLED','EXTERNAL_CANCEL'}:
+        raise Cancelled('Private proof cancelled: '+str(result))
+    if status=='execution_error':
+        raise RuntimeError(detail['step']+': '+detail['message']+' ('+str(result)+')')
+    raise ValueError('Private proof '+status+': '+detail.get('required_change',detail.get('reason',''))+' ('+str(result)+')')
+
+
+def receive(stage, result, *, expected_request=None):
+    result=Path(result)
+    root=stage.logs.resolve()/'private-proofs'
+    ir.need(result.parent.parent==root and result.parent.resolve()==result.parent,'Result belongs to another parent node')
+    request=result.parent/'request.json' if expected_request is None else Path(expected_request)
+    req=handoff.read_request(request)
+    ir.need(req.record['run_id']==handoff.run_id(stage.logs) and req.record['parent_node']==stage.step
+            and req.record['parent_context_sha256']==local_helpers.context(stage.cpath,stage.plan,stage.step)
+            and req.root.parent==stage.logs.resolve()/'private-proofs','Request belongs to another parent node or context')
+    row,body=handoff.read_result(request,result)
+    ref=handoff.wire.reference(stage.logs.resolve(),result)
+    if row['status']!='checked':
+        if row['status']=='execution_error' or row['status']=='unfinished' and body['reason'] in {'CANCELLED','EXTERNAL_CANCEL'}:
+            raise_outcome(row,body,result)
+        return {'accepted':False,'status':row['status'],'result':ref,
+                **{key:body[key] for key in handoff.DETAILS[row['status']]}}
+    statement=req.source['type']
+    with handoff.locked(stage.logs,'.private-receive.lock'):
+        registry=stage.logs/'local-helpers.json'
+        rows=ir.load(registry) if registry.is_file() else stage.local_helpers
+        local_helpers.validate(stage.cpath,stage.plan,stage.step,rows)
+        stage.local_helpers=rows
+        receipt=req.root/'checked.json'
+        prior=ir.load(receipt) if receipt.is_file() else None
+        helper=next((r for r in rows if r['statement']==statement and r['proof']==body
+                     and (prior is None or r['name']==prior['helper'])),None)
+        if prior is not None:
+            ir.need(helper is not None,'Parent registration no longer matches the received proof')
+        if helper is None:
+            response=stage.dispatch('check_auxiliary',{'statement':statement,'proof':body})
+            if not response.get('helper'):
+                return {k:response[k] for k in ('accepted','error','stdout','stderr') if k in response}
+            name=response['helper']['name']
+            helper=next(r for r in stage.local_helpers if r['name']==name)
+        check=req.root/'parent-check.json'
+        handoff.publish(check,{'name':helper['name'],'context_sha256':helper['context_sha256'],
+                              'helper_sha256':helper['sha256'],'native':helper['check']})
+        handoff.publish(receipt,{'schema':'yui-private-proof-received-1','request':handoff.wire.reference(req.root,request),
+            'result':handoff.wire.reference(req.root,result),'helper':helper['name'],'parent_check':handoff.wire.reference(req.root,check)})
+        return {'accepted':True,'status':'checked','helper':local_helpers.callable_helper(stage,helper),'result':ref}
+
+
 def helper_batch(stage, args):
-    import artifact_protocol as p
-    p.validate(args,batch_schema())
+    import artifact_protocol as protocol
+    protocol.validate(args,batch_schema())
     items=args['obligations']
     if len({item['statement'] for item in items})!=len(items):
         raise ValueError('Repeated private goal; request each independent obligation once')
     packet=ir.local_packet(stage.cpath,stage.plan,stage.step)
-    # Original local binders (including upstream T ports) remain explicit.
-    params=packet['parameters']+[{'name':port['binder'],'type':port['type']} for port in packet['inputs']]
-    def solve(item,budget):
-        ir.type_text(item['statement'])
-        return private_proof(stage.logs/'private-proofs',identity=local_helpers.digest(item)[:16],
-            header=packet['header'],parameters=params,premises=[],target=item['statement'],
-            statement=item['explanation'],route=item['explanation'],budget=budget)
-    bodies=parallel(stage,items,solve,role='proof')
-    results=[]
-    for item,body in zip(items,bodies):
-        # Register through the same native API as every hand-written local helper.
-        result=stage.dispatch('check_auxiliary',{'statement':item['statement'],'proof':body})
-        results.append({k:result[k] for k in ('accepted','helper','error','stdout','stderr') if k in result})
+    params=packet['parameters']+[{'name':p['binder'],'type':p['type']} for p in packet['inputs']]
+    requests=[handoff.issue(stage.logs/'private-proofs',identity=local_helpers.digest(item)[:16],
+        parent_node=stage.step,parent_context=local_helpers.context(stage.cpath,stage.plan,stage.step),
+        header=packet['header'],parameters=params,premises=[],target=item['statement'],
+        statement=item['explanation'],route=item['explanation']) for item in items]
+    previous=getattr(stage,'previous_private_stage',None)
+    if previous is not None:
+        for request in requests:
+            restore_private_work(request,previous)
+    manifests=parallel(stage,[str(request) for request in requests],deliver,role='proof')
+    results=[receive(stage,result,expected_request=request) for request,result in zip(requests,manifests)]
     return {'accepted':all(r.get('helper') for r in results),'helpers':results,'stage_complete':False}
-
-
-def batch_schema():
-    import artifact_protocol as p
-    return p.obj({'obligations':p.array(p.obj({'statement':p.TEXT,'explanation':p.TEXT}),minItems=1)})

@@ -86,3 +86,29 @@ check establishes acceptance. Do not ignore an unsuccessful process exit. If
 small helpers pass but a monolithic body exhausts resources, retain the separate
 checked helper declarations and compose them rather than repeatedly copying
 their bodies into a growing proof.
+
+### Private proof handoff
+
+The controller gives each private Lean author a versioned `request.json`.
+It binds the case, parent node, frozen parent context and task ID. Its three
+required file bindings are `files.source` (statement, argument and declared
+source views), `files.contract` (Lean header, parameters, premises, target and
+environment pins), and `files.plan` (the single transition). Each binding has
+a relative `path` and a SHA-256 digest. Resolve paths from their containing
+manifest. The controller checks the declaration with Lean before opening the
+private author.
+
+Each attempt publishes one immutable `result-NNN.json`. It binds its issued
+request and attempt number. Its status determines the required files.
+
+| Status | Files | Consumer action |
+| --- | --- | --- |
+| `checked` | `proof`, `check` | Verify the proof package, its nested helpers and exact native check. Check the helper in the parent context and register its callable name. |
+| `needs_parent_repair` | `diagnosis` | Read the located defect and required correction, then issue the revised obligation. |
+| `unfinished` | `progress` | Read the stop reason and retained evidence before retrying. |
+| `execution_error` | `error` | Read the failing step, error type and bound logs before retrying. |
+
+After registration, the parent's `checked.json` names the issued request,
+received result, registered helper and immutable parent check. Re-reading the
+same result returns the existing application. An interrupted publication resumes
+from the saved proof or check. A fresh attempt publishes a new result number.

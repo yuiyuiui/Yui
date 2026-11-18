@@ -52,15 +52,18 @@ class FrozenRoute(unittest.TestCase):
             draft=mixed()
             for row in draft['dependencies']:row['lean']['proof']=None
             contract.save(draft)
-            def worker(*args,**kwargs):
+            def worker(child):
                 basis_planning.require_selected_route(contract,contract.drafts[1])
-                return 'trivial'
-            with patch.object(basis_planning,'private_proof',side_effect=worker),patch.object(basis_planning,'check_types'):
+                proof='exact h_H001' if ir.contract(child.cpath)['premises'] else 'intro n; exact Nat.add_zero n'
+                write(child.logs/'accepted.json',{'proof':proof})
+                write(child.logs/'result.json',{'status':'ACCEPTED'})
+            with patch('model_pilot.Stage.execute',worker),patch('execution_health.require_review_execution'), \
+                    patch.object(basis_planning,'check_types'):
                 result=basis_planning.prepare(stage,{'candidate':1})
             self.assertTrue(result['proof_workers_started'])
             bad=deepcopy(draft);bad['global_graph']['inferences'].pop()
             contract.save(bad)
-            with patch.object(basis_planning,'private_proof',side_effect=AssertionError('No incomplete-route worker')):
+            with patch.object(basis_planning,'deliver',side_effect=AssertionError('No incomplete-route worker')):
                 with self.assertRaises(ValueError):basis_planning.prepare(stage,{'candidate':contract.attempt})
 
     def test_pruning_unused_alternatives_does_not_block_inline_proofs_of_the_selected_route(self):

@@ -100,7 +100,7 @@ class FrozenSources(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             contract=self.contract(Path(raw));stage=SimpleNamespace(validator=contract,logs=Path(raw)/'stage')
             contract.owner_stage=stage;contract.save(value)
-            with patch.object(basis_planning,'private_proof',side_effect=AssertionError('No model for an exact native fact')):
+            with patch.object(basis_planning,'deliver',side_effect=AssertionError('No model for an exact native fact')):
                 result=basis_planning.prepare(stage,{'candidate':1})
             self.assertFalse(result['proof_workers_started'])
             checked=deepcopy(contract.drafts[result['candidate']]);contract(checked)

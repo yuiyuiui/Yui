@@ -92,7 +92,8 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              Path(__file__).with_name('shared_lemmas.py'),Path(__file__).with_name('strategy_bank.py'),Path(concurrency.__file__),
              ir.ROOT/'nl0/scripts/native_carrier.py',ir.ROOT/'nl0/scripts/pilot_common.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/usage.py',ir.ROOT/'nl0/scripts/exposure.py',
-             ir.ROOT/'nl0/scripts/execution_health.py']
+             ir.ROOT/'nl0/scripts/execution_health.py',Path(__file__).with_name('proof_obligations.py'),
+             Path(__file__).with_name('private_handoff.py'),ir.ROOT/'workflow/blocks/private_proof_handoff.py']
     files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__),
                   Path(proof_rounds.__file__),ir.ROOT/'workflow/blocks/proof_rounds.py',
                   Path(__file__).with_name('local_helpers.py'),Path(__file__).with_name('proof_diagnosis.py')])
@@ -126,6 +127,8 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
                             'stage':{'status':'SAME_CASE_NATIVE_RECHECKED','previous_run':str(prior_run)}}
         stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm,
                             timeout_policy=timeout_policy,strategy_banks=strategy_banks)
+        if arm=='yui' and prior_run is not None:
+            stage.previous_private_stage=Path(prior_run)/'workers'/sid
         if arm=='yui' and diagnostic_interface is not None:
             def diagnose(author,request,root):
                 import proof_diagnosis

@@ -92,6 +92,15 @@ def append(cpath, plan, step, rows, statement, proof, check):
     return row
 
 
+def callable_helper(stage, helper):
+    import ir
+    arguments=[p['name'] for p in ir.contract(stage.cpath)['parameters']]
+    arguments.extend(p['binder'] for p in ir.local_packet(stage.cpath,stage.plan,stage.step)['inputs'])
+    return {'name':helper['name'],'statement':helper['statement'],
+            'application':' '.join(['@'+helper['name'],*arguments]),
+            'scope':'Checked same-node theorem; available in later checks and the final body.'}
+
+
 def check_edit(stage, args, number):
     """Publish a helper edit only after all receipts still bind the resulting registry."""
     import ir

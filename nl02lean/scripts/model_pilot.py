@@ -314,11 +314,7 @@ class Stage(carrier.NativeCarrier):
                 result,helper=local_helpers.check_edit(self,args,number)
                 result['candidate']=number
                 if helper is not None:
-                    result['helper']={'name':helper['name'],'statement':helper['statement'],
-                        'application':'@'+helper['name']+' '+ ' '.join(
-                            [p['name'] for p in ir.contract(self.cpath)['parameters']]+
-                            [p['binder'] for p in ir.local_packet(self.cpath,self.plan,self.step)['inputs']]),
-                        'scope':'Checked same-node theorem; available in later checks and the final body.'}
+                    result['helper']=local_helpers.callable_helper(self,helper)
             elif self.mode=='proof' and name=='read_lean_draft':
                 kind=args['kind']
                 if kind=='index':
