@@ -74,6 +74,14 @@ Inspect the actual pinned declarations and the meanings of order/index and
 capability parameters, including overloaded notation and coercions. Explain
 their source meaning rather than relying on remembered symbol conventions.
 Use typed steps for mathematical obligations; no proof bodies are required yet.
+For shared representations, settle the choices in dependency order: required
+definitions, then the exact ports which use them. Reuse object views and
+bridges to track a change of domain or equality mode. Check a representative
+consumer application at risky direct inputs, including scale, coercions and
+dependent witnesses. Record the expected type and, where applicable, the
+actual application in input_instances. A well-formed producer statement alone
+does not establish that the consumer can use it. Keep frozen foundation
+declarations intact and record any necessary conversion as a local obligation.
 Every complete node declaration must elaborate in its actual parameter and
 direct-input context. Explicitly supply named arguments that cannot be inferred
 from those argument types. The strict machine check rejects unresolved holes;

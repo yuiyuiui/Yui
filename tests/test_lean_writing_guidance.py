@@ -13,6 +13,7 @@ from unittest.mock import patch
 HERE = harness_support.LEAN
 import ir
 import model_pilot
+import proof_edits
 from lean_fixtures import norm_plan
 
 
@@ -34,11 +35,12 @@ class LeanWritingGuidanceTests(unittest.TestCase):
             shutil.rmtree(stage.work, ignore_errors=True)
         self.temp.cleanup()
 
-    def stage(self, *, mode='proof', arm='yui'):
+    def stage(self, *, mode='proof', arm='yui', draft_revisions=True, private_worker=False):
         with patch.object(model_pilot, 'LEAN_WRITING_PATH', self.rules):
             stage = model_pilot.Stage(self.root/f'run-{len(self.stages)}',
                                       self.cp, mode, None, plan=self.plan,
-                                      step='T001', instruction_arm=arm)
+                                      step='T001', instruction_arm=arm,
+                                      draft_revisions=draft_revisions, private_worker=private_worker)
         self.stages.append(stage)
         return stage
 
@@ -54,6 +56,8 @@ class LeanWritingGuidanceTests(unittest.TestCase):
 
     def test_guidance_preserves_math_packet_and_common_checking_contract(self):
         proof = self.stage()
+        baseline = self.stage(draft_revisions=False)
+        private = self.stage(private_worker=True)
         direct = self.stage(arm='direct')
         packet = ir.local_packet(self.cp, self.plan, 'T001')
         self.assertEqual(json.loads(proof.prompt())['packet'], packet)
@@ -61,10 +65,29 @@ class LeanWritingGuidanceTests(unittest.TestCase):
         author_tools = {'report_proof_obstruction', 'consult_strategy'}
         self.assertEqual(proof.tool_names - direct.tool_names, author_tools)
         self.assertTrue(direct.tool_names.isdisjoint(author_tools))
-        self.assertEqual([t for t in proof.tools if t['name'] not in author_tools], direct.tools)
+        self.assertEqual([t for t in baseline.tools if t['name'] not in author_tools], direct.tools)
+        self.assertEqual(proof.tool_names, baseline.tool_names)
+        for tool in proof.tools:
+            if tool['name'] in ('check_transition', 'submit_transition'):
+                self.assertEqual(tool['inputSchema'], proof_edits.SUBMISSION)
+        for tool in private.tools:
+            if tool['name'] in ('check_transition', 'submit_transition'):
+                self.assertEqual(tool['inputSchema']['required'], ['proof'])
         self.assertIsNone(proof.timeout)
         self.assertIsNone(proof.accepted)
         self.assertEqual((proof.api_calls, proof.lean_calls), (0, 0))
+
+    def test_retained_body_edit_requires_a_unique_unchanged_anchor(self):
+        drafts = {1: {'proof': 'intro n\nhave h := n\nexact h'}}
+        self.assertEqual(proof_edits.expand({'edit': {'base': 1, 'old': 'exact h', 'new': 'exact n'}}, drafts),
+                         'intro n\nhave h := n\nexact n')
+        self.assertEqual(proof_edits.expand({'edit': {'base': 1}}, drafts), drafts[1]['proof'])
+        for args in ({}, {'proof': 'done', 'edit': {'base': 1}}, {'edit': {'base': 2}},
+                     {'edit': {'base': 1, 'old': 'n', 'new': 'm'}},
+                     {'edit': {'base': 1, 'old': 'absent', 'new': ''}},
+                     {'edit': {'base': 1, 'old': 'exact h'}}):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                proof_edits.expand(args, drafts)
 
     def test_reconstructing_a_saved_packet_accepts_optional_private_sources(self):
         fields = SimpleNamespace(cpath=self.cp, plan=self.plan, step='T001',

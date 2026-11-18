@@ -38,6 +38,30 @@ class PackagingTests(unittest.TestCase):
             file=Path(repeat['reused_native']['path']);file.write_text('{}')
             with self.assertRaises(ValueError):ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
 
+    def test_retained_draft_edit_checks_the_whole_result_with_real_lean(self):
+        import model_pilot
+        stage = model_pilot.Stage(self.temp/'edit', self.cpath, 'proof', None, self.plan, 'T001')
+        self.addCleanup(stage.release_resources, 'USER_CANCELLED')
+        broken = '\n  have h : True := True.intro\n  exact True.intro'
+        failure = stage.dispatch('check_transition', {'proof': broken})
+        self.assertFalse(failure['accepted'])
+        self.assertEqual(failure['draft_errors'][0]['draft_line'], 3)
+        # The end-to-end native path must still reject an unresolved suffix.
+        missing = stage.dispatch('submit_transition', {'edit': {'base': 1, 'old': 'exact True.intro', 'new': 'done'}})
+        self.assertFalse(missing['stage_complete'])
+        self.assertIsNone(stage.accepted)
+        fixed = stage.dispatch('check_transition', {'edit': {'base': 1, 'old': 'exact True.intro', 'new': LIFT}})
+        self.assertTrue(fixed['accepted'])
+        self.assertFalse(fixed['stage_complete'])
+        final = stage.dispatch('submit_transition', {'edit': {'base': fixed['candidate']}})
+        self.assertTrue(final['stage_complete'])
+        self.assertEqual(stage.own_lean_drafts['proof'][1]['proof'], broken)
+        expected = broken.replace('exact True.intro', LIFT)
+        self.assertEqual(stage.accepted['proof'], expected)
+        independent = ir.check(self.cpath, self.plan, {'T001': expected}, only='T001')
+        self.assertEqual(independent['lean_sha256'],
+                         stage.own_lean_drafts['proof'][final['candidate']]['check']['lean_sha256'])
+
     def test_private_proof_constructor_connects_diagnosis_to_the_actual_owner_path(self):
         import proof_obligations,proof_diagnosis,model_pilot,concurrency,private_handoff
         observed=[]

@@ -99,7 +99,8 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              ir.ROOT/'workflow/blocks/private_proof_handoff.py']
     files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__),
                   Path(proof_rounds.__file__),ir.ROOT/'workflow/blocks/proof_rounds.py',
-                  Path(__file__).with_name('local_helpers.py'),Path(__file__).with_name('proof_diagnosis.py')])
+                  Path(__file__).with_name('local_helpers.py'),Path(__file__).with_name('proof_diagnosis.py'),
+                  Path(__file__).with_name('proof_edits.py')])
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)

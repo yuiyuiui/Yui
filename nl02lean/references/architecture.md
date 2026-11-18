@@ -92,6 +92,14 @@ views may be defined locally. It does not yet synthesize arbitrary per-node
 parameter adapters. [Shared lemmas](shared-lemmas.md) specify frozen exports,
 permissions, exact reuse keys, physical storage and invalidation.
 
+Resolve shared types and definitions in dependency order. A concept may have
+several consumers and more than one representation. Before freezing a risky
+input, elaborate a representative use in its consumer context with the expected
+type. The input-instance preflight already supports these probes. A successful
+probe establishes this application, while source review establishes whether
+it is the application the argument needs. A missing conversion becomes an
+explicit local obligation under the recorded inputs.
+
 The implementation uses exact text for terminal interface identity after whitespace
 normalization. Equivalent reformulations require a proved bridge or a reviewed
 new contract version. This conservative constraint is an implementation choice,
@@ -104,6 +112,13 @@ proofs are binders. It cannot see another T declaration during local checking.
 The generated final P applies the actual local theorems in topological order
 and discharges every T input. No `sorry`, auxiliary axiom, project predicate,
 unproved instance or placeholder module is generated at any stage.
+
+An author can send a complete body to `check_transition` or `submit_transition`.
+For a local repair, send `edit` with the candidate number as `base`, the exact
+unique `old` text and its `new` replacement. The tool also accepts `edit` with
+only `base` to reuse the saved body. An edit creates a new draft. Lean checks
+its complete body in the frozen local context. When Lean points inside the
+body, `draft_errors` addresses the original draft lines for the next read or edit.
 
 The initial implementation supports ordinary Lean Prop obligations under a
 fixed context, not dependent witness export or arbitrary tactic-state mutation.

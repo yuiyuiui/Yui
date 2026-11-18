@@ -29,6 +29,13 @@ then export the actual worker packets from the accepted source version.
    quotient/representative choices, pointwise/a.e./distributional equality,
    finite/extended norm range, convergence mode, measure and normalizations.
    Ask which operations the proof route actually needs before choosing a type.
+   Order shared choices by dependency. Use the existing definitions and object
+   views for concepts that cross ports. For a representation-sensitive port,
+   test its actual application or projection in the consumer context against
+   the needed type. Use an input instance for a typed use supported by the
+   existing interface. If it requires a conversion, plan that conversion as a
+   proof step with its real prerequisites. Keep the registered foundation
+   declarations and signatures fixed.
 4. Elaborate definitions and exact input/output signatures. Check existence and
    nonzero/domain guards. If multiple representations are useful, name their
    conversion obligations explicitly. Do not require boundedness merely to
