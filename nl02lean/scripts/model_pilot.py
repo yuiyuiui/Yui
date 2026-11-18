@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import nullcontext
 from pathlib import Path
 import queue
 import shutil
@@ -56,16 +57,25 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.NativeCarrier):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None, task_request=None):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
+        self.cpath = Path(cpath)
+        self.bound_packet = None
+        self.task_request = None
+        if task_request is not None:
+            import lean_task
+            from controller_common import bind
+            self.bound_packet = lean_task.read(task_request,self.cpath,plan,step)
+            self.task_request = bind(task_request)
+        elif mode == 'proof':
+            self.bound_packet = ir.local_packet(self.cpath,plan,step)
         self.logs = Path(logs)
         self.logs.mkdir(parents=True, exist_ok=False)
         self.work = Path(tempfile.mkdtemp(prefix='nl0-ir-model-')).resolve()
         register_workspace(self.work, self.logs)
         for n in ('input','output','tmp','home','state'):
             (self.work/n).mkdir(mode=0o700)
-        self.cpath = Path(cpath)
         self.mode, self.plan, self.step = mode, plan, step
         self.model_selection = model_profile(mode)
         self.budget = budget
@@ -155,7 +165,7 @@ class Stage(carrier.NativeCarrier):
                     'The controller routes the reported issue; it does not change frozen endpoints or retire sibling work on an idle-turn counter.')
         self.background_note_policy = None
         if (mode == 'proof' and instruction_arm == 'yui'
-                and ir.local_packet(self.cpath, plan, step).get('accepted_background_notes')):
+                and self.bound_packet.get('accepted_background_notes')):
             self.background_note_policy = BACKGROUND_NOTE_POLICY
             self.tools.append(carrier.tool('read_background_note',
                 'Read one complete audited background note from this task index by its qualified ID. No other task, file or proof is accessible; this is guidance, not a checked Lean proof.',
@@ -176,12 +186,14 @@ class Stage(carrier.NativeCarrier):
         if self.private_sources:
             self.tools.append(carrier.tool('read_private_source','Read one bound source of this obligation, by document ID and inclusive line range.',
                 {'id':{'type':'string','enum':list(self.private_sources)},'start':{'type':'integer'},'end':{'type':'integer'},'column':{'type':'integer'}},['id','start','end']))
-        if mode=='proof' and instruction_arm=='yui' and not private_worker:
+        self.helper_work=None
+        if mode=='proof' and instruction_arm=='yui' and not private_worker and getattr(budget,'execution',None):
             import proof_obligations
-            shape=proof_obligations.batch_schema()
-            self.tools.append(carrier.tool('prove_independent_helpers',
-                'Prove a batch of independent private lemma statements under your exact frozen binders. Supply their natural proof routes. Children can use incremental helpers. Read each checked helper and use it to prove the original target.',
-                shape['properties'],shape['required']))
+            self.helper_work=proof_obligations.HelperWork(self)
+            self.tools+=proof_obligations.helper_tools()
+            self.system+=(' Check a complete target draft before dispatching helpers. Tie every helper to '
+                'a concrete gap exposed by that check. Collect each ready helper independently, integrate it '
+                'and recheck the target when useful. Continue other local work while helpers run.')
         self.tools += carrier.native_recovery.tools()
         self.tool_names = {t['name'] for t in self.tools}
         self.accepted = None
@@ -198,6 +210,8 @@ class Stage(carrier.NativeCarrier):
             self.continuation_prompt=('Continue the same proof from saved drafts, checked helpers and actual feedback. '
                 'Repair the next concrete implementation error. Repeated failures or inability alone are not '
                 'a source defect and do not end the task. Submit the complete unchanged target when checked.')
+            if self.helper_work is not None:
+                self.continuation_prompt+=' If you were waiting for private proofs, use helper_status and collect_helper.'
         self.stop_on_submission=True
         self.submission_closed=False
         self.api_calls = self.lean_calls = self.rpc_id = 0
@@ -256,7 +270,7 @@ class Stage(carrier.NativeCarrier):
             elif name == 'find_strategies' and name in self.tool_names:
                 c=ir.contract(self.cpath)
                 if self.mode=='proof':
-                    packet=ir.local_packet(self.cpath,self.plan,self.step)
+                    packet=self.bound_packet
                     goal=packet['target'];context='\n'.join(p['type'] for p in packet['inputs'])
                 else:
                     goal=c['conclusion']['type'];context='\n'.join(p['type'] for p in c['premises'])
@@ -268,7 +282,7 @@ class Stage(carrier.NativeCarrier):
             elif name == 'read_background_note':
                 ir.need(self.background_note_policy == BACKGROUND_NOTE_POLICY,
                         'background note access is unavailable for this stage')
-                packet = ir.local_packet(self.cpath, self.plan, self.step)
+                packet = self.bound_packet
                 notes = packet.get('accepted_background_notes', {})
                 key = args['id']
                 ir.need(isinstance(key, str) and key in notes,
@@ -300,11 +314,11 @@ class Stage(carrier.NativeCarrier):
                 self.own_lean_drafts['proof'][number]=record;record_path=self.logs/'lean-drafts'/f'proof-{number:04d}.json'
                 result = ir.check(self.cpath,self.plan,{self.step:packaged},only=self.step,timeout=self.lean_timeout())
                 self.lean_calls += 1
+                result['candidate']=number
                 if ir.native_succeeded(result) and name.startswith('submit'):
                     self.accepted = {'proof':packaged}
-            elif self.mode=='proof' and name=='prove_independent_helpers' and name in self.tool_names:
-                import proof_obligations
-                result=proof_obligations.helper_batch(self,args)
+            elif name in {'dispatch_helpers','helper_status','collect_helper','wait_for_helpers'} and name in self.tool_names:
+                result=self.helper_work.dispatch(name,args)
             elif self.mode=='proof' and name=='check_auxiliary':
                 number=len(self.own_lean_drafts['auxiliary'])+1
                 record={'statement':args['statement'],'proof':args['proof']}
@@ -416,6 +430,7 @@ class Stage(carrier.NativeCarrier):
         progress.completed_turn()
         ir.write(self.logs/'proof-progress.json',progress.metadata())
         if recorder:recorder.task(self.execution_task,proof_progress=progress.metadata())
+        if getattr(self,'helper_work',None) is not None:self.helper_work.after_turn()
         return False
 
     def check_runtime_state(self):
@@ -432,7 +447,8 @@ class Stage(carrier.NativeCarrier):
         return {k:v for k,v in snapshot.items() if k not in {'bank_root','files'}} if snapshot else None
 
     def proof_packet(self):
-        packet = ir.local_packet(self.cpath, self.plan, self.step)
+        bound = getattr(self, 'bound_packet', None)
+        packet = dict(bound) if bound is not None else ir.local_packet(self.cpath, self.plan, self.step)
         sources = getattr(self, 'private_sources', None)
         if sources:
             packet['source_documents'] = list(sources)
@@ -488,7 +504,7 @@ class Stage(carrier.NativeCarrier):
         queued = time.monotonic()
         limiter = self.budget
         try:
-            with execution.activate(recorder,self.execution_task):
+            with execution.activate(recorder,self.execution_task), getattr(self,'helper_work',None) or nullcontext():
                 if recorder:recorder.check(self.execution_task)
                 if limiter is None:
                     if recorder:self.timeout=recorder.remaining(self.timeout)
@@ -603,6 +619,7 @@ class Stage(carrier.NativeCarrier):
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
                 'remote_retry_policy':REMOTE_RETRY_POLICY,
+                **({'local_task_request':self.task_request} if getattr(self,'task_request',None) else {}),
                 'proof_progress_policy':proof_repair.POLICY if self.proof_progress is not None else None,
                 'resolved_environment':load_lock(),'scope':'Only the declared frozen obligation is model-visible.'})
         (self.logs/'prompt.txt').write_text(user+'\n')

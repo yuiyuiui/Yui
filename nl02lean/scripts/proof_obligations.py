@@ -1,10 +1,12 @@
 """Schedule independent private proofs and return source that the consumer can recheck."""
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from contextvars import copy_context
 from pathlib import Path
 import re
+import time
 
+import execution_state
 import private_handoff as handoff
 
 import concurrency
@@ -51,11 +53,6 @@ def complete_private(stage, receipt):
     stage.release_resources('ROLE_COMPLETED')
     if getattr(stage,'execution',None):
         stage.execution.task(stage.execution_task,state='FINISHED',role_state='CLOSED',activity='PRIVATE_WORK_DELIVERED',finished_at_utc=now())
-
-
-def batch_schema():
-    import artifact_protocol as p
-    return p.obj({'obligations':p.array(p.obj({'statement':p.TEXT,'explanation':p.TEXT}),minItems=1)})
 
 
 def publish_result(req, number, status, files):
@@ -342,7 +339,7 @@ def raise_outcome(row, detail, result):
     raise ValueError('Private proof '+status+': '+detail.get('required_change',detail.get('reason',''))+' ('+str(result)+')')
 
 
-def receive(stage, result, *, expected_request=None):
+def receive(stage, result, *, expected_request=None, raise_failures=True):
     result=Path(result)
     root=stage.logs.resolve()/'private-proofs'
     ir.need(result.parent.parent==root and result.parent.resolve()==result.parent,'Result belongs to another parent node')
@@ -354,7 +351,8 @@ def receive(stage, result, *, expected_request=None):
     row,body=handoff.read_result(request,result)
     ref=handoff.wire.reference(stage.logs.resolve(),result)
     if row['status']!='checked':
-        if row['status']=='execution_error' or row['status']=='unfinished' and body['reason'] in {'CANCELLED','EXTERNAL_CANCEL'}:
+        if raise_failures and (row['status']=='execution_error' or
+                row['status']=='unfinished' and body['reason'] in {'CANCELLED','EXTERNAL_CANCEL'}):
             raise_outcome(row,body,result)
         return {'accepted':False,'status':row['status'],'result':ref,
                 **{key:body[key] for key in handoff.DETAILS[row['status']]}}
@@ -384,22 +382,174 @@ def receive(stage, result, *, expected_request=None):
         return {'accepted':True,'status':'checked','helper':local_helpers.callable_helper(stage,helper),'result':ref}
 
 
-def helper_batch(stage, args):
-    import artifact_protocol as protocol
-    protocol.validate(args,batch_schema())
-    items=args['obligations']
-    if len({item['statement'] for item in items})!=len(items):
-        raise ValueError('Repeated private goal; request each independent obligation once')
-    packet=ir.local_packet(stage.cpath,stage.plan,stage.step)
-    params=packet['parameters']+[{'name':p['binder'],'type':p['type']} for p in packet['inputs']]
-    requests=[handoff.issue(stage.logs/'private-proofs',identity=local_helpers.digest(item)[:16],
-        parent_node=stage.step,parent_context=local_helpers.context(stage.cpath,stage.plan,stage.step),
-        header=packet['header'],parameters=params,premises=[],target=item['statement'],
-        statement=item['explanation'],route=item['explanation']) for item in items]
-    previous=getattr(stage,'previous_private_stage',None)
-    if previous is not None:
-        for request in requests:
-            restore_private_work(request,previous)
-    manifests=parallel(stage,[str(request) for request in requests],deliver,role='proof')
-    results=[receive(stage,result,expected_request=request) for request,result in zip(requests,manifests)]
-    return {'accepted':all(r.get('helper') for r in results),'helpers':results,'stage_complete':False}
+def helper_tools():
+    from native_carrier import tool
+    tools = {
+        'dispatch_helpers': 'After the latest check_transition fails, send independent private Lean goals. '
+            'Name the concrete gap, how each result will be used, and the parent source step IDs to pass. '
+            'Returns task IDs immediately. Continue work or use wait_for_helpers.',
+        'helper_status': 'List your issued helper task IDs and their current state.',
+        'collect_helper': 'Collect one ready helper, recheck it with your exact inputs and return its application.',
+        'wait_for_helpers': 'When there is no other work, ask to resume on the first selected result. '
+            'Finish this turn after the acknowledgement so the controller can release your model slot.',
+    }
+    return [tool(name, description, schema['properties'],schema['required'])
+            for name,description in tools.items() for schema in [helper_schema(name)]]
+
+
+def helper_schema(name):
+    import artifact_protocol as p
+    ids = p.array(p.TEXT, uniqueItems=True)
+    return p.obj({
+        'dispatch_helpers': {'candidate': {'type':'integer','minimum':1},
+            'obligations': p.array(p.obj({'statement':p.TEXT,'gap':p.TEXT,'use':p.TEXT,'source_steps':ids}), minItems=1)},
+        'helper_status': {},
+        'collect_helper': {'task_id':p.TEXT},
+        'wait_for_helpers': {'task_ids': {**ids,'minItems':1}},
+    }[name])
+
+
+class HelperWork:
+    """Own one bounded set of asynchronous private requests for this author."""
+    def __init__(self, stage):
+        self.stage = stage
+        self.budget = stage.budget
+        self.recorder = self.budget.execution
+        self.pool = None
+        self.jobs = {}
+        self.wait_ids = ()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        if self.pool is None:
+            return
+        active = []
+        for key, _, future in self.jobs.values():
+            if future.cancel():
+                self.recorder.task(key,state='CANCELLED',activity='PARENT_FINISHED',finished_at_utc=execution_state.now())
+            elif not future.done():
+                active.append(key)
+        if active:
+            self.recorder.flush(force=True)
+            for key in active:
+                execution_state.request_cancel(self.recorder.root,key)
+        self.pool.shutdown()
+
+    def dispatch(self, name, args):
+        import artifact_protocol as protocol
+        protocol.validate(args,helper_schema(name))
+        if name=='dispatch_helpers':
+            ids=self.issue(args['candidate'],args['obligations'])
+            return {'task_ids':ids}
+        if name=='helper_status':
+            return {'tasks':[{'task_id':sid,'status':self.status(job[2])} for sid,job in self.jobs.items()]}
+        if name=='collect_helper':
+            return self.collect(args['task_id'])
+        ids=args['task_ids']
+        futures=[self.job(sid)[2] for sid in ids]
+        self.wait_ids=tuple(ids) if not any(future.done() for future in futures) else ()
+        return {'wait_registered':bool(self.wait_ids)}
+
+    @staticmethod
+    def status(future):
+        if future.done():
+            return 'ready'
+        return 'running' if future.running() else 'queued'
+
+    def job(self, sid):
+        ir.need(sid in self.jobs,'Unknown helper task for this parent')
+        return self.jobs[sid]
+
+    def issue(self, candidate, items):
+        stage=self.stage
+        rows=stage.own_lean_drafts['proof']
+        check=rows.get(candidate,{}).get('check',{})
+        attempt=stage.logs/'lean-drafts'/f'proof-{candidate:04d}.json'
+        ir.need(candidate==max(rows,default=0) and check.get('status')=='LEAN-CHECK-FAILED'
+                and not check.get('timed_out') and not check.get('error_kind')
+                and attempt.is_file() and ir.load(attempt)==rows[candidate],
+                'Dispatch requires the latest saved failed check of the complete target')
+        packet=stage.bound_packet
+        source={row['id']:row['text'] for row in packet['source_steps']}
+        for item in items:
+            ir.type_text(item['statement'])
+            ir.need(set(item['source_steps'])<=source.keys(),'Helper source step is outside the parent task')
+        params=packet['parameters']+[{'name':p['binder'],'type':p['type']} for p in packet['inputs']]
+        context=local_helpers.context(stage.cpath,stage.plan,stage.step)
+        ids=[]
+        for item in items:
+            evidence=[]
+            for sid in sorted(item['source_steps']):
+                name=sid if re.fullmatch(r'S[0-9]+',sid) else local_helpers.digest(sid)
+                path=stage.logs/'private-sources'/(name+'.txt')
+                path.parent.mkdir(exist_ok=True)
+                ir.need(not path.is_symlink(),'Linked private helper source')
+                text=source[sid].encode('utf-8')
+                if not path.exists():
+                    path.write_bytes(text)
+                ir.need(path.read_bytes()==text,'Changed private helper source')
+                evidence.append(bind(path))
+            evidence.sort(key=lambda row:row['path'])
+            route='Gap: '+item['gap']+'\nUse at parent: '+item['use']
+            request=handoff.issue(stage.logs/'private-proofs',identity=local_helpers.digest([item['statement'],route])[:16],
+                parent_node=stage.step,parent_context=context,header=packet['header'],parameters=params,premises=[],
+                target=item['statement'],statement=item['gap'],route=route,evidence=evidence)
+            sid=request.parent.name
+            if sid not in self.jobs:
+                if self.pool is None:
+                    self.pool=ThreadPoolExecutor(max_workers=min(2,self.budget.configuration['effective']))
+                key='private-'+local_helpers.digest([str(stage.logs),sid])[:24]
+                self.recorder.task(key,parent_task=stage.execution_task,role='proof',activity='QUEUED',
+                    private_request=bind(request),parent_attempt=bind(attempt))
+                future=self.pool.submit(copy_context().run,self.run,key,request)
+                self.jobs[sid]=(key,request,future)
+            ids.append(sid)
+        return list(dict.fromkeys(ids))
+
+    def run(self, key, request):
+        from role_sessions import independent
+        import lean_timeout_policy
+        try:
+            with independent(),execution_state.activate(self.recorder,key),lean_timeout_policy.scope(
+                    request.parent/'lean-timeouts',self.budget):
+                self.recorder.check(key)
+                self.recorder.task(key,state='RUNNING',activity='PREPARING_PRIVATE_PROOF')
+                previous=getattr(self.stage,'previous_private_stage',None)
+                if previous is not None:
+                    restore_private_work(request,previous)
+                return deliver(request,self.budget)
+        except Exception as error:
+            status='CANCELLED' if isinstance(error,execution_state.Cancelled) else 'UNFINISHED'
+            self.recorder.task(key,state=status,activity=status,error=str(error),finished_at_utc=execution_state.now())
+            raise
+
+    def collect(self, sid):
+        _,request,future=self.job(sid)
+        if not future.done():
+            return {'task_id':sid,'status':self.status(future)}
+        try:
+            result=future.result()
+        except execution_state.Cancelled:
+            return {'task_id':sid,'status':'unfinished','reason':'CANCELLED'}
+        return {'task_id':sid,**receive(self.stage,result,expected_request=request,raise_failures=False)}
+
+    def after_turn(self):
+        ids,self.wait_ids=self.wait_ids,()
+        futures=[self.job(sid)[2] for sid in ids]
+        if not futures or any(future.done() for future in futures):
+            return
+        stage=self.stage
+        checkpoint={'thread_id':stage.thread_id,'turn_id':stage.active_turn_id,'task_ids':ids}
+        path=stage.logs/'helper-wait.json'
+        write(path,{'status':'WAITING',**checkpoint})
+        with self.budget.suspended(resume_on_error=False):
+            self.recorder.task(stage.execution_task,activity='WAITING_FOR_HELPER',helper_wait=str(path))
+            self.recorder.flush(force=True)
+            while not wait(futures,timeout=.2,return_when=FIRST_COMPLETED).done:
+                stage.check_runtime_state()
+                if stage.timeout is not None and time.monotonic()>=stage.started+stage.timeout:
+                    raise TimeoutError('Local proof deadline expired while waiting for a private proof')
+        write(path,{'status':'RESUMED',**checkpoint,'ready':[sid for sid in ids if self.job(sid)[2].done()]})
+        self.recorder.task(stage.execution_task,activity='MODEL_RUNNING')

@@ -43,6 +43,7 @@ class InternalInterfaceRepairTests(unittest.TestCase):
             checks={key:{'verdict':'PASS','notes':'SYNTHETIC unchanged public contract; delta is notation for the same equality.',
                 'locations':[{'document':'spec.json','pointer':'/full_target'},
                              {'document':'plan.json','pointer':'/steps/0/statement'}]} for key in workflow.INTERFACE_CHECKS}
+            fixture.locate_local_tasks(checks,reviewed)
             fixture.qualified_artifact(reviewed/'stage',{'checks':checks,'findings':[]})
             interface_review.collect(reviewed);paths=ir.load(author/'accepted-interface-paths.json')
             receipt=interface_review.verify_receipt(reviewed/'review.json',paths['contract'],paths['plan'],ir.digest(source/'nl0.json'))

@@ -1,15 +1,18 @@
 """Exercise private proof publication, replay and use through the real Lean parent."""
 import builtins
 from concurrent.futures import ThreadPoolExecutor
+import json
 from pathlib import Path
 import shutil
 import symtable
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
 import harness_support as support
 import concurrency
+import execution_state
 import ir
 import local_helpers
 import model_pilot
@@ -53,6 +56,19 @@ class PrivateHandoffTests(unittest.TestCase):
         options={**self.task,**changes}
         return handoff.issue(self.stage.logs/'private-proofs',**options,parent_node=self.stage.step,
                              parent_context=local_helpers.context(self.stage.cpath,self.stage.plan,self.stage.step))
+
+    def scheduled_stage(self, name, recorder, width):
+        budget=concurrency.Budget(concurrency.resolve(width),execution=recorder,role='proof')
+        stage=model_pilot.Stage(self.root/name,self.stage.cpath,'proof',None,self.stage.plan,'T001',budget=budget)
+        self.addCleanup(shutil.rmtree,stage.work,True)
+        stage.execution=recorder
+        stage.execution_task='T001'
+        return stage
+
+    @staticmethod
+    def helper(statement='True', sources=()):
+        return {'statement':statement,'gap':'Need a proof of truth at this position.',
+                'use':'Apply it at the remaining goal.','source_steps':list(sources)}
 
     def author(self,stage):
         self.addCleanup(shutil.rmtree,stage.work,True)
@@ -180,8 +196,9 @@ class PrivateHandoffTests(unittest.TestCase):
 
     def test_explicit_continuation_restores_an_unpublished_check_in_the_same_case(self):
         write(self.root/'.yui-run.json',{'root':str(self.root),'run_id':'test-owned-case'})
-        item={'statement':'True','explanation':'Use True.intro.'}
-        request=self.issue(identity=local_helpers.digest(item)[:16],statement=item['explanation'])
+        item=self.helper()
+        route='Gap: '+item['gap']+'\nUse at parent: '+item['use']
+        request=self.issue(identity=local_helpers.digest([item['statement'],route])[:16],statement=item['gap'],route=route)
         publish=obligations.publish_result
         class PowerLoss(BaseException):pass
         def interrupt(req,number,status,files):
@@ -191,16 +208,128 @@ class PrivateHandoffTests(unittest.TestCase):
              patch('execution_health.require_review_execution'),patch.object(obligations,'publish_result',side_effect=interrupt), \
              self.assertRaises(PowerLoss):
             obligations.deliver(request,self.budget)
-        current=model_pilot.Stage(self.root/'continued',self.stage.cpath,'proof',None,self.stage.plan,'T001',budget=self.budget)
-        self.addCleanup(shutil.rmtree,current.work,True)
+        recorder=execution_state.Recorder(self.root/'execution', 'continued-proof', concurrency.resolve(1))
+        self.addCleanup(recorder.close,'FINISHED')
+        current=self.scheduled_stage('continued',recorder,1)
         current.previous_private_stage=self.stage.logs
+        candidate=current.dispatch('check_transition',{'proof':'exact Nat.zero'})['candidate']
         with patch.object(obligations,'start_worker',side_effect=AssertionError('proof already completed')), \
-             patch.object(ir,'check',side_effect=AssertionError('child already checked')):
-            accepted=current.dispatch('prove_independent_helpers',{'obligations':[item]})
+             patch.object(ir,'check',side_effect=AssertionError('child already checked')),current.helper_work:
+            sid=current.dispatch('dispatch_helpers',{'candidate':candidate,'obligations':[item]})['task_ids'][0]
+            self.assertEqual(sid,request.parent.name)
+            current.helper_work.jobs[sid][2].result(timeout=10)
+            accepted=current.dispatch('collect_helper',{'task_id':sid})
         self.assertTrue(accepted['accepted'],accepted)
-        final=current.dispatch('submit_transition',{'proof':'exact '+accepted['helpers'][0]['helper']['application']})
+        final=current.dispatch('submit_transition',{'proof':'exact '+accepted['helper']['application']})
         self.assertTrue(final['stage_complete'],final)
         self.assertFalse((request.parent/'result-001.json').exists())
+
+    def test_ready_helper_and_obstruction_do_not_wait_for_slow_sibling(self):
+        recorder=execution_state.Recorder(self.root/'execution','incremental-proof',concurrency.resolve(3))
+        self.addCleanup(recorder.close,'FINISHED')
+        stage=self.scheduled_stage('async-parent',recorder,3)
+        started=threading.Event()
+        stopped=threading.Event()
+        deliver=obligations.deliver
+
+        def synthetic_author(child):
+            self.addCleanup(shutil.rmtree,child.work,True)
+            child.accepted={'proof':'exact True.intro'}
+            report={'status':'ACCEPTED'}
+            write(child.logs/'accepted.json',child.accepted)
+            write(child.logs/'result.json',report)
+            return report,child.accepted
+
+        def controlled_delivery(request,budget):
+            child=handoff.read_request(request)
+            if child.source['type']=='True':
+                self.assertEqual(len(child.documents),1)
+                source=Path(next(iter(child.documents.values()))['path'])
+                self.assertEqual(source.read_text(),'Use True.intro.')
+                return deliver(request,budget)
+            try:
+                with budget:
+                    started.set()
+                    for _ in range(1200):
+                        recorder.check(execution_state.current()[1])
+                        stopped.wait(.1)
+                    raise AssertionError('Parent did not stop its slow helper')
+            finally:
+                stopped.set()
+
+        with patch.object(obligations,'deliver',side_effect=controlled_delivery), \
+             patch.object(model_pilot.Stage,'execute',autospec=True,side_effect=synthetic_author), \
+             patch('execution_health.require_review_execution'), \
+             execution_state.activate(recorder,stage.execution_task),stage.helper_work,stage.budget:
+            items=[self.helper('True ∧ True'),self.helper(sources=['S001'])]
+            args={'candidate':1,'obligations':items}
+            self.assertIn('latest saved failed check',stage.dispatch('dispatch_helpers',args)['error'])
+            self.assertEqual(stage.dispatch('check_transition',{'proof':'exact Nat.zero'})['candidate'],1)
+            foreign={'candidate':1,'obligations':[self.helper(sources=['S082'])]}
+            self.assertIn('outside the parent',stage.dispatch('dispatch_helpers',foreign)['error'])
+            slow,fast=stage.dispatch('dispatch_helpers',args)['task_ids']
+            self.assertTrue(started.wait(5))
+            self.assertEqual(stage.dispatch('dispatch_helpers',args)['task_ids'],[slow,fast])
+            self.assertEqual(stage.dispatch('collect_helper',{'task_id':slow})['status'],'running')
+            stage.helper_work.jobs[fast][2].result(timeout=90)
+            accepted=stage.dispatch('collect_helper',{'task_id':fast})
+            self.assertTrue(accepted['accepted'],accepted)
+            self.assertEqual(stage.dispatch('collect_helper',{'task_id':fast}),accepted)
+            stage.diagnose_obstruction=lambda *args: {'route':'LOCAL_PROOF_REPAIR'}
+            diagnosis=stage.dispatch('report_proof_obstruction',{'layer':'interface','locations':['/target'],
+                'explanation':'Synthetic located diagnostic control.','candidates':[{'kind':'proof','candidate':1}]})
+            self.assertEqual(diagnosis['diagnosis']['route'],'LOCAL_PROOF_REPAIR')
+            self.assertFalse(stopped.is_set())
+            result=stage.dispatch('submit_transition',{'proof':'exact '+accepted['helper']['application']})
+            self.assertTrue(result['stage_complete'],result)
+        self.assertTrue(stopped.is_set())
+        key=stage.helper_work.jobs[slow][0]
+        self.assertEqual(recorder.state['tasks'][key]['state'],'CANCELLED')
+        self.assertEqual(stage.budget.report()['active_model_stages'],0)
+
+    def test_one_slot_wait_resumes_the_same_native_author(self):
+        from native_fixture import NativeFixture
+
+        def call(name, **arguments):
+            return 'text(await tools.'+name+'('+json.dumps(arguments)+'));'
+
+        def respond(fixture, handler, number, payload):
+            stage=fixture.stage
+            if number==1:
+                code=call('check_transition',proof='exact Nat.zero')+call('dispatch_helpers',candidate=1,
+                    obligations=[self.helper()])
+            elif number==2:
+                code=call('wait_for_helpers',task_ids=list(stage.helper_work.jobs))
+            elif number==3:
+                fixture.message(handler,number,'Waiting for the helper.')
+                return
+            elif number==4:
+                code=call('submit_transition',proof='exact True.intro')
+            else:
+                raise AssertionError('Unexpected extra model request')
+            fixture.code(handler,number,code)
+
+        with NativeFixture(self.root/'native-wait',responder=respond) as fixture:
+            fixture.stage.release_resources('USER_CANCELLED')
+            stage=self.scheduled_stage('waiting-parent',fixture.recorder,1)
+            fixture.stage=stage
+
+            def deliver_in_slot(request,budget):
+                with budget:
+                    self.assertEqual(ir.load(stage.logs/'helper-wait.json')['status'],'WAITING')
+                    return request
+
+            with patch.object(obligations,'deliver',side_effect=deliver_in_slot):
+                fixture.start()
+                fixture.wait(seconds=40)
+            self.assertEqual(fixture.failures,[])
+            self.assertEqual(fixture.outcomes[0][0]['status'],'ACCEPTED')
+            checkpoint=ir.load(stage.logs/'helper-wait.json')
+            self.assertEqual(checkpoint['status'],'RESUMED')
+            self.assertEqual(checkpoint['thread_id'],stage.thread_id)
+            self.assertNotEqual(checkpoint['turn_id'],stage.active_turn_id)
+            self.assertEqual(checkpoint['ready'],checkpoint['task_ids'])
+            self.assertEqual(stage.budget.report()['observed_peak_model_stages'],1)
 
     def test_old_check_interrupted_before_its_delivery_receipt_can_be_reissued(self):
         base=self.stage.logs/'private-proofs'

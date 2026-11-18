@@ -106,8 +106,10 @@ declare the instances and actual applications in its consumers. This data is edi
 in an internal step repair; it does not require changing the public header.
 Each step is a closed conditional obligation; include useful independent subarguments or
 representation bridges when they reduce work. Every step must reach terminal;
-cover all source paragraphs. terminal's type equals conclusion_type. objects
-may be [] when special representation views are unnecessary. representation
+give every step all source paragraphs needed for its own argument. List a paragraph
+on each step that uses it. For each direct input check the consumer's actual scale,
+cutoff and parameter values against its producer. The terminal type equals
+conclusion_type. objects may be [] when special representation views are unnecessary. representation
 explains the chosen encoding; it is not a semantic approval.
 
 Save incomplete work with save_interface_draft; revise it with base_candidate

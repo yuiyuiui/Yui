@@ -81,11 +81,13 @@ reader/state cases are registered in [checks.json](checks.json); the parent
 repository also tests the actual frozen-interface handoff and native repair.
 
 The private [Lean handoff contract](blocks/private_proof_handoff.py) owns the
-versioned request and result manifests within `translate`. Its registered
-filesystem examples cover conditional result fields, relative file bindings
-and wrong-task rejection. The parent repository exercises native declaration
-checks, interrupted publication, repeated intake and actual use of the returned
-lemma in the parent proof.
+versioned manifests within `translate`. Each local author receives one JSON
+request with four relative file references for its goal, direct inputs, source
+and review. The independent interface reviewer sees those same node inputs
+before freeze. Private auxiliary work uses a request and an independent result
+manifest for each helper. A parent can collect any ready result, or checkpoint
+its turn and yield the shared proof slot while it waits. The registered checks
+cover scoped file bindings, wrong-task rejection and conditional result fields.
 
 The private [native recovery policy](blocks/native_recovery.py) supplies bounded
 same-owner progress after a failed native request, including direct children and

@@ -53,17 +53,25 @@ class NativeFixture:
               'name':'exec','input':code,'status':'completed'}
         self.respond_item(handler,number,item)
 
+    def message(self, handler, number, text):
+        self.respond_item(handler,number,{'id':f'item-{number}','type':'message','role':'assistant',
+            'status':'completed','content':[{'type':'output_text','text':text,'annotations':[]}]})
+
     def respond_item(self, handler, number, item):
-        custom=item['type']=='custom_tool_call';field='input' if custom else 'arguments'
-        delta_type='response.custom_tool_call_input' if custom else 'response.function_call_arguments'
         response={'id':f'resp-{number}','object':'response','model':self.stage.model,'status':'completed',
             'output':[item],'service_tier':'default','usage':{'input_tokens':2,'output_tokens':1,'total_tokens':3}}
-        events=[{'type':'response.created','response':{**response,'status':'in_progress','output':[]}},
-            {'type':'response.output_item.added','output_index':0,'item':{**item,field:'','status':'in_progress'}},
-            {'type':delta_type+'.delta','item_id':item['id'],'output_index':0,'delta':item[field]},
-            {'type':delta_type+'.done','item_id':item['id'],'output_index':0,field:item[field]},
-            {'type':'response.output_item.done','output_index':0,'item':item},
-            {'type':'response.completed','response':response}]
+        events=[{'type':'response.created','response':{**response,'status':'in_progress','output':[]}}]
+        if item['type']=='message':
+            events.append({'type':'response.output_item.added','output_index':0,
+                           'item':{**item,'content':[],'status':'in_progress'}})
+        else:
+            custom=item['type']=='custom_tool_call';field='input' if custom else 'arguments'
+            delta_type='response.custom_tool_call_input' if custom else 'response.function_call_arguments'
+            events.extend([{'type':'response.output_item.added','output_index':0,'item':{**item,field:'','status':'in_progress'}},
+                {'type':delta_type+'.delta','item_id':item['id'],'output_index':0,'delta':item[field]},
+                {'type':delta_type+'.done','item_id':item['id'],'output_index':0,field:item[field]}])
+        events.extend([{'type':'response.output_item.done','output_index':0,'item':item},
+            {'type':'response.completed','response':response}])
         handler.send_response(200);handler.send_header('Content-Type','text/event-stream')
         handler.send_header('Connection','close');handler.end_headers()
         for index,event in enumerate(events):

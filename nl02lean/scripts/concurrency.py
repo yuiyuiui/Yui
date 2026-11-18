@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections import deque
 from contextlib import contextmanager
 
 import ir
@@ -42,7 +43,7 @@ class Budget:
         self._local = threading.local()
         self._start = time.monotonic()
         self._active = self._peak = 0
-        self._waiting = 0
+        self._waiting = deque()
         self._rows = []
         self._configurations = [{**self.configuration, 'started_offset_seconds': 0.}]
 
@@ -52,7 +53,7 @@ class Budget:
             backend=self.configuration['backend'], known_limit=self.configuration['known_backend_limit'])
         with self._lock:
             if configuration != self.configuration:
-                ir.need(self._active == self._waiting == 0, 'Cannot resize an active model lane')
+                ir.need(self._active == 0 and not self._waiting, 'Cannot resize an active model lane')
                 self.configuration = configuration
                 self._configurations.append({**configuration, 'started_offset_seconds': time.monotonic()-self._start})
         if self.execution:
@@ -68,15 +69,17 @@ class Budget:
         with self._lock:
             ir.need(self.configuration['effective'] and self.configuration['effective']>0,
                     'Resolve a nonempty phase node count before model dispatch')
-            self._waiting += 1
+            ticket = object()
+            self._waiting.append(ticket)
             try:
-                while self._active>=self.capacity():
+                while self._waiting[0] is not ticket or self._active>=self.capacity():
                     self._lock.wait(.1)
                     if recorder:recorder.check(task)
                 if recorder:recorder.check(task)
                 self._active+=1
             finally:
-                self._waiting-=1
+                self._waiting.remove(ticket)
+                self._lock.notify_all()
         try:
             if recorder:recorder.model_slot(1,role=self.role)
         except BaseException:
@@ -125,13 +128,16 @@ class Budget:
         if self._local.recorder: self._local.recorder.model_slot(-1, role=self.role)
 
     @contextmanager
-    def suspended(self):
+    def suspended(self, *, resume_on_error=True):
         """A tool-blocked author keeps its session but lends its active slot."""
         held = getattr(self._local, 'active', False)
         if held:self.__exit__(None,None,None)
         try:
             yield
-        finally:
+        except BaseException:
+            if held and resume_on_error:self.__enter__()
+            raise
+        else:
             if held:self.__enter__()
 
     def report(self):

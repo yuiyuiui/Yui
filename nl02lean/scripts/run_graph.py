@@ -13,6 +13,7 @@ import model_pilot as pilot
 import scheduler
 import concurrency
 import execution_state
+import lean_task
 import proof_repair
 import proof_round_policy as proof_rounds
 from shared_lemmas import Store
@@ -88,12 +89,14 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     basis_revision=basis_defect.is_revision_program(out,prior_run)
     budget=worker_budget
     store = Store(shared_store) if shared_store else None
+    reviewed_tasks=lean_task.prepare_run(out,cpath,reviewed_interface)
     files = [Path(__file__),Path(ir.__file__),Path(__file__).with_name('dependency_instances.py'),Path(pilot.__file__),Path(scheduler.__file__),
              Path(__file__).with_name('shared_lemmas.py'),Path(__file__).with_name('strategy_bank.py'),Path(concurrency.__file__),
              ir.ROOT/'nl0/scripts/native_carrier.py',ir.ROOT/'nl0/scripts/pilot_common.py',
              ir.ROOT/'nl0/scripts/runtime_config.py',ir.ROOT/'nl0/scripts/usage.py',ir.ROOT/'nl0/scripts/exposure.py',
              ir.ROOT/'nl0/scripts/execution_health.py',Path(__file__).with_name('proof_obligations.py'),
-             Path(__file__).with_name('private_handoff.py'),ir.ROOT/'workflow/blocks/private_proof_handoff.py']
+             Path(__file__).with_name('private_handoff.py'),Path(lean_task.__file__),
+             ir.ROOT/'workflow/blocks/private_proof_handoff.py']
     files.extend([ir.ROOT/'nl0/scripts/execution_state.py',Path(proof_repair.__file__),
                   Path(proof_rounds.__file__),ir.ROOT/'workflow/blocks/proof_rounds.py',
                   Path(__file__).with_name('local_helpers.py'),Path(__file__).with_name('proof_diagnosis.py')])
@@ -115,6 +118,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
              'scope':'Frozen-port proof phase, not automatic NL0 semantic verification or full Audit B.'})
     # An explicit node obstruction does not cancel its siblings or queued jobs.
     def worker(sid, packet):
+        request=lean_task.issue(out,cpath,sid,packet,reviewed_tasks)
         cached=None;checked=None
         if prior_run is not None:
             import proof_reuse
@@ -126,7 +130,7 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
                     return {'proof':cached['body'],'model_worker_called':False,
                             'stage':{'status':'SAME_CASE_NATIVE_RECHECKED','previous_run':str(prior_run)}}
         stage = pilot.Stage(out/'workers'/sid,cpath,'proof',timeout_seconds,plan,sid,bank,budget=budget,instruction_arm=arm,
-                            timeout_policy=timeout_policy,strategy_banks=strategy_banks)
+                            timeout_policy=timeout_policy,strategy_banks=strategy_banks,task_request=request)
         if arm=='yui' and prior_run is not None:
             stage.previous_private_stage=Path(prior_run)/'workers'/sid
         if arm=='yui' and diagnostic_interface is not None:

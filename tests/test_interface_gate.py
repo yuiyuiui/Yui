@@ -11,9 +11,10 @@ import full_workflow as full
 import interface_controls
 import interface_review as review
 import ir
+import lean_task
 import workflow
 import concurrency
-from controller_common import bind
+from controller_common import bind, manifest
 from execution_health import StageFailure
 
 
@@ -63,6 +64,57 @@ class InterfaceGateTests(unittest.TestCase):
                 full.from_interface('neutral',inputs,author,author.parent/'good-flow',concurrency.serial_budget(),
                     lambda *a,**k:None,proof_budget=SimpleNamespace(configuration={'requested':1}))
         self.assertEqual(events,['fresh review','actual receipt','freeze']);verify.assert_called_once()
+
+    def test_local_packet_material_and_located_scale_mismatch(self):
+        out,inputs=self.setup_gate('consumer-control')
+        cp,pp=inputs/'contract.json',inputs/'plan.json'
+        contract=ir.load(cp)
+        source=[
+            {'id':'S081','text':'Use natural logarithms.'},
+            {'id':'S082','text':'Step 5 proves the global height bound using private regions.'},
+            {'id':'S083','text':'The resampling horizon is ceil((log n)^2).'},
+        ]
+        graph=ir.load(inputs/'nl0.json')
+        graph['route']=source[2]['text']
+        ir.write(inputs/'nl0.json',graph)
+        contract['source']['sha256']=ir.digest(inputs/'nl0.json')
+        contract['source_steps']=source
+        contract['conclusion']['type']='True'
+        ir.write(cp,contract)
+        plan=ir.load(pp)
+        log_type='∀ n : ℝ, Real.log n ≤ Real.log n'
+        plan.update(contract_sha256=ir.digest(cp),terminal='T007',steps=[
+            {'id':'T012','statement':'True','inputs':[],'source_steps':['S081','S082'],'explanation':'Use the height argument.'},
+            {'id':'T022','statement':'True','inputs':['T012'],'source_steps':['S082'],'explanation':'Also use the earlier paragraph.'},
+            {'id':'T077','statement':log_type,'inputs':[],'source_steps':['S083'],'explanation':'Linear-log horizon.'},
+            {'id':'T007','statement':'True','inputs':['T022','T077'],'source_steps':['S083'],'explanation':'Use the resampling horizon.'},
+        ])
+        ir.write(pp,plan)
+        tasks=lean_task.review_inputs(cp,plan)
+        ir.write(inputs/lean_task.REVIEW_INPUT,tasks)
+        manifest(inputs)
+        receipt=out/'review.json'
+        ir.write(receipt,{'contract_sha256':ir.digest(cp),'plan_sha256':ir.digest(pp),
+            'local_tasks_sha256':ir.digest(inputs/lean_task.REVIEW_INPUT)})
+        reviewed=lean_task.prepare_run(out,cp,receipt)
+        request=lean_task.issue(out,cp,'T012',ir.local_packet(cp,plan,'T012'),reviewed)
+        self.assertEqual(lean_task.read(request,cp,plan,'T012')['source_steps'],source[:2])
+        self.assertEqual(tasks['T007']['inputs']['inputs'][1]['type'],log_type)
+        locations=[{'document':'nl0.json','pointer':'/route'},
+            {'document':'local-tasks.json','pointer':'/T007/inputs/inputs/1/type'}]
+        checks={key:{'verdict':'PASS','notes':'Synthetic coverage check.','locations':locations.copy()}
+            for key in workflow.INTERFACE_CHECKS}
+        with self.assertRaisesRegex(ValueError,'Missing local task review locations'):
+            review.validate({'checks':checks,'findings':[]},out)
+        checks['statements_and_local_plans']['verdict']='FAIL'
+        finding={'severity':'BLOCKING','explanation':'Synthetic located scale mismatch.',
+            'comparison':{'source':{**locations[0],'quote':'ceil((log n)^2)'},
+                'formal':{**locations[1],'quote':'Real.log n'},
+                'difference':'T077 only supplies the linear-log quantity to T007.'}}
+        review.validate({'checks':checks,'findings':[finding]},out)
+        with self.assertRaisesRegex(ValueError,'differs from the frozen plan'):
+            changed={**plan,'steps':[dict(plan['steps'][0],source_steps=['S081']),*plan['steps'][1:]]}
+            lean_task.read(request,cp,changed,'T012')
 
     def receipt(self,name):
         import shutil

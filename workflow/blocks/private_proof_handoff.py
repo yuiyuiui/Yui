@@ -1,4 +1,4 @@
-"""The two file manifests at the private Lean child/parent boundary inside translate."""
+"""File manifests for local Lean work inside translate."""
 import hashlib
 import json
 from pathlib import Path
@@ -6,6 +6,9 @@ import re
 
 REQUEST = 'yui-private-proof-request-1'
 RESULT = 'yui-private-proof-result-1'
+LOCAL_TASK = 'yui-lean-local-task-1'
+LOCAL_OWNER = ('run_id', 'sender', 'node', 'contract_sha256', 'plan_sha256')
+LOCAL_FILES = ('goal', 'inputs', 'source', 'review')
 OUTCOMES = {'checked': ('proof', 'check'), 'needs_parent_repair': ('diagnosis',),
             'unfinished': ('progress',), 'execution_error': ('error',)}
 SHA256 = re.compile(r'[a-f0-9]{64}')
@@ -56,6 +59,17 @@ def resolve(base, ref, at):
 def artifacts(base, row, names):
     fields(row, names, '/files')
     return {name:resolve(base,row[name],'/files/'+name) for name in names}
+
+
+def read_local_task(path, expected):
+    path = Path(path)
+    row = read(path)
+    fields(expected, LOCAL_OWNER, '/expected')
+    fields(row, ('schema', *LOCAL_OWNER, 'files'), '/')
+    require(row['schema'] == LOCAL_TASK, '/schema: unknown local Lean task')
+    for key, value in expected.items():
+        require(row[key] == value, f'/{key}: different local Lean task')
+    return artifacts(path.parent, row['files'], LOCAL_FILES)
 
 
 def read_request(path):

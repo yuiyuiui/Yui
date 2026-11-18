@@ -125,6 +125,9 @@ def review_value(stage):
         if stage.mode.startswith('interface-'):
             row['locations']=[{'document':'spec.json','pointer':'/full_target'},
                               {'document':'contract.json','pointer':'/conclusion/type'}]
+            if pointer=='/checks/statements_and_local_plans' and 'local-tasks.json' in stage.task_inputs:
+                row['locations'] += [{'document':'local-tasks.json','pointer':'/'+sid}
+                    for sid in json.loads(stage.task_inputs['local-tasks.json'])]
         elif stage.mode=='audit-a-global':
             row['locations']=['spec.json#/full_target' if pointer=='/target_review' else 'nl0.json#/inferences']
             if pointer=='/structure_review' and mode in {'global-revision','stalled-graph'}:
@@ -270,7 +273,18 @@ def scripted(stage):
                 explanation='The supplied basis statement differs from its formal premise.',locations=['/target'],
                 candidates=[{'kind':'proof','candidate':1}])
         if mode=='planned-closed' and stage.step=='T001':
-            return call('prove_independent_helpers',obligations=[{'statement':s,'explanation':'Equality reflexivity.'} for s in ('a = a','b = b')])+call('submit_transition',proof='have _ := @yui_aux_0001 a b h_H001\nhave _ := @yui_aux_0002 a b h_H001\nexact h_H001.symm')
+            work=stage.helper_work
+            if not work.jobs:
+                return call('check_transition',proof='exact Nat.zero')+call('dispatch_helpers',candidate=1,
+                    obligations=[{'statement':s,'gap':'Establish the reflexive equalities used by this draft.',
+                        'use':'Use in the local proof before applying symmetry.','source_steps':[]} for s in ('a = a','b = b')])
+            if work.wait_ids:
+                return None
+            pending=[sid for sid,(_,_,future) in work.jobs.items() if not future.done()]
+            if pending:
+                return call('wait_for_helpers',task_ids=pending)
+            return ''.join(call('collect_helper',task_id=sid) for sid in work.jobs)+call('submit_transition',
+                proof='have _ := @yui_aux_0001 a b h_H001\nhave _ := @yui_aux_0002 a b h_H001\nexact h_H001.symm')
         if mode.startswith('planned-') and stage.step=='T002':
             return call('submit_transition',proof='simpa only [h_E002 a] using h_T001.symm')
         return call('submit_transition',proof='exact h_H001.symm' if stage.step=='T001'
@@ -285,7 +299,8 @@ def scripted(stage):
 def respond(f,handler,number,payload):
     stage=f.stage;requests[stage.logs]+=1
     try:
-        if requests[stage.logs]>2:
+        helper_turns=mode=='planned-closed' and getattr(stage,'helper_work',None) is not None and stage.step=='T001'
+        if requests[stage.logs]>(10 if helper_turns else 2):
             rows=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()] if (stage.logs/'tools.jsonl').exists() else []
             detail=json.dumps([{'tool':r['tool'],'result':r['result']} for r in rows if r.get('result',{}).get('error')][-4:])
             raise AssertionError('Repeated fixture request: '+stage.mode+' '+detail)
@@ -297,7 +312,7 @@ def respond(f,handler,number,payload):
         with use_environment(job.get('lean_environment')), use_profiles(job['profiles']), lean_libraries.use(job.get('lean_libraries',[])), \
                 lean_libraries.generated(run/'imported-lean'):
             code=scripted(stage)
-        if read_strategies:
+        if read_strategies and code is not None and (not helper_turns or not stage.helper_work.jobs):
             selected = {'basis-authoring': ('basis','ST021'), 'basis-frontier': ('basis','ST024'),
                         'interface-authoring': ('basis','ST022'), 'proof': ('lean','ST026')}
             if stage.mode in selected:
@@ -309,7 +324,8 @@ def respond(f,handler,number,payload):
         raise
     if mode=='cancel-review' and stage.mode=='basis-semantic-review':
         queue_controller.cancel_batch([run])
-    f.code(handler,number,code)
+    if code is None:f.message(handler,number,'Waiting for the requested helper result.')
+    else:f.code(handler,number,code)
 
 
 if __name__ == '__main__':

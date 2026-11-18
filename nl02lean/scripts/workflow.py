@@ -16,6 +16,7 @@ from source_qualification import usable
 import audit_b
 import concurrency
 import ir
+import lean_task
 import project_config
 import run_graph
 import source_preparation as source
@@ -109,6 +110,8 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
         ir.need(set(review['checks']) == INTERFACE_CHECKS and all(x['verdict'] == 'PASS' and x['notes'].strip() for x in review['checks'].values()), 'unperformed interface review')
         ir.need(review['evidence'], 'missing actual interface review evidence')
         record_paths = [interface_review]+source.evidence_paths(review['evidence'], interface_review.parent)
+        if 'local_tasks_sha256' in review:
+            record_paths.append(lean_task.review_input(interface_review.parent,review['local_tasks_sha256']))
         semantic_status = 'INTERFACE_REVIEW_PASSED_FINAL_AUDIT_B_REQUIRED'
     else:
         ir.need(interface_binding is not None, 'Deferred review requires an actual bound interface artifact')
@@ -131,6 +134,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
                    *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
         ir.ROOT/'SKILL.md',project_config.source(ir.ROOT),
         ir.ROOT/'workflow/blocks/proof_rounds.py',
+        ir.ROOT/'workflow/blocks/private_proof_handoff.py',
         *(ir.ROOT/'nl0/references').glob('*.md'),*(ir.HERE/'references').glob('*.md'),
         *(ir.ROOT/'nl0/templates').glob('*.md'),*(ir.HERE/'templates').glob('*.md')]
     tools = [source.binding(p) for p in sorted(set(runtime_paths))]
@@ -196,7 +200,8 @@ def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
     try:
         with execution_state.activate(recorder),recorder.signals():
             result = run_graph.run(Path(manifest['contract']),Path(manifest['plan']),out/'proof-run',
-                               shared_store=shared_store,timeout_seconds=timeout_seconds,bank=bank,budget=budget)
+                               shared_store=shared_store,timeout_seconds=timeout_seconds,bank=bank,budget=budget,
+                               reviewed_interface=manifest['interface_review'])
             bound(out)
             return result
     finally:

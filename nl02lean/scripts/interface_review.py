@@ -18,6 +18,7 @@ from audit_a_campaign import blocking_finding
 sys.path.insert(0,str(CORE/'nl0/scripts'))
 sys.path.insert(0,str(CORE/'nl02lean/scripts'))
 import ir
+import lean_task
 from staging_storage import copy_input
 import workflow
 import concurrency
@@ -54,7 +55,7 @@ Read workload.json when judging statements_and_local_plans. Examine long chains 
 Complete all named checks in the generated submission schema with your actual
 judgments, specific reasoning and resolving document/pointer locations.
 Locate each judgment in both source material (spec.json or nl0.json) and formal
-material (contract.json or plan.json); include other actual locations as useful.
+material (contract.json, plan.json or local-tasks.json).
 findings is a list of {verdict,explanation,locations} for concrete defects or
 uncertainties, empty if none. Do not repair the proposal or invent a PASS.
 Source proofs and completed local Lean proof bodies are not requested here.
@@ -77,17 +78,26 @@ reviews until one passes; an evidence-backed disagreement is a disclosed dispute
 '''
 
 
+LOCAL_TASK_PROMPT='''Read local-tasks.json by T identifier. These are the materials the local authors
+will actually receive. For each reviewed node compare its target, selected source
+paragraphs and direct input instances. A paragraph needed by multiple nodes must
+reach each of them. Follow the producer type and the consumer's actual use, including
+scales, cutoffs and parameter values. A passing statements_and_local_plans check
+must locate each reviewed node in local-tasks.json.
+'''
+
+
 def comparison_schema(*, source_documents=None):
     def side(names):
         return protocol.obj({'document':{'enum':names},'pointer':protocol.STRING,'quote':protocol.TEXT})
     return protocol.obj({'source':side(source_documents or ['spec.json','nl0.json','background-supplement.json']),
-                         'formal':side(['contract.json','plan.json']),'difference':protocol.TEXT})
+                         'formal':side(['contract.json','plan.json',lean_task.REVIEW_INPUT]),'difference':protocol.TEXT})
 
 
 def validate_comparison(comparison,docs, *, source_documents=None):
     protocol.validate(comparison,comparison_schema(source_documents=source_documents),'/comparison')
     import audit_b
-    for side,allowed in [('source',{'spec.json','nl0.json','background-supplement.json'}),('formal',{'contract.json','plan.json'})]:
+    for side in ('source','formal'):
         row=comparison[side]
         try:value=audit_b.resolve(docs[row['document']],row['pointer'])
         except (IndexError,KeyError,TypeError) as error:raise ValueError('Comparison pointer does not resolve') from error
@@ -155,6 +165,8 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
     verify_candidate_artifact(actual,c,p,paths['source_outputs'])
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     write(inputs/'workload.json',ir.decomposition(contract,ir.load(plan)))
+    local_tasks=inputs/lean_task.REVIEW_INPUT
+    write(local_tasks,lean_task.review_inputs(contract,p))
     for src,name in [(contract,'contract.json'),(plan,'plan.json')]:shutil.copyfile(src,inputs/name)
     copy_review_inputs(author,inputs)
     adjudication=None
@@ -185,13 +197,14 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
         write(inputs/'internal-repair-context.json',repair_context)
         for key in ('contract','plan','review'):
             shutil.copyfile(repair_context[key]['path'],inputs/('repair-parent-'+key+'.json'))
-    prompt=PROMPT+ ('\nThis is a targeted adjudication. The prior review and located dispute are explicitly disclosed. Assess the actual source/types; preserve unresolved disagreement rather than inventing a PASS.\n' if adjudication else '')
+    prompt=PROMPT+LOCAL_TASK_PROMPT+ ('\nThis is a targeted adjudication. The prior review and located dispute are explicitly disclosed. Assess the actual source/types; preserve unresolved disagreement rather than inventing a PASS.\n' if adjudication else '')
     if repair_context:
         prompt+='\nThis is an INTERNAL_INTERFACE_DELTA review. The parent independent semantic receipt is disclosed and machine-validated. Protected source, H/E/P and all public definitions are unchanged. Inherit only those exact unchanged scopes; inspect changed T obligations and affected consumers against NL0, including allowed input boundaries and whether the reported defect was repaired. In the four check notes distinguish inherited judgments from this new delta review; do not claim a fresh whole-proof review or repeat unchanged work. A new actual passing receipt is required.'
     manifest(inputs);(out/'prompt.txt').write_text(prompt)
     write(out/'selected-author-artifact.json',actual)
     write(out/'bindings.json',{'author':str(author),'contract':bind(contract),'plan':bind(plan),
         'source_graph':bind(author/'inputs/nl0.json'),'spec':bind(author/'inputs/spec.json'),
+        'local_tasks_sha256':ir.digest(local_tasks),
         'paragraph_mapping':paths['paragraph_mapping'],'source_outputs':paths['source_outputs'],
         'candidate_selection':selection,'adjudication':adjudication,
         **({'internal_repair':repair_context} if repair_context else {})})
@@ -219,7 +232,7 @@ def validate(value,out):
             except IndexError as error:
                 raise ValueError('Review pointer array index is out of range: '+item['pointer']) from error
             located.add(item['document'])
-        if not located&{'spec.json','nl0.json'} or not located&{'contract.json','plan.json'}:
+        if not located&{'spec.json','nl0.json'} or not located&{'contract.json','plan.json',lean_task.REVIEW_INPUT}:
             raise ValueError('Locate the comparison in both original source and formal types/plan')
     if not isinstance(value['findings'],list):raise ValueError('findings must be a list')
     if any(blocking_finding(x) for x in value['findings']) and all(x['verdict']=='PASS' for x in value['checks'].values()):
@@ -228,6 +241,13 @@ def validate(value,out):
         raise ValueError('A failed semantic check needs its concrete located mismatch finding')
     for finding in value['findings']:
         if blocking_finding(finding):validate_comparison(finding.get('comparison'),docs)
+    if lean_task.REVIEW_INPUT in docs and all(row['verdict']=='PASS' for row in value['checks'].values()):
+        nodes=set(docs[lean_task.REVIEW_INPUT])
+        if 'internal-repair-context.json' in docs:
+            nodes.intersection_update(docs['internal-repair-context.json']['affected_steps'])
+        locations=value['checks']['statements_and_local_plans']['locations']
+        covered={row['pointer'].split('/')[1] for row in locations if row['document']==lean_task.REVIEW_INPUT}
+        ir.need(nodes<=covered, 'Missing local task review locations: '+', '.join(sorted(nodes-covered)))
     return {'scope':'Review completeness and resolving paired locations only; semantic verdicts remain the actual reviewer judgments.'}
 
 
@@ -241,6 +261,17 @@ def run(out,timeout=None,budget=None):
         inputs=out/'inputs/inputs.json',library=True,timeout=timeout,
         validator=contract,budget=concurrency.serial_budget(budget))
     return stage.execute()[0]
+
+
+def bound_local_tasks(out, bindings):
+    digest=bindings.get('local_tasks_sha256')
+    ir.need(digest is not None or not (out/'inputs'/lean_task.REVIEW_INPUT).exists(),
+            'Missing binding for local task review inputs')
+    if digest is not None:
+        lean_task.review_input(out,digest)
+        staged=ir.load(out/'stage/execution-manifest.json').get('task_documents',{})
+        ir.need(staged.get(lean_task.REVIEW_INPUT)==digest, 'Reviewer did not receive the bound local tasks')
+    return digest
 
 
 def collect(out):
@@ -266,6 +297,9 @@ def collect(out):
         'preparation_cost':{'status':'DEVELOPMENT_ITERATIONS_NOT_COLD_BENCHMARK','owner_work':'UNMEASURED',
             'author_stage':str(Path(bindings['author'])/'stage'),'semantic_review_stage':str(out/'stage'),
             'candidate_selection':bindings.get('candidate_selection')}}
+    local_tasks_sha256=bound_local_tasks(out,bindings)
+    if local_tasks_sha256 is not None:
+        review['local_tasks_sha256']=local_tasks_sha256
     if bindings.get('internal_repair'):
         import internal_interface_repair as repair
         repair.verify_revision(bindings['internal_repair'],bindings['contract']['path'],bindings['plan']['path'])
@@ -307,6 +341,7 @@ def verify_receipt(path,contract,plan,graph_sha256):
         and review['contract_sha256']==bindings['contract']['sha256']==ir.digest(contract)
         and review['plan_sha256']==bindings['plan']['sha256']==ir.digest(plan),
         'stale interface review')
+    ir.need(review.get('local_tasks_sha256')==bound_local_tasks(out,bindings), 'Stale local task review')
     for key in ['contract','plan','source_graph','spec']:
         source_preparation.unchanged(bindings[key])
     ir.need(review['checks']==raw['checks'] and set(raw['checks'])==workflow.INTERFACE_CHECKS

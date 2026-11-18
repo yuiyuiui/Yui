@@ -14,11 +14,19 @@ import workflow
 
 def qualified_artifact(stage,artifact):
     exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}
+    tasks=Path(stage).parent/'inputs/local-tasks.json'
+    documents={tasks.name:ir.digest(tasks)} if tasks.is_file() else {}
     for name,value in [('accepted.json',artifact),('exposure-audit.json',exposure),
-        ('execution-manifest.json',{'fixture':'SYNTHETIC review execution; not an actual mathematical audit'}),
+        ('execution-manifest.json',{'fixture':'SYNTHETIC review execution; not an actual mathematical audit',
+            'task_documents':documents}),
         ('result.json',{'status':'ACCEPTED','model':__import__('native_carrier').MODEL,
             'execution_health':'NO_RECORDED_FAULT','temporary_workspace_removed':True,
             'usage':{'complete':False},'exposure':exposure})]:ir.write(Path(stage)/name,value)
+
+
+def locate_local_tasks(checks, review):
+    checks['statements_and_local_plans']['locations'] += [
+        {'document':'local-tasks.json','pointer':'/'+sid} for sid in ir.load(review/'inputs/local-tasks.json')]
 
 
 def addition_interface():
@@ -63,6 +71,7 @@ def frozen_case(root, *, prepare_source=None, transform_interface=None, bodies=N
     reviewed=root/'interface-review';interface_review.prepare(author,reviewed)
     checks={key:{'verdict':'PASS','notes':'SYNTHETIC known propositional/natural-number fixture; no actual semantic model called.',
         'locations':[{'document':'spec.json','pointer':'/full_target'},{'document':'contract.json','pointer':'/conclusion/type'}]} for key in workflow.INTERFACE_CHECKS}
+    locate_local_tasks(checks,reviewed)
     qualified_artifact(reviewed/'stage',{'checks':checks,'findings':[]});interface_review.collect(reviewed)
     paths=ir.load(author/'accepted-interface-paths.json');out=root/'workflow'
     manifest=workflow.freeze(source/'nl0.json',source/'spec.json',paths['contract'],paths['plan'],reviewed/'review.json',out,

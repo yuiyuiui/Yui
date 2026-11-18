@@ -45,18 +45,22 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    A heartbeat error goes straight to local repair. Explicit shorter deadlines
    continue to apply. Only a successful native check can accept the candidate.
 
-A proof worker can send independent private statements and their routes together
-through `prove_independent_helpers`. Its enclosing parameters and direct ports stay
-fixed. Check the original transition after accumulating helpers. Inspect its native
-diagnostic before deciding whether another local lemma or a reviewed public
-interface revision is needed. On supported headers a warm auxiliary check imports
+A proof worker first checks a draft of the whole transition. Use
+`dispatch_helpers` with the failed candidate number, each missing statement,
+where it will be used, and the needed local source IDs. The tool returns task IDs.
+Use `helper_status` and `collect_helper` to check and register each ready result.
+Keep working on the transition while the helpers run. When the transition is
+waiting on a result, use `wait_for_helpers` and end the current turn. The controller
+releases the model slot and resumes the same author when a selected result is ready.
+Recheck the transition as soon as a helper lets you advance the proof.
+On supported headers a warm auxiliary check imports
 compiled declarations and elaborates only the new helper. For file-local scopes
 the checker includes only the new helper and its transitive dependencies. Check
 each helper as it is written. A failed helper can be corrected independently.
 If composition identifies a previously checked helper body, pass its existing
 name as `replace` to `check_auxiliary`. Only edit that body. Names, types and
 other bodies remain stable. The checker renews any invalidated receipts.
-Once all helpers pass, compose them and check the whole node. Final submission,
+Check the whole node with the helpers it actually needs. Final submission,
 assembly and Audit B recheck source in their normal environment.
 
 The runtime enforces the per-call wall limit independently of these writing

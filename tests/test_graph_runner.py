@@ -75,7 +75,11 @@ class PackagingTests(unittest.TestCase):
         objects=[];packets={}
         def fake_execute(stage):
             objects.append(stage)
-            packets[stage.step]=ir.local_packet(stage.cpath,stage.plan,stage.step)
+            packets[stage.step]=stage.proof_packet()
+            self.assertEqual(packets[stage.step],ir.local_packet(stage.cpath,stage.plan,stage.step))
+            path=Path(stage.task_request['path'])
+            self.assertEqual(path.name,stage.step+'.json')
+            self.assertEqual(ir.load(path)['node'],stage.step)
             self.assertEqual(stage.own_lean_drafts,{'proof':{},'auxiliary':{}})
             shutil.rmtree(stage.work)
             return {'status':'NEUTRAL_SOFTWARE_CONTROL','api_calls':0},{'proof':LIFT if stage.step=='T001' else SUP}
