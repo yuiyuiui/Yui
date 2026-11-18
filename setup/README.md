@@ -140,8 +140,10 @@ Use selftest --group none for an NL0-only installation.
 For Lean, selftest runs applicable none/current/exact tests using the chosen
 environment; exact historical mismatches are reported as skips. A current
 compiler failure must not be converted into a version skip. For routine
-maintenance, select affected modules with tests/run_tests.py. A release-level
-complete run can use selftest --all.
+maintenance, use `selftest --quick` for a smoke test or add `--area basis`
+for a foundation handoff change. The [test guide](../tests/README.md) lists
+the areas and individual test selectors. Run `selftest --all` for a release
+or a new maintenance baseline.
 
 Before handing back, confirm the READY report, actual selected versions and
 skill location. Tell the user they can now ask: Use $rigorous-proof to work on

@@ -26,7 +26,10 @@ def main():
     tests=commands.add_parser('selftest')
     tests.add_argument('--verbose',action='store_true')
     tests.add_argument('--group',choices=['none','current','exact','all'],default='all')
-    tests.add_argument('--all',action='store_true')
+    scope=tests.add_mutually_exclusive_group()
+    scope.add_argument('--all',action='store_true')
+    scope.add_argument('--quick',action='store_true',help='Run the quick core and selected areas')
+    tests.add_argument('--area',action='append',default=[],help='Quick test area (repeatable)')
     tests.add_argument('--environment',type=Path)
     tests.add_argument('--historical-environment',type=Path)
     tests.add_argument('--comparison-environment',type=Path)
@@ -87,6 +90,8 @@ def main():
         directory = CORE / 'tests'
         command=[sys.executable,'-B',str(directory/'run_tests.py'),'--group',args.group]
         if args.all:command.append('--all')
+        if args.quick:command.append('--quick')
+        for area in args.area:command.extend(['--area',area])
         if args.verbose:command.append('-v')
         for flag in ('environment','historical_environment','comparison_environment','report'):
             value=getattr(args,flag)
@@ -99,7 +104,7 @@ def main():
         else:
             summary=[s for s in (result.stderr+'\n'+result.stdout).splitlines()
                      if s.startswith(('Ran ','test cleanup:')) or s=='OK']
-            summary.extend(s for s in result.stdout.splitlines() if s.startswith(('test groups:','test report:')))
+            summary.extend(s for s in result.stdout.splitlines() if s.startswith(('test profile:','test result:','test groups:','test report:')))
             print('tests: '+'; '.join(summary),flush=True)
         return result.returncode
     elif args.command == 'usage':

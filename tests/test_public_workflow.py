@@ -125,6 +125,27 @@ class PublicEntryTests(unittest.TestCase):
                 self.assertIsNone(rec['usage']['total'])
                 self.assertEqual(rec['remaining_extra_premises'],ids[1:])
                 self.assertTrue(all(b['elapsed_seconds'] is not None for b in rec['blocks']))
+                if goal=='unconditional':
+                    import b2lean
+                    result=nl0.load(out/'case-result.json')['result']
+                    b2lean.validate_receipt(out/'b2lean')
+                    proofs=list(out.glob('2basis/*/stage/foundation-proofs/*/checked.json'))
+                    self.assertEqual(len(proofs),1)
+                    if mode=='planned-closed':
+                        self.assertEqual(result['status'],'WORKFLOW-PASSED')
+                        self.assertEqual(result['closure']['remaining_premises'],['H001'])
+                        deps=nl0.load(out/'active-inputs/basis-registry.json')['dependencies']
+                        self.assertEqual([d['category'] for d in deps],[2,3])
+                        self.assertIn('YuiBasis.B001',deps[1]['lean']['proof'])
+                        self.assertEqual(len(list(out.glob('2basis/*/stage/frontier/*/*/checked.json'))),2)
+                        self.assertEqual(len(list(out.glob('nl0-to-lean/**/private-proofs/*/checked.json'))),2)
+                    else:
+                        self.assertEqual(result['status'],'WORKFLOW-CONDITIONAL')
+                        self.assertEqual(set(result['closure']['remaining_premises']),{'H001','E003'})
+                        decisions=list(out.glob('2basis/*/plans/*/decision/error-incidents/*.json'))
+                        self.assertEqual(len(decisions),1)
+                        self.assertFalse(list(out.glob('2basis/*/decision/error-incidents/*.json')))
+                        self.assertLess(decisions[0].stat().st_mtime_ns,proofs[0].stat().st_mtime_ns)
                 if track=='nl0':
                     contents=(user/'nl0/nl0.json').read_bytes()
                     (user/'nl0/nl0.json').write_bytes(contents+b'\n')

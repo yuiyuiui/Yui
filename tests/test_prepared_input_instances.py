@@ -126,20 +126,31 @@ class PreparedInstances(unittest.TestCase):
         self.assertNotIn('YuiBasis',packet['header'])
 
     def test_checked_mathlib_port_can_be_specialized_and_normally_discharged(self):
-        row=dependency(typ=self.typ,proof=self.row['lean']['proof'])
-        row['statement']=self.row['statement']
-        registry=active_artifact(artifact(row))
-        registry['dependencies'][0]['port']='M017'
+        product='Set.image Prod.swap (Set.prod s t) = Set.prod t s'
+        typ='∀ (A B : Type*) (s : Set A) (t : Set B), '+product
+        row=dependency(compatibility='native',port='M017',typ=typ,proof='exact @Set.image_swap_prod')
+        row['origin']['declaration']='Set.image_swap_prod'
+        row['statement']='Swapping the factors of a product set interchanges the two sets.'
+        registry=artifact(row)
         registry['global_graph']['propositions'].append({'id':'M017','statement':row['statement']})
         registry['global_graph']['inferences'][-1]['inputs'].append('M017')
+        registry['global_graph']['inferences'][-1]['basis'].append('B001')
         self.context=checked_context(self.work/'basis',registry)
-        self.c['premises'][0].update(id='M017',kind='mathlib')
+        self.c['premises'][0].update(id='M017',kind='mathlib',type=typ,statement=row['statement'])
+        at_nat='Set.image Prod.swap (Set.prod s (Set.univ : Set Nat)) = Set.prod (Set.univ : Set Nat) s'
+        self.generic['statement']='∀ (A : Type v) (s : Set A), '+at_nat
         self.generic['inputs']=['M017']
-        self.generic['input_instances']={'M017':self.generic['input_instances']['E001']}
+        self.generic['input_instances']={'M017':[{'levels':['v','0'],'uses':[{
+            'parameters':[{'name':'A','type':'Type v'},{'name':'s','type':'Set A'}],
+            'args':['A','Nat','s','(Set.univ : Set Nat)'],'expected':at_nat}]}]}
         self.terminal['inputs'].append('M017')
+        self.terminal['statement']=self.c['conclusion']['type']='∀ (s : Set Nat), '+at_nat
+        self.c['conclusion']['statement']='Swap a product with the universal set of natural numbers.'
+        self.terminal['input_instances']['T001'][0]['uses']=[{
+            'parameters':[{'name':'s','type':'Set Nat'}],'args':['Nat','s'],'expected':at_nat}]
         self.bind()
         self.assertEqual(self.c['prepared_instances']['ports']['M017']['basis'],'B001')
-        proofs={'T001':'intro A x; exact (h_M017 A Nat x 0).1','T002':'exact h_T001 Nat 0'}
+        proofs={'T001':'intro A s; exact h_M017 A Nat s Set.univ','T002':'exact h_T001 Nat'}
         formal=ir.render(self.path,self.v,proofs)
         stage=self.work/'audit-b'
         stage.mkdir()

@@ -26,6 +26,7 @@ class CleanupTests(unittest.TestCase):
         self.output=Path(self.job['root']);self.processes=[];self.workspaces=[]
     def tearDown(self):
         for p in self.processes:
+            if p.stdin:p.stdin.close()
             if p.poll() is None:p.kill()
             p.wait(timeout=5)
         for p in self.workspaces:
@@ -36,20 +37,26 @@ class CleanupTests(unittest.TestCase):
         script=("import sys,time,json,signal,subprocess,tempfile;from pathlib import Path;sys.path.insert(0,"+repr(str(CORE/'nl0/scripts'))+");"
             "from run_resources import register_workspace,register_child;from execution_state import identity;"
             "logs=Path("+repr(str(self.output))+ ");work=Path(tempfile.mkdtemp(prefix='yui-cleanup-control-'));register_workspace(work,logs);"
-            "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);register_child(work,child,'neutral-child');"
+            "child=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.buffer.read()']);register_child(work,child,'neutral-child');"
             +( "signal.signal(signal.SIGTERM,signal.SIG_IGN);" if stubborn else "")+
             "(logs/'case-process.json').write_text(json.dumps({'schema_version':'yui-owned-process-1','process':identity(__import__('os').getpid())}));"
-            "(logs/'ready.json').write_text(json.dumps({'work':str(work),'child':child.pid}));time.sleep(60)")
-        p=subprocess.Popen([sys.executable,'-B','-c',script],start_new_session=True);self.processes.append(p)
+            "from execution_state import atomic;atomic(logs/'ready.json',{'work':str(work),'child':child.pid});sys.stdin.buffer.read()")
+        p=subprocess.Popen([sys.executable,'-B','-c',script],stdin=subprocess.PIPE,start_new_session=True);self.processes.append(p)
         deadline=time.monotonic()+5
         while not ready.exists() and p.poll() is None and time.monotonic()<deadline:time.sleep(.02)
         self.assertTrue(ready.is_file());row=json.loads(ready.read_text());self.workspaces.append(Path(row['work']))
         return p,row
     def clean(self,**kwargs):return c.clean(outputs=[self.output],**kwargs)
 
+    def idle_process(self,cwd=None):
+        process=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.buffer.read()','app-server'],
+                                 stdin=subprocess.PIPE,start_new_session=True,cwd=cwd)
+        self.processes.append(process)
+        return process
+
     def test_preview_then_stop_real_owner_and_child_preserving_inputs_and_unrelated_process(self):
         owner,row=self.start_owner()
-        unrelated=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True);self.processes.append(unrelated)
+        unrelated=self.idle_process()
         self.assertEqual(self.clean()['status'],'PREVIEW');self.assertIsNone(owner.poll())
         result=self.clean(apply=True,grace=.3);self.assertEqual(result['status'],'CLEANED',result)
         owner.wait(timeout=5);self.assertIsNone(unrelated.poll())
@@ -85,14 +92,42 @@ class CleanupTests(unittest.TestCase):
 
     def test_live_changed_missing_and_foreign_workspace_copies_block_cleanup(self):
         work,source,copy=self.copied_workspace()
-        self.assertEqual(self.clean()['status'],'BLOCKED')
+        def errors():return c.inventory(CORE,[self.output])['errors']
+        self.assertTrue(errors())
         shutil.rmtree(work)
+        self.assertEqual(errors(),[])
         original=source.read_bytes()
-        copy.write_text('{}');self.assertEqual(self.clean()['status'],'BLOCKED')
-        copy.write_bytes(original);source.unlink();self.assertEqual(self.clean()['status'],'BLOCKED')
+        copy.write_text('{}');self.assertTrue(errors())
+        copy.write_bytes(original);source.unlink();self.assertTrue(errors())
         source.write_bytes(original)
         row=json.loads(original);row['logs']=str(self.root/'foreign')
-        copy.write_text(json.dumps(row));self.assertEqual(self.clean()['status'],'BLOCKED')
+        copy.write_text(json.dumps(row));self.assertTrue(errors())
+        self.assertEqual(self.clean(apply=True,grace=0)['status'],'BLOCKED')
+        self.assertTrue(copy.is_file())
+
+    def test_cwd_discovery_batches_real_candidates_and_preserves_unrelated_process(self):
+        work=self.root/'workspace with spaces'
+        (work/'input').mkdir(parents=True)
+        owner=self.idle_process(work/'input')
+        unrelated=self.idle_process(self.root)
+        table=c.process_table()
+        pids=[owner.pid,unrelated.pid]
+        errors=[]
+        with patch.object(c.subprocess,'run',wraps=subprocess.run) as query:
+            self.assertEqual(c.workspace_cwd_pids(pids,[work],table,errors),{owner.pid})
+        query.assert_called_once()
+        self.assertEqual(errors,[])
+        self.assertIsNone(unrelated.poll())
+
+    def test_incomplete_cwd_query_preserves_uncertainty_for_same_live_identity(self):
+        row={'pid':41,'pgid':41,'started':'previous start','stat':'S'}
+        exited={**row,'pid':42,'pgid':42}
+        table={41:row,42:exited}
+        errors=[]
+        with patch.object(c.subprocess,'run',return_value=subprocess.CompletedProcess([],1,b'')), \
+                patch.object(c,'process_table',return_value={41:row}):
+            self.assertEqual(c.workspace_cwd_pids([41,42],[],table,errors),set())
+        self.assertEqual(errors,['Unconfirmed working directory for live process 41'])
 
     def test_unmarked_input_and_symlink_cannot_be_removed(self):
         with self.assertRaises(ValueError):c.clean(outputs=[self.problem.parent],apply=True)
@@ -115,7 +150,7 @@ class CleanupTests(unittest.TestCase):
         owner.wait(timeout=5);self.assertIsNotNone(owner.returncode)
 
     def test_expired_pid_identity_does_not_target_unrelated_process(self):
-        unrelated=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'],start_new_session=True);self.processes.append(unrelated)
+        unrelated=self.idle_process()
         row=identity(unrelated.pid);row['started']='expired identity'
         (self.output/'case-process.json').write_text(json.dumps({'schema_version':'yui-owned-process-1','process':row}))
         self.assertEqual(self.clean(apply=True,grace=0)['status'],'CLEANED')

@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -36,6 +37,64 @@ class RequirementSelectionTests(unittest.TestCase):
             case.check=lambda **kwargs:self.fail('A same-version check cannot stand in for a cross-version test')
             with self.subTest(comparison=comparison),self.assertRaisesRegex(unittest.SkipTest,'SKIPPED_COMPARISON'):
                 case.test_actual_version_specific_original_passes_old_and_requires_current_port()
+
+    def test_quick_manifest_selectors_and_area_names_are_checked(self):
+        catalogue=selection.catalogue()['modules']
+        profile=json.loads((selection.TESTS/'quick.json').read_text())
+        self.assertTrue(selection.quick_selectors(profile['areas'],catalogue))
+        with self.assertRaisesRegex(ValueError,'Unknown quick area'):
+            selection.quick_selectors(['unregistered-area'],catalogue)
+        (self.root/'test_fixture.py').write_text('class Example:\n    def test_actual(self):pass\n')
+        (self.root/'quick.json').write_text(json.dumps({'core':['test_fixture.Example.test_obsolete'],'areas':{}}))
+        with patch.object(selection,'TESTS',self.root),self.assertRaisesRegex(ValueError,'test_obsolete'):
+            selection.quick_selectors([],{'test_fixture'})
+
+    def test_quick_areas_share_cases_and_full_discovery_runs_unlisted_classes(self):
+        name='test_quick_fixture'
+        (self.root/(name+'.py')).write_text(
+            'import unittest\nfrom pathlib import Path\nclass Fast(unittest.TestCase):\n'
+            '    def test_core(self): pass\n    def test_edge(self): pass\n'
+            'class Full(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n'
+            '        Path(__file__).with_suffix(".started").touch()\n    def test_slow(self): pass\n')
+        self.addCleanup(sys.modules.pop,name,None)
+        core=name+'.Fast.test_core';edge=name+'.Fast.test_edge';slow=name+'.Full.test_slow'
+        (self.root/'quick.json').write_text(json.dumps({'core':[core],'areas':{'alpha':[edge],'beta':[name+'.Fast']}}))
+        data={'modules':{name:{'lean':'none'}},'classes':{},'tests':{}}
+        host={'codex':{'binary_path':'/codex'},'tools':{'ripgrep':{'binary_path':'/rg'}}}
+        def launch(arguments,*,test_env):
+            with patch.dict(os.environ,test_env):
+                return selection.worker(arguments)
+        def run(args):
+            report=self.root/'report.json'
+            self.assertEqual(selection.dispatch([*args,'--report',str(report)],launch),0)
+            return json.loads(report.read_text())
+        marker=self.root/(name+'.started')
+        with patch.object(selection,'TESTS',self.root),patch.object(selection,'CORE',self.root), \
+                patch.object(selection,'catalogue',return_value=data), \
+                patch.object(sys,'path',[str(self.root),*sys.path]),patch('runtime_config.host_tools',return_value=host), \
+                patch('runtime_config.require_environment',side_effect=AssertionError('unexpected Lean setup')), \
+                redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
+            self.assertEqual(run(['--quick'])['selected_tests'],[core])
+            quick=run(['--quick','--area','alpha','--area','beta','--area','alpha'])
+            self.assertEqual(quick['profile'],'quick')
+            self.assertEqual(quick['areas'],['alpha','beta'])
+            self.assertEqual(set(quick['selected_tests']),{core,edge})
+            self.assertEqual(quick['outcome_counts'],{'PASS':2})
+            self.assertFalse(marker.exists())
+            for args in ([],['--all']):
+                full=run(args)
+                self.assertEqual(full['profile'],'full')
+                self.assertEqual(set(full['selected_tests']),{core,edge,slow})
+                self.assertTrue(marker.is_file())
+            default_report=self.root/'.runtime/test-report.json'
+            default_report.parent.mkdir(exist_ok=True)
+            default_report.write_text('prior full result')
+            self.assertEqual(selection.dispatch(['--quick'],launch),0)
+            self.assertEqual(default_report.read_text(),'prior full result')
+            self.assertEqual(json.loads(default_report.with_name('test-report-quick.json').read_text())['profile'],'quick')
+            for args in (['--area','alpha'],['--quick','--all'],['--quick',name],['--quick','--area','absent']):
+                with self.subTest(args=args),self.assertRaises(SystemExit):
+                    run(args)
 
     def test_quiet_skip_reports_the_reason_and_never_records_pass(self):
         class MissingComparison(unittest.TestCase):

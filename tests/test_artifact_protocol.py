@@ -162,9 +162,10 @@ class ArtifactProtocolTests(unittest.TestCase):
     def test_basis_revision_schema_requires_resolution_only_on_affected_item(self):
         shape=basis_review.review_shape(['B001','B002'],{'basis_id':'B001'})
         value={'verdict':'PASS','notes':'Synthetic','source':'Synthetic','application':'Synthetic',
-               'locations':['/items/B001/statement','/items/B001/actual_type']}
+               'classification':'Prepared foundation','handoff':'Use its checked declaration'}
         for key,resolution,valid in [('B001',False,False),('B001',True,True),('B002',False,True),('B002',True,False)]:
-            args={'pointer':'/items/'+key,'coverage':'assessed','judgment':{**value,**({'resolution':'Answered'} if resolution else {})}}
+            locations=['/items/'+key+'/'+field for field in ('statement','actual_type','category','compatibility','handoff')]
+            args={'pointer':'/items/'+key,'coverage':'assessed','judgment':{**value,'locations':locations,**({'resolution':'Answered'} if resolution else {})}}
             with self.subTest(key=key,resolution=resolution):
                 if valid:p.validate(args,shape.record_schema())
                 else:

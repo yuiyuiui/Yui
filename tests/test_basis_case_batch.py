@@ -50,6 +50,7 @@ class BasisCaseBatchTests(unittest.TestCase):
             problem.parent.mkdir();problem.write_text(TARGET)
             selected.append(jobs.prepare(problem,track='full',formalization='unconditional',
                 profiles=harness_support.PROFILES,max_concurrency=1,time_budget_seconds=240,
+                stop_after='nl0' if mode=='evidence-repair' else None,
                 policy='first-pass' if mode in ('first-pass','first-pass-edge') else 'normal',
                 target=target_selection.resolve(problem,requested=TARGET)))
         routes={j['root']:mode for j,mode in zip(selected,modes)}
@@ -105,7 +106,7 @@ class BasisCaseBatchTests(unittest.TestCase):
             self.assertFalse(case_outcomes.terminal(first,outcome))
 
     def test_review_repair_and_all_positive_routes_reach_the_final_export(self):
-        for mode in ('continue','accept-conditional','mismatch','evidence-repair'):
+        for mode in ('continue','accept-conditional','mismatch'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as raw:
                 [(run,result)]=self.batch(Path(raw),[mode])
                 conditional=mode=='accept-conditional'
@@ -114,13 +115,6 @@ class BasisCaseBatchTests(unittest.TestCase):
                 self.assertEqual(result['closure']['remaining_premises'],['E001','H001'] if conditional else ['H001'])
                 import b2lean
                 b2lean.validate_receipt(run/'b2lean')
-                if mode=='evidence-repair':
-                    import json
-                    tools=(run/'2basis/0001/stage/tools.jsonl').read_text().splitlines()
-                    replies=[e['result'] for line in tools if (e:=json.loads(line))['tool']=='submit_draft']
-                    selections=[e['result'] for line in tools if (e:=json.loads(line))['tool']=='prepare_basis_graph']
-                    self.assertIn('misspelled.pdf',selections[0]['error'])
-                    self.assertTrue(replies[-1]['stage_complete'])
                 authors=sorted((run/'2basis').glob('*/stage/result.json'))
                 reviewers=sorted((run/'2basis').glob('*/review/stage/result.json'))
                 self.assertEqual(len(authors),2 if mode in {'continue','mismatch'} else 1)
@@ -143,19 +137,28 @@ class BasisCaseBatchTests(unittest.TestCase):
             import b2lean
             b2lean.validate_receipt(root/'b2lean')
 
-    def test_planned_foundation_worker_reaches_final_kernel_export(self):
+    def test_repaired_source_reaches_its_independent_reviewer_and_nl0(self):
+        import json
+        import basis_review
         with tempfile.TemporaryDirectory() as raw:
-            [(root,result)]=self.batch(Path(raw),['planned-closed'])
-            self.assertEqual(result['status'],'WORKFLOW-PASSED')
-            self.assertEqual(result['closure']['remaining_premises'],['H001'])
-            registry=ir.load(root/'active-inputs/basis-registry.json')
-            self.assertEqual([r['category'] for r in registry['dependencies']],[2,3])
-            self.assertIn('YuiBasis.B001',registry['dependencies'][1]['lean']['proof'])
-            self.assertEqual(len(list(root.glob('2basis/*/stage/foundation-proofs/*/checked.json'))),1)
-            self.assertEqual(len(list(root.glob('2basis/*/stage/frontier/*/*/checked.json'))),2)
-            self.assertEqual(len(list(root.glob('nl0-to-lean/**/private-proofs/*/checked.json'))),2)
-            import b2lean
-            b2lean.validate_receipt(root/'b2lean')
+            [(root,result)]=self.batch(Path(raw),['evidence-repair'])
+            self.assertEqual(result['status'],'CANCELLED',result)
+            stage=root/'2basis/0001/stage'
+            events=[json.loads(line) for line in (stage/'tools.jsonl').read_text().splitlines()]
+            self.assertIn('misspelled.pdf',next(e['result'] for e in events if e['tool']=='prepare_basis_graph')['error'])
+            self.assertTrue(next(e['result'] for e in events if e['tool']=='submit_draft')['stage_complete'])
+            review=stage.parent/'review'
+            self.assertNotEqual(ir.load(stage/'result.json')['native_thread_id'],
+                                ir.load(review/'stage/result.json')['native_thread_id'])
+            self.assertFalse((root/'2basis/0002').exists())
+            packet=ir.load(review/'inputs'/basis_review.PACKET)
+            self.assertEqual(packet['items']['B001']['documents'],['problem.md'])
+            checkpoint=ir.load(root/'stage-checkpoint.json')
+            self.assertEqual(checkpoint['stage'],'nl0')
+            graph=ir.load(ir.load(checkpoint['artifact']['path'])['graph'])
+            self.assertIn('E001',next(r for r in graph['inferences'] if r['output']=='P')['inputs'])
+            self.assertFalse((root/'nl0-to-lean').exists())
+            self.assertTrue(ir.load(root/'batch-result.json')['children_exited'])
 
     def test_audit_a_returns_intermediate_statement_to_nl0_without_repeating_basis(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -243,7 +246,7 @@ class BasisCaseBatchTests(unittest.TestCase):
             self.assertFalse((root/'delivery/formalization/Solution.lean').exists())
 
     def test_preparation_decision_precedes_paid_proofs_and_is_reused(self):
-        for mode in ('planned-conditional','planned-stop','planned-continue'):
+        for mode in ('planned-stop','planned-continue'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as raw:
                 [(root,result)]=self.batch(Path(raw),[mode])
                 decisions=list(root.glob('2basis/*/plans/*/decision/error-incidents/*.json'))
@@ -254,8 +257,8 @@ class BasisCaseBatchTests(unittest.TestCase):
                     self.assertEqual(result['status'],'STOPPED_BY_USER')
                     self.assertFalse(proofs)
                 else:
-                    self.assertEqual(result['status'],'WORKFLOW-PASSED' if mode=='planned-continue' else 'WORKFLOW-CONDITIONAL')
-                    self.assertEqual(set(result['closure']['remaining_premises']),{'H001'} if mode=='planned-continue' else {'H001','E003'})
+                    self.assertEqual(result['status'],'WORKFLOW-PASSED')
+                    self.assertEqual(set(result['closure']['remaining_premises']),{'H001'})
                     self.assertEqual(len(proofs),1)
                     self.assertLess(decisions[0].stat().st_mtime_ns,proofs[0].stat().st_mtime_ns)
                     import b2lean

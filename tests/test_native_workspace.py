@@ -85,7 +85,7 @@ class NativeWorkspaceTests(unittest.TestCase):
         import audit_b
         from audit_b_fixtures import prepare_control
         out=prepare_control(self.root/'audit-case')
-        def unknown_assembly(c,mapping,formal,destination,work):
+        def unknown_assembly(c,mapping,formal,destination,work,*,checks):
             file=work/'output/Assembly.lean';file.write_text(formal)
             return self.unknown(file,work)
         with patch.object(ir,'check',return_value={'exit_code':0}), \

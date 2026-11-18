@@ -4,6 +4,37 @@ Run [local adaptation](../setup/README.md) before native testing. Test output,
 compiler scratch, child processes and machine-specific configuration stay
 outside the tracked source tree.
 
+## Choose a test scope
+
+`selftest --quick` checks the public workflow package, input bindings,
+acceptance rules and runtime snapshots. For a local change, add each affected
+area. The runner executes the shared core once and includes the selected
+producers and consumers. For a release, a maintenance baseline or a change to
+shared orchestration, use full discovery.
+
+```sh
+.venv/bin/python -B nl0/scripts/yui.py selftest --quick
+.venv/bin/python -B nl0/scripts/yui.py selftest --quick --area basis
+.venv/bin/python -B nl0/scripts/yui.py selftest --quick --area cleanup --area recovery
+.venv/bin/python -B nl0/scripts/yui.py selftest --all
+```
+
+| Area | Behavior checked |
+| --- | --- |
+| `basis` | Correct a rejected source in the author session and verify the frozen source at the NL0 handoff |
+| `cleanup` | Verify file ownership, stop an owned process tree, and protect unrelated processes |
+| `lean` | Bind a proof packet to its inputs, inspect a Lean export and reject changed review material |
+| `recovery` | Qualify retained proof work and reject unsafe process or checkpoint reuse |
+| `runner` | Check test discovery, selection, environment handling and reported outcomes |
+
+The [quick manifest](quick.json) lists the core and area selectors. Both
+`selftest` and `selftest --all` discover the full suite. New tests enter full
+discovery through the usual environment catalogue. Each report records its
+scope, areas, selected test IDs, outcomes and wall time. Quick runs write
+`.runtime/test-report-quick.json`. Full runs use `.runtime/test-report.json`.
+
+## Select an environment or individual tests
+
 ```sh
 .venv/bin/python -B nl0/scripts/yui.py selftest --group none
 .venv/bin/python -B nl0/scripts/yui.py selftest --group current
@@ -31,7 +62,7 @@ including in quiet output and JSON. They never count as cross-version passes.
 The overall result says `PASSED_WITH_SKIPS` and includes outcome counts.
 Reports identify both selected environments when comparison is requested.
 `--report /absolute/path/report.json` retains an execution report outside the
-repository; selftest's machine-local report is `.runtime/test-report.json`.
+repository.
 
 Each selected group gets its own process and temporary root. The runner cleans
 owned scratch and child processes on success, failure and catchable

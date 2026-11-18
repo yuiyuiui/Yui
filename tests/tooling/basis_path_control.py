@@ -322,6 +322,12 @@ if __name__ == '__main__':
             try:return execute(stage)
             finally:fixture.stage=prior
         unexpected=[]
+        import workflow_checkpoint
+        save_checkpoint=workflow_checkpoint.write
+        def operator_checkpoint(path,record):
+            save_checkpoint(path,record)
+            if mode=='evidence-repair' and record.get('status')=='WAITING' and record['stage']=='nl0':
+                queue_controller.cancel_batch([run])
         register=execution_state.Recorder.register_process
         def registered(recorder,process,kind,*args,**kw):
             result=register(recorder,process,kind,*args,**kw)
@@ -353,9 +359,10 @@ if __name__ == '__main__':
                 gate.wait=cancel
             return pause(gate,error,**options)
         with patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
-             patch.object(execution_state.Recorder,'register_process',registered):
+             patch.object(execution_state.Recorder,'register_process',registered), \
+             patch.object(workflow_checkpoint,'write',operator_checkpoint):
             result=case_runner.execute(job)
-    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge'}:
+    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge','evidence-repair'}:
         print('Fixture failures:',unexpected,fixture.failures,'result:',result,flush=True)
         raise SystemExit(2)
     raise SystemExit(0 if result['completion']['workflow_completed'] else 1)

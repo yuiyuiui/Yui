@@ -172,12 +172,43 @@ def inventory(repo, outputs=None):
             'snapshots': snapshots, 'batches': batches, 'errors': errors}
 
 
+def workspace_cwd_pids(candidates, workspaces, table, errors):
+    """Read cwd records for candidate PIDs from this snapshot. lsof uses NUL field delimiters."""
+    directories={os.fsencode(Path(path)/subdir) for path in workspaces for subdir in ('input','output')}
+    owned=set()
+    for start in range(0,len(candidates),256):
+        batch=candidates[start:start+256]
+        missing=set(batch)
+        result=subprocess.run(['lsof','-a','-p',','.join(map(str,batch)),'-d','cwd','-F0pn'],
+                              capture_output=True,timeout=5)
+        # A process exiting during the query gives status 1, even with valid rows for its peers.
+        if result.returncode not in (0,1):
+            raise OSError('lsof cwd query failed with exit code '+str(result.returncode))
+        pid=None
+        for field in result.stdout.split(b'\0'):
+            field=field.removeprefix(b'\n')
+            if field.startswith(b'p'):
+                pid=int(field[1:])
+                if pid not in batch:raise ValueError('Unexpected PID in lsof cwd response')
+            elif field.startswith(b'n/') and pid is not None:
+                missing.discard(pid)
+                if field[1:].rstrip(b'/') in directories:
+                    owned.add(pid)
+        if missing:
+            fresh=process_table()
+            for pid in sorted(missing):
+                if matching(table[pid],fresh):
+                    errors.append('Unconfirmed working directory for live process '+str(pid))
+    return owned
+
+
 def discover(inv, table, repo):
     """Exact identities, their descendants, and processes using owned workspaces."""
     owned = {r['pid']: table[r['pid']] for r in inv['records'] if matching(r, table)}
     roots = [str(p.resolve())+'/' for p in inv['roots']]
     workspaces = [str(p)+'/' for p in inv['workspaces']]
     entries = [str(CORE/'nl0/scripts/case_runner.py')]
+    cwd_candidates=[]
     for pid, row in table.items():
         if pid == os.getpid() or row['stat'].startswith('Z'):
             continue
@@ -192,14 +223,11 @@ def discover(inv, table, repo):
             owned[pid] = row
         elif args and Path(args[0]).name in {'lean', 'sandbox-exec'} and any(arg.startswith(root) for arg in args for root in roots):
             owned[pid] = row
-        elif workspaces and re.search(r'\bapp-server\b|/lean(?:\s|$)', cmd):
+        elif workspaces and pid not in owned and re.search(r'\bapp-server\b|/lean(?:\s|$)', cmd):
             # Old app-server argv can omit its sandbox profile after exec.
-            cwd = subprocess.run(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'],
-                                 capture_output=True, text=True, timeout=5)
-            if any(line.startswith('n') and any(line[1:].rstrip('/')+'/' == work+'input/' or
-                       line[1:].rstrip('/')+'/' == work+'output/' for work in workspaces)
-                   for line in cwd.stdout.splitlines()):
-                owned[pid] = row
+            cwd_candidates.append(pid)
+    for pid in workspace_cwd_pids(cwd_candidates,inv['workspaces'],table,inv['errors']):
+        owned[pid]=table[pid]
     changed = True
     while changed:
         added = {pid: row for pid, row in table.items() if row['ppid'] in owned and

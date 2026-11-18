@@ -20,7 +20,8 @@ from native_carrier import NativeEventTimeout, NativeCarrier
 
 
 def contract(root):
-    packet={'items':{'B001':{'statement':'fixture','actual_type':'True'}}}
+    packet={'items':{'B001':{'statement':'fixture','actual_type':'True','category':2,
+                             'compatibility':'adapted','handoff':{'declaration':'YuiBasis.B001'}}}}
     def validate(value):
         return basis_review.validate_rows(value,['B001'],packet=packet)
     return ReviewContract.structured(root,basis_review.review_shape(['B001']),validate,
@@ -30,7 +31,8 @@ def contract(root):
 def draft():
     return {'items':{'B001':{'verdict':'UNVERIFIED','notes':'Synthetic fixture.',
             'source':'Input','application':'Compare the bound proposition.',
-            'locations':['/items/B001/statement','/items/B001/actual_type']}},
+            'classification':'Adapted foundation, category 2.','handoff':'Use the prepared YuiBasis.B001.',
+            'locations':['/items/B001/'+field for field in ('statement','actual_type','category','compatibility','handoff')]}},
             'coverage':{'/items/B001':'assessed'}}
 
 

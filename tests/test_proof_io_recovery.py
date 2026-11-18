@@ -8,20 +8,23 @@ from unittest.mock import patch
 
 import proof_io_recovery as recovery
 import proof_reuse
+import jobs
+import target_selection
 from controller_common import write
 
 
 class ProofIORecoveryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.root = (Path(self.tmp.name)/'old').resolve(); self.root.mkdir()
+        self.root = (Path(self.tmp.name)/'old').resolve()
         self.workflow = self.root/'nl0-to-lean/0001/workflow'
         self.prior = self.workflow/'proof-run'
         self.interface = self.workflow.parent/'interface'
-        self.profile = {'id': 'test-model', 'reasoning_effort': 'xhigh', 'speed': 'standard'}
-        self.job = {'root': str(self.root), 'track': 'full', 'formalization': 'unconditional',
-                    'policy': 'normal', 'time_budget_seconds': None, 'profiles': {'lean': self.profile}}
-        write(self.root/'job.json', self.job)
+        problem=self.root.parent/'proof.md'
+        problem.write_text('Synthetic proof of True.')
+        self.job=jobs.prepare(problem,track='full',formalization='unconditional',output=self.root,
+                              profiles=harness_support.PROFILES,target=target_selection.resolve(problem,requested='True'))
+        self.profile=self.job['profiles']['lean']
         self.tasks = {}
         for sid, state in [('T001', 'LOCAL_CHECKED'), ('T002', 'PAUSED_ERROR')]:
             stage = self.prior/'workers'/sid
@@ -42,10 +45,9 @@ class ProofIORecoveryTests(unittest.TestCase):
                   self.interface/'accepted-interface-paths.json', self.prior/'inputs/contract.json']:
             write(p, {})
         write(self.prior/'inputs/plan.json', {'steps': [{'id': sid} for sid in self.tasks]})
-        (self.root/'logs').mkdir(); (self.root/'logs/controller.log').write_text(
+        (self.root/'logs').mkdir(exist_ok=True); (self.root/'logs/controller.log').write_text(
             'OSError: [Errno 28] No space left on device')
         self.patches = [
-            patch('jobs.validate', side_effect=lambda value, **kw: value),
             patch('owner_observation.snapshot', return_value={'all_process_exits_verified': True}),
             patch('full_workflow.workflow.bound', return_value={
                 'bindings': [], 'frozen_input_bindings': [],

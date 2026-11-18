@@ -46,12 +46,11 @@ class MinimalTranslationTests(unittest.TestCase):
         self.assertFalse((self.root/'author/accepted-interface-paths.json').exists())
 
     def test_reference_mode_does_not_expand_roots_and_notes_are_not_cross_imported(self):
-        data=[{'background_notes':{}},None,None,{'H001':{'kind':'hypothesis'}},
+        data=[{'background_notes':{'BG001':{'fact':'A reference-only fact.'}}},None,None,{'H001':{'kind':'hypothesis'}},
               {'R001':{'inputs':['H001']}},None]
-        with patch.object(bg.background,'effective',side_effect=AssertionError('must not promote')):
-            props,steps=bg.effective(data)
+        props,steps=bg.effective(data)
         self.assertEqual(set(props),{'H001'})
-        self.assertEqual(steps['R001']['inputs'],['H001'])
+        self.assertEqual(steps,{'R001':{'inputs':['H001']}})
         source={'paragraph_mapping':{'S001':{'inference':'R001','paragraph':'S001'},
                                      'S002':{'inference':'R002','paragraph':'S001'}}}
         supplement={'notes':{'R001':[{'id':'BG001','at':'/inference/argument/0/text'}]}}

@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -14,7 +16,21 @@ TESTS=Path(__file__).resolve().parent
 CORE=TESTS.parent
 sys.path[:0]=[str(CORE/'nl0/scripts'),str(CORE/'nl02lean/scripts')]
 import local_config
+from execution_state import atomic
 rules=local_config.rules
+
+
+def check_selector(name, modules):
+    parts=name.split('.')
+    if parts[0] in modules and len(parts) <= 3:
+        if len(parts)==1:
+            return
+        tree=ast.parse((TESTS/(parts[0]+'.py')).read_text())
+        cls=next((n for n in tree.body if isinstance(n,ast.ClassDef) and n.name==parts[1]),None)
+        if cls is not None and (len(parts)==2 or any(isinstance(n,ast.FunctionDef)
+                and n.name==parts[2] and n.name.startswith('test_') for n in cls.body)):
+            return
+    raise ValueError('Unknown test selector: '+name)
 
 
 def catalogue():
@@ -26,12 +42,25 @@ def catalogue():
     for row in [*value['modules'].values(),*value['classes'].values(),*value['tests'].values()]:
         rules.test_requirement(row,None)
     for identifier in [*value['classes'],*value['tests']]:
-        parts=identifier.split('.')
-        tree=ast.parse((TESTS/(parts[0]+'.py')).read_text())
-        cls=next((node for node in tree.body if isinstance(node,ast.ClassDef) and node.name==parts[1]),None)
-        if cls is None or (len(parts)>2 and not any(isinstance(n,ast.FunctionDef) and n.name==parts[2] for n in cls.body)):
-            raise ValueError('Stale test requirement override: '+identifier)
+        check_selector(identifier,modules)
     return value
+
+
+def quick_selectors(areas, modules):
+    profile=json.loads((TESTS/'quick.json').read_text())
+    unknown=set(areas)-profile['areas'].keys()
+    if unknown:
+        raise ValueError('Unknown quick area: '+', '.join(sorted(unknown))+
+                         '. Available: '+', '.join(sorted(profile['areas'])))
+    selected=[]
+    for names in [profile['core'], *(profile['areas'][area] for area in areas)]:
+        if not isinstance(names,list) or not names or not all(isinstance(name,str) for name in names):
+            raise ValueError('Empty or invalid quick test selection')
+        selected.extend(names)
+    names=list(dict.fromkeys(selected))
+    for name in names:
+        check_selector(name,modules)
+    return names
 
 
 def requirement(identifier, data):
@@ -53,11 +82,14 @@ def flatten(suite):
 def parser():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--group',choices=['none','current','exact','all'],default='all')
-    p.add_argument('--all',action='store_true',help='Run all applicable classes; report exact-history mismatches')
+    scope=p.add_mutually_exclusive_group()
+    scope.add_argument('--all',action='store_true',help='Run all applicable classes; report exact-history mismatches')
+    scope.add_argument('--quick',action='store_true',help='Run the quick core and any requested areas')
+    p.add_argument('--area',action='append',default=[],help='Quick test area (repeatable)')
     p.add_argument('--environment',type=Path,help='Selected verified environment descriptor')
     p.add_argument('--historical-environment',type=Path,help='Explicit separate environment for exact-history tests')
     p.add_argument('--comparison-environment',type=Path,help='Optional second environment for porting checks')
-    p.add_argument('--report',type=Path,default=CORE/'.runtime/test-report.json')
+    p.add_argument('--report',type=Path)
     p.add_argument('-v','--verbose',action='store_true')
     p.add_argument('-q','--quiet',action='store_true')
     p.add_argument('-f','--failfast',action='store_true')
@@ -70,6 +102,14 @@ def load_suite(args,modules):
     loader=unittest.TestLoader()
     names=[s for s in args.selectors if s!='discover']
     if names:
+        if args.quick:
+            suite=unittest.TestSuite()
+            for name in names:
+                cases=loader.loadTestsFromName(name)
+                if not cases.countTestCases():
+                    raise ValueError('Quick selector contains no tests: '+name)
+                suite.addTests(cases)
+            return suite
         return loader.loadTestsFromNames(names)
     return loader.loadTestsFromNames(sorted(name for name in modules if fnmatch.fnmatch(name+'.py',args.p)))
 
@@ -153,8 +193,22 @@ def worker(arguments):
 
 
 def dispatch(arguments,launch):
-    args=parser().parse_args(arguments);data=catalogue()
+    started=time.monotonic()
+    cli=parser()
+    args=cli.parse_args(arguments);data=catalogue()
     selectors=[s for s in args.selectors if s!='discover']
+    areas=list(dict.fromkeys(args.area))
+    if areas and not args.quick:
+        cli.error('--area requires --quick')
+    if args.quick:
+        if args.selectors or args.p!='test_*.py' or args.s!=str(TESTS):
+            cli.error('--quick takes areas; use named selectors or discovery patterns separately')
+        try:
+            selectors=quick_selectors(areas,data['modules'])
+        except ValueError as error:
+            cli.error(str(error))
+        arguments=[*arguments,*selectors]
+    args.report=args.report or CORE/'.runtime'/('test-report-quick.json' if args.quick else 'test-report.json')
     requested_modules={s.split('.')[0] for s in selectors} if selectors else {
         name for name in data['modules'] if fnmatch.fnmatch(name+'.py',args.p)}
     if args.all:args.group='all'
@@ -174,11 +228,18 @@ def dispatch(arguments,launch):
         possible|={row['lean'] for name,row in data['classes'].items() if name.split('.')[0] in requested_modules}
         possible|={row['lean'] for name,row in data['tests'].items() if name.split('.')[0] in requested_modules}
     groups=[g for g in ('none','current','exact') if g in possible and (args.group=='all' or args.group==g)]
-    report={'passed':False,'requested_groups':groups,'not_requested_groups':sorted({'none','current','exact'}-set(groups)),
+    profile='full'
+    if args.quick:
+        profile='quick'
+    elif selectors or args.group!='all' or args.p!='test_*.py':
+        profile='targeted'
+    report={'passed':False,'profile':profile,'areas':areas,'requested_groups':groups,'not_requested_groups':sorted({'none','current','exact'}-set(groups)),
             'batches':[],'scope':'Software tests; deterministic provider fixtures are not live model acceptance.'}
     args.report.parent.mkdir(parents=True,exist_ok=True)
     def save():
-        args.report.write_text(json.dumps(report,indent=2)+'\n')
+        report['elapsed_seconds']=time.monotonic()-started
+        report['selected_tests']=[key for batch in report['batches'] for key in batch.get('decisions',{})]
+        atomic(args.report,report)
     try:
         selected=None
         if any(g!='none' for g in groups):
@@ -194,7 +255,7 @@ def dispatch(arguments,launch):
                      if group=='exact' and args.historical_environment else selected)
             if group=='none':current=None
             worker_file=args.report.with_name(args.report.stem+'-'+group+'.json')
-            values={'YUI_TEST_GROUP':group,'YUI_TEST_WORKER_REPORT':str(worker_file.resolve()),
+            values={'YUI_TEST_GROUP':group,
                 'YUI_FROZEN_LOCAL_CONFIG':'null','YUI_LEAN_ENVIRONMENT':json.dumps(current),
                 'YUI_TEST_COMPARISON_ENVIRONMENT':json.dumps(comparison),
                 'YUI_TEST_UPSTREAM_ENVIRONMENT':'','YUI_TEST_ALTERNATE_ENVIRONMENT':'',
@@ -206,13 +267,18 @@ def dispatch(arguments,launch):
                 values['YUI_TEST_UPSTREAM_ENVIRONMENT']=str(args.comparison_environment.resolve())
                 values['YUI_TEST_ALTERNATE_ENVIRONMENT']=str(args.comparison_environment.resolve())
             # Each group gets its own process and cleanup boundary; class setup cannot leak between groups.
-            worker_file.unlink(missing_ok=True)
-            code=launch(arguments,test_env=values)
-            batch=json.loads(worker_file.read_text()) if worker_file.is_file() else {
-                'group':group,'passed':False,'error':'Test worker failed before writing its report'}
+            with tempfile.TemporaryDirectory(prefix='yui-test-report-',dir=args.report.parent) as scratch:
+                private_report=Path(scratch)/worker_file.name
+                values['YUI_TEST_WORKER_REPORT']=str(private_report.resolve())
+                code=launch(arguments,test_env=values)
+                batch=json.loads(private_report.read_text()) if private_report.is_file() else {
+                    'group':group,'passed':False,'error':'Test worker failed before writing its report'}
             batch['exit_code']=code;batch['passed']=bool(batch.get('passed') and code==0)
+            atomic(worker_file,batch)
             report['batches'].append(batch);save()
         report['passed']=bool(groups) and all(row['exit_code']==0 and row['passed'] for row in report['batches'])
+        if args.quick and not any(batch.get('decisions') for batch in report['batches']):
+            report['passed']=False
     except Exception as error:
         report['error']=type(error).__name__+': '+str(error)
         report['status']='ENVIRONMENT_REQUIRED_OR_TEST_SETUP_FAILED'
@@ -221,6 +287,8 @@ def dispatch(arguments,launch):
     if 'error' not in report:
         report['status']=('PASSED_WITH_SKIPS' if 'SKIP' in outcomes else 'PASSED') if report['passed'] else 'FAILED'
     save()
+    print('test profile: '+profile+(' ('+', '.join(areas)+')' if areas else '')+
+          f" | {len(report['selected_tests'])} selected | {report['elapsed_seconds']:.2f}s",flush=True)
     print('test report: '+str(args.report.resolve()),flush=True)
     print('test result: '+report['status']+' '+json.dumps(report['outcome_counts']),flush=True)
     print('test groups: '+', '.join(row['group']+'='+('PASS' if row['passed'] else 'FAIL')
