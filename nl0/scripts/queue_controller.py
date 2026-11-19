@@ -20,12 +20,30 @@ def validate_job(value):
     return job_contract.validate(value)
 
 
+def cancel_saved_pause(root, record, request):
+    incident=case_outcomes.saved_pause(root,record)
+    if incident is None:return
+    result={**record['result'],'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED'}
+    path=root/'execution-status.json'
+    state=json.loads(path.read_text())
+    state['result']={'status':'CANCELLED','outcome':result}
+    write(path,state)
+    write(root/'case-result.json',{**record,'result':result})
+    # Keep the archived incident and its binding intact for later recovery.
+    write(root/'logs/controller-errors/error-state.json',
+          {**incident,'state':'CANCELLED','cancelled_at_utc':request['requested_at_utc']})
+
+
 def cancel_batch(directories):
     for directory in directories:
         root=Path(directory).resolve()
         if not (root/job_contract.MARKER).is_file():raise ValueError('Unknown owned run')
         write(root/'cancel-request.json',{'external_cancel':True})
-        if (root/'execution-status.json').is_file():request_cancel(root)
+        if (root/'execution-status.json').is_file():
+            request=request_cancel(root)
+            try:record=json.loads((root/'case-result.json').read_text())
+            except (OSError,ValueError):continue  # The live owner still has the cancellation request.
+            cancel_saved_pause(root,record,request)
 
 
 def launch_case(job_file,out):
@@ -90,9 +108,12 @@ def serve(jobs,*,case_concurrency=None):
                 try:record=json.loads(result.read_text())
                 except (OSError,ValueError) as error:record={'read_error':str(error)}
                 value=record.get('result') if isinstance(record,dict) else None
+                paused=case_outcomes.saved_pause(root,record)
+                if paused and (root/'cancel-request.json').exists():
+                    cancel_saved_pause(root,record,request_cancel(root))
                 bound_stop=(not isinstance(value,dict) or value.get('status')!='STOPPED_BY_USER'
                             or record.get('job')==bind(root/'job.json'))
-                if not bound_stop or not case_outcomes.terminal(root,value):
+                if not bound_stop or not (paused or case_outcomes.terminal(root,value)):
                     from fault_control import Gate
                     from execution_state import Cancelled
                     try:

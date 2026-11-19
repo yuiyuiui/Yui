@@ -1,9 +1,9 @@
 # Fault treatment, retained pause, and authorized exit
 
 Classification describes what failed. Treatment decides whether to retry or
-wait for an operator. Neither decision authorizes ending a workflow or deleting
-its workspace. The local Python controllers own these transitions even when
-the network and model service are unavailable.
+wait for an operator. A case with a saved pause can release its execution
+resources while remaining incomplete. The local Python controllers own these
+transitions even when the network and model service are unavailable.
 
 | Fault | Category | Automatic treatment |
 | --- | --- | --- |
@@ -42,8 +42,8 @@ Whole-case and stage totals remain unlimited by default. An explicitly selected
 whole-case deadline is shared across authoring, Audit A, translation, queues,
 native checks and service retry waits. On expiry, workers stop new work, request
 the bounded interruption of any current native generation, save their actual
-results and release execution slots before the case controller pauses. They
-retain their owned carriers/workspaces; expiry grants no cleanup authority.
+results and release execution slots before the case controller saves the pause
+and releases its temporary resources.
 Already-completed tool results may be redelivered by exact call ID, but new late
 tool calls are not executed while interruption is being confirmed.
 
@@ -100,9 +100,11 @@ an actual local fault; a controller-requested interrupted work completion is
 not a network error. No Python HTTP headers, sockets or response tails are
 involved in this decision.
 
-Nonretryable faults and exhausted retries enter `PAUSED_ERROR`. The controller
-waits locally without model calls or automatic phase replay. It retains its
-carrier, temporary workspace, candidates and checkpoints. Successfully submitted roles wait for their specified handoff: global PASS,
+Nonretryable faults and exhausted retries enter `PAUSED_ERROR`. A live gate
+waits without model calls or automatic phase replay and retains its resources.
+An unwound case with no live control path stores a bound pause instead and
+releases its batch slot. Successfully submitted roles wait for their specified
+handoff: global PASS,
 all-local PASS, accepted interface freeze or final delivery. Save the outputs and
 bound reviews before closing those roles. A draft submission alone is not a
 closing boundary; its own conversation remains reusable during revisions.
@@ -169,6 +171,9 @@ Resource termination/deletion is authorized only by:
    translation outputs/native files, retains original NL0/A and cost ledgers, then
    reruns translation. A stale incident, changed owner or unconfirmed cleanup
    blocks the action. Earlier failures are never relabeled PASS.
+4. An unwound case owner with a bound pause and no live control path. It
+   releases only owned execution resources. The original failure, saved work,
+   and diagnostics remain available for an explicit next action.
 
 Early B-final blocking retains incomplete coverage and actual findings. Explicit
 `deliver-actual` binds the existing findings report, user decision and compiled

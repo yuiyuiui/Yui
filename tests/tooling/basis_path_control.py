@@ -378,6 +378,9 @@ if __name__ == '__main__':
              patch.object(execution_state.Recorder,'register_process',registered), \
              patch.object(workflow_checkpoint,'write',operator_checkpoint):
             result=case_runner.execute(job)
+            if result['status']=='PAUSED_ERROR' and not unexpected:
+                queue_controller.cancel_batch([run])
+                result=ir.load(run/'case-result.json')['result']
     if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge','evidence-repair'}:
         print('Fixture failures:',unexpected,fixture.failures,'result:',result,flush=True)
         raise SystemExit(2)

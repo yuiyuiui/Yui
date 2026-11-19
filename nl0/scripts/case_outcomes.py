@@ -1,4 +1,4 @@
-"""Terminal case classification shared by the case owner and its batch."""
+"""Case outcomes shared by the case owner and its batch."""
 import json
 from pathlib import Path
 import re
@@ -7,6 +7,29 @@ from controller_common import bind
 
 PASSED = {'DRAFT-AUDIT-PASSED', 'WORKFLOW-PASSED', 'AUDIT-B-PASSED'}
 CONDITIONAL = {'DRAFT-AUDIT-CONDITIONAL', 'WORKFLOW-CONDITIONAL', 'AUDIT-B-CONDITIONAL'}
+
+
+def saved_pause(root, record):
+    """Read an exited-case pause from its bound incident, independently of acceptance."""
+    try:
+        root=Path(root).resolve()
+        result=record['result']
+        if result['status'] not in {'PAUSED_ERROR','CANCELLED'} or 'pause_incident' not in result:
+            return None
+        ref=result['pause_incident']
+        path=Path(ref['path'])
+        logs=root/'logs/controller-errors'
+        if path.parent!=logs/'error-incidents' or not re.fullmatch(r'[a-f0-9]{32}',path.stem) or path.suffix!='.json':
+            return None
+        if bind(path)!=ref or record['job']!=bind(root/'job.json'):
+            return None
+        event=json.loads(path.read_text())
+        if (event['state']=='PAUSED_ERROR' and event['resumable'] is False and event['wait_for_control'] is False
+                and event['incident']==path.stem and event['root']==str(root) and event['logs']==str(logs)
+                and event['job_binding']==record['job']):
+            return event
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def basis_checkpoint(artifact, review, *, scoped):

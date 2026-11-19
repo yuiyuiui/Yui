@@ -498,10 +498,16 @@ class Recorder:
         if status=='STOPPED_BY_USER':
             from case_outcomes import verify_basis_decision
             verify_basis_decision(self.root,result['outcome']['user_decision'],'stop')
+        if status=='PAUSED_ERROR':
+            from case_outcomes import saved_pause
+            from controller_common import bind
+            if not saved_pause(self.root,{'job':bind(self.root/'job.json'),'result':result.get('outcome')}):
+                raise ValueError('An exited case pause needs its saved incident')
         self.retained_stages=[(s,g) for s,g in self.retained_stages if not getattr(s,'_resources_released',False)]
         authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED','STOPPED_BY_USER'} else 'WORKFLOW_FINALIZED'
             if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
-            else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'} else None)
+            else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'}
+            else 'CASE_PAUSED' if status=='PAUSED_ERROR' else None)
         if authorization is None and (self.retained_stages or self._handles):
             table = process_table()
             pending = any(cleanup_pending(row, table) for row in self.state['processes'].values())
@@ -547,7 +553,7 @@ class Recorder:
             if not any(s is stage for s,_ in self.retained_stages):self.retained_stages.append((stage,group))
 
     def release_retained(self, group, authorization):
-        # Release only at an actual validated A/final workflow gate or explicit cancel.
+        # The case owner authorizes release at the recorded lifecycle boundary.
         for stage,scope in list(self.retained_stages):
             if group!='all' and scope!=group:continue
             try:stage.release_resources(authorization)

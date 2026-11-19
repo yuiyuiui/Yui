@@ -1,8 +1,4 @@
-"""Local fault treatment and operator controls, independent of model availability.
-
-Neither a fault nor exhausted retries authorize workflow termination or cleanup.
-Only an explicit cancel or the actual acceptance/finalization boundary does.
-"""
+"""Local fault treatment and operator controls, independent of model availability."""
 from __future__ import annotations
 
 import json
@@ -166,10 +162,13 @@ class Gate:
         self.notification_attempts += 1
         operation=getattr(self,'operation',None)
         if operation is not None and self.notification_attempts==1:operation.dispatch_started(self)
+        resources = ('The case controller will release its temporary resources and exit. Drafts, checkpoints and diagnostics are saved.\n'
+                     if self.state.get('wait_for_control') is False else
+                     'Existing drafts, checkpoints and owned temporary resources are preserved; no automatic cleanup.\n')
         text = ('[Yui ERROR PAUSED] '+self.state['fault']['category']+'; stage='+self.stage+
                 '; HTTP='+str(self.state['fault']['http_statuses'])+
                 '; automatic retries='+str(self.state['retries'])+'.\n'
-                'Task is paused, not finished. Existing drafts, checkpoints and owned temporary resources are preserved; no automatic cleanup.\n'
+                'Task is paused, not finished. '+resources+
                 'Run: '+str(self.root)+'\nFull diagnostic: '+str(self.path)+'\n'
                 'Controller logs: '+str(self.logs)+
                 ('\nResume: '+shlex.join(self.state['resume_command']) if self.state['resumable'] else
@@ -196,8 +195,11 @@ class Gate:
         self.state['notification'] = {**result, 'attempts':self.notification_attempts, 'at_utc':execution.now()}
         self.persist()
 
-    def pause(self, error, *, retries=0, resumable=True, checkpoint=None, decisions=(), operation=None):
-        """Block locally until an exact-incident resume or explicit cancellation."""
+    def pause(self, error, *, retries=0, resumable=True, checkpoint=None, decisions=(), operation=None,
+              wait_for_control=True):
+        """Save an incident and wait only when the caller needs a live control path."""
+        if not wait_for_control and (resumable or decisions or operation is not None):
+            raise ValueError('A live control path requires a waiting owner')
         incident = uuid.uuid4().hex
         self.operation=operation
         details = ({'exception_type':type(error).__name__, 'message':str(error),
@@ -213,6 +215,7 @@ class Gate:
             'cleanup_authorized':False, 'notification':{'status':'PENDING'},
             'resume_command':[sys.executable, '-B', str(entry), 'resume-error', str(self.root), '--incident', incident],
             'cancel_command':[sys.executable, '-B', str(entry), 'cancel', str(self.root)]}
+        if not wait_for_control:self.state['wait_for_control']=False
         if self.stage=='source-material':
             self.state['resume_command']=[sys.executable,'-B',str(entry),'supply-material',str(self.root),'--incident',incident,'--file','<attached-file>']
         if decisions:
@@ -229,6 +232,9 @@ class Gate:
         if self.recorder is not None:
             if self.task:self.recorder.task(self.task, state='PAUSED_ERROR', activity='PAUSED_ERROR', error_state=str(self.path))
             self.recorder.flush(force=True)
+        if not wait_for_control:
+            self.check_cancel()
+            return self.state
         outbox_due = time.monotonic()+60
         seen_controls=set()
         while True:

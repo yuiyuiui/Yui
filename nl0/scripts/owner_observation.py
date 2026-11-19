@@ -166,7 +166,8 @@ def snapshot(runs):
         phase = state.get('phase') or ('QUEUED' if live else
             'CONTROLLER_EXITED_BEFORE_CASE_START' if records else 'PREPARED_NOT_STARTED')
         cases.append({'run': str(root), 'phase': phase,
-            'recorded_result': result.get('status'), 'terminal_record_present': bool(result) and not errors,
+            'recorded_result': result.get('status'),
+            'terminal_record_present': bool(result) and result.get('status')!='PAUSED_ERROR' and not errors,
             'paused_errors':[{'incident':e['incident'],'category':e['fault']['category'],
                 'path':e['path'],'notification':e.get('notification'),'resumable':e.get('resumable')} for e in errors],
             'completion': result.get('completion'),

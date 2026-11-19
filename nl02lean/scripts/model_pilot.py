@@ -572,8 +572,9 @@ class Stage(carrier.NativeCarrier):
         return result,None
 
     def release_resources(self, authorization):
-        if authorization not in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}:
-            raise ValueError('Faults do not authorize process/workspace cleanup')
+        from run_resources import RELEASE_AUTHORIZATIONS
+        if authorization not in RELEASE_AUTHORIZATIONS:
+            raise ValueError('Missing authorization for process/workspace release')
         if authorization=='ROLE_COMPLETED':
             from role_sessions import BOUNDARIES
             record=ir.load(self.logs/'role-completion.json')

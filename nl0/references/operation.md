@@ -326,11 +326,12 @@ retries. An unclassified failure remains visible rather than guessed transient.
 Retry waits are exactly 60seconds, with at most 30 retries after the original
 failure. Carrier-level provider retries are disabled. Waiting requires no model
 call and remains cancellable. Nonretryable faults, unknown/local bugs and retry
-exhaustion enter `PAUSED_ERROR`, retaining the same processes, context, drafts
-and temporary workspace. They notify the owner with the local `codex queue`
-command and wait for explicit handling; they never imply task completion or
-permission to clean up. Inspect with `yui.py errors RUN`; resume a supported live
-checkpoint with `yui.py resume-error RUN --incident ID`; cancel with `yui.py cancel RUN`.
+exhaustion enter `PAUSED_ERROR` and notify the owner with the local `codex queue`
+command. Live recovery and decision checkpoints retain their resources. If the
+case has already unwound without a live control path, its controller saves the
+incident, releases owned temporary resources and exits. The case remains
+paused. Inspect with `yui.py errors RUN`; resume a supported live checkpoint
+with `yui.py resume-error RUN --incident ID`; cancel with `yui.py cancel RUN`.
 The [error lifecycle](error-lifecycle.md) specifies categories, owner routing,
 full diagnostic logs, control guards and the only authorized exit boundaries.
 Original faults, qualifications and missing usage remain visible after recovery.
