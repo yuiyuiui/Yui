@@ -332,12 +332,15 @@ def execute(job, root=None):
                 saved=dict(result)
                 try:
                     with execution.activate(recorder),recorder.signals():
-                        Gate(root/'logs/controller-errors',recorder=recorder,task='case-controller',
-                             stage=recorder.state.get('phase')).pause(
-                            outcome_error(saved),resumable=False,
+                        gate=Gate(root/'logs/controller-errors',recorder=recorder,task='case-controller',
+                                  stage=recorder.state.get('phase'))
+                        incident=gate.pause(
+                            outcome_error(saved),resumable=False,wait_for_control=False,
                             checkpoint={'preserve_completed_work':True,'restart_whole_workflow':False,
                                 **({'source_issue_notices':saved.get('checkpoint',{}).get('source_issue_notices',[])}
                                    if saved.get('status')=='PROOF_REVIEW_REQUIRED' else {})})
+                        result={'status':'PAUSED_ERROR','retained_error':saved,'error':saved.get('error'),
+                            'pause_incident':bind(gate.logs/'error-incidents'/(incident['incident']+'.json'))}
                 except execution.Cancelled:
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
             terminal=case_outcomes.terminal(root,result)

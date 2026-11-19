@@ -25,6 +25,49 @@ import execution_state
 from execution_health import StageFailure
 
 
+def run_case_pause_fixture(job_path, phase):
+    import fault_control
+    import run_resources
+    import workflow_execution
+    from clean_stage import ArtifactStage
+    from controller_common import write
+
+    job = json.loads(Path(job_path).read_text())
+    root = Path(job['root'])
+    stage = ArtifactStage(root/'fixture-stage', 'Offline resource fixture.', phase='interface-authoring', library=False)
+    child = subprocess.Popen([sys.executable, '-B', '-c', 'import time; time.sleep(45)'],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, start_new_session=True)
+    def fail_case(job, recorder, budgets, progress):
+        progress(job['case'], phase)
+        recorder.register_process(child, 'fixture-carrier', private_group=True)
+        stage.execution, stage.proc = recorder, child
+        stage.workspace_retention = run_resources.retention(stage.work, stage.logs)
+        write(stage.logs/'result.json', {'temporary_workspace_removed':False,
+                                        'workspace_retention':stage.workspace_retention})
+        (stage.logs/'draft.txt').write_text('Retained checked work')
+        recorder.retain_stage(stage, 'lean')
+        status = 'BASIS_FINAL_CLOSURE_FAILED' if phase == 'BASIS_FINAL_CLOSURE' else 'INPUT_CONFLICT'
+        raise StageFailure(status, 'Injected case fault')
+
+    pause = fault_control.Gate.pause
+    def bounded(gate, error, **options):
+        def unexpected_wait(_):
+            raise AssertionError('An unwound case pause should exit promptly')
+        gate.wait = unexpected_wait
+        return pause(gate, error, **options)
+
+    try:
+        with patch.object(workflow_execution, 'run', fail_case), patch.object(fault_control.Gate, 'pause', bounded), \
+             patch.object(fault_control, 'queue_notification', return_value={'status':'PENDING'}):
+            case_runner.execute(job)
+            if child.poll() is None or stage.work.exists():
+                raise AssertionError('The case controller left a carrier or temporary workspace behind')
+    finally:
+        if child.poll() is None:child.kill()
+        child.wait(timeout=5)
+        if stage.work.exists():shutil.rmtree(stage.work)
+
+
 
 class JobEntryTests(unittest.TestCase):
     def setUp(self):
@@ -89,6 +132,64 @@ class JobEntryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):jobs.validate(job)
         with self.assertRaises(ValueError):self.job(output=CORE/'not-a-run')
         with self.assertRaises(ValueError):self.job(output=self.problem.parent)
+
+    def test_case_pause_releases_temporary_resources_and_frees_the_batch_slot(self):
+        import fault_control
+        import owner_observation
+        import queue_controller
+        import run_resources
+        from controller_common import bind
+
+        first = self.job()
+        other = self.root/'sibling.md'
+        other.write_text('A second explicitly supplied proof.')
+        second = jobs.prepare(other, track='nl0', profiles=PROFILES)
+        phases = ('BASIS_FINAL_CLOSURE', 'INTERFACE_AUTHORING')
+        jobs_and_phases = list(zip((first, second), phases))
+        routes = {job['root']: phase for job, phase in jobs_and_phases}
+        children = []
+
+        def launch(job_path, root):
+            python = ("import sys; sys.path.insert(0, sys.argv[1]); "
+                      "from test_job_entry import run_case_pause_fixture; "
+                      "run_case_pause_fixture(*sys.argv[2:])")
+            child = subprocess.Popen([sys.executable, '-B', '-c', python, str(harness_support.TESTS),
+                                      str(job_path), routes[str(root)]], start_new_session=True)
+            children.append(child)
+            return child
+
+        with patch.object(queue_controller, 'launch_case', launch), \
+             patch.object(fault_control.Gate, 'pause', side_effect=AssertionError('Unexpected batch fault')):
+            outcomes = queue_controller.serve([first, second], case_concurrency=1)
+        self.assertEqual([child.returncode for child in children], [0, 0])
+        for job, phase in jobs_and_phases:
+            root = Path(job['root'])
+            result = outcomes[job['id']]
+            self.assertEqual(result['status'], 'PAUSED_ERROR')
+            self.assertFalse(result['completion']['workflow_completed'])
+            expected = 'BASIS_FINAL_CLOSURE_FAILED' if phase == 'BASIS_FINAL_CLOSURE' else 'INPUT_CONFLICT'
+            self.assertEqual(result['retained_error']['status'], expected)
+            incident, = fault_control.pending(root)
+            self.assertEqual(incident['stage'], phase)
+            self.assertFalse(incident['resumable'])
+            stage_result = json.loads((root/'fixture-stage/result.json').read_text())
+            self.assertFalse(Path(stage_result['workspace_retention']['workspace']).exists())
+            self.assertTrue(run_resources.safe_stage_workspace(stage_result))
+            self.assertEqual((root/'fixture-stage/draft.txt').read_text(), 'Retained checked work')
+            status = execution_state.inspect(root)
+            self.assertEqual(status['inspection']['residual_owned_processes'], [])
+            observation = owner_observation.snapshot([root])
+            self.assertFalse(observation['all_terminal'])
+            self.assertEqual(observation['cases'][0]['progress']['status'], 'PAUSED_ERROR')
+            for _ in range(2):queue_controller.cancel_batch([root])
+            self.assertEqual(fault_control.pending(root), [])
+            cancelled = json.loads((root/'case-result.json').read_text())['result']
+            self.assertEqual(cancelled['status'], 'CANCELLED')
+            self.assertEqual(cancelled['retained_error'], result['retained_error'])
+            self.assertEqual(bind(result['pause_incident']['path']), result['pause_incident'])
+            observation = owner_observation.snapshot([root])
+            self.assertTrue(observation['all_terminal'])
+            self.assertEqual(observation['cases'][0]['progress']['status'], 'TERMINAL')
 
     def test_altering_the_staging_manifest_cannot_add_undeclared_files(self):
         job=self.job();path=Path(job['root'])/'inputs/inputs.json'

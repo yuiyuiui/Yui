@@ -51,6 +51,16 @@ class ClosureUniverseMatrix(unittest.TestCase):
         self.assertIn('YuiBasis.B001',declarations)
         self.assertEqual(declarations['YuiClosed.P']['levels'],[])
 
+    def test_checked_basis_proof_internal_level_is_instantiated_at_final_export(self):
+        row=dependency(category=2,typ='∀ A : Type u, True',
+            proof='intro A\nexact (fun (_ : Type v) => True.intro) (ULift.{v} Unit)')
+        _,native,retained=self.check([row],parameters=[{'name':'A','type':'Type u'},{'name':'a','type':'A'}],
+            conclusion='a = a',body='have h := h_E001 A\ncases h\nrfl')
+        self.assertEqual(retained,[])
+        declarations={row['name']:row for row in native['dependencies']['declarations']}
+        self.assertEqual(len(declarations['YuiBasis.B001']['levels']),2)
+        self.assertEqual(len(declarations['YuiClosed.P']['levels']),1)
+
     def test_mixed_public_private_and_shared_levels(self):
         rows=[dependency(category=2,typ='∀ (A : Type u) (B : Type v), True',proof='intro A B; trivial'),
             dependency('B002',2,typ='∀ (B : Type v) (C : Type w), True',proof='intro B C; trivial')]

@@ -23,6 +23,7 @@ import project_config
 import strategy_bank
 import concurrency
 import execution_state as execution
+import proof_edits
 import proof_repair
 
 sys.path.insert(0, str(ir.ROOT/'nl0/scripts'))
@@ -57,7 +58,7 @@ def json_tool(name, description, field):
 
 
 class Stage(carrier.NativeCarrier):
-    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None, task_request=None):
+    def __init__(self, logs, cpath, mode, timeout, plan=None, step=None, bank_enabled=False, budget=None, instruction_arm='yui', timeout_policy=None, private_worker=False, private_sources=None, strategy_banks=None, task_request=None, *, draft_revisions=True):
         from run_resources import check_cleanup_lock, register_workspace
         check_cleanup_lock(logs)
         self.cpath = Path(cpath)
@@ -87,6 +88,8 @@ class Stage(carrier.NativeCarrier):
         if instruction_arm not in {'yui','direct'}:
             raise ValueError('Unknown instruction arm')
         self.instruction_arm = instruction_arm
+        self.draft_revisions = (draft_revisions and mode == 'proof' and instruction_arm == 'yui'
+                                and not private_worker)
         self.proof_progress=proof_repair.Progress() if mode=='proof' and instruction_arm=='yui' else None
         self.repair_request=None
         self.lean_writing_rules = None
@@ -139,6 +142,15 @@ class Stage(carrier.NativeCarrier):
         else:
             self.tools += [json_tool('check_transition','Compile a tactic body for the fixed target; no leading by, declarations, or placeholders.','proof'),
                            json_tool('submit_transition','Submit and check the final tactic body for the same target.','proof')]
+            if self.draft_revisions:
+                for spec in self.tools[-2:]:
+                    spec['inputSchema'] = proof_edits.SUBMISSION
+                    spec['description'] += (' Supply proof, or edit with a retained candidate number as base. '
+                        'Give old (unique exact text) and new (its replacement), or omit both to reuse the body.')
+                self.system += (' When a check returns draft_errors, inspect the first relevant failure in the saved candidate. '
+                    'For a local repair, use edit with its base number and exact old/new text to retain other steps. '
+                    'Read only the required draft lines if needed. Send a full proof for a changed route. '
+                    'Submit a checked draft using edit with only its base number. Every edit checks the complete resulting body.')
         if mode in {'interface','plan'}:
             import artifact_protocol
             schema=ir.interface_draft_schema() if mode=='interface' else ir.plan_schema()
@@ -242,6 +254,7 @@ class Stage(carrier.NativeCarrier):
             return self.dispatch_tool(name, args)
 
     def dispatch_tool(self, name, args):
+        observed_args = args
         if name in ('search_mathlib','read_mathlib'):
             result=super().dispatch(name,args)
             self.observe_proof_progress(name,args,result)
@@ -305,14 +318,18 @@ class Stage(carrier.NativeCarrier):
                 if ir.native_succeeded(result) and name.startswith('submit'):
                     self.accepted = value
             elif name in ('check_transition','submit_transition'):
-                value = args['proof']
+                revisions = getattr(self, 'draft_revisions', False)
+                value = proof_edits.expand(args, self.own_lean_drafts['proof']) if revisions else args['proof']
+                observed_args = {'proof': value}
                 import local_helpers
                 packaged=local_helpers.package(self.cpath,self.plan,self.step,value,self.local_helpers)
                 number=len(self.own_lean_drafts['proof'])+1
                 record={'proof':value,'statement':self.plan['steps'][next(i for i,s in enumerate(self.plan['steps']) if s['id']==self.step)]['statement'],
                         'proof_package':packaged}
                 self.own_lean_drafts['proof'][number]=record;record_path=self.logs/'lean-drafts'/f'proof-{number:04d}.json'
-                result = ir.check(self.cpath,self.plan,{self.step:packaged},only=self.step,timeout=self.lean_timeout())
+                options = {'locate_body': True} if revisions else {}
+                result = ir.check(self.cpath,self.plan,{self.step:packaged},only=self.step,
+                                  timeout=self.lean_timeout(), **options)
                 self.lean_calls += 1
                 result['candidate']=number
                 if ir.native_succeeded(result) and name.startswith('submit'):
@@ -358,7 +375,7 @@ class Stage(carrier.NativeCarrier):
         except (ir.Invalid, KeyError, ValueError, TypeError, IndexError) as e:
             result = {'accepted':False,'error':str(e),'feedback_kind':'candidate_rejected'}
             self.last_diagnostic=str(e)[:14000]
-        self.observe_proof_progress(name,args,result)
+        self.observe_proof_progress(name,observed_args,result)
         if record is not None:
             record['check']=dict(result);ir.write(record_path,record)
             recorder=getattr(self,'execution',None)
@@ -559,8 +576,9 @@ class Stage(carrier.NativeCarrier):
         return result,None
 
     def release_resources(self, authorization):
-        if authorization not in {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED'}:
-            raise ValueError('Faults do not authorize process/workspace cleanup')
+        from run_resources import RELEASE_AUTHORIZATIONS
+        if authorization not in RELEASE_AUTHORIZATIONS:
+            raise ValueError('Missing authorization for process/workspace release')
         if authorization=='ROLE_COMPLETED':
             from role_sessions import BOUNDARIES
             record=ir.load(self.logs/'role-completion.json')
@@ -620,6 +638,7 @@ class Stage(carrier.NativeCarrier):
                 'arm':self.instruction_arm,'phase':self.mode,'runtime_files':files,
                 'native_timeout_policy':self.timeout_policy_metadata(),
                 'background_note_policy':self.background_note_policy,
+                'draft_revision_policy':proof_edits.POLICY if self.draft_revisions else None,
                 'model_output_policy':OUTPUT_POLICY,
                 'provider_wait_policy':PROVIDER_WAIT_POLICY,
                 'remote_retry_policy':REMOTE_RETRY_POLICY,

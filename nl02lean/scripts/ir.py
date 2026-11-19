@@ -187,7 +187,7 @@ def validate(cpath, plan):
     import dependency_instances
     support = c.get('prepared_instances', {})
     prepared = support.get('ports', {})
-    selected = {key for step in steps for key in step.get('input_instances', {}) if key in prepared}
+    selected = {key for step in steps for key in dependency_instances.specialized_inputs(step) if key in prepared}
     need(selected == set(prepared), 'Plan changed the selected prepared universe inputs')
     for s in steps:
         need(re.fullmatch(r'T\d{3}', s['id']) is not None, 'invalid transition id')
@@ -276,9 +276,8 @@ def local_packet(cpath, plan, sid):
     need(sid in nodes, 'unknown transition')
     step = nodes[sid]
     header = c['header']
-    internal_context = ''
-    if step.get('universe_params') or step.get('input_instances'):
-        internal_context = di.type_header(c,nodes,step.get('input_instances',{}))+di.universe_line(step)
+    internal_context = di.type_header(c,nodes,di.specialized_inputs(step,nodes))+di.universe_line(step)
+    if internal_context:
         header = header.rstrip()+'\n'+internal_context
     packet = {'version': c['version'], 'contract_sha256': digest(cpath),
             'header': header, 'parameters': c['parameters'],
@@ -320,7 +319,7 @@ def proof_text(body):
     return textwrap.indent(textwrap.dedent(body).strip('\n'), '  ')
 
 
-def render(cpath, plan, proofs=None, only=None, types_only=False):
+def render(cpath, plan, proofs=None, only=None, types_only=False, *, body_locations=None):
     import dependency_instances as di
     c, nodes, order = validate(cpath, plan)
     support = c.get('prepared_instances', {})
@@ -329,9 +328,9 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
         need(only in nodes, 'unknown transition')
         order = [only]
     parser = AUXILIARY_PARSER if proofs and any(isinstance(p,dict) for p in proofs.values()) else ''
-    typed = any(nodes[k].get('universe_params') or nodes[k].get('input_instances') for k in order)
-    aliases = {dep for k in order for dep in nodes[k].get('input_instances',{})}
-    if aliases and types_only:
+    aliases = {dep for k in order for dep in di.specialized_inputs(nodes[k],nodes)}
+    typed = bool(aliases) or any(nodes[k].get('universe_params') for k in order)
+    if types_only and any(nodes[k].get('input_instances') for k in order):
         parser += di.USE_PARSER
     if types_only:
         consumers = {}
@@ -368,7 +367,14 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
                 text += f'namespace Local_{sid}\n'
                 text += local_helpers.declarations(helpers, (context+' '+ins).strip())
                 text += f'end Local_{sid}\nopen Local_{sid} in\n'
-            text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n{proof_text(body)}\n\n"
+            text += f"theorem {sid} {context} {ins} :\n    {s['statement']} := by\n"
+            formatted = proof_text(body)
+            if body_locations is not None:
+                first = text.count('\n') + 1
+                dedented = textwrap.dedent(body)
+                draft_first = len(dedented) - len(dedented.lstrip('\n')) + 1
+                body_locations[sid] = (first, first + formatted.count('\n'), draft_first)
+            text += formatted + '\n\n'
         if s.get('universe_params'):
             text += 'end\n'
     if support.get('source') and not only:
@@ -398,8 +404,9 @@ def render(cpath, plan, proofs=None, only=None, types_only=False):
     return text + '\nend Translation\n'
 
 
-def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=None):
-    lean = render(cpath, plan, proofs, only, types_only)
+def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeout=None, *, locate_body=False):
+    body_locations = {} if locate_body and only and not types_only else None
+    lean = render(cpath, plan, proofs, only, types_only, body_locations=body_locations)
     cache=None
     if only and not types_only:
         from execution_state import current
@@ -425,6 +432,9 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
                 result.update(contract_sha256=digest(cpath),scope=only,native_reused=True,
                     observed_native_wall_seconds=result['wall_seconds'],wall_seconds=0,
                     reused_native=receipt['native'])
+                if body_locations is not None:
+                    # Native success is independent of the caller's draft layout.
+                    result['draft_errors'] = []
                 if out:
                     target=Path(out);target.mkdir(parents=True,exist_ok=False)
                     (target/'Check.lean').write_text(lean);write(target/'result.json',result)
@@ -466,6 +476,9 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
             result['axioms'] = sorted(actual)
             if actual - {'propext', 'Classical.choice', 'Quot.sound'}:
                 result.update({'status': 'AXIOM-CHECK-FAILED', 'exit_code': 1})
+        if body_locations is not None:
+            from proof_edits import locations
+            result['draft_errors'] = locations(result, body_locations[only])
         if out:
             out = Path(out)
             out.mkdir(parents=True, exist_ok=False)

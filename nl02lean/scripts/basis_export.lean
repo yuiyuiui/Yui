@@ -10,6 +10,15 @@ elab "yui_basis_declared_levels%" : term => do
 -- auto-generated Type* names. Those names can shift after E is removed.
 private def yuiBasisDeclaredLevels : List Lean.Name := yui_basis_declared_levels%
 
+-- A proof value can mention levels that its proposition does not constrain.
+open Lean Meta Elab Term in
+elab "yui_basis_proof%" proof:ident : term => do
+  let info ← getConstInfo proof.getId
+  let visible := (collectLevelParams {} info.type).params
+  let levels ← info.levelParams.mapM fun name =>
+    if visible.contains name then mkFreshLevelMVar else pure Level.zero
+  return mkConst proof.getId levels
+
 open Lean Meta Elab Term in
 elab "yui_basis_export%" "(" args:term,* ")" : term <= expectedType => do
   let info ← getConstInfo `AuditBExport.P

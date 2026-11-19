@@ -10,6 +10,7 @@ import argparse
 import json
 from pathlib import Path
 import shutil
+import tempfile
 import time
 from source_qualification import usable
 
@@ -124,11 +125,16 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
         record_paths = [interface_binding]
         semantic_status = 'PENDING_AUDIT_B'
     check_source_boundary(data,c,ir.load(plan),review['paragraph_mapping'],review['source_outputs'])
-    typed = ir.check(contract, ir.load(plan), types_only=True)
-    ir.need(typed['exit_code'] == 0, 'interface types/representations fail Lean')
     configuration = concurrency.resolve(max_concurrency, node_count=len(nodes))
-    out.mkdir(parents=True, exist_ok=False)
-    copied, _ = run_graph.package(contract, plan, out)
+    with tempfile.TemporaryDirectory(prefix='yui-interface-types-') as scratch:
+        checked = Path(scratch)/'types'
+        typed = ir.check(contract, ir.load(plan), types_only=True, out=checked)
+        ir.need(typed['exit_code'] == 0, 'interface types/representations fail Lean')
+        out.mkdir(parents=True, exist_ok=False)
+        copied, _ = run_graph.package(contract, plan, out)
+        lean_interface = out/'interface-types/Check.lean'
+        lean_interface.parent.mkdir()
+        shutil.copyfile(checked/'Check.lean', lean_interface)
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'nl0/scripts').glob('*.py'),
                    *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
@@ -153,6 +159,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
                 'status':'SOURCE_AND_IR_FROZEN'}
     if basis_context:manifest['basis_context']=basis_context
     manifest['frozen_input_bindings'] = [source.binding(p) for p in (out/'inputs').rglob('*') if p.is_file()]
+    manifest['frozen_input_bindings'].append(source.binding(lean_interface))
     ir.write(out/'manifest.json',manifest)
     ir.write(out/'freeze-seal.json', {'version': VERSION, 'manifest': source.binding(out/'manifest.json')})
     return manifest

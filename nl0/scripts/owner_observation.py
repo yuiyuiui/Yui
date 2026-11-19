@@ -208,7 +208,7 @@ def longest_blocker(rows, tasks, instant):
     return longest
 
 
-def progress(state, *, observed, identity_matches, process_error, state_error):
+def progress(state, *, observed, identity_matches, process_error, state_error, result_status=None):
     updated = state.get('updated_at_utc')
     age = seconds_since(observed, updated)
     heartbeat_age = seconds_since(observed, state.get('controller_heartbeat_at_utc'))
@@ -216,7 +216,7 @@ def progress(state, *, observed, identity_matches, process_error, state_error):
     if state_error or not state or age is None:
         status, gap = 'UNAVAILABLE', state_error or ('MISSING_EXECUTION_STATUS' if not state else 'INVALID_UPDATE_TIME')
     elif controller == 'FINALIZED':
-        status, gap = 'TERMINAL', None
+        status, gap = ('PAUSED_ERROR' if result_status == 'PAUSED_ERROR' else 'TERMINAL'), None
     elif process_error or heartbeat_age is None:
         status, gap = 'UNAVAILABLE', 'PROCESS_INSPECTION_UNAVAILABLE' if process_error else 'INVALID_HEARTBEAT_TIME'
     elif controller != 'RUNNING' or not identity_matches:
@@ -231,7 +231,7 @@ def progress(state, *, observed, identity_matches, process_error, state_error):
     instant = timestamp(updated)
     parents = {key:tasks.get(key,{}) for key in groups}
     recent = None
-    if status in {'FRESH','TERMINAL'} and type(state.get('proof_total')) is int and groups and all(parents.values()):
+    if status in {'FRESH','PAUSED_ERROR','TERMINAL'} and type(state.get('proof_total')) is int and groups and all(parents.values()):
         finishes = [(groups[key],seconds_since(instant,row.get('finished_at_utc')))
                     for key,row in parents.items() if row.get('state') == 'LOCAL_CHECKED']
         if all(elapsed is not None for _,elapsed in finishes):
@@ -302,10 +302,12 @@ def snapshot(runs):
         phase = state.get('phase') or ('QUEUED' if live else
             'CONTROLLER_EXITED_BEFORE_CASE_START' if records else 'PREPARED_NOT_STARTED')
         owner_alive = matches(controller, table) if controller else False
+        result_status = result.get('status')
         cases.append({'run': str(root), 'phase': phase,
             'progress': progress(state, observed=datetime.now(timezone.utc),identity_matches=owner_alive,
-                process_error=process_error,state_error=state_error),
-            'recorded_result': result.get('status'), 'terminal_record_present': bool(result) and not errors,
+                process_error=process_error,state_error=state_error,result_status=result_status),
+            'recorded_result': result_status,
+            'terminal_record_present': bool(result) and result_status != 'PAUSED_ERROR' and not errors,
             'paused_errors':[{'incident':e['incident'],'category':e['fault']['category'],
                 'path':e['path'],'notification':e.get('notification'),'resumable':e.get('resumable')} for e in errors],
             'completion': result.get('completion'),
