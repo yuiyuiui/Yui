@@ -23,7 +23,7 @@ import model_pilot as pilot
 
 class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
-                 kind='json', case_id=None):
+                 kind='json', case_id=None, check_handoff=None):
         logs=Path(logs).resolve()
         local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
         local_diagnosis=(budget is not None and
@@ -38,6 +38,7 @@ class ArtifactStage(pilot.Stage):
         # The carrier's phase is a lifecycle guard (proof/closing/audit), not a
         # metric label. Preserve its active phase for library/checking tools.
         self.artifact_phase, self.arm, self.input_prompt, self.validator = phase, arm, prompt, validator
+        self.check_handoff = check_handoff
         self.instruction_arm = arm
         self.mode = phase
         self.rule_texts = {}
@@ -636,8 +637,12 @@ class ArtifactStage(pilot.Stage):
                     if result['stage_complete'] and not own['author_release_ready']:
                         result.update(accepted=False,stage_complete=False,feedback_kind='author_action_required',
                             error='AUTHOR_CLOSING_CHECK_REQUIRED: complete notes are not readiness. Read each own packet under the shared Audit A criteria, resolve every known issue in the actual proof and record readiness=no_known_issue with exact-content-bound notes. Otherwise save unresolved/not_checked notes and continue local completion. No Audit A has run.')
-                if name in {'submit_artifact','submit_draft'}:
-                    if result['stage_complete']:self.accepted = value
+                if result['stage_complete'] and self.check_handoff is not None:
+                    feedback = self.check_handoff(self.logs/'case')
+                    if not feedback['accepted']:
+                        result.update(accepted=False,stage_complete=False,feedback_kind='candidate_rejected',
+                                      error=feedback['error'])
+                if result['stage_complete']:self.accepted = value
         except (pilot.execution.CaseDeadlineExceeded, pilot.execution.Cancelled):raise
         except (ValueError, KeyError, TypeError, IndexError, PermissionError) as e:
             if isinstance(e, PermissionError) and e.errno is not None:

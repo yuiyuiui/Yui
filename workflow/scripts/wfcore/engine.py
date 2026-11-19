@@ -13,6 +13,7 @@ from .model import Model
 from .protocol import (
     BLOB,
     ENVELOPE,
+    Fault,
     REPLY,
     USAGE,
     Rejected,
@@ -28,7 +29,7 @@ from .protocol import (
 
 
 class Context:
-    def __init__(self, root, run_id, node, activation, registry):
+    def __init__(self, root, run_id, node, activation, registry, *, outgoing=None):
         self.root = root
         self.run_id = run_id
         self.node = node
@@ -37,6 +38,16 @@ class Context:
         self.operation_id = f"{run_id}:{activation}:{node}"
         self.samples = []
         self._lock = threading.Lock()
+        self._outgoing = outgoing
+
+    def check_output(self, port, data):
+        """Give the active producer feedback from the actual receiving contract."""
+        need(self._outgoing is not None, "output checks require a workflow node")
+        try:
+            self._outgoing({"port": port, "data": data})
+        except Fault as error:
+            return {"accepted": False, "error": str(error)}
+        return {"accepted": True}
 
     def transfer(self, source, target, event, contract, schema, data, suffix):
         msg = packet(
@@ -379,7 +390,7 @@ class Run:
         rows = [done[str(i)] for i in range(len(inputs))]
         return self._adapter(b["handler"])(ctx, copy.deepcopy(self.s["data"]), rows)
 
-    def _advance(self, reply, msg=None):
+    def _outgoing(self, reply):
         validate(REPLY, reply, "adapter outcome")
         encode(reply)
         n = self.s["node"]
@@ -398,6 +409,12 @@ class Run:
             reply["data"],
         )
         receive(msg_out, msg_out, self.model.contracts[ref], self.model.registry)
+        return msg_out
+
+    def _advance(self, reply, msg=None):
+        msg_out = self._outgoing(reply)
+        n, port = msg_out["source"], msg_out["type"]
+        dest, ref = msg_out["target"], msg_out["contract"]
         row = {
             "message": msg_out,
             "node": n,
@@ -494,7 +511,8 @@ class Run:
             if self.s["effect"] or b.get("executor") == "model":
                 self.commit()
             ctx = Context(
-                self.root, self.s["id"], n, self.s["activation"], self.model.registry
+                self.root, self.s["id"], n, self.s["activation"], self.model.registry,
+                outgoing=self._outgoing,
             )
             started = time.monotonic()
             terminal = False

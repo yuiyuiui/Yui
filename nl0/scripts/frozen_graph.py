@@ -489,7 +489,7 @@ def issue_owner(issue, global_owner=None):
     return 'local'
 
 
-def local_stage(job, directory, budget, *, baseline=None, obligations=None):
+def local_stage(job, directory, budget, *, baseline=None, obligations=None, check_handoff=None):
     import basis
     import nl0_author
     import full_workflow
@@ -518,7 +518,8 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None):
                  'with field=output, the candidate intermediate statements and the exact source locations. '
                  'Keep arguments sharing an indispensable witness or local scope together.')
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
-                        inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget))
+                        inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget),
+                        check_handoff=check_handoff)
     evidence(Path(record['graph']['path']).parent,frozen['graph'],stage.validator.directory)
     stage.execute()
     budget.execution.check()

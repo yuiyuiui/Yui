@@ -143,12 +143,15 @@ class Case:
                 directory=self.root/'nl0'/('local-'+Path(data['global']['path']).parents[2].name if history else 'local')
                 role='nl0-author'
                 session=self.reviews.use(role) if role in self.reviews.roles else nullcontext()
+                def detailed(source):
+                    return routes.outcome('detailed',{**data,'local':bind(source/'nl0.json')})
                 with session:
                     source=case_runner.author_stage(self.job,directory,self.budgets.serial,
                         baseline=Path(baseline['nl0']['path']).parent if baseline else None,
-                        obligations=history.get('obligations') if baseline else None)
+                        obligations=history.get('obligations') if baseline else None,
+                        check_handoff=lambda source: ctx.check_output(**detailed(source)))
                 self.working(data)
-                return routes.outcome('detailed',{**data,'local':bind(source/'nl0.json')})
+                return detailed(source)
             if name=='audit':
                 self.working(data)
                 history=self.read(data['history']) if 'history' in data else {}

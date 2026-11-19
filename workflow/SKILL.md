@@ -87,6 +87,10 @@ standalone compilation, kernel closure and the semantic authority. Portable
 reader/state cases are registered in [checks.json](checks.json); the parent
 repository also tests the actual frozen-interface handoff and native repair.
 
+Before the NL0 local author closes its submission, check its actual Audit A
+handoff against the receiving port with `ctx.check_output`. Return a rejection
+to the active author for repair.
+
 The private [Lean handoff contract](blocks/private_proof_handoff.py) owns the
 versioned manifests within `translate`. Each local author receives one JSON
 request with four relative file references for its goal, direct inputs, source

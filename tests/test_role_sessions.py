@@ -24,10 +24,32 @@ class RoleSessionTests(unittest.TestCase):
         for entry in self.sessions.roles.values():shutil.rmtree(entry['stage'].work,ignore_errors=True)
         self.tmp.cleanup()
 
-    def stage(self,name):
+    def stage(self,name,**settings):
         stage=ArtifactStage(self.root/name,'Synthetic role protocol only.',phase='interface-authoring',
-                            budget=self.budget,library=False)
+                            budget=self.budget,library=False,**settings)
         self.stages.append(stage);return stage
+
+    def test_rejected_handoff_can_be_corrected_in_the_same_author(self):
+        def validate(value):
+            write(self.root/'handoff'/'case'/'artifact.json',value)
+            return {'checked':True}
+
+        def check_handoff(source):
+            value=json.loads((source/'artifact.json').read_text())
+            if 'source' not in value:
+                return {'accepted':False,'error':'receiver (Local@2)/files: missing source'}
+            return {'accepted':True}
+
+        stage=self.stage('handoff',validator=validate,check_handoff=check_handoff)
+        rejected=stage.dispatch('submit_draft',{'artifact':{'body':'candidate'}})
+        self.assertFalse(rejected['accepted'])
+        self.assertFalse(rejected['stage_complete'])
+        self.assertIn('missing source',rejected['error'])
+        self.assertIsNone(stage.accepted)
+        repaired={'body':'candidate','source':'source.txt'}
+        result=stage.dispatch('submit_draft',{'artifact':repaired})
+        self.assertTrue(result['stage_complete'])
+        self.assertEqual(stage.accepted,repaired)
 
     @staticmethod
     def complete(stage):
