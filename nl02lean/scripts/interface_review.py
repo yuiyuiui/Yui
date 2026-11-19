@@ -19,6 +19,7 @@ sys.path.insert(0,str(CORE/'nl0/scripts'))
 sys.path.insert(0,str(CORE/'nl02lean/scripts'))
 import ir
 import lean_task
+from dependency_instances import CALL_GUIDANCE
 from staging_storage import copy_input
 import workflow
 import concurrency
@@ -59,10 +60,10 @@ material (contract.json, plan.json or local-tasks.json).
 findings is a list of {verdict,explanation,locations} for concrete defects or
 uncertainties, empty if none. Do not repair the proposal or invent a PASS.
 Source proofs and completed local Lean proof bodies are not requested here.
-For a specialized internal or prepared dependency compare the recorded input_instances with the
-source use: the right ambient/index types, all needed instances and the actual
-arguments or projections. Lean checks those declared calls; flag an omitted or
-irrelevant use even if its declaration compiles.
+For source-needed calls compare the recorded applications to the actual source
+use, including ambient types, typeclass instances, and arguments or projections.
+Treat missing call coverage as a located correction to the current draft.
+''' + CALL_GUIDANCE + '''
 Inspect __signature_P for the public endpoint. Private __preflight_ declarations
 only type-check connections before proofs exist and never enter the compiled proof.
 An unproved bridge assigned to a worker is a planned obligation, not a new H.

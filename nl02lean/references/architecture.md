@@ -92,13 +92,18 @@ views may be defined locally. It does not yet synthesize arbitrary per-node
 parameter adapters. [Shared lemmas](shared-lemmas.md) specify frozen exports,
 permissions, exact reuse keys, physical storage and invalidation.
 
-Resolve shared types and definitions in dependency order. A concept may have
-several consumers and more than one representation. Before freezing a risky
-input, elaborate a representative use in its consumer context with the expected
-type. The input-instance preflight already supports these probes. A successful
-probe establishes this application, while source review establishes whether
-it is the application the argument needs. A missing conversion becomes an
-explicit local obligation under the recorded inputs.
+Use one Lean interface for the accepted proof graph. The global author
+chooses the shared definitions in dependency order in the header, names the
+shared levels, and supplies every node's exact signature in the plan. A concept
+may have several consumers and more than one representation. Check risky
+applications in the consumer's actual context with the expected type. Source
+review establishes whether a checked call is the one the argument needs.
+A missing conversion becomes an explicit local obligation.
+
+Freeze binds the actual preflight source at `interface-types/Check.lean` with the
+same contract and plan that supply the reviewed local tasks. The checked source
+records definitions, statements, and calls. The workers prove the frozen
+statements in their generated local contexts.
 
 The implementation uses exact text for terminal interface identity after whitespace
 normalization. Equivalent reformulations require a proved bridge or a reviewed

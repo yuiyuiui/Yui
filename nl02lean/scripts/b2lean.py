@@ -32,7 +32,8 @@ def render(contract, context, conditional_source, levels, *, graph=None):
     for premise in contract['premises']:
         if premise['kind']=='mathlib':continue  # Already discharged by ordinary assembly.
         row=by_port.get(premise['id'])
-        arguments.append('(@YuiBasis.'+row['id']+')' if row and basis.prepared(row) else 'h_'+premise['id'])
+        arguments.append('(yui_basis_proof% YuiBasis.'+row['id']+')'
+                         if row and basis.prepared(row) else 'h_'+premise['id'])
     # The connected proof already contains exactly these checked declarations.
     declarations,_,_=basis.declarations(artifact, omit=contract.get('prepared_instances',{}).get('included',()))
     source=conditional_source+'\n'+declarations

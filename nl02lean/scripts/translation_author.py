@@ -31,6 +31,7 @@ import concurrency
 from clean_stage import ArtifactStage
 import model_pilot as pilot
 from artifact_validation import expand_submission
+from dependency_instances import CALL_GUIDANCE, specialized_inputs
 
 
 def expand_interface(value,documents,drafts):
@@ -73,15 +74,15 @@ the full target. Definitions cannot hide unproved results or stronger assumption
 Inspect the actual pinned declarations and the meanings of order/index and
 capability parameters, including overloaded notation and coercions. Explain
 their source meaning rather than relying on remembered symbol conventions.
-Use typed steps for mathematical obligations; no proof bodies are required yet.
-For shared representations, settle the choices in dependency order: required
-definitions, then the exact ports which use them. Reuse object views and
-bridges to track a change of domain or equality mode. Check a representative
-consumer application at risky direct inputs, including scale, coercions and
-dependent witnesses. Record the expected type and, where applicable, the
-actual application in input_instances. A well-formed producer statement alone
-does not establish that the consumer can use it. Keep frozen foundation
-declarations intact and record any necessary conversion as a local obligation.
+Produce one Lean interface for the entire accepted graph before proof writing.
+In the header, define the shared mathematical concepts in dependency order
+and name shared universe parameters. Then give every graph obligation its
+exact Lean signature with compatible input levels. Use object views to tie
+representation choices back to source concepts. Express necessary conversions
+as local obligations. Keep the already checked foundation header and types.
+Check representative consumer applications where scales, coercions, or dependent
+witnesses matter.
+''' + CALL_GUIDANCE + '''
 Every complete node declaration must elaborate in its actual parameter and
 direct-input context. Explicitly supply named arguments that cannot be inferred
 from those argument types. The strict machine check rejects unresolved holes;
@@ -291,7 +292,7 @@ class InterfaceContract:
                 background_supplement_sha256=supplement['sha256'])
         import basis
         basis.check_interface(self.basis_context,contract,self.graph,
-            step_instances={key for step in value['steps'] for key in step.get('input_instances',{})})
+            step_instances={key for step in value['steps'] for key in specialized_inputs(step)})
         write(directory/'contract.json',contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
               'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,

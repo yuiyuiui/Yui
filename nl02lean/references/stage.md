@@ -147,8 +147,10 @@ On the 2basis route, a direct foundation in `working-foundation-ports.json`
 with `universe_params` supports the same `levels` and `uses` rows. Supply them
 when a call needs a particular level, including the universe of a type introduced
 inside the consumer. Lean checks the call against the frozen proposition and
-connects it to the checked foundation theorem. Hypotheses and unresolved or
-conditional assumptions keep their ordinary local binders.
+connects it to the checked foundation theorem. To check an ordinary input's
+arguments, record its `uses` with `levels: []`. Lean checks those calls on its
+existing local hypothesis such as `h_E005`. This keeps the premise on its
+original conditional proof route and uses the same signature at assembly.
 
 Preflight compiles these actual calls and the dependency connections together
 before dispatch. Its synthetic signature witnesses take a private `False`

@@ -187,7 +187,7 @@ def validate(cpath, plan):
     import dependency_instances
     support = c.get('prepared_instances', {})
     prepared = support.get('ports', {})
-    selected = {key for step in steps for key in step.get('input_instances', {}) if key in prepared}
+    selected = {key for step in steps for key in dependency_instances.specialized_inputs(step) if key in prepared}
     need(selected == set(prepared), 'Plan changed the selected prepared universe inputs')
     for s in steps:
         need(re.fullmatch(r'T\d{3}', s['id']) is not None, 'invalid transition id')
@@ -276,9 +276,8 @@ def local_packet(cpath, plan, sid):
     need(sid in nodes, 'unknown transition')
     step = nodes[sid]
     header = c['header']
-    internal_context = ''
-    if step.get('universe_params') or step.get('input_instances'):
-        internal_context = di.type_header(c,nodes,step.get('input_instances',{}))+di.universe_line(step)
+    internal_context = di.type_header(c,nodes,di.specialized_inputs(step,nodes))+di.universe_line(step)
+    if internal_context:
         header = header.rstrip()+'\n'+internal_context
     packet = {'version': c['version'], 'contract_sha256': digest(cpath),
             'header': header, 'parameters': c['parameters'],
@@ -329,9 +328,9 @@ def render(cpath, plan, proofs=None, only=None, types_only=False, *, body_locati
         need(only in nodes, 'unknown transition')
         order = [only]
     parser = AUXILIARY_PARSER if proofs and any(isinstance(p,dict) for p in proofs.values()) else ''
-    typed = any(nodes[k].get('universe_params') or nodes[k].get('input_instances') for k in order)
-    aliases = {dep for k in order for dep in nodes[k].get('input_instances',{})}
-    if aliases and types_only:
+    aliases = {dep for k in order for dep in di.specialized_inputs(nodes[k],nodes)}
+    typed = bool(aliases) or any(nodes[k].get('universe_params') for k in order)
+    if types_only and any(nodes[k].get('input_instances') for k in order):
         parser += di.USE_PARSER
     if types_only:
         consumers = {}

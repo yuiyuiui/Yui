@@ -45,6 +45,8 @@ class BasisDischargeTests(unittest.TestCase):
                 payload['premise_types'][row['port']]=row['lean']['type']
                 payload['steps'][-1]['inputs'].append(row['port'])
                 payload['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':'SYNTHETIC universal natural-number identity.'}
+            payload['steps'][-1]['input_instances']={'E001':[{'levels':[],'uses':[
+                {'args':['a'],'expected':'a + 0 = a'}]}]}
         cls.workflow=frozen_case(cls.root/'shared',prepare_source=lambda s:attach(s,cls.context),
             transform_interface=transform,bodies={'T001':'exact h_H001.symm',
                 'T002':'simpa only [h_E001 a] using h_T001.symm'})
@@ -81,6 +83,21 @@ class BasisDischargeTests(unittest.TestCase):
         checked=basis_native.check(source,original['checks'],original['roots'],self.root/'portable-rebuild')
         self.assertTrue(checked['passed'],checked)
         self.assertIsNone(checked['compiled_prefix'])
+
+    def test_frozen_interface_retains_the_exact_checked_lean_source(self):
+        manifest=workflow.bound(self.workflow)
+        path=self.workflow/'interface-types/Check.lean'
+        original=path.read_bytes()
+        self.assertEqual(original,(self.workflow.parent/'interface-review/inputs/type-Check.lean').read_bytes())
+        self.assertIn(b'__use_T002_h_E001',original)
+        self.assertEqual(ir.digest(path),manifest['types_check']['lean_sha256'])
+        self.assertIn(bind(path),manifest['frozen_input_bindings'])
+        try:
+            path.write_bytes(original+b'\n-- replaced after freeze\n')
+            with self.assertRaisesRegex(ValueError,'Check.lean'):
+                workflow.bound(self.workflow)
+        finally:
+            path.write_bytes(original)
 
     def test_private_scope_uses_the_conservative_complete_source_path(self):
         file=self.root/'private-contract.json';value=ir.contract(workflow.bound(self.workflow)['contract'])

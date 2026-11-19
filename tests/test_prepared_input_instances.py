@@ -125,6 +125,48 @@ class PreparedInstances(unittest.TestCase):
         self.assertEqual(packet['inputs'],[{'id':'E001','binder':'h_E001','type':self.typ}])
         self.assertNotIn('YuiBasis',packet['header'])
 
+    def test_fixed_foundation_use_can_be_repaired_without_changing_the_premise(self):
+        typ = '∀ (A : Type) (x : A), x = x'
+        row = dependency('B005', category=2, typ=typ, proof='intro A x; rfl')
+        row['statement'] = 'Every element of a fixed-level type equals itself.'
+        self.context = checked_context(self.work/'fixed-basis', artifact(row))
+        self.c['header'] += 'abbrev IndexOf (n : Nat) := Fin (n + 1)\n'
+        self.c['parameters'] = [{'name':'n','type':'Nat'},{'name':'i','type':'IndexOf n'}]
+        self.c['premises'][0].update(id='E005', type=typ, statement=row['statement'])
+        self.c['conclusion']['type'] = 'i = i'
+        self.c['conclusion']['statement'] = 'The chosen index equals itself.'
+        self.generic.pop('universe_params')
+        use = {'args':['IndexOf n','true'],'expected':'i = i'}
+        instance = {'levels':[],'uses':[use]}
+        self.generic.update(statement='i = i', inputs=['E005'],
+            input_instances={'E005':[instance]})
+        self.terminal.update(statement='i = i',
+            input_instances={'T001':[{'levels':[],'uses':[{'args':[],'expected':'i = i'}]}]})
+        self.bind()
+        self.assertNotIn('prepared_instances',self.c)
+        before = self.path.read_bytes()
+        instance['levels'] = ['0']
+        with self.assertRaisesRegex(ir.Invalid,r'T001 <- E005: explicit levels'):
+            ir.validate(self.path,self.v)
+        instance['levels'] = []
+        rejected = ir.check(self.path,self.v,types_only=True)
+        self.assertNotEqual(rejected['exit_code'],0)
+        self.assertIn('T001 <- E005 (h_E005, use 1)',rejected['failed_input_uses'])
+
+        use['args'][-1] = 'i'
+        accepted = ir.check(self.path,self.v,types_only=True)
+        self.assertEqual(accepted['exit_code'],0,ir.compiler_feedback(accepted))
+        self.assertEqual(self.path.read_bytes(),before)
+        packet = ir.local_packet(self.path,self.v,'T001')
+        self.assertEqual(packet['inputs'],[{'id':'E005','binder':'h_E005','type':typ,'uses':[use]}])
+        proofs = {'T001':'exact h_E005 (IndexOf n) i','T002':'exact h_T001'}
+        assembled = ir.check(self.path,self.v,proofs)
+        self.assertEqual(assembled['exit_code'],0,ir.compiler_feedback(assembled))
+        formal = ir.render(self.path,self.v,proofs)
+        endpoint = next(line for line in formal.splitlines() if line.startswith('theorem P '))
+        self.assertIn(f'(h_E005 : {typ})',endpoint)
+        self.assertNotIn('YuiBasis',formal)
+
     def test_checked_mathlib_port_can_be_specialized_and_normally_discharged(self):
         product='Set.image Prod.swap (Set.prod s t) = Set.prod t s'
         typ='∀ (A B : Type*) (s : Set A) (t : Set B), '+product
