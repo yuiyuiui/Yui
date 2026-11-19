@@ -1,14 +1,10 @@
-"""Bounded owner observations and an explicit handoff to the host scheduler.
-
-No model, proof tool or scheduler is started here. A pending handoff is never
-evidence that a host schedule was registered or a foreground turn ended.
-"""
+"""Controller reports and bounded, read-only owner observations."""
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shlex
+from pathlib import Path
 import subprocess
 import sys
 from collections import Counter
@@ -29,6 +25,7 @@ BLOCKER_ACTIONS = {
     'PAUSED_ERROR': 'Read the incident and follow its recorded action.',
 }
 INACTIVE_TASK_STATES = {'CANCELLED','FINISHED','LOCAL_CHECKED','UNFINISHED'}
+REPORT_LOG = Path('logs/owner-progress.jsonl')
 
 
 def policy(run=None):
@@ -65,7 +62,35 @@ def owned_runs(runs):
     return result
 
 
-def handoff(runs):
+def handoff(runs, *, controller=True):
+    if not controller:
+        return legacy_handoff(runs)
+    selected = owned_runs(runs)
+    settings = min((policy(run) for run in selected),key=lambda item:item['interval_seconds'])
+    command = [sys.executable, '-B', str(CORE/'nl0/scripts/yui.py'),
+               'observe', *map(str, selected)]
+    routed = [str(run) for run in selected if owner_thread(run)]
+    return {'schema': 'yui-owner-handoff-1', **settings, 'scheduler': 'controller',
+            'notifications': 'every_interval',
+            'registration': 'CONTROLLER_REPORTS' if routed else 'LOCAL_LOG_ONLY',
+            'interval_minutes': settings['interval_seconds']//60,
+            'runs': list(map(str, selected)), 'observe_command': command,
+            'routed_runs': routed, 'report_logs': [str(run/REPORT_LOG) for run in selected],
+            'next_action': 'Verify dispatch once, then end the foreground turn. Interpret incoming controller reports.'}
+
+
+def owner_thread(root):
+    path = root/'owner-context.json'
+    if path.is_symlink():
+        return None
+    try:
+        thread = json.loads(path.read_bytes()).get('thread_id')
+    except (OSError, ValueError, AttributeError):
+        return None
+    return thread if isinstance(thread, str) and thread.strip() else None
+
+
+def legacy_handoff(runs):
     selected = owned_runs(runs)
     settings = min((policy(run) for run in selected),key=lambda item:item['interval_seconds'])
     command = [sys.executable, '-B', str(CORE/'nl0/scripts/yui.py'),

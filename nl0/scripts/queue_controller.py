@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import ExitStack
 
 from controller_common import write, bind, final_write
 import case_outcomes
@@ -56,7 +57,7 @@ def launch_case(job_file,out):
             env=runtime_snapshot.environment(job))
 
 
-def serve(jobs,*,case_concurrency=None):
+def serve(jobs,*,case_concurrency=None,report_progress=False):
     jobs=list(jobs)
     for job in jobs:validate_job(job)
     if len({j['root'] for j in jobs})!=len(jobs) or len({j['problem'] for j in jobs})!=len(jobs):
@@ -75,7 +76,11 @@ def serve(jobs,*,case_concurrency=None):
         stopping=True;cancel_batch([j['root'] for j in jobs])
     if threading.current_thread() is threading.main_thread():
         for sig in (signal.SIGINT,signal.SIGTERM):previous[sig]=signal.signal(sig,stop)
+    reports=ExitStack()
     try:
+        if report_progress:
+            from owner_reports import controller_reports
+            reports.enter_context(controller_reports([Path(job['root']) for job in jobs]))
         while pending or active:
             for job in list(pending):
                 root=Path(job['root'])
@@ -137,6 +142,7 @@ def serve(jobs,*,case_concurrency=None):
             except Cancelled:
                 outcomes[job['id']]={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED'}
     finally:
+        reports.close()
         for row in active.values():
             root=Path(row['job']['root'])
             if (stopping or (root/'cancel-request.json').is_file()) and (root/'execution-status.json').exists():request_cancel(root)
@@ -154,11 +160,19 @@ def serve(jobs,*,case_concurrency=None):
                 'outcomes':outcomes,'all_cases_accepted':len(outcomes)==len(jobs) and all(
                     r.get('status') in case_outcomes.PASSED for r in outcomes.values()),
                 'scope':'Executor completion does not imply mathematical acceptance'})
+        if report_progress and not unresolved and not stopping:
+            from owner_reports import send_report
+            for job in jobs:
+                status=outcomes.get(job['id'],{}).get('status')
+                if status and status not in {'CANCELLED','PAUSED_ERROR'}:
+                    send_report(Path(job['root']),result_status=status)
     return outcomes
 
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--job',type=Path,action='append',required=True)
-    parser.add_argument('--case-concurrency',type=int);args=parser.parse_args()
-    results=serve([json.loads(p.read_text()) for p in args.job],case_concurrency=args.case_concurrency)
+    parser.add_argument('--case-concurrency',type=int)
+    parser.add_argument('--controller-reports',action='store_true');args=parser.parse_args()
+    results=serve([json.loads(p.read_text()) for p in args.job],case_concurrency=args.case_concurrency,
+                  report_progress=args.controller_reports)
     raise SystemExit(0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in results.values()) else 1)

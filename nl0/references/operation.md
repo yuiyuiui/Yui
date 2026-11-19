@@ -362,7 +362,8 @@ in-session remote retry throughout the remaining workflow.
 
 ## Observe, stop and clean
 
-Scheduled owners use the compact, read-only observation command once per wake:
+The detached controller journals and sends status at the configured interval.
+Use the compact, read-only observation command for an on-demand check:
 
 ```sh
 python3 -B /path/to/Yui/nl0/scripts/yui.py observe /paper/rigorous-proof/RUN

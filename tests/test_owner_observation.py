@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from concurrent.futures import Future
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,9 @@ from unittest.mock import patch
 import entrypoint
 import jobs
 import owner_observation as owner
+import owner_reports
 import execution_state
+import queue_controller
 from controller_common import write
 
 
@@ -40,19 +43,49 @@ class OwnerObservationTests(unittest.TestCase):
             'usage': {'status': 'PARTIAL', 'confirmed_tokens': {'total_tokens': 123},
                       'in_flight_or_unreported_requests': 2}})
 
-    def test_pending_handoff_groups_cases_without_claiming_a_real_schedule(self):
+    def test_handoff_routes_reports_to_the_bound_owner(self):
+        write(self.run/'owner-context.json', {'thread_id':'owner-task'})
         before = {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()}
         with patch.object(subprocess, 'Popen', side_effect=AssertionError('No scheduler/model process')):
             result = owner.handoff([self.run, self.run])
         self.assertEqual(result['runs'], [str(self.run)])
+        self.assertEqual(result['routed_runs'], [str(self.run)])
         self.assertEqual(result['interval_seconds'], 600)
-        self.assertEqual(result['registration'], 'HOST_REGISTRATION_REQUIRED')
-        self.assertIsNone(result['automation_id'])
+        self.assertEqual(result['registration'], 'CONTROLLER_REPORTS')
+        self.assertEqual(result['scheduler'], 'controller')
+        self.assertEqual(result['notifications'], 'every_interval')
         self.assertEqual(result['foreground'], 'end_turn_after_handoff')
-        self.assertIn('Prefer a host-permitted scheduled wakeup', result['next_action'])
-        self.assertIn('unavailable or unsuccessful, continue the same run', result['next_action'])
+        self.assertIn('end the foreground turn', result['next_action'])
         self.assertEqual(result['observe_command'][-2:], ['observe', str(self.run)])
         self.assertEqual(before, {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()})
+
+    def test_controller_reports_unchanged_status_and_persists_failed_delivery(self):
+        write(self.run/'owner-context.json', {'thread_id':'owner-task'})
+        self.state()
+        path = self.run/owner.REPORT_LOG
+        sent = threading.Event()
+        snapshots = []
+
+        def notify(thread, message, *, resume):
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
+            snapshots.append((thread, resume, message, rows[-1]['report']))
+            if len(snapshots) == 2:
+                sent.set()
+            return {'status':'PENDING' if len(snapshots) == 1 else 'QUEUED'}
+
+        with patch('fault_control.queue_notification', side_effect=notify), \
+                patch.object(owner_reports, 'policy', return_value={'interval_seconds':.02}):
+            with owner_reports.controller_reports([self.run]):
+                self.assertTrue(sent.wait(2))
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual([r['delivery']['status'] for r in rows if 'delivery' in r][:2], ['PENDING', 'QUEUED'])
+        for thread, resume, message, report in snapshots[:2]:
+            self.assertEqual(thread, 'owner-task')
+            self.assertTrue(resume)
+            self.assertEqual(report['phase'], 'proof')
+            self.assertIn('longest_blocker', report['progress'])
+            self.assertIn('[Yui STATUS]', message)
+            self.assertNotIn('UNFINISHED_ARGUMENT_MUST_NOT_BE_DISPLAYED', message)
 
     def test_nonproof_task_counts_are_not_hidden_by_zero_proof_counts(self):
         recorder=execution_state.Recorder(self.run,'synthetic-case',{})
@@ -70,7 +103,8 @@ class OwnerObservationTests(unittest.TestCase):
             self.assertEqual(row['proof_total'],10)
         finally:recorder.close('CANCELLED')
 
-    def test_detached_dispatch_persists_the_pending_owner_handoff(self):
+    def test_detached_dispatch_persists_and_starts_controller_reporting(self):
+        write(self.run/'owner-context.json', {'thread_id':'owner-task'})
         self.assertIsNone(owner.snapshot([self.run])['cases'][0]['proof_total'])
         with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
                 patch.object(subprocess, 'Popen') as launch, \
@@ -78,10 +112,45 @@ class OwnerObservationTests(unittest.TestCase):
             launch.return_value.pid = self.identity['pid']
             result = entrypoint.launch([self.job], detached=True)
         self.assertEqual(launch.call_count, 1)
+        self.assertIn('--controller-reports', launch.call_args.args[0])
         self.assertEqual(result['status'], 'DISPATCHED')
         saved = json.loads((self.run/'launch.json').read_text())
         self.assertEqual(saved['owner_observation'], result['owner_observation'])
-        self.assertEqual(saved['owner_observation']['registration'], 'HOST_REGISTRATION_REQUIRED')
+        self.assertEqual(saved['owner_observation']['registration'], 'CONTROLLER_REPORTS')
+
+    def test_legacy_frozen_controller_keeps_its_launch_contract(self):
+        with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
+                patch('runtime_snapshot.root_for', return_value=self.root/'legacy-runtime'), \
+                patch('runtime_snapshot.environment'), patch.object(subprocess, 'Popen') as launch, \
+                patch('execution_state.identity', return_value=self.identity):
+            launch.return_value.pid = self.identity['pid']
+            result = entrypoint.launch([self.job], detached=True)
+        self.assertNotIn('--controller-reports', launch.call_args.args[0])
+        self.assertEqual(result['owner_observation']['registration'], 'HOST_REGISTRATION_REQUIRED')
+
+    def test_controller_reports_completion_after_persisting_batch_result(self):
+        write(self.run/'owner-context.json', {'thread_id': 'owner-task'})
+        status = 'DRAFT-AUDIT-PASSED'
+
+        def complete_case(_job, root):
+            write(root/'case-result.json', {'result': {'status': status}})
+            return SimpleNamespace(pid=self.identity['pid'], poll=lambda: 0)
+
+        def notify(_thread, _message, *, resume):
+            batch = json.loads((self.run/'batch-result.json').read_text())
+            self.assertTrue(batch['children_exited'])
+            self.assertTrue(resume)
+            return {'status': 'QUEUED'}
+
+        with patch.object(queue_controller, 'launch_case', side_effect=complete_case), \
+                patch.object(queue_controller, 'identity', return_value=self.identity), \
+                patch.object(queue_controller.case_outcomes, 'terminal', return_value=True), \
+                patch('fault_control.queue_notification', side_effect=notify) as queued:
+            queue_controller.serve([self.job], report_progress=True)
+        rows = [json.loads(line) for line in (self.run/owner.REPORT_LOG).read_text().splitlines()]
+        self.assertEqual(rows[0]['report']['result'], status)
+        self.assertEqual(rows[1]['delivery']['status'], 'QUEUED')
+        queued.assert_called_once()
 
     def test_revised_plan_counts_shared_aliases_once_and_excludes_retired_workers_and_diagnosis(self):
         recorder=execution_state.Recorder(self.run,'neutral-plan',{})

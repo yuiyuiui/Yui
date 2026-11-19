@@ -150,10 +150,13 @@ def launch(prepared, *, detached=False, case_concurrency=None):
         with use_environment(selected):verify()
     if detached:
         from owner_observation import handoff
-        observation=handoff([job['root'] for job in prepared])
-        root=Path(prepared[0]['root']);(root/'logs').mkdir(exist_ok=True)
         import runtime_snapshot
-        command=[sys.executable,'-u','-B',str(runtime_snapshot.root_for(prepared[0])/'nl0/scripts/queue_controller.py')]
+        runner=runtime_snapshot.root_for(prepared[0])/'nl0/scripts/queue_controller.py'
+        reports=runner.with_name('owner_reports.py').is_file()
+        observation=handoff([job['root'] for job in prepared],controller=reports)
+        root=Path(prepared[0]['root']);(root/'logs').mkdir(exist_ok=True)
+        command=[sys.executable,'-u','-B',str(runner)]
+        if reports:command.append('--controller-reports')
         for job in prepared:command.extend(['--job',str(Path(job['root'])/'job.json')])
         if case_concurrency is not None:command.extend(['--case-concurrency',str(case_concurrency)])
         with (root/'logs/batch-controller.log').open('w') as log:

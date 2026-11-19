@@ -66,12 +66,10 @@ selection. Parallel and nested private workers inherit the selected profiles
 and environment while owning independent role conversations.
 The invoking owner follows [foreground handoff and monitoring](nl0/references/owner-observation.md).
 Dispatch with `--detach`, verify process identities and report the initial
-phase. Prefer a host-permitted ten-minute scheduled wakeup and record its
-actual ID before ending the owner turn. If scheduling is restricted,
-unavailable or unsuccessful, continue the same run with interruptible
-ten-minute waits in the owning turn, one observation and report per interval.
-A scheduling failure selects this fallback. Continue the authorized run.
-An entry's recorded owner and monitoring mode govern ongoing observation.
+phase, then end the foreground turn. The detached controller saves a
+snapshot each interval and sends it to the bound owner through the local Codex
+queue. Interpret incoming reports in the owner's language and follow the
+entry's terminal validation and cleanup procedure on completion.
 Frozen workers perform only their assigned roles.
 
 For missing external originals, follow [ordered source retrieval](nl0/references/source-retrieval.md):

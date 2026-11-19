@@ -12,26 +12,23 @@ mathematical acceptance.
 2. Verify the run paths, PID, start time and process group. Retain observation
    and cancellation commands. Report the initial phase separately from any
    mathematical outcome.
-3. Prefer a ten-minute scheduled wakeup when host rules permit it. Reuse a
-   verified matching schedule or make one registration attempt with the host
-   tool. Record the actual ID and current run paths before ending the owner
-   turn. The generic `HOST_REGISTRATION_REQUIRED` handoff is a proposal whose
-   registration must still be confirmed.
-4. If scheduling is restricted, unavailable, unsuccessful or unconfirmed,
-   report the reason once and continue the same run in the owning turn.
-   Use an interruptible ten-minute wait, observe once and report in the
-   requested language. Repeat while the run is live. This fallback records
-   `OWNER_CHAT_WAIT` and uses no automation ID. Honor user interruptions.
-5. Follow the entry's `OWNER_MONITOR_STATE.json` for ongoing observation.
-   An unavailable scheduler selects the in-chat fallback and must not prevent
-   an otherwise valid, authorized run from starting. Return concrete manual
-   status/cancel commands only if neither observation mode is available.
+3. End the foreground turn after the initial report. For `CONTROLLER_REPORTS`,
+   the controller submits each snapshot to the bound owner through the local
+   Codex queue and requests a wakeup. The report is already in the local log
+   before the request goes to Codex. An accepted queue receipt records local
+   submission. The owner can interpret the report when its model is reachable.
 
-Keep owner metadata separate from the frozen mathematical inputs, receipts and
-worker usage. The scheduled proposal's interval comes from the project’s frozen `yui-config.json`. Entries
-can request an update at every interval through their own monitor settings.
+The controller writes `logs/owner-progress.jsonl` under each run at the interval
+in its frozen project settings (ten minutes by default), even with unchanged
+progress. Detached runs with no recorded chat owner keep the same local log
+under `LOCAL_LOG_ONLY`.
 
-## One bounded observation per interval
+## Read a report or observe on demand
+
+Summarize the pushed snapshot in the user's requested language, then end the
+foreground turn. Include its phase, plan, local passes and ten-minute change,
+current activities, most recent target check/model event and helper result, and
+the longest blocker. State any observation gap.
 
 Use the handoff's `yui.py observe RUN...` command. It reads owned status/result
 metadata and one OS process table, and returns only concise stages, counts,
@@ -44,11 +41,9 @@ send hints, import other proof skills, resample mathematical nonpasses or restar
 a live/waiting case. Follow the existing guarded recovery boundary only with
 actual authorization; update the current run map after any authorized change.
 
-Notify on a meaningful stage/coverage change, fault, completion or required user
-action. Stay quiet on unchanged routine checks unless the user expressly asked
-for a report at every check. Use the user's requested language. An interval is
-not a native-check deadline or a case/token budget. Five-second program liveness
-heartbeats remain separate from these ten-minute owner checks.
+The reporting interval and the five-second controller liveness heartbeat cover
+different observations. Read the latest model event separately from the
+controller heartbeat when assessing progress.
 
 `PAUSED_ERROR` is nonterminal. The local Python error controller separately
 queues immediate fixed-text owner alerts and preserves its context/workspace.
@@ -61,8 +56,9 @@ recorded PASS is not new verification; validate existing bound artifacts using
 the Yui validators without starting another model or Lean run. Keep partial or
 unknown usage and every execution qualification visible.
 
-After every tracked case is terminal, the owned process groups have exited and
+The detached controller sends a terminal update after writing the batch record.
+Confirm its exit as well as the case exits before final validation. Once every
+tracked case is terminal, the owned process groups have exited and
 authorized recovery is complete, validate and save the final reports and run
 the entry's authorized cleanup. Mark the owner monitor complete and end the
-turn. For a run with a permitted host schedule, retire it using its recorded
-ID. Use the host tool for that operation.
+turn.
