@@ -1,5 +1,6 @@
 """Real interface handoffs and explicit error treatment; no mathematical claim."""
 import harness_support
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ import concurrency
 import execution_state
 import fault_control
 import full_workflow
+import queue_controller
 import remote_retry
 import jobs
 import source_fixtures
@@ -84,8 +86,8 @@ class ClassificationPathTests(unittest.TestCase):
             def pause(gate,error,**kwargs):
                 observed.append(error)
                 self.assertEqual(remote_retry.diagnose(error)['category'],'workflow_blocked')
+                self.assertFalse(kwargs['wait_for_control'])
                 gate.notify=lambda *_:{'status':'QUEUED','synthetic':True}
-                gate.wait=lambda _:execution_state.request_cancel(gate.recorder.root)
                 return original_pause(gate,error,**kwargs)
             with patch.object(case_runner.source_refactor,'run',return_value=job['source_authority']), \
                  patch.object(full_workflow,'translate',side_effect=translate), \
@@ -95,9 +97,13 @@ class ClassificationPathTests(unittest.TestCase):
                  patch.object(fault_control.Gate,'pause',pause):
                 result=case_runner.execute(job)
             self.assertEqual(len(observed),1)
+            self.assertEqual(result['status'],'PAUSED_ERROR')
             self.assertEqual(result['retained_error']['status'],'INTERFACE_REVIEW_FAILED')
-            self.assertEqual(result['status'],'CANCELLED')
-            self.assertFalse(result['completion']['acceptance_target_satisfied'])
+            queue_controller.cancel_batch([job['root']])
+            cancelled=json.loads((Path(job['root'])/'case-result.json').read_text())['result']
+            self.assertEqual(cancelled['status'],'CANCELLED')
+            self.assertEqual(cancelled['retained_error'],result['retained_error'])
+            self.assertFalse(cancelled['completion']['acceptance_target_satisfied'])
 
 
 if __name__=='__main__':unittest.main()

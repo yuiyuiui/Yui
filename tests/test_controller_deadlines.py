@@ -14,6 +14,7 @@ import execution_state as execution
 import fault_control
 import ir
 import jobs
+import queue_controller
 import remote_retry
 
 
@@ -96,10 +97,10 @@ class DeadlinePathTests(unittest.TestCase):
                     self.assertEqual(gate.task, 'case-controller', 'Only the case controller may pause for this budget')
                     observed.append(error)
                     self.assertEqual(remote_retry.diagnose(error)['category'], 'workflow_blocked')
+                    self.assertFalse(kwargs['wait_for_control'])
                     self.assertTrue(fixture.stage.work.exists())
                     self.assertIsNone(fixture.stage.proc.poll())
                     gate.notify = lambda *_:{'status':'QUEUED','synthetic':True}
-                    gate.wait = lambda _:execution.request_cancel(gate.recorder.root)
                     return original_pause(gate, error, **kwargs)
                 try:
                     with patch('frozen_graph.global_stage', side_effect=work), \
@@ -110,11 +111,16 @@ class DeadlinePathTests(unittest.TestCase):
                     recorder=getattr(fixture.stage,'execution',None)
                     if recorder and not recorder.done.is_set():recorder.close('CANCELLED')
                 self.assertEqual(len(observed), 1)
+                self.assertEqual(result['status'], 'PAUSED_ERROR')
                 self.assertEqual(result['retained_error']['task_outcome'], 'MODEL_BUDGET_EXHAUSTED')
                 self.assertEqual(result['retained_error']['stop_reason'], 'CASE_DEADLINE')
-                self.assertEqual(result['status'], 'CANCELLED')
-                self.assertFalse(result['completion']['acceptance_target_satisfied'])
-                self.assertEqual(ir.load(Path(job['root'])/'case-result.json')['result']['status'], 'CANCELLED')
+                self.assertFalse(fixture.stage.work.exists())
+                self.assertIsNotNone(fixture.stage.proc.poll())
+                queue_controller.cancel_batch([job['root']])
+                cancelled = ir.load(Path(job['root'])/'case-result.json')['result']
+                self.assertEqual(cancelled['status'], 'CANCELLED')
+                self.assertEqual(cancelled['retained_error'], result['retained_error'])
+                self.assertFalse(cancelled['completion']['acceptance_target_satisfied'])
 
 
 if __name__ == '__main__': unittest.main()

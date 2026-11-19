@@ -174,8 +174,12 @@ class FrozenRoute(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'B002.*B001'):basis.verify_native_edges(v,root)
 
     def test_workload_reports_witness_scope_and_critical_chain(self):
-        r={'argument':[{'id':'S001'},{'id':'S002','uses_local':['L001']}],'locals':['L001']}
-        self.assertEqual(graph_workload.local(r)['paragraphs_without_local_binders'],['S001'])
+        r={'argument':[{'id':'S001','text':'x = x'},
+                       {'id':'S002','text':'Use L001.','uses_local':['L001']}],'locals':['L001']}
+        workload=graph_workload.local(r)
+        self.assertEqual(workload['paragraphs_without_local_binders'],['S001'])
+        self.assertEqual(workload['argument_characters'],14)
+        self.assertEqual(workload['largest_argument_paragraph_characters'],9)
         nodes={k:{'inputs':inputs,'source_steps':list(range(n))} for k,inputs,n in
                [('T1',[],3),('T2',[],1),('T3',['T1','T2'],2)]}
         result=graph_workload.jobs(nodes,list(nodes))

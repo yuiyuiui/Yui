@@ -170,7 +170,7 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
             # Phase entry has already frozen the card; later library edits must
             # not alter the newly started worker's advice.
             (live/'cards/ST020.json').write_text('changed after queue entry')
-            worker('T001',{})
+            worker('T001',ir.local_packet(cpath,plan,'T001'))
             return {'status':'GRAPH_UNFINISHED','proofs':{}}
 
         out=self.root/'queue'

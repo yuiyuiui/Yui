@@ -295,7 +295,9 @@ class Stage(carrier.NativeCarrier):
             elif name == 'read_background_note':
                 ir.need(self.background_note_policy == BACKGROUND_NOTE_POLICY,
                         'background note access is unavailable for this stage')
+                ir.contract(self.cpath)
                 packet = self.bound_packet
+                ir.need(ir.digest(self.cpath) == packet['contract_sha256'], 'Local task contract changed')
                 notes = packet.get('accepted_background_notes', {})
                 key = args['id']
                 ir.need(isinstance(key, str) and key in notes,

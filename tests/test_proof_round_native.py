@@ -36,8 +36,8 @@ class ProofRoundNative(unittest.TestCase):
         ir.write(prior / 'report.json', report)
         render = ir.render
 
-        def generated_failure(cpath, plan, proofs=None, only=None, types_only=False):
-            text = render(cpath, plan, proofs, only, types_only)
+        def generated_failure(cpath, plan, proofs=None, only=None, types_only=False, *, body_locations=None):
+            text = render(cpath, plan, proofs, only, types_only, body_locations=body_locations)
             if proofs and only is None and not types_only:
                 # A deterministic generator fault: locals still really compile,
                 # while Lean rejects both actual whole-file verification calls.

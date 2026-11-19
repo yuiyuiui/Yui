@@ -13,18 +13,17 @@ from lean_fixtures import shared_fixture as fixture, LIFT, SUP
 class PackagingTests(unittest.TestCase):
     def setUp(self):
         self.temp = Path(tempfile.mkdtemp(prefix='graph-package-'))
+        self.addCleanup(shutil.rmtree, self.temp)
         self.cpath, self.plan = fixture(self.temp/'original')
         self.ppath = self.cpath.parent/'plan.json'
         ir.write(self.ppath, self.plan)
-
-    def tearDown(self): shutil.rmtree(self.temp)
 
     def test_body_repair_reuses_only_identical_case_owned_native_checks(self):
         import concurrency,execution_state
         problem=self.temp/'problem.md';problem.write_text('Synthetic local repair cache test.')
         job=harness_support.direct_controller_job(problem,track='full',profiles=harness_support.PROFILES,output=self.temp/'owned')
         recorder=execution_state.Recorder(Path(job['root']),'synthetic',concurrency.resolve(1))
-        self.addCleanup(recorder.done.set)
+        self.addCleanup(recorder.close, 'CANCELLED')
         with execution_state.activate(recorder,'T001'),patch.object(ir,'run_lean',wraps=ir.run_lean) as native:
             first=ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
             repeat=ir.check(self.cpath,self.plan,{'T001':LIFT},only='T001')
