@@ -19,6 +19,11 @@ PROFILES={'nl0':{'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'
           'lean':{'id':'gpt-6-luna','reasoning_effort':'medium','speed':'standard','automatic_fallback':False}}
 
 
+def elementary_outline(inferences):
+    return {row['id']: {'steps':[{'conclusion':'Derive '+row['output']+' in this equality fixture.',
+                'uses':list(row['inputs']), 'source_spans':[]}]} for row in inferences}
+
+
 def native_available():
     import shutil
     binary=os.environ.get('YUI_CODEX_BINARY') or shutil.which('codex')

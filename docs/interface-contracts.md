@@ -18,7 +18,7 @@ source fidelity, Lean checking, dependency closure, or user decisions.
 | Audit B semantic review | `audit_b_review.review_shape` | Dynamic endpoint checks, saved/direct reviews and receipt collection |
 | Basis author | `basis.artifact_schema` | Author tools and basis validation; reusable edits use `payload_protocols.editable` |
 | NL0 author transport | `artifact_validation.submission_schema` | Complete draft, retained-candidate selection, patches and source-use binding |
-| Selected global graph to NL0 local author | `basis_graph.with_usage`, `proposition_usage.bind` and `frozen_graph.read_working` | Global authors at both entries, graph revisions and local assignments |
+| Selected global graph to NL0 local author | `basis_graph.with_usage`, `proposition_usage.bind`, `graph_outline.schema` and `frozen_graph.read_working` | Global authors at both entries, graph revisions and local assignments |
 | Node-local repair | `NodePatch.schema` | Own inference draft or located global repair request |
 | Interface author | `translation_author.artifact_schema` | Author tools and typed candidate validation; step fields come from `dependency_instances.step_schema` |
 | Source factoring | `source_preparation.patch_schema` | Preparation tool and patch application; NO_CHANGE is a separate explicit variant |
@@ -30,11 +30,12 @@ source fidelity, Lean checking, dependency closure, or user decisions.
 | Partial Lean type probes | `translation_author.type_probe_schema` | Expression-checking tool and its parameter validation |
 | Development interface and plan tools | `ir.interface_draft_schema` and `plan_schema` | String-encoded tool inputs and the actual interface/plan checks |
 
-Both global entries now produce a `yui-working-graph-4` receipt. Each proposition
+Both global entries produce a `yui-working-graph-5` receipt. Each proposition
 records its direct consuming inferences and any supplied document locations in
-`usage`. Revisions derive the consumers from their own input edges. Existing
-version 2 and 3 receipts can still be read against their original hashes.
-The outer `WorkingGraph@2` contract carries the selected artifact binding.
+`usage`. Revisions derive the consumers from their own input edges. The receipt
+also binds the checked proof outline to the selected graph and specification.
+Versions 2 through 4 can still be read against their original hashes. The outer
+`WorkingGraph@2` contract carries the selected artifact binding.
 See the [NL0 format](../nl0/references/nl0-format.md) for the stored fields.
 
 `ReviewShape` derives required review pointers, the saved-row tool, complete and

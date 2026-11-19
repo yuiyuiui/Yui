@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 
 _scope = contextvars.ContextVar('yui_execution_scope', default=(None, None))
+STALE_HEARTBEAT_SECONDS = 15
 
 
 class Cancelled(Exception):
@@ -211,7 +212,7 @@ def inspect(directory):
         value['inspection']['state'] = 'STALE_UNKNOWN_CLEANUP'
     elif value['controller']['state']=='RUNNING':
         age=(datetime.now(timezone.utc)-datetime.fromisoformat(value['controller_heartbeat_at_utc'])).total_seconds()
-        if age>15:value['inspection']['state']='STALE_HEARTBEAT'
+        if age>STALE_HEARTBEAT_SECONDS:value['inspection']['state']='STALE_HEARTBEAT'
     return value
 
 
@@ -320,7 +321,15 @@ class Recorder:
             if previous and values.get('usage_ledger',previous)!=previous:
                 ledgers=self.state.setdefault('archived_usage_ledgers',[])
                 if previous not in ledgers:ledgers.append(previous)
+            if 'activity' in values and (values['activity'] != row.get('activity')
+                    or values.get('attempt_id',row['attempt_id']) != row['attempt_id']):
+                row['activity_since_utc'] = now()
             row.update(values); self.dirty = True
+
+    def target_checked(self, task, result, *, source):
+        fields = ('candidate', 'status', 'exit_code', 'timed_out', 'error_kind', 'native_reused')
+        self.task(task,last_target_check={'at_utc':now(),'source':source,
+            **{key:result[key] for key in fields if key in result}})
 
     def record_stage(self, task, logs, result):
         """Retain each immutable stage's health independently of role/usage reuse."""

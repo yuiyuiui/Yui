@@ -24,6 +24,7 @@ shared orchestration, use full discovery.
 | `basis` | Correct a rejected source in the author session and verify the frozen source at the NL0 handoff |
 | `cleanup` | Verify file ownership, stop an owned process tree, and protect unrelated processes |
 | `lean` | Bind a proof packet to its inputs, inspect a Lean export and reject changed review material |
+| `nl0` | Check split outlines at both global entries, bind each outline to its graph and exercise the public audit entry |
 | `recovery` | Qualify retained proof work and reject unsafe process or checkpoint reuse |
 | `runner` | Check test discovery, selection, environment handling and reported outcomes |
 

@@ -417,6 +417,7 @@ class HelperWork:
         self.recorder = self.budget.execution
         self.pool = None
         self.jobs = {}
+        self.received = set()
         self.wait_ids = ()
 
     def __enter__(self):
@@ -502,7 +503,7 @@ class HelperWork:
                     self.pool=ThreadPoolExecutor(max_workers=min(2,self.budget.configuration['effective']))
                 key='private-'+local_helpers.digest([str(stage.logs),sid])[:24]
                 self.recorder.task(key,parent_task=stage.execution_task,role='proof',activity='QUEUED',
-                    private_request=bind(request),parent_attempt=bind(attempt))
+                    helper_id=sid,private_request=bind(request),parent_attempt=bind(attempt))
                 future=self.pool.submit(copy_context().run,self.run,key,request)
                 self.jobs[sid]=(key,request,future)
             ids.append(sid)
@@ -533,7 +534,13 @@ class HelperWork:
             result=future.result()
         except execution_state.Cancelled:
             return {'task_id':sid,'status':'unfinished','reason':'CANCELLED'}
-        return {'task_id':sid,**receive(self.stage,result,expected_request=request,raise_failures=False)}
+        received=receive(self.stage,result,expected_request=request,raise_failures=False)
+        if sid not in self.received and 'result' in received:
+            self.recorder.task(self.stage.execution_task,last_helper_result={
+                'at_utc':execution_state.now(),'task_id':sid,'status':received['status'],
+                'helper':received.get('helper',{}).get('name')})
+            self.received.add(sid)
+        return {'task_id':sid,**received}
 
     def after_turn(self):
         ids,self.wait_ids=self.wait_ids,()
@@ -545,11 +552,12 @@ class HelperWork:
         path=stage.logs/'helper-wait.json'
         write(path,{'status':'WAITING',**checkpoint})
         with self.budget.suspended(resume_on_error=False):
-            self.recorder.task(stage.execution_task,activity='WAITING_FOR_HELPER',helper_wait=str(path))
+            self.recorder.task(stage.execution_task,activity='WAITING_FOR_HELPER',helper_wait=str(path),
+                waiting_for_helpers=[self.job(sid)[0] for sid in ids])
             self.recorder.flush(force=True)
             while not wait(futures,timeout=.2,return_when=FIRST_COMPLETED).done:
                 stage.check_runtime_state()
                 if stage.timeout is not None and time.monotonic()>=stage.started+stage.timeout:
                     raise TimeoutError('Local proof deadline expired while waiting for a private proof')
         write(path,{'status':'RESUMED',**checkpoint,'ready':[sid for sid in ids if self.job(sid)[2].done()]})
-        self.recorder.task(stage.execution_task,activity='MODEL_RUNNING')
+        self.recorder.task(stage.execution_task,activity='MODEL_RUNNING',waiting_for_helpers=[])

@@ -8,6 +8,8 @@ def local(inference):
                    not s.get('introduces') and not s.get('discharges') and not s.get('produces')]
     return {'paragraphs':len(paragraphs),'source_applications':len(inference.get('applications',[])),
             'local_binders':len(inference.get('locals',[])),'paragraphs_without_local_binders':independent,
+            'argument_characters':sum(len(s['text']) for s in paragraphs),
+            'largest_argument_paragraph_characters':max((len(s['text']) for s in paragraphs), default=0),
             'review':'Consider separate conclusions when distinct arguments can be checked from these inputs. Keep local witnesses and the final implication in scope. Explain any substantial retained block in the dependency check.'}
 
 

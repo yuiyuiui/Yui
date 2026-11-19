@@ -52,6 +52,8 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
             attempt=execution.state['run_id']+':'+shared_lemmas.hashed(str(out.resolve()) if out else str(time.monotonic()))[:12]+':'+sid
             execution.task(sid,state='PENDING',activity='QUEUED',queued_at_utc=execution_state.now(),
                 attempt_id=attempt,claimed_at_utc=None,worker_id=None,finished_at_utc=None,
+                last_target_check=None,last_helper_result=None,waiting_for_helpers=[],
+                repair_route=None,repair_requested_at_utc=None,current_lean_check=None,
                 role='proof',consumers=group,inputs=nodes[sid]['inputs'],
                 contract_sha256=initial_contract,plan_digest=initial_plan,
                 result_path=str(out/'jobs'/f'{sid}.json') if out else None)
@@ -103,6 +105,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
                 ir.need(proof is not None, 'worker returned no accepted proof')
                 job['source'] = 'WORKER'
             checked = ir.check(cpath, plan, {sid: proof}, only=sid)
+            if execution:execution.target_checked(sid,checked,source='graph_recheck')
             job['verification'] = checked
             ir.need(checked['exit_code'] == 0, 'local proof rejected')
             if sid in requests and entry is None:

@@ -55,6 +55,15 @@ output or give the consumer another genuine direct input. Then write the
 producer under precisely its inputs. This implements `statement_closure`,
 the grouped argument and applicability criteria; it is not permission to invent a stronger theorem.
 
+At the global outline stage, name the conclusions used separately by later
+arguments, and give each substantial, independently provable one its own N and
+producer. A construction, an estimate for that construction and an application
+of the estimate can be separate even when each has one consumer. Keep the exact
+parameters, uniformity and scope at the cut. If two results need the same
+witness, state the argument for one fixed witness or export a joint conclusion
+with a single witness. Record the source and use of each step in
+[`proof_outline`](nl0-format.md#global-proof-outline).
+
 Start another S when the local parameters or purpose change; export a reused
 result as N and a within-R result as a complete F. Avoid one giant copied S
 followed by a long sequence of isolated symbol patches. Copy exact supplied

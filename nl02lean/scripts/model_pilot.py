@@ -361,6 +361,9 @@ class Stage(carrier.NativeCarrier):
         self.observe_proof_progress(name,args,result)
         if record is not None:
             record['check']=dict(result);ir.write(record_path,record)
+            recorder=getattr(self,'execution',None)
+            if recorder and name in {'check_transition','submit_transition'} and 'exit_code' in result:
+                recorder.target_checked(self.execution_task,result,source=name)
         carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,
                                                'wall_seconds':time.monotonic()-begin})
         # Keep owner oracle signatures out of compiler feedback for interface work.
@@ -415,7 +418,8 @@ class Stage(carrier.NativeCarrier):
             ir.write(self.logs/'proof-repair-request.json',self.repair_request)
             ir.write(self.logs/'proof-progress-actions.json',{'actions':sorted(self.proof_progress.seen)})
             self.submission_closed=True;self.stage_close_reason='QUALIFIED_PROOF_DEFECT'
-            if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',
+            if recorder:recorder.task(self.execution_task,activity='REPAIR_REQUESTED',repair_route=route,
+                repair_requested_at_utc=execution.now(),
                 repair_request=str(self.logs/'proof-repair-request.json'),proof_progress=self.proof_progress.metadata())
         return {'accepted':False,'stage_complete':False,'repair_requested':handoff,
                 'diagnosis':diagnosis,'same_author_retained':True,

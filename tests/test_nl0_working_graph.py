@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 import harness_support as support
-from basis_fixtures import active_artifact,artifact,dependency
+from basis_fixtures import active_artifact,artifact,checked_context,dependency
 from controller_common import bind,write
 from execution_health import StageFailure
 import basis_graph
@@ -41,6 +41,7 @@ class WorkingGraphTests(unittest.TestCase):
         docs = {'paper.md':'First manuscript.', 'appendix.md':'Separate appendix.'}
         refs = [{'document':'inputs/'+name, 'locator':'Lemma 2.1'} for name in docs]
         draft = {'spec':deepcopy(spec), **fg.shape(deepcopy(complete))}
+        draft['proof_outline'] = support.elementary_outline(draft['inferences'])
         claim = next(p for p in draft['propositions'] if p['id']=='N001')
         claim['statement'] += ' Used in Lemma 2.1 (see H001).'
         claim['usage'] = {'references':refs}
@@ -65,10 +66,91 @@ class WorkingGraphTests(unittest.TestCase):
                                            spec['case_id'],fg.DIRECT)
             revision = {'spec':deepcopy(assigned['spec']), **fg.shape(deepcopy(assigned['graph']))}
             revision['inferences'][-1]['inputs'].append('H001')
+            revision['proof_outline'] = support.elementary_outline(revision['inferences'])
             next_author(revision)
             changed = nl0.load(next_author.directory/'nl0.json')['propositions']
             self.assertEqual(next(p for p in changed if p['id']=='H001')['usage']['inferences'],['R001','R002'])
             self.assertEqual(next(p for p in changed if p['id']=='N001')['usage'],prop['usage'])
+
+    def test_both_entries_split_a_long_derivation_before_selection(self):
+        spec = nl0.load(self.source/'spec.json')
+        complete = fg.shape(nl0.load(self.source/'nl0.json'))
+        proof = 'First derivation. ' + 'x' * 8200 + '\nSecond derivation. ' + 'y' * 8200 + '\n'
+        with tempfile.TemporaryDirectory() as raw:
+            for owner in (fg.DIRECT,fg.BASIS):
+                with self.subTest(owner=owner):
+                    root = Path(raw)/owner
+                    directory = root/'global-graphs/0001/stage/case'
+                    docs = {'problem.md':proof}
+                    if owner==fg.BASIS:
+                        registry = artifact()
+                        context = checked_context(root/'foundations',registry)
+                        docs['basis-registry.json'] = Path(context['basis']['path']).read_text()
+                        docs['proof-context.json'] = json.dumps(context)
+                    author = fg.AuthorContract(directory,docs,spec['case_id'],owner)
+                    bundled = {'spec':deepcopy(spec),**deepcopy(complete)}
+                    bundled['propositions'] = [p for p in bundled['propositions'] if p['id']!='N001']
+                    bundled['inferences'] = [{'id':'R002','inputs':['H001'],'output':'P','definitions':[]}]
+                    bundled['proof_outline'] = support.elementary_outline(bundled['inferences'])
+                    bundled['proof_outline']['R002']['steps'][0]['source_spans'] = [
+                        {'from_task':'problem.md','start_line':1,'end_line':2}]
+                    with self.assertRaisesRegex(ValueError,'OUTLINE_REVIEW:.*R002'):
+                        author(bundled)
+                    self.assertFalse((directory/fg.graph_outline.FILENAME).exists())
+                    split = {'spec':deepcopy(spec),**deepcopy(complete)}
+                    split['proof_outline'] = support.elementary_outline(split['inferences'])
+                    for line, rid in enumerate(('R001','R002'),1):
+                        split['proof_outline'][rid]['steps'][0]['source_spans'] = [
+                            {'from_task':'problem.md','start_line':line,'end_line':line}]
+                    checked = author(split)
+                    submitted = {'accept_candidate':checked['candidate_number']}
+                    author(submitted)
+                    selected = fg.select({'root':str(root)},fg.checked_receipt(directory,owner))
+                    record = nl0.load(selected['path'])
+                    self.assertEqual(record['version'],'yui-working-graph-5')
+                    readback = fg.read_outline(record)
+                    self.assertEqual(readback['inferences'],submitted['graph']['proof_outline'])
+                    self.assertEqual(readback['workload']['R001']['consumers'],['R002'])
+                    self.assertEqual(sum(row['source_characters'] for row in readback['workload'].values()),len(proof))
+                    self.assertLess(max(row['source_characters'] for row in readback['workload'].values()),len(proof))
+                    (directory/fg.graph_outline.FILENAME).write_text('{}')
+                    with self.assertRaisesRegex(ValueError,'Frozen input/runtime changed'):
+                        fg.read_working(selected)
+
+    def test_outline_rechecks_local_scope_and_actual_source_ranges(self):
+        graph = {'inferences':[{'id':'R001','inputs':['H001'],'output':'P'}]}
+        first = {'conclusion':'Choose a witness under H001.','uses':['H001'],
+                 'source_spans':[{'from_task':'proof.md','start_line':1,'end_line':1}]}
+        last = {'conclusion':'Prove both properties for that witness.','uses':['S001'],
+                'source_spans':[{'from_task':'proof.md','start_line':1,'end_line':2}]}
+        entry = {'steps':[first,last]}
+        documents = {'proof.md':'Choose w.\nVerify its two properties.\n'}
+        with self.assertRaisesRegex(ValueError,'OUTLINE_REVIEW:.*R001'):
+            fg.graph_outline.check(graph,{'R001':entry},documents)
+        entry['keep_together'] = {'kind':'shared_witness','reason':'Both properties concern the same chosen w.'}
+        report = fg.graph_outline.check(graph,{'R001':entry},documents)
+        self.assertEqual(report['workload']['R001']['source_characters'],len(documents['proof.md']))
+        last['uses'] = []
+        with self.assertRaisesRegex(ValueError,'OUTLINE_INPUT:.*S001'):
+            fg.graph_outline.check(graph,{'R001':entry},documents)
+        last['uses'] = ['S001']
+        last['source_spans'][0]['end_line'] = 3
+        with self.assertRaisesRegex(ValueError,'OUTLINE_SOURCE:.*proof.md:1-3'):
+            fg.graph_outline.check(graph,{'R001':entry},documents)
+
+    def test_explicit_foundation_uses_move_to_a_split_producer(self):
+        docs = {'basis-registry.json':json.dumps(self.registry), 'problem.md':'A synthetic proof.'}
+        with tempfile.TemporaryDirectory() as raw:
+            author = fg.AuthorContract(Path(raw)/'draft',docs,None,fg.BASIS)
+            graph = deepcopy(self.seed)
+            next(p for p in graph['propositions'] if p['id']=='E001')['kind'] = 'external'
+            first,final = graph['inferences']
+            first['basis'] = ['B001']
+            final['basis'] = []
+            final['inputs'].remove('E001')
+            author.bind_graph(graph,{})
+            self.assertIn('E001',first['inputs'])
+            self.assertNotIn('E001',final['inputs'])
 
     def test_a_matching_graph_label_cannot_substitute_an_unrelated_native_theorem(self):
         import basis

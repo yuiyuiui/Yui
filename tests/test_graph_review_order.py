@@ -87,7 +87,8 @@ class GraphReviewOrder(unittest.TestCase):
         modified = deepcopy(spec)
         modified['parameters'][0]['type']='a different domain'
         with self.assertRaisesRegex(ValueError, 'SOURCE_CHANGE_REQUIRES_USER'):
-            owner({'spec':modified, **frozen_graph.shape(graph)})
+            owner({'spec':modified, **frozen_graph.shape(graph),
+                   'proof_outline':support.elementary_outline(graph['inferences'])})
         self.assertIsNone(owner.last_valid_candidate)
         self.assertFalse((owner.directory/'working.json').exists())
 

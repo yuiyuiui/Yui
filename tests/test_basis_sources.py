@@ -142,7 +142,9 @@ class SourceHandoff(unittest.TestCase):
         details['M001']={'kind':'mathlib','definitions':[],'binders':[],'objects':[]}
         if change:details['M001']['source']=change
         payload={'spec':ir.load(harness_support.FIXTURES/'closed-addition/spec.json'),
-                 'proposition_details':details,'inference_definitions':{r['id']:r['definitions'] for r in original['inferences']}}
+                 'proposition_details':details,'inference_definitions':{r['id']:r['definitions'] for r in original['inferences']},
+                 'proof_outline':harness_support.elementary_outline(original['inferences'])}
+        payload['proof_outline']['R002']['steps'][0]['uses'].append('B001')
         if rename:payload['rename_foundations']={'B001':'M014'}
         contract(payload)
         return directory,payload

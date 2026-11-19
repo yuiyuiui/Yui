@@ -49,6 +49,13 @@ definition as the case. A zero-lookup run has the same proof and review gates.
 
 The Yui case owns the process group, budget, material requests, decisions, checkpoints, delivery and cleanup. Read `yui.py status RUN`, `observe RUN` or `errors RUN` for the live owner and exact incident. Supply source bytes with `supply-material RUN --incident ID --file FILE`. Use `resume-checkpoint RUN --id ID` at a requested stage boundary. When a user says they sent the requested reference, inspect attachments actually received in the owning chat. Bind the matching file to the open incident. If there are several plausible editions, ask which one to bind. Leave the request waiting while no matching file is available. `verify-delivery RUN/delivery` rechecks the portable graph, evidence and endpoint inventory. Supply `--comparator BINARY` to build and compare the theorem package. `cleanup RUN --apply` explicitly releases owned scratch and preserves the verified delivery.
 
+Each `observe` case includes a `progress` record with the latest frozen plan,
+the local passes recorded in that round and their trailing ten-minute count at
+`updated_at_utc`. It reports current activities, the latest complete-target
+check, the latest collected helper result, and the longest observed blocker.
+Report `observation_gap` when present. Use the terminal and process-exit
+fields to authorize cleanup.
+
 OS process queries use fresh 5/15/30-second attempts. If native shutdown still
 cannot be confirmed, the caller preserves its live handle and checkpoint and
 requests diagnosis from the owning AI. Read the supplied process-recovery entry;

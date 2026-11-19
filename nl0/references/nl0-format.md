@@ -261,6 +261,30 @@ Every retained non-H proposition must be in P's backward dependency closure.
 Every frozen H is present as an initial graph node, including an unused H.
 Report unused H rather than removing it or changing the original statement.
 
+## Global proof outline
+
+Both global authors include a `proof_outline` object keyed by the submitted R
+IDs, including when using the compact numbered basis seed. Each entry has
+`steps` ordered by dependency. A step states its `conclusion`, `uses` (direct
+input IDs or earlier outline steps numbered `S001`, `S002`, etc.), and
+`source_spans`. The last step establishes the R output. Every direct input and
+earlier step must be used. Basis authors may use B identities in `uses` and
+explicitly set each revised inference's `basis` list, including an empty list
+for a combination that only uses already proved internal results.
+
+Each source span has `from_task`, `start_line` and `end_line` in a declared frozen
+document. Use inclusive line numbers, as in the task reader. A direct argument
+from its inputs may have an empty `source_spans` list. Multiple main steps or
+16,000 or more assigned source characters trigger review. Split the inference
+or supply `keep_together` with `kind` (`shared_witness`, `shared_scope` or
+`single_argument`) and a concrete `reason`. Source character counts deduplicate
+overlapping ranges within each inference. They describe source assignment size.
+
+The selected working graph's versioned receipt binds `proof-outline.json` to
+the exact specification and graph. Local authors receive the outline to locate
+the source and can request a split through `report_graph_issue`. Audit A still
+checks the actual argument, including the scope of each exported conclusion.
+
 ## Inference fields
 
 Required fields: `id: Rddd`, `inputs` (unique proposition IDs), `output` (one

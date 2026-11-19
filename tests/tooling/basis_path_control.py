@@ -96,13 +96,28 @@ def author_code(stage):
                 if prop['kind'] in ('target','hypothesis'):
                     del prop['statement']
         renames={'rename_foundations':{'B001':'E014'}} if mode.startswith('relabel-') else {}
-        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),**renames})
+        outline = harness_support.elementary_outline(graph['inferences'])
+        if renames:
+            ports = {label: key for key, label in stage.validator.labels.items()}
+            for entry in outline.values():
+                step = entry['steps'][0]
+                step['uses'] = [ports.get(pid,pid) for pid in step['uses']]
+        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),**renames,
+                    'proof_outline':outline})
     if stage.mode==fg.BASIS:
+        seed = stage.validator.seed['inferences']
+        outline = harness_support.elementary_outline(seed)
+        for row in seed:
+            # Address roots by B identity so the same outline works after relabeling.
+            uses = outline[row['id']]['steps'][0]['uses']
+            uses[:] = [p for p in uses if p not in stage.validator.labels.values()] + row['basis']
         return call('submit_draft',artifact={'spec':spec,
             'proposition_details':{p['id']:{k:v for k,v in p.items() if k not in ('id','statement')} for p in graph['propositions']},
-            'inference_definitions':{r['id']:r['definitions'] for r in graph['inferences']}})
+            'inference_definitions':{r['id']:r['definitions'] for r in graph['inferences']},
+            'proof_outline':outline})
     if stage.mode==fg.DIRECT:
-        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph)})
+        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),
+                    'proof_outline':harness_support.elementary_outline(graph['inferences'])})
     draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
            if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
     code=call('check_draft',artifact=draft)

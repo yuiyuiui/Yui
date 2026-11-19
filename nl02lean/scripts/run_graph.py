@@ -62,7 +62,9 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
         recorder=execution_state.Recorder(out,ir.contract(cpath)['id'],configuration)
         budget.execution=recorder
     recorder.model_configuration('proof', configuration)
-    recorder.update(phase='proof',bindings={'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json')})
+    recorder.update(phase='proof',proof_round=recorder.state.get('stage_artifacts',{}).get('repair_round',1),
+        proof_total=None,proof_group_sizes={},
+        bindings={'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json')})
     import lean_timeout_policy
     checks = lean_timeout_policy.scope(out/'lean-timeouts' if arm=='yui' else None, budget)
     try:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import artifact_protocol as protocol
 import basis_graph
+import graph_outline
 import nl0
 from artifact_validation import NL0Contract
 from controller_common import bind, manifest, verify_bindings, write
@@ -16,6 +17,7 @@ ORIGINAL_FIELDS = ('full_target', 'conclusion', 'parameters', 'hypotheses')
 GLOBAL_FIELDS = ('id', 'inputs', 'output', 'definitions')
 BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 ASSIGNED = 'assigned-global.json'
+PRIOR_OUTLINE = 'prior-proof-outline.json'
 DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
 LOCAL = 'nl0-local-authoring'
@@ -51,26 +53,46 @@ def checked_receipt(source, owner, *, foundation=None, previous=None):
     if not all('usage' in prop for prop in graph['propositions']):
         raise ValueError('USAGE: new working graphs must index every proposition before selection')
     receipt = source/'checked-global.json'
-    write(receipt, {'version':'yui-working-graph-4','owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
-                    'graph':bind(source/'nl0.json'),**({'foundation':foundation} if foundation else {})})
+    record = {'version':'yui-working-graph-4','owner':owner,'previous':previous,'spec':bind(source/'spec.json'),
+              'graph':bind(source/'nl0.json'),**({'foundation':foundation} if foundation else {})}
+    outline = source/graph_outline.FILENAME
+    if outline.is_file():
+        record.update(version='yui-working-graph-5', outline=bind(outline))
+        read_outline(record)
+    write(receipt, record)
     return bind(receipt)
+
+def read_outline(record):
+    reference = record.get('outline')
+    expected = Path(record['graph']['path']).with_name(graph_outline.FILENAME)
+    if not reference or Path(reference['path']) != expected:
+        raise ValueError('OUTLINE_BINDING: missing or foreign proof outline')
+    verify_bindings([reference])
+    outline = nl0.load(expected)
+    if (outline.get('schema') != graph_outline.VERSION
+            or outline.get('spec_sha256') != record['spec']['sha256']
+            or outline.get('graph_sha256') != record['graph']['sha256']):
+        raise ValueError('OUTLINE_BINDING: proof outline belongs to a different graph or specification')
+    return outline
 
 def read_receipt(binding):
     verify_bindings([binding])
     record = nl0.load(binding['path'])
     owners={'yui-working-graph-2':(DIRECT,BASIS),'yui-working-graph-3':(BASIS,),
-            'yui-working-graph-4':(DIRECT,BASIS)}
+            'yui-working-graph-4':(DIRECT,BASIS),'yui-working-graph-5':(DIRECT,BASIS)}
     if record['owner'] not in owners.get(record['version'],()):
         raise ValueError('Unknown global graph authority')
     verify_bindings([record['spec'],record['graph']]+([record['foundation']] if 'foundation' in record else []))
     _, graph, spec, *_ = nl0.validate(record['graph']['path'],record['spec']['path'],global_only=True)
-    if record['version']=='yui-working-graph-4':
+    if record['version'] in ('yui-working-graph-4','yui-working-graph-5'):
         if not all('usage' in prop for prop in graph['propositions']):
-            raise ValueError('USAGE: a version 4 working graph must index every proposition')
+            raise ValueError('USAGE: the working graph must index every proposition')
         if ('foundation_ports' in graph) != (record['owner']==BASIS):
             raise ValueError('Working graph labels do not match its producing entry')
     elif record['version']=='yui-working-graph-3' and 'foundation_ports' not in graph:
         raise ValueError('Missing reviewed foundation labels in working graph')
+    if record['version']=='yui-working-graph-5':
+        read_outline(record)
     return {'spec':spec, 'graph':graph}
 
 def read_working(binding):
@@ -89,7 +111,8 @@ class AuthorContract(NL0Contract):
     def __init__(self, directory, documents, case_id, phase):
         super().__init__(directory, documents, case_id, global_only=phase!=LOCAL)
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
-            {ASSIGNED,'numbered-basis-graph.json','protected-roots.json','prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
+            {ASSIGNED,graph_outline.FILENAME,PRIOR_OUTLINE,'numbered-basis-graph.json','protected-roots.json',
+             'prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
         self.phase = phase
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
         self.earlier=json.loads(documents.get('protected-roots.json','[]'))
@@ -102,12 +125,13 @@ class AuthorContract(NL0Contract):
         if phase in (DIRECT,BASIS):
             proposition = basis_graph.with_usage(OBJECT, allow_index=True)
             form = protocol.obj({'spec':OBJECT,'propositions':protocol.array(proposition),
-                                 'inferences':protocol.array(step,minItems=1)})
+                                 'inferences':protocol.array(step,minItems=1),
+                                 graph_outline.FIELD:graph_outline.schema()})
             if phase==BASIS:
                 # A revised route can name B identities directly on its inference rows.
                 step['properties']['basis'] = protocol.array(protocol.STRING,uniqueItems=True)
                 compact = protocol.obj({'spec':OBJECT, 'proposition_details':protocol.obj({}, extra=proposition),
-                                        'inference_definitions':OBJECT})
+                                        'inference_definitions':OBJECT,graph_outline.FIELD:graph_outline.schema()})
                 for option in (compact,form):
                     option['properties']['rename_foundations'] = OBJECT
                 form['properties']['foundation_ports'] = OBJECT
@@ -151,7 +175,8 @@ class AuthorContract(NL0Contract):
                 for row in self.seed['inferences']:
                     steps.append({k:row[k] for k in ('id','inputs','output')} |
                                  {'definitions':definitions[row['id']]})
-            expanded={'spec':spec,'graph':{'format_version':2,'propositions':props,'inferences':steps}}
+            expanded={'spec':spec,'graph':{'format_version':2,'propositions':props,'inferences':steps,
+                                          graph_outline.FIELD:deepcopy(value[graph_outline.FIELD])}}
             if self.registry:
                 if 'foundation_ports' in value and (not self.prior or value['foundation_ports']!=self.prior['graph'].get('foundation_ports')):
                     raise ValueError('Use rename_foundations to revise the controller-owned foundation labels')
@@ -169,12 +194,10 @@ class AuthorContract(NL0Contract):
         rows = indexed(self.registry['dependencies'])
         for step in graph['inferences']:
             seed = seed_steps.get(step['id'])
-            # The first handoff preserves each declared use. A revision owns its new edges.
+            # Omitted foundation uses inherit from the seed. Explicit uses describe the revised edges.
             uses = step.pop('basis', None)
             if uses is None:
                 uses = seed['basis'] if not self.prior and seed and seed['output']==step['output'] else []
-            elif not self.prior and seed and seed['output']==step['output']:
-                uses = list(dict.fromkeys([*seed['basis'],*uses]))
             for key in uses:
                 if key not in labels:
                     if key not in rows:
@@ -222,7 +245,21 @@ class AuthorContract(NL0Contract):
                     del usage['inferences']
         if self.frozen:
             check_assignment(self.frozen, expanded['spec'],expanded['graph'])
-        return super()._validate(expanded)
+            return super()._validate(expanded)
+        # Keep the outline with each draft. Publish it beside the canonical NL0 graph.
+        graph = expanded['graph']
+        outline = graph[graph_outline.FIELD]
+        canonical = {'spec':expanded['spec'], 'graph':{k:v for k,v in graph.items() if k!=graph_outline.FIELD}}
+        documents = {Path(row['path']).name: self.documents[Path(row['path']).name] for row in self.expected_inputs}
+        report = graph_outline.check(canonical['graph'],outline,documents)
+        result = super()._validate(canonical)
+        report.update(spec_sha256=canonical['graph']['spec_sha256'],
+                      graph_sha256=nl0.sha(self.directory/'nl0.json'))
+        write(self.directory/graph_outline.FILENAME,report)
+        expanded['graph'] = {**canonical['graph'], graph_outline.FIELD:outline}
+        result['candidate_number'] = self.attempt
+        result['outline_reviewed'] = [rid for rid,entry in report['workload'].items() if entry['review_reasons']]
+        return result
 
     def validate_canonical(self,spec,graph):
         if self.prior:
@@ -311,8 +348,10 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     copy_problem_documents(basis.problem_inputs(job),inputs)
     if previous:
         versions=prior_versions(previous,Path(job['root']).resolve())
-        latest,_=next(versions)
+        latest,prior_record=next(versions)
         write(inputs/'prior-global.json',latest)
+        if 'outline' in prior_record:
+            copy_input(Path(prior_record['outline']['path']),inputs/PRIOR_OUTLINE)
         roots=[]
         for old,_ in versions:
             spec={k:old['spec'][k] for k in (*ORIGINAL_FIELDS,'definitions')}
@@ -327,12 +366,21 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
         write(inputs/'numbered-basis-graph.json',{'version':basis.basis_graph.handoff().VERSION,
               'labels':labels,'graph':numbered})
     manifest(inputs)
-    prompt=('Choose natural small inference nodes suitable for independent Lean workers. Keep shared witnesses and local scopes intact. '
+    prompt=('Work backward from the target and record the exact mathematical fact each consumer needs. '
+            'Give each R one main derivation. Export independently usable conclusions as N with their own inputs, '
+            'including single-consumer conclusions that need substantial separate work. Reuse a sufficient proved fact at all its consumers. '
+            'Keep routine calculations local. Fix shared witnesses, sets, parameters and scope explicitly at every cut. '
             'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
             'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
             'Write the mathematical claim in statement. For source uses add usage.references with '
             'document (exact inputs/ path) and locator (e.g. Lemma 2.1). The controller derives usage.inferences from the graph edges. '
-            'Supply id, inputs, output and definitions for each inference. Local proof paragraphs come later. ')
+            'Supply id, inputs, output and definitions for each inference. Include proof_outline keyed by the actual R IDs. '
+            'Each step states its conclusion, what it uses (direct inputs, optionally B IDs, or earlier steps named S001, S002, ...), '
+            'and the actual source_spans using from_task, start_line, end_line. All earlier steps and direct inputs must feed the final step. '
+            'Use actual inclusive task-input line numbers; an inference derived directly from its inputs can use empty source_spans. '
+            'Express independent work as multiple R rows rather than hiding it in one outline step. For a large span or several main steps '
+            'that genuinely belong together, supply keep_together identifying the actual shared witness/scope or indivisible argument. '
+            'A short final combination of previously proved inputs is one step. Local proof paragraphs come later. ')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
                  'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
@@ -347,7 +395,8 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     else:
         prompt+='Submit spec, propositions and inferences. Direct conditional external sources remain available.'
     if previous:
-        prompt+=' Repair the located global findings in the supplied prior version. Preserve the original target and H.'
+        prompt+=(' Repair the located global findings in the supplied prior version. Preserve the original target and H. '
+                 'Reuse prior outline entries whose inference and source ranges still apply.')
     stage=ArtifactStage(attempt/'stage',prompt,phase=owner,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget))
     if previous:
@@ -359,10 +408,13 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     with owner_sessions.use(owner):
         stage.execute()
     accepted(attempt)
-    canonical={'spec':nl0.load(stage.logs/'case/spec.json'),'graph':nl0.load(stage.logs/'case/nl0.json')}
-    if canonical!=nl0.load(stage.logs/'accepted.json'):
+    source=stage.logs/'case'
+    submitted=nl0.load(stage.logs/'accepted.json')
+    outline=submitted['graph'].pop(graph_outline.FIELD)
+    canonical={'spec':nl0.load(source/'spec.json'),'graph':nl0.load(source/'nl0.json')}
+    if canonical!=submitted or outline!=nl0.load(source/graph_outline.FILENAME)['inferences']:
         raise ValueError('Global submit differs from the accepted graph')
-    receipt=checked_receipt(stage.logs/'case',owner,foundation=foundation,previous=previous)
+    receipt=checked_receipt(source,owner,foundation=foundation,previous=previous)
     if previous:
         before, after=read_working(previous),read_receipt(receipt)
         if any(before['spec'][key]!=after['spec'][key] for key in ORIGINAL_FIELDS):
@@ -449,6 +501,9 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None):
     nl0_author.prepare(basis.problem_inputs(job),directory,baseline=baseline,obligations=obligations)
     inputs=directory/'inputs'
     write(inputs/ASSIGNED,frozen)
+    record=nl0.load(previous['path'])
+    if 'outline' in record:
+        copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
     manifest(inputs)
     prompt=('Read assigned-global.json and the original proof. The controller supplies all global declarations, '
             'statements and inference interfaces. Submit local_proofs with the rules, scoped locals, argument and '
@@ -457,9 +512,13 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None):
             'Use report_graph_issue for a missing edge, a wrong R interface, or an incorrect intermediate statement. '
             'Give the R ID, field, related proposition IDs and a specific explanation. Report genuine mathematical gaps via report_obstacle. '
             'Only the detailed proofs are yours to edit. Read located repair findings when supplied.')
+    if 'outline' in record:
+        prompt+=(' Read proof-outline.json for the planned derivations and precise source ranges. '
+                 'If the actual derivation groups substantial separately provable conclusions, use report_graph_issue '
+                 'with field=output, the candidate intermediate statements and the exact source locations. '
+                 'Keep arguments sharing an indispensable witness or local scope together.')
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget))
-    record=nl0.load(previous['path'])
     evidence(Path(record['graph']['path']).parent,frozen['graph'],stage.validator.directory)
     stage.execute()
     budget.execution.check()

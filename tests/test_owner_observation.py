@@ -7,6 +7,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import Future
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import entrypoint
@@ -31,6 +34,7 @@ class OwnerObservationTests(unittest.TestCase):
     def state(self, *, final=False):
         write(self.run/'execution-status.json', {'phase': 'proof',
             'controller': {**self.identity, 'state': 'FINALIZED' if final else 'RUNNING'},
+            'updated_at_utc': '2026-10-28T03:00:00+00:00',
             'processes': {}, 'proof_counts': {'LOCAL_CHECKED': 3, 'RUNNING': 2},
             'tasks': {'T001': {'argument': 'UNFINISHED_ARGUMENT_MUST_NOT_BE_DISPLAYED'}},
             'usage': {'status': 'PARTIAL', 'confirmed_tokens': {'total_tokens': 123},
@@ -96,6 +100,91 @@ class OwnerObservationTests(unittest.TestCase):
         finally:
             recorder.close('CANCELLED')
 
+    def test_current_round_report_tracks_exact_passes_waits_and_retries(self):
+        instant = datetime.now(timezone.utc)
+        def ago(seconds):
+            return (instant - timedelta(seconds=seconds)).isoformat()
+        tasks = {
+            'T035': {'state':'RUNNING','activity':'WAITING_FOR_HELPER','activity_since_utc':ago(720),
+                'waiting_for_helpers':['private-working'],'last_target_check':{'at_utc':ago(2520),'candidate':5,'exit_code':1},
+                'last_helper_result':{'at_utc':ago(1500),'task_id':'previous-helper','status':'checked'}},
+            'private-working': {'state':'RUNNING','helper_id':'H003','parent_task':'T035',
+                'current_lean_check':{'started_at_utc':ago(91)}},
+            'T006': {'state':'RUNNING','activity':'REMOTE_RETRY_WAIT','activity_since_utc':ago(12)},
+            'T007': {'state':'RUNNING','activity':'TOOL_RESULT_DELIVERED','repair_route':'INTERNAL_INTERFACE_REPAIR',
+                'repair_requested_at_utc':ago(15)},
+            'T012': {'state':'PENDING','activity':'WAITING_FOR_MODEL_SLOT','activity_since_utc':ago(45)},
+            'T040': {'state':'LOCAL_CHECKED','finished_at_utc':ago(79)},
+            'T041': {'state':'LOCAL_CHECKED','finished_at_utc':ago(601)},
+            'T099': {'state':'REPAIR_WAIT','consumers':['T099'],'activity_since_utc':ago(2000),
+                'last_target_check':{'at_utc':ago(0),'candidate':20}},
+        }
+        groups = {'T035':1,'T006':1,'T007':1,'T012':1,'T040':2,'T041':1}
+        state = {'phase':'proof','controller':{**self.identity,'state':'RUNNING'},'tasks':tasks,
+            'updated_at_utc':ago(0),'controller_heartbeat_at_utc':ago(1),
+            'proof_round':2,'bindings':{'plan_sha256':'a'*64},'proof_total':7,
+            'proof_group_sizes':groups,'proof_counts':{'LOCAL_CHECKED':3}}
+        write(self.run/'execution-status.json',state)
+        with patch.object(owner,'process_table',return_value={self.identity['pid']:self.identity}):
+            row = owner.snapshot([self.run])['cases'][0]
+        progress = row['progress']
+        self.assertEqual((row['phase'],progress['status']),('proof','FRESH'))
+        self.assertEqual((progress['plan_sha256'],progress['proof_round']),('a'*64,2))
+        self.assertEqual((progress['passed'],progress['passed_last_10m']),(3,2))
+        self.assertEqual(progress['activity_counts'],{kind:1 for kind in (
+            'WAITING_FOR_HELPER','LEAN_CHECKING','REMOTE_RETRY_WAIT','INTERFACE_REPAIR','WAITING_FOR_MODEL_SLOT')})
+        self.assertEqual(progress['last_target_check']['candidate'],5)
+        self.assertEqual(progress['last_helper_result']['task_id'],'previous-helper')
+        blocker = progress['longest_blocker']
+        self.assertEqual((blocker['task'],blocker['seconds'],blocker['last_target_check_age_seconds']),('T035',720,2520))
+        self.assertEqual(blocker['waiting_on'],[{'task_id':'H003','activity':'LEAN_CHECKING'}])
+        self.assertIn('collect',blocker['next_action'])
+        del tasks['T040']['finished_at_utc']
+        self.assertIsNone(owner.progress(state,observed=instant,identity_matches=True,
+            process_error=None,state_error=None)['passed_last_10m'])
+
+    def test_stale_or_unreadable_snapshot_exposes_a_gap(self):
+        old = (datetime.now(timezone.utc)-timedelta(minutes=1)).isoformat()
+        path = self.run/'execution-status.json'
+        write(path,{'controller':{**self.identity,'state':'RUNNING'},'updated_at_utc':old,
+            'controller_heartbeat_at_utc':old,'tasks':{'T001':{'activity':'LEAN_CHECKING'}}})
+        with patch.object(owner,'process_table',return_value={self.identity['pid']:self.identity}):
+            row = owner.snapshot([self.run])['cases'][0]['progress']
+        self.assertEqual((row['status'],row['observation_gap']),('STALE','CONTROLLER_HEARTBEAT_EXPIRED'))
+        self.assertEqual(row['activity_counts'],{})
+        self.assertIsNone(row['longest_blocker'])
+        path.write_text('{')
+        with patch.object(owner,'process_table',return_value={}):
+            row = owner.snapshot([self.run])['cases'][0]
+        self.assertFalse(row['process_exit_verified'])
+        self.assertEqual(row['progress']['observation_gap'],'UNREADABLE_EXECUTION_STATUS')
+
+    def test_target_check_and_helper_receipt_record_only_the_observed_events(self):
+        from proof_obligations import HelperWork
+        recorder = execution_state.Recorder(self.run,'synthetic-observation',{})
+        try:
+            recorder.task('T035',activity='WAITING_FOR_HELPER')
+            since = recorder.state['tasks']['T035']['activity_since_utc']
+            recorder.task('T035',activity='WAITING_FOR_HELPER')
+            self.assertEqual(recorder.state['tasks']['T035']['activity_since_utc'],since)
+            recorder.target_checked('T035',{'candidate':2,'exit_code':1,'stdout':'PRIVATE_PROOF'},source='check_transition')
+            work = HelperWork(SimpleNamespace(budget=SimpleNamespace(execution=recorder),execution_task='T035'))
+            future = Future()
+            work.jobs['H003'] = ('child',self.run/'request.json',future)
+            work.collect('H003')
+            self.assertNotIn('last_helper_result',recorder.state['tasks']['T035'])
+            future.set_result(self.run/'result.json')
+            with patch('proof_obligations.receive',return_value={'status':'checked','result':{},'helper':{'name':'localLemma'}}):
+                work.collect('H003')
+                row = recorder.state['tasks']['T035']
+                received = row['last_helper_result']
+                work.collect('H003')
+                self.assertIs(row['last_helper_result'],received)
+            self.assertEqual(received['task_id'],'H003')
+            self.assertNotIn('stdout',row['last_target_check'])
+        finally:
+            recorder.close('CANCELLED')
+
     def test_finalized_status_never_establishes_process_exit(self):
         self.state(final=True)
         write(self.run/'case-result.json', {'result': {'status': 'WORKFLOW-PASSED'}})
@@ -115,6 +204,7 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertTrue(result['all_terminal'])
         self.assertTrue(result['all_process_exits_verified'])
         self.assertIsNone(result['next_check_seconds'])
+        self.assertEqual(result['cases'][0]['progress']['status'],'TERMINAL')
         self.assertEqual(result['cases'][0]['usage']['in_flight_or_unreported_requests'], 2)
         self.assertNotIn('UNFINISHED_ARGUMENT', json.dumps(result))
         self.assertEqual(before, {p: p.read_bytes() for p in self.run.rglob('*') if p.is_file()})
@@ -162,6 +252,7 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
         data = json.loads(result.stdout)
         self.assertEqual(data['cases'][0]['phase'], 'PREPARED_NOT_STARTED')
+        self.assertEqual(data['cases'][0]['progress']['observation_gap'],'MISSING_EXECUTION_STATUS')
         self.assertFalse(data['all_terminal'])
         self.assertEqual(data['next_check_seconds'], 600)
 
