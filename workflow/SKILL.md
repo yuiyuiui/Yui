@@ -30,7 +30,15 @@ including imported generated modules. Unsafe scope replay falls back to full
 source checking. Delivered source rebuilds without the cache. One complete native
 inspection artifact is retained; compiler records reference its exact bytes.
 
-The local author uses `report_graph_issue` for a missing dependency, a wrong inference interface or an incorrect intermediate statement. The report identifies the inference and the affected field. A true mathematical obstacle keeps its own outcome. A protected foundation defect uses `report_basis_defect`. Global Audit A examines the overall proof structure and sources, and local Audit A checks each inference. A changed graph must be reviewed in its new context. An identical rejected graph pauses immediately. The definition bounds distinct global repair rounds. A first-pass request records its first nonpass.
+The local author can read the assigned scope with `read_author_packet` before
+writing the proof. `report_graph_issue` hands back a batch of concrete blockers
+with optional partial proof bodies. Use local proof steps for organizational
+changes within a valid implication. The next assignment receives the findings
+and reuses drafts with the same effective scope. A true mathematical obstacle
+keeps its own outcome. A protected foundation defect uses `report_basis_defect`.
+Independent Audit A reviews the completed proof in its selected context. An
+identical rejected graph pauses immediately. The definition bounds global
+repair rounds. A first-pass request records its first nonpass.
 
 For a basis entry the global author receives a numbered graph. Each directly used foundation has one working M/E label, shared by all its consumers. Graph repairs can rename that label by B identity before the Audit A seal. The Lean translator and final exporter use the same selected revision. An author cites a staged document by its declared input ID. The receiving validator binds the actual local bytes.
 

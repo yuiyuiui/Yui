@@ -84,6 +84,39 @@ def scope_details(ids, facts, active, available, declarations):
     return text[:6000]+(' [inspect the own packet for remaining details]' if len(text)>6000 or len(rows)>8 else '')
 
 
+def inference_scope(step, props, defs):
+    """The actual conditional inputs, output and inherited definitions of an R."""
+    inputs = [props[key] for key in step['inputs']]
+    output = props[step['output']]
+    selected = set(step['definitions'])
+    for row in [*inputs, output]:
+        selected.update(row['definitions'])
+    pending = list(selected)
+    while pending:
+        extra = set(defs[pending.pop()]['depends_on']) - selected
+        selected.update(extra)
+        pending.extend(extra)
+    return inputs, output, [defs[key] for key in sorted(selected)]
+
+
+def inference_port(proposition):
+    fields = ('id','kind','statement','definitions','binders','objects')
+    port = {key:proposition[key] for key in fields}
+    if proposition['kind'] in {'external','mathlib'}:
+        fields = ('hypotheses','declaration','signature') if proposition['kind']=='mathlib' else ('hypotheses',)
+        port['source_contract'] = {key:proposition['source'][key] for key in fields}
+    return port
+
+
+def check_definition_guards(step, definitions):
+    inputs = set(step['inputs'])
+    for definition in definitions:
+        missing = set(definition['requires']) - inputs
+        need(not missing, 'DIRECT-GUARD',
+             f"{step['id']}/{definition['id']}: missing direct existence/property guards={sorted(missing)}; "
+             f"required={definition['requires']}; current inputs={step['inputs']}. Add and use the necessary premises.")
+
+
 def validate(graph, spec, props, steps, defs, definition_closure):
     """Check declared accounting; auditors must compare it to the actual prose."""
     global_names = {p["symbol"] for p in spec["parameters"]} | {d["symbol"] for d in defs.values()}
@@ -112,15 +145,10 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         ids = [s["id"] for s in r["argument"]]
         need(len(ids) == len(set(ids)) and all(re.fullmatch(r"S\d{3,}", x) for x in ids), "STEP-ID", rid)
         position = {key: i for i, key in enumerate(ids)}
-        referenced = set(r["definitions"]) | set(props[r["output"]]["definitions"])
-        for pid in r["inputs"]:
-            referenced.update(props[pid]["definitions"])
-        dclosure = definition_closure(referenced)
-        for did in dclosure:
-            need(set(defs[did]["requires"]) <= set(r["inputs"]), "DIRECT-GUARD",
-                 f"{rid}/{did}: missing direct existence/property guards={sorted(set(defs[did]['requires'])-set(r['inputs']))}; required={defs[did]['requires']}; current inputs={r['inputs']}. Preserve real guards and actually use their premises; do not delete a needed condition to silence this error.")
+        _, _, scope = inference_scope(r, props, defs)
+        check_definition_guards(r, scope)
         base = {p["symbol"] for p in spec["parameters"]} | {p["symbol"] for p in primitives}
-        base |= {defs[x]["symbol"] for x in dclosure}
+        base |= {row['symbol'] for row in scope}
         locals_ = []
         for local in r["locals"]:
             owners=set(re.findall(r'\bR\d{3,}\b',local['scope']))
@@ -207,21 +235,9 @@ def digest(payload):
 
 
 def packet(data, inference):
-    result, graph, spec, props, steps, defs, closure, _ = data
+    result, _, spec, props, steps, defs, _, _ = data
     step = steps[inference]
-    proposition_ids = step["inputs"] + [step["output"]]
-    refs = set(step["definitions"])
-    for pid in proposition_ids:
-        refs.update(props[pid]["definitions"])
-
-    def port(pid):
-        p = props[pid]
-        answer = {key: copy.deepcopy(p[key]) for key in ("id", "kind", "statement", "definitions", "binders", "objects")}
-        if p["kind"] in {"external", "mathlib"}:
-            answer["source_contract"] = {"hypotheses": p["source"]["hypotheses"]}
-            if p["kind"] == "mathlib":
-                answer["source_contract"].update({key: p["source"][key] for key in ("declaration", "signature")})
-        return answer
+    inputs, output, definitions = inference_scope(step, props, defs)
 
     payload = {"contract_version": 2, "case_id": spec["case_id"],
                "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
@@ -229,8 +245,9 @@ def packet(data, inference):
                "foundation_profile": foundations.PROFILE,
                "standard_language": foundations.STANDARD_LANGUAGE,
                "background_policy": background.POLICY,
-               "definitions": [defs[x] for x in sorted(closure(refs))],
-               "inputs": [port(x) for x in step["inputs"]], "output": port(step["output"]),
+               "definitions": definitions,
+               "inputs": [copy.deepcopy(inference_port(row)) for row in inputs],
+               "output": copy.deepcopy(inference_port(output)),
                "inference": step,
                "warning": "Direct inputs and fixed logic are supplied. Audit A may record mathematically checked routine background with actual conditions and justification; exact Lean bindings belong to nl02lean. No ancestor proof or extra H is available. A packet is not an audit certificate."}
     payload["packet_sha256"] = digest(payload)

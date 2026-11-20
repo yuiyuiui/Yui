@@ -113,31 +113,30 @@ class AuthorCheck:
     def view(self, number, inference):
         """Build a view without granting an inspection receipt."""
         value,key=self.candidate(number)
+        return {'candidate':number,'content_sha256':key,**self.interface(value,inference)}
+
+    def interface(self, value, inference):
+        """Show the actual conditional scope, even before a proof body exists."""
+        from nl0 import closure
         spec,graph=value['spec'],value['graph']
         rows=[r for r in graph['inferences'] if r['id']==inference]
         if len(rows)!=1:raise ValueError('AUTHOR_CHECK: choose an actual inference ID in this candidate')
         step=rows[0];props={p['id']:p for p in graph['propositions']};defs={d['id']:d for d in spec['definitions']}
-        ports=[props[x] for x in [*step['inputs'],step['output']]]
-        selected=set(step['definitions'])
-        for p in ports:selected.update(p['definitions'])
-        pending=list(selected)
-        while pending:
-            for did in defs[pending.pop()]['depends_on']:
-                if did not in selected:selected.add(did);pending.append(did)
+        inputs, output, definitions = closure.inference_scope(step, props, defs)
         def port(p):
-            out={k:deepcopy(p[k]) for k in ['id','kind','statement','definitions','binders','objects']}
-            if p['kind'] in {'mathlib','external'}:
-                out['source_conditions']=deepcopy(p['source']['hypotheses'])
-                if p['kind']=='mathlib':out['source_declaration']=p['source']['declaration']
+            out=deepcopy(closure.inference_port(p))
+            source=out.pop('source_contract',None)
+            if source is not None:
+                out['source_conditions']=source['hypotheses']
+                if 'declaration' in source:out['source_declaration']=source['declaration']
             return out
-        packet={'candidate':number,'content_sha256':key,'parameters':deepcopy(spec['parameters']),
+        return {'parameters':deepcopy(spec['parameters']),
             'logic':foundations.packet_logic(spec['logic']),
             'acceptance_contract':self.acceptance.metadata(),
-            'workload':__import__('graph_workload').local(step),
-            'definitions':[deepcopy(defs[x]) for x in sorted(selected)],
-            'inputs':[port(p) for p in ports[:-1]],'output':port(ports[-1]),'inference':deepcopy(step),
+            **({'workload':__import__('graph_workload').local(step)} if 'argument' in step else {}),
+            'definitions':deepcopy(definitions),
+            'inputs':[port(p) for p in inputs],'output':port(output),'inference':deepcopy(step),
             'warning':'Same-author inspection under the shared verified-background policy: direct inputs, definitions and fixed logic are supplied; eligible routine background may receive audit notes. No ancestor/other producer body or extra H is available. Inspect important source types separately. This read produces no judgment.'}
-        return packet
 
     def packet(self, number, inference):
         packet=self.view(number,inference)

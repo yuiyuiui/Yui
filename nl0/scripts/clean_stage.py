@@ -169,9 +169,13 @@ class ArtifactStage(pilot.Stage):
                         'Difficulty or a long run is not evidence of a mathematical gap.')
         if phase=='nl0-local-authoring':
             import graph_repair
+            schema=graph_repair.batch_schema()
             self.tools.append(pilot.carrier.tool(graph_repair.TOOL,
-                'Request a change to an assigned inference input, output, or definition list. For an intermediate statement, select field=statement and its single N input or output. Explain the problem with this revision.',
-                graph_repair.SCHEMA['properties'],graph_repair.SCHEMA['required']))
+                'Return the concrete blockers encountered while writing this graph in one batch. Give the exact '
+                'assigned R, kind, subject ID (null for unregistered missing content), and how the defect blocks '
+                'a proof or a specific use. Pure organization stays in local proof steps. Include any available '
+                'local_proofs; these remain drafts. A valid batch ends this author assignment for graph repair.',
+                schema['properties'],schema['required']))
         for name in ['check_draft','submit_draft']:
             self.tools.append(pilot.carrier.tool(name,
                 'Preferred structured-object form of '+('check_artifact' if name=='check_draft' else 'submit_artifact')+
@@ -229,9 +233,6 @@ class ArtifactStage(pilot.Stage):
                 'Read a JSON pointer in your own same-stage candidate after an actual structural check. No other file/stage is accessible. For an existing string optionally supply both start_line/end_line to request up to 250 numbered lines and its complete text_sha256 for replace_lines. A read end beyond the text returns the remaining existing lines and actual range; the start must exist. Edits never clamp their range.',
                 {'candidate':{'type':'integer'},'pointer':{'type':'string'},
                  'start_line':{'type':'integer'},'end_line':{'type':'integer'}},['candidate','pointer']))
-            self.tools.append(pilot.carrier.tool('read_author_packet',
-                'Same-author closing inspection of one structurally valid own conditional inference: exact direct inputs, output, declarations and own proof. No ancestor bodies, extra H, independent reviewer or Audit A feedback.',
-                {'candidate':{'type':'integer'},'inference':{'type':'string'}},['candidate','inference']))
             self.tools.append(pilot.carrier.tool('record_author_checks',
                 'Save actual same-author notes and readiness against shared Audit A criteria. Unresolved/not-checked partial notes can be saved, but only complete actual packet inspection with no known issue can release a proof. Open issues persist until explicit located resolutions. No PASS or mathematical verdict is generated; independent Audit A receives none of these notes.',
                 {'candidate':{'type':'integer'},'original_context_note':{'type':'string'},
@@ -250,6 +251,13 @@ class ArtifactStage(pilot.Stage):
                     'required':['id','dependency_and_local_assumption_check','source_application_check','declaration_check'],
                     'additionalProperties':False}}},
                 ['candidate','readiness','open_issues','original_context_note','output_notes','inference_notes']))
+        if self.author_closing or (kind=='nl0' and phase in {BASIS,DIRECT}):
+            required=['inference'] if phase==LOCAL else ['candidate','inference']
+            self.tools.append(pilot.carrier.tool('read_author_packet',
+                'Read the exact direct premises, output and effective definitions of one conditional inference. '
+                'A local author may omit candidate to inspect the assigned scope before writing. '
+                'Only reading a checked local proof candidate records a same-author closing inspection.',
+                {'candidate':{'type':'integer'},'inference':{'type':'string'}},required))
         self.supplied_materials={}
         from fault_control import run_root
         owner=run_root(self.logs)/'job.json'
@@ -522,9 +530,11 @@ class ArtifactStage(pilot.Stage):
                 import graph_repair
                 from frozen_graph import ASSIGNED
                 from controller_common import bind
-                graph_repair.locate(self.validator.frozen,args)
+                graph_repair.assess(self.validator.frozen,args)
+                drafts=graph_repair.retained_proofs(self.validator.frozen,args,self.validator.graph_feedback)
                 assigned=bind(self.logs.parent/'inputs'/ASSIGNED)
-                self.accepted={'status':graph_repair.STATUS,'assigned':assigned,'finding':deepcopy(args)}
+                self.accepted={'version':graph_repair.VERSION,'status':graph_repair.STATUS,'assigned':assigned,
+                               'batch':deepcopy(args),'local_proofs':drafts}
                 result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':graph_repair.STATUS}
             elif name == 'report_basis_defect':
                 import basis_defect
@@ -602,7 +612,13 @@ class ArtifactStage(pilot.Stage):
                 else:
                     result={'candidate':number,'pointer':args['pointer'],'value':value}
             elif name == 'read_author_packet':
-                result=self.validator.author_check.packet(args['candidate'],args['inference'])
+                check=self.validator.author_check
+                if self.mode=='nl0-local-authoring' and 'candidate' not in args:
+                    result=check.interface(self.validator.frozen,args['inference'])
+                elif self.author_closing:
+                    result=check.packet(args['candidate'],args['inference'])
+                else:
+                    result=check.view(args['candidate'],args['inference'])
             elif name == 'record_author_checks':
                 result=self.validator.author_check.record(args['candidate'],args['original_context_note'],
                     args['output_notes'],args['inference_notes'],readiness=args['readiness'],

@@ -80,11 +80,11 @@ def repair_obligations(source, campaign):
             'baseline_content_sha256':digest(baseline),'issues':issues}
 
 
-def author_stage(job, root, budget, *, baseline=None, obligations=None, check_handoff=None):
+def author_stage(job, root, budget, *, baseline=None, obligations=None, check_handoff=None, graph_history=None):
     if job.get('workflow_protocol'):
         import frozen_graph
         return frozen_graph.local_stage(job,root,budget,baseline=baseline,obligations=obligations,
-                                        check_handoff=check_handoff)
+                                        check_handoff=check_handoff,graph_history=graph_history)
     nl0_author.prepare(basis.problem_inputs(job),root,baseline=baseline,obligations=obligations)
     stage=ArtifactStage(root/'stage',(root/'prompt.txt').read_text(),phase='nl0-authoring',kind='nl0',
         case_id=job['case'],inputs=root/'inputs/inputs.json',timeout=f.stage_seconds(budget),budget=budget,

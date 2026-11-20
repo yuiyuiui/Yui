@@ -22,6 +22,10 @@ DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
 LOCAL = 'nl0-local-authoring'
 OBJECT = {'type':'object', 'additionalProperties':True}
+LOCAL_PROOF = protocol.obj({'id':protocol.STRING,'rules':protocol.array(protocol.STRING),
+                            'locals':protocol.array(OBJECT),'argument':protocol.array(OBJECT,minItems=1),
+                            'applications':protocol.array(OBJECT)})
+LOCAL_PROOFS = protocol.array(LOCAL_PROOF,minItems=1)
 
 def shape(graph):
     return {'propositions':graph['propositions'],
@@ -109,6 +113,7 @@ def check_assignment(frozen, spec, graph):
 
 class AuthorContract(NL0Contract):
     def __init__(self, directory, documents, case_id, phase):
+        import graph_repair
         super().__init__(directory, documents, case_id, global_only=phase!=LOCAL)
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
             {ASSIGNED,graph_outline.FILENAME,PRIOR_OUTLINE,'numbered-basis-graph.json','protected-roots.json',
@@ -117,6 +122,7 @@ class AuthorContract(NL0Contract):
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
         self.earlier=json.loads(documents.get('protected-roots.json','[]'))
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
+        self.graph_feedback = json.loads(documents.get(graph_repair.FEEDBACK,'{}'))
         self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
         if self.registry:
             self.seed, self.labels = basis_graph.handoff().numbered_seed(self.registry, self.prior['graph'] if self.prior else None)
@@ -137,9 +143,7 @@ class AuthorContract(NL0Contract):
                 form['properties']['foundation_ports'] = OBJECT
                 form = protocol.choice(form,compact)
         else:
-            fields = {'rules':protocol.array(protocol.STRING),'locals':protocol.array(OBJECT),
-                      'argument':protocol.array(OBJECT,minItems=1),'applications':protocol.array(OBJECT)}
-            form = protocol.obj({'local_proofs':protocol.array(protocol.obj({'id':protocol.STRING,**fields}),minItems=1)})
+            form = protocol.obj({'local_proofs':protocol.array(LOCAL_PROOF)})
         from payload_protocols import editable
         self.schema = editable(form) if phase==LOCAL else protocol.choice(form,protocol.obj({'accept_candidate':{'type':'integer','minimum':1}}))
 
@@ -148,7 +152,8 @@ class AuthorContract(NL0Contract):
         if set(value) & {'accept_candidate','base_candidate','base_input'}:
             return super().__call__(value)
         if self.phase==LOCAL:
-            rows = indexed(value['local_proofs'])
+            from graph_repair import retained_proofs
+            rows = indexed(retained_proofs(self.frozen,value,self.graph_feedback))
             expanded = deepcopy(self.frozen)
             steps = expanded['graph']['inferences']
             if set(rows) != set(indexed(steps)):
@@ -262,10 +267,18 @@ class AuthorContract(NL0Contract):
         return result
 
     def validate_canonical(self,spec,graph):
+        from graph_repair import check_revision, context
+        current={'spec':spec,'graph':graph}
         if self.prior:
-            current={'spec':spec,'graph':graph}
             for prior in [self.prior,*self.earlier]:
                 preserve_originals(prior,current,basis=self.phase==BASIS)
+        if self.global_only:
+            from nl0 import closure
+            scopes = context(current)
+            if self.prior and self.graph_feedback.get('blockers'):
+                check_revision(self.prior,scopes,self.graph_feedback['blockers'])
+            for step in graph['inferences']:
+                closure.check_definition_guards(step,scopes[step['id']][2])
 
 def preserve_originals(prior, current, *, basis):
     before,after=prior['spec'],current['spec']
@@ -332,6 +345,7 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     from full_workflow import stage_seconds
     from full_workflow import accepted
     from controller_common import copy_problem_documents
+    from graph_repair import RULE
     directory=Path(job['root'])/'global-graphs'
     directory.mkdir(exist_ok=True)
     number=max((int(p.name) for p in directory.iterdir() if p.name.isdecimal()),default=0)
@@ -380,7 +394,8 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
             'Use actual inclusive task-input line numbers; an inference derived directly from its inputs can use empty source_spans. '
             'Express independent work as multiple R rows rather than hiding it in one outline step. For a large span or several main steps '
             'that genuinely belong together, supply keep_together identifying the actual shared witness/scope or indivisible argument. '
-            'A short final combination of previously proved inputs is one step. Local proof paragraphs come later. ')
+            'A short final combination of previously proved inputs is one step. Local proof paragraphs come later. '
+            +RULE+' For a checked candidate, read_author_packet shows a proposed receiving scope. ')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
                  'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
@@ -489,7 +504,7 @@ def issue_owner(issue, global_owner=None):
     return 'local'
 
 
-def local_stage(job, directory, budget, *, baseline=None, obligations=None, check_handoff=None):
+def local_stage(job, directory, budget, *, baseline=None, obligations=None, check_handoff=None, graph_history=None):
     import basis
     import nl0_author
     import full_workflow
@@ -502,6 +517,8 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     inputs=directory/'inputs'
     write(inputs/ASSIGNED,frozen)
     record=nl0.load(previous['path'])
+    if graph_history and (baseline is None or 'blockers' in graph_history['obligations']):
+        write(inputs/graph_repair.FEEDBACK,graph_repair.revision_feedback(graph_history,previous,frozen))
     if 'outline' in record:
         copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
     manifest(inputs)
@@ -509,13 +526,15 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
             'statements and inference interfaces. Submit local_proofs with the rules, scoped locals, argument and '
             'actual applications of every R. Use the NL0 authoring and closure rules. Use check_draft, '
             'read_author_packet and record_author_checks before submitting accept_candidate. '
-            'Use report_graph_issue for a missing edge, a wrong R interface, or an incorrect intermediate statement. '
-            'Give the R ID, field, related proposition IDs and a specific explanation. Report genuine mathematical gaps via report_obstacle. '
-            'Only the detailed proofs are yours to edit. Read located repair findings when supplied.')
+            'Read read_author_packet with just inference to see its actual scope before drafting. '
+            'Report genuine mathematical gaps via report_obstacle. Only the detailed proofs are yours to edit. '
+            +graph_repair.RULE+' Work on independent inferences while collecting actual blockers you encounter. '
+            'Return them together with report_graph_issue and include any ready local_proofs in that call. '
+            'Read global-findings.json when supplied, focusing on changed_inferences and the located remedies. '
+            'Compatible local_proofs in that file are included when checking a new draft; supply new or updated bodies.')
     if 'outline' in record:
         prompt+=(' Read proof-outline.json for the planned derivations and precise source ranges. '
-                 'If the actual derivation groups substantial separately provable conclusions, use report_graph_issue '
-                 'with field=output, the candidate intermediate statements and the exact source locations. '
+                 'Use local proof steps to separate substantial arguments within a valid assigned implication. '
                  'Keep arguments sharing an indispensable witness or local scope together.')
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget),

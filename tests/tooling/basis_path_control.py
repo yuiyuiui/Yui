@@ -57,8 +57,8 @@ def author_code(stage):
             if stage.mode==fg.LOCAL:
                 assigned=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
                 if any(p['id']=='E003' for p in assigned['propositions']):
-                    return call('report_graph_issue',inference='R002',related_propositions=['E003','E002'],
-                                explanation='The checked E002 suffices at this use. Drop the redundant assumption E003.')
+                    return call('report_graph_issue',findings=[{'inference':'R002','kind':'wrong_input','subject':'E003',
+                                'explanation':'The checked E002 suffices at this use. Drop the redundant assumption E003.'}])
             if stage.mode==fg.LOCAL or 'prior-global.json' in stage.task_inputs:
                 registry['dependencies']=[r for r in registry['dependencies'] if r['port']!='E003']
         add_external_applications(graph,registry,evidence)
@@ -81,10 +81,13 @@ def author_code(stage):
         if stage.mode==fg.LOCAL:
             current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
             if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
-                return (call('report_graph_issue',inference='R999',related_propositions=['H001'],explanation='Wrong node.')+
-                        call('report_graph_issue',inference='R002',related_propositions=['H999'],explanation='Unknown input.')+
-                        call('report_graph_issue',inference='R002',related_propositions=['H001'],
-                             explanation='The chosen last equality uses the original equality directly as well as its symmetric form.'))
+                report={'inference':'R002','kind':'missing_input','subject':'H001',
+                        'explanation':'The chosen last equality uses the original equality directly as well as its symmetric form.'}
+                first=next(r for r in graph['inferences'] if r['id']=='R001')
+                return (call('report_graph_issue',findings=[{**report,'inference':'R999'}])+
+                        call('report_graph_issue',findings=[{**report,'subject':'H999'}])+
+                        call('report_graph_issue',findings=[report],
+                             local_proofs=[{k:first[k] for k in ('id',*fg.BODY_FIELDS)}]))
         graph['inferences'][-1]['inputs'].append('H001')
         last=graph['inferences'][-1]['argument'][-1]
         last['uses'].append('H001')
@@ -120,6 +123,11 @@ def author_code(stage):
                     'proof_outline':harness_support.elementary_outline(graph['inferences'])})
     draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
            if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
+    if mode=='local-edge' and stage.mode==fg.LOCAL:
+        feedback=json.loads(stage.task_inputs['global-findings.json'])
+        if not feedback['blockers'] or [r['id'] for r in feedback['local_proofs']]!=['R001']:
+            raise AssertionError('The revised local assignment needs the blocker and the unaffected earlier draft')
+        draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
     code=call('check_draft',artifact=draft)
     for row in graph['inferences']:
         code+=call('read_author_packet',candidate=1,inference=row['id'])

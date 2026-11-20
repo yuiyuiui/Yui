@@ -149,6 +149,7 @@ class Case:
                     source=case_runner.author_stage(self.job,directory,self.budgets.serial,
                         baseline=Path(baseline['nl0']['path']).parent if baseline else None,
                         obligations=history.get('obligations') if baseline else None,
+                        graph_history=history,
                         check_handoff=lambda source: ctx.check_output(**detailed(source)))
                 self.working(data)
                 return detailed(source)

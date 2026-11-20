@@ -64,6 +64,13 @@ witness, state the argument for one fixed witness or export a joint conclusion
 with a single witness. Record the source and use of each step in
 [`proof_outline`](nl0-format.md#global-proof-outline).
 
+During local writing, read the assigned conditional packet with
+`read_author_packet(inference=...)`. Report a graph blocker by locating the
+missing or incorrect part of the packet and explaining which proof or use it
+prevents. Continue independent inferences and return the blockers you encounter
+in one batch with any available draft bodies. Use local steps for another sound
+organization of a complete assigned implication.
+
 Start another S when the local parameters or purpose change; export a reused
 result as N and a within-R result as a complete F. Avoid one giant copied S
 followed by a long sequence of isolated symbol patches. Copy exact supplied

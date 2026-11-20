@@ -264,3 +264,103 @@ class WorkingGraphTests(unittest.TestCase):
                      {'field':'statement','related_propositions':['N999']},{'field':'statement','related_propositions':['P']},
                      {'field':'statement','related_propositions':[]},{'field':'statement','related_propositions':['N001','H001']}):
             with self.subTest(edit=edit),self.assertRaises(ValueError):graph_repair.locate(assigned,{**finding,**edit})
+
+    def test_repair_boundary_uses_effective_scope_and_retains_unaffected_drafts(self):
+        from clean_stage import ArtifactStage
+        from controller_common import manifest
+
+        spec=nl0.load(self.source/'spec.json')
+        complete=nl0.load(self.source/'nl0.json')
+        spec['definitions']=[{'id':key,'symbol':symbol,'type':'natural number','definition':symbol+'=0.',
+            'binders':[],'objects':[],'depends_on':dependencies,'requires':[]}
+            for key,symbol,dependencies in [('D001','u',['D002']),('D002','v',[]),('D003','w',[])]]
+        shape=fg.shape(deepcopy(complete))
+        next(p for p in shape['propositions'] if p['id']=='N001')['definitions']=['D001']
+        docs={'problem.txt':(self.source/'problem.txt').read_text()}
+
+        def draft(spec, graph):
+            return {'spec':deepcopy(spec), **deepcopy(graph),
+                    'proof_outline':support.elementary_outline(graph['inferences'])}
+
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve()
+            initial=fg.AuthorContract(root/'global-graphs/0001/stage/case',docs,spec['case_id'],fg.DIRECT)
+            guarded=deepcopy(spec)
+            guarded['definitions'][1]['requires']=['H001']
+            with self.assertRaisesRegex(ValueError,'DIRECT-GUARD: R002/D002'):
+                initial(draft(guarded,shape))
+            initial(draft(spec,shape))
+            job={'root':str(root)}
+            previous=fg.select(job,fg.checked_receipt(initial.directory,fg.DIRECT))
+            assigned=fg.read_working(previous)
+
+            local=root/'local'
+            (local/'inputs').mkdir(parents=True)
+            (local/'inputs/problem.txt').write_text(docs['problem.txt'])
+            write(local/'inputs'/fg.ASSIGNED,assigned)
+            manifest(local/'inputs')
+            stage=ArtifactStage(local/'stage','Synthetic local graph repair.',phase=fg.LOCAL,kind='nl0',
+                                inputs=local/'inputs/inputs.json',library=False)
+            def report(kind,subject):
+                return {'inference':'R002','kind':kind,'subject':subject,
+                        'explanation':'Synthetic located requirement for the assigned proof.'}
+            try:
+                # D001 is delivered through R002's premise and R001's output.
+                # D002 is delivered transitively, while the ancestor H001 is not.
+                for rid,premise in [('R001','H001'),('R002','N001')]:
+                    packet=stage.dispatch('read_author_packet',{'inference':rid})
+                    self.assertEqual([d['id'] for d in packet['definitions']],['D001','D002'])
+                    self.assertEqual([p['id'] for p in packet['inputs']],[premise])
+                self.assertEqual(stage.validator.author_check.reads,{})
+                for kind,subject in [('missing_definition','D001'),('missing_definition','D002'),
+                                     ('missing_input','N001'),('output','N001')]:
+                    with self.subTest(kind=kind,subject=subject):
+                        reply=stage.dispatch(graph_repair.TOOL,{'findings':[report(kind,subject)]})
+                        self.assertFalse(reply['accepted'])
+                        self.assertIsNone(stage.accepted)
+                        if kind!='output':self.assertIn('already supplied in the conditional packet',reply['error'])
+
+                blockers=[report('missing_input','H001'),report('missing_definition','D003')]
+                for kind,subject in [('wrong_input','N001'),('wrong_definition','D001'),('wrong_statement','N001')]:
+                    self.assertEqual(graph_repair.assess(assigned,{'findings':[report(kind,subject)]})
+                                     ['blockers'][0]['subject'],subject)
+                bodies=[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in complete['inferences']]
+                batch={'findings':blockers,'local_proofs':bodies}
+                reply=stage.dispatch(graph_repair.TOOL,batch)
+                self.assertTrue(reply['stage_complete'])
+                self.assertFalse(reply['mathematical_acceptance'])
+                evidence=local/'stage/accepted.json'
+                write(evidence,stage.accepted)
+                obligations=graph_repair.assess(assigned,batch)
+            finally:
+                stage.release_resources('USER_CANCELLED')
+
+            global_docs={**docs,'prior-global.json':json.dumps(assigned),
+                         graph_repair.FEEDBACK:json.dumps(obligations)}
+            revise=fg.AuthorContract(root/'global-graphs/0002/stage/case',global_docs,spec['case_id'],fg.DIRECT)
+            revised=fg.shape(deepcopy(assigned['graph']))
+            revised['inferences'][-1]['definitions'].append('D001')  # Already inherited at R002.
+            with self.assertRaisesRegex(ValueError,'GRAPH_REPAIR_SCOPE:.*R002'):
+                revise(draft(assigned['spec'],revised))
+            revised['inferences'][-1]['inputs'].append('H001')
+            revised['inferences'][-1]['definitions'].append('D003')
+            revise(draft(assigned['spec'],revised))
+            checked=fg.checked_receipt(revise.directory,fg.DIRECT,previous=previous)
+            selected=fg.select(job,checked,previous=previous)
+            current=fg.read_working(selected)
+            feedback=graph_repair.revision_feedback(
+                {'global':previous,'obligations':obligations,'evidence':[bind(evidence)]},selected,current)
+            self.assertEqual(feedback['blockers'],blockers)
+            self.assertEqual(feedback['changed_inferences'],['R002'])
+            self.assertEqual(feedback['local_proofs'],bodies[:1])
+
+            author=fg.AuthorContract(root/'next',{**docs,fg.ASSIGNED:json.dumps(current),
+                graph_repair.FEEDBACK:json.dumps(feedback)},spec['case_id'],fg.LOCAL)
+            last=deepcopy(bodies[-1])
+            last['argument'][-1]['uses'].append('H001')
+            last['argument'][-1]['text']+=' Compose with the original equality a=b.'
+            checked=author({'local_proofs':[last]})
+            self.assertFalse(checked['mathematical_acceptance'])
+            self.assertFalse(author.author_check.status(1)['author_release_ready'])
+            final=nl0.load(author.directory/'nl0.json')['inferences']
+            self.assertEqual(final[0]['argument'],bodies[0]['argument'])
