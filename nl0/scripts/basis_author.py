@@ -32,6 +32,9 @@ strings with kind=candidate, pointer and continuation offset; no need to restart
 from the original proof. Saving is not machine or mathematical acceptance.
 Ordinary unfinished drafting/reduction is not a terminal obstacle: continue a
 concrete step. Only actual located source/math/execution blockers justify stopping.
+Follow the next action in imported Lean diagnostics for retained source. Continue
+other foundations while investigating the affected dependency. Use SOURCE_UNAVAILABLE
+for a specific missing source or dependency that still needs material from the owner.
 '''
 
     def controller_checkpoint(self):
@@ -50,6 +53,18 @@ concrete step. Only actual located source/math/execution blockers justify stoppi
             except (ValueError,KeyError) as error:return {'accepted':False,'stage_complete':False,'error':str(error)}
         if name=='report_obstacle':
             value=args
+            if (self.accepted is None and isinstance(value,dict) and value.get('status')=='SOURCE_UNAVAILABLE'
+                    and isinstance(value.get('location'),str)):
+                from lean_imports import dependency_followup
+                followup=dependency_followup(self.logs/'tools.jsonl',value['location'])
+                if followup:
+                    result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                            'error':'Continue from the retained Lean dependency diagnoses. Request owner material '
+                                    'only if a dependency is still unavailable after following up. Put the exact '
+                                    'missing module or file in location and cite the staged source in partial_progress.',
+                            'dependency_followup':followup}
+                    pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':0})
+                    return result
             if isinstance(value,dict) and value.get('status')=='TASK_INCOMPLETE':
                 result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
                     'error':'Save the actual partial basis and continue; ordinary unfinished work is not a mathematical gap.'}

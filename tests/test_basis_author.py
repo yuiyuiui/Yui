@@ -121,6 +121,46 @@ class BasisDraftTests(unittest.TestCase):
         self.assertFalse(row['stage_complete']);self.assertEqual(row['feedback_kind'],'author_action_required')
         self.assertIsNone(self.stage.accepted)
 
+    def test_retained_import_failure_goes_back_to_the_author_before_waiting_for_material(self):
+        import lean_imports
+        import material_exchange
+        selected=lean_imports.runtime_config.require_environment()
+        name='material-041.lean'
+        inputs=self.root/'inputs'
+        (inputs/name).write_text('import Mathlib\nimport MissingOriginalProject.Entry\n')
+        manifest(inputs)
+        self.stage.release_resources('USER_CANCELLED')
+        self.stage=stage=basis_author.BasisStage(self.root/'import-stage',basis.PROMPT,phase='basis-authoring',
+            validator=basis.BasisContract(self.root,TARGET),inputs=inputs/'inputs.json')
+        upstream={'lean_version':selected['lean']['version_number'],'mathlib_ref':selected['mathlib']['rev']}
+        with patch.object(lean_imports,'original_environment',return_value=selected):
+            diagnosis=stage.dispatch('check_imported_lean',{'source':{'document':name},'upstream':upstream})
+        self.assertEqual(diagnosis['status'],'UPSTREAM_CONTEXT_REQUIRED',diagnosis)
+        self.assertIsNone(diagnosis['upstream_check'])
+        self.assertEqual(diagnosis['next_action']['source'],{'document':name})
+        self.assertEqual(ir.load(diagnosis['receipt']['path'])['next_action'],diagnosis['next_action'])
+        self.assertFalse(diagnosis['stage_complete'])
+
+        stage.material_requests=True
+        obstacle={'status':'SOURCE_UNAVAILABLE','location':f'First use at inputs/{name}:2.',
+                  'explanation':'The upstream import context could not compile.',
+                  'basis':'Dependent foundation', 'partial_progress':'The Lean source has been staged.'}
+        with patch.object(material_exchange,'request',return_value={'waiting_for_material':True}) as request:
+            result=stage.dispatch('report_obstacle',obstacle)
+            request.assert_not_called()
+            self.assertFalse(result['stage_complete'])
+            handoff=result['dependency_followup'][name]
+            self.assertEqual(handoff['receipt'],diagnosis['receipt'])
+            self.assertEqual(handoff['diagnostics'],diagnosis['diagnostics'])
+            self.assertIn('investigate_basis_frontier',handoff['next_action']['instruction'])
+            self.assertTrue(stage.dispatch('save_basis_draft',{'artifact':{'proof':'Independent local work.'}})['saved'])
+            self.assertEqual(stage.dispatch('report_obstacle',obstacle)['dependency_followup'],result['dependency_followup'])
+            request.assert_not_called()
+            missing={**obstacle,'location':'MissingOriginalProject/Entry.lean upstream module tree',
+                     'explanation':'The needed source is still unavailable after checking the independent route.'}
+            self.assertTrue(stage.dispatch('report_obstacle',missing)['waiting_for_material'])
+            request.assert_called_once()
+
     def test_obsolete_obstacle_wrapper_is_rejected_as_candidate_feedback(self):
         for value in ('[]','null','"text"','{invalid'):
             with self.subTest(value=value):

@@ -1,5 +1,7 @@
 """Author-separated, batch comparison of prepared basis statements to native propositions."""
 from copy import deepcopy
+from difflib import SequenceMatcher
+from itertools import accumulate
 import json
 from pathlib import Path
 
@@ -104,7 +106,7 @@ def rule_for(packet, rule):
 
 
 def item_keys(packet, rule=None):
-    common = {k:v for k,v in packet.items() if k not in {'items','required'}}
+    common = {k:v for k,v in packet.items() if k not in {'items','required','revision'}}
     items = packet['items']
     links = {k:set(row['uses']) | set(row.get('native_dependencies',[])) for k,row in items.items()}
     unknown=set().union(*links.values())-items.keys() if links else set()
@@ -123,6 +125,103 @@ def item_keys(packet, rule=None):
             seen.add(current);pending.extend(links[current]-seen)
         result[key]=hashed([rule_for(packet,rule or RULE),common,{k:items[k] for k in sorted(seen)}])
     return result
+
+
+def revision_changes(previous, packet):
+    """Identify current text spans and fields that changed since the previous packet."""
+    from read_views import MAX_TOOL_BYTES, encoded_size
+    changes, removed = [], []
+    absent = object()
+
+    def compare(old, new, pointer, item=None):
+        if old == new:
+            return
+        if isinstance(new, dict) and new:
+            before = old if isinstance(old, dict) else {}
+            for key, value in new.items():
+                part = key.replace('~', '~0').replace('/', '~1')
+                compare(before.get(key, absent), value, f'{pointer}/{part}', key if pointer == '/items' else item)
+            for key in sorted(before.keys() - new.keys()):
+                part = key.replace('~', '~0').replace('/', '~1')
+                removed.append(f'{pointer}/{part}')
+            return
+        if pointer in {'/global_graph/propositions', '/global_graph/inferences'}:
+            before = {row['id']:row for row in old} if isinstance(old, list) else {}
+            for index, row in enumerate(new):
+                identity = row['id']
+                compare(before.pop(identity, absent), row, f'{pointer}/{index}', identity)
+            removed.extend(f'{pointer} ({identity})' for identity in sorted(before))
+            return
+        if isinstance(new, list) and new and encoded_size(new) > MAX_TOOL_BYTES // 2:
+            before = old if isinstance(old, list) else []
+            for index, value in enumerate(new):
+                compare(before[index] if index < len(before) else absent, value, f'{pointer}/{index}', item)
+            removed.extend(f'{pointer}/{index}' for index in range(len(new), len(before)))
+            return
+        change = {'pointer':pointer}
+        if item is not None:
+            change['item'] = item
+        if pointer.startswith('/global_graph/inferences/') and pointer.endswith('/basis'):
+            before = set(old) if isinstance(old, list) else set()
+            change.update(added=sorted(set(new)-before), removed=sorted(before-set(new)))
+        if isinstance(new, str):
+            spans = [[0, len(new)]]
+            if isinstance(old, str) and encoded_size(new) > MAX_TOOL_BYTES // 2:
+                lines = new.splitlines(keepends=True)
+                offsets = list(accumulate(map(len, lines), initial=0))
+                edits = SequenceMatcher(None, old.splitlines(keepends=True), lines).get_opcodes()
+                spans = [[offsets[start], offsets[end]] if start < end else
+                         [offsets[max(0, start-1)], offsets[min(len(lines), end+1)]]
+                         for kind, _, _, start, end in edits if kind != 'equal']
+            change['spans'] = spans
+        changes.append(change)
+
+    current = {key:value for key,value in packet.items() if key not in {'required','revision'}}
+    before = {key:value for key,value in previous.items() if key not in {'required','revision'}}
+    compare(before, current, '')
+    changes.extend({'pointer':f'/revision/removed/{i}'} for i in range(len(removed)))
+    return changes or [{'pointer':'/revision/round'}], removed
+
+
+def unread_revision(log, revision):
+    """Check what current-stage read tools actually returned to the reviewer."""
+    values, ranges = set(), {}
+    if log.is_file():
+        with log.open() as stream:
+            for line in stream:
+                call = json.loads(line)
+                if call['tool'] not in {'read_task_input','read_task_inputs'}:
+                    continue
+                result = call['result']
+                for view in result.get('results', [result]):
+                    if view.get('id') != PACKET:
+                        continue
+                    if view.get('view') == 'value':
+                        values.add(view['pointer'])
+                    elif view.get('view') == 'string':
+                        ranges.setdefault(view['pointer'], []).append((view['offset'], view['end_offset']))
+
+    def covers(pages, start, end):
+        for first, last in sorted(pages):
+            if first > start:
+                break
+            if last >= end:
+                return True
+            start = max(start, last)
+        return False
+
+    missing = []
+    for change in revision['changes']:
+        pointer = change['pointer']
+        if any(pointer == parent or pointer.startswith(parent+'/') for parent in values):
+            continue
+        if 'spans' in change:
+            spans = [span for span in change['spans'] if not covers(ranges.get(pointer, []), *span)]
+            if spans:
+                missing.append({**change,'spans':spans})
+        else:
+            missing.append(change)
+    return missing
 
 
 JUDGMENT_FIELDS = {
@@ -266,10 +365,12 @@ def read_batch(binding):
     if (batch['progress']!=bind(progress) or ir.load(progress)['items']!=expected or
             not complete_submission(stage,raw)):
         raise ValueError('Missing complete basis reviewer submission evidence')
+    if 'revision' in packet and unread_revision(stage/'tools.jsonl',packet['revision']):
+        raise ValueError('Missing current basis revision read evidence')
     return keys,raw['items']
 
 
-def assess(out, context, artifact, sessions, budget, history):
+def assess(out, context, artifact, sessions, budget, history, *, round_number=1):
     from clean_stage import ArtifactStage
     from jobs import stage_document
     from runtime_config import configured_timeout
@@ -277,23 +378,51 @@ def assess(out, context, artifact, sessions, budget, history):
     packet=material(artifact,context['native'],context['original_inputs'],context['evidence'],context.get('revision_report'))
     keys=item_keys(packet);required=sorted(k for k,v in keys.items() if v not in history)
     sources={k:history[v] for k,v in keys.items() if v in history}
+    prompt=PROMPT
+    if round_number > 1:
+        previous=out.parent/f'{round_number-1:04d}'/'review/inputs'/PACKET
+        changes, removed = revision_changes(ir.load(previous),packet)
+        revision={'round':round_number,'candidate_sha256':context['basis']['sha256'],
+                  'previous_packet_sha256':ir.digest(previous),'changes':changes,'removed':removed}
+        packet['revision']=revision
+        prompt += (f'\nThis is basis review round {round_number}, for revised candidate SHA-256 '
+                   f"{revision['candidate_sha256']}. Previous packet SHA-256 {revision['previous_packet_sha256']}. "
+                   'Reassess every assigned item against this revision. '
+                   'Read the changed contents in basis-comparison.json and check earlier findings again '
+                   'before submitting the complete review. Use JSON pointers and the indicated starting '
+                   'offsets with read_task_input or read_task_inputs. Follow continuation offsets until '
+                   'the changed spans have been returned. The complete list is at /revision/changes. '
+                   'Changes include: '+json.dumps(changes[:12])+'.')
+        if removed:
+            prompt += ' See /revision/removed for the removed locations.'
+    inputs.mkdir(parents=True)
+    views={}
     if required:
-        inputs.mkdir(parents=True)
         for row in context['original_inputs']:
             stage_document(Path(row['path']),inputs/Path(row['path']).name)
         external={name for row in packet['items'].values() for name in row['documents'] if name not in packet['documents']}
-        views={}
         for row in context['evidence']:
             name='basis-source-'+row['sha256']+'.txt'
             if name not in external or name in views:continue
             stage_document(Path(row['path']),inputs/name)
             views[name]={'source':row,'text_sha256':ir.digest(inputs/name)}
-        write(inputs/PACKET,{**packet,'required':required});manifest(inputs)
+    write(inputs/PACKET,{**packet,'required':required})
+    if required:
+        manifest(inputs)
+
+        def validate_submission(value):
+            if 'revision' in packet:
+                unread=unread_revision(directory/'stage/tools.jsonl',packet['revision'])
+                if unread:
+                    raise ValueError('BASIS_REVISION_UNREAD: read these current changes with JSON pointers '
+                                     'and offsets, then complete the review in this same stage: '+json.dumps(unread[:12]))
+            return validate_rows(value,required,packet['revision_objection'],packet)
+
         contract=ReviewContract.structured(directory/'review-work',review_shape(required,packet['revision_objection']),
-            lambda value:validate_rows(value,required,packet['revision_objection'],packet),
+            validate_submission,
             row_validator=lambda pointer,row:validate_judgment(pointer.split('/')[-1],row,packet['revision_objection'],packet),
             complete_assessment=True)
-        stage=ArtifactStage(directory/'stage',PROMPT,phase='basis-semantic-review',validator=contract,
+        stage=ArtifactStage(directory/'stage',prompt,phase='basis-semantic-review',validator=contract,
             inputs=inputs/'inputs.json',budget=budget,timeout=configured_timeout('stage'))
         with sessions.use(ROLE):stage.execute()
         result=ir.load(directory/'stage/result.json')

@@ -19,6 +19,24 @@ _SPEC=spec_from_file_location('yui_imported_lean_rules',Path(__file__).resolve()
 rules=module_from_spec(_SPEC);_SPEC.loader.exec_module(rules)
 VERSION=rules.VERSION
 
+FOLLOW_UP = {
+    'UPSTREAM_ENVIRONMENT_REQUIRED': (
+        'Use the source project\'s exact declared Lean and Mathlib pins to retry check_imported_lean. '
+        'If the verified pair is unavailable, investigate an alternative for this foundation and continue independent work.'),
+    'UPSTREAM_CONTEXT_REQUIRED': (
+        'The source is retained. Investigate the missing dependency context for this foundation with the current author '
+        'or investigate_basis_frontier. Locate the exact upstream imports or choose a checked alternative in the pinned '
+        'environment. Continue independent foundations and keep the affected use pending until checked.'),
+    'COMPATIBILITY_PORT_REQUIRED': (
+        'Use the retained original and these diagnostics to prepare the compatibility edit. After selecting the '
+        'natural-language basis route, retry check_imported_lean with candidate in the current pinned environment.'),
+    'CORRECTION_AND_PORT_REQUIRED': (
+        'Use the retained original and both diagnostics to correct and adapt this unit. After selecting the '
+        'natural-language basis route, retry check_imported_lean with candidate in the current pinned environment.'),
+    'PORT_CHECK_FAILED': (
+        'Use the current candidate diagnostic to repair the port and retry check_imported_lean with candidate.'),
+}
+
 
 def hashed(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 
@@ -26,6 +44,26 @@ def hashed(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separato
 def diagnostic(check):
     """Return a bounded view; the complete compiler output has one bound owner."""
     return check['diagnostic'] if check is not None else None
+
+
+def dependency_followup(log, location):
+    """Find the latest import diagnosis for an exact staged document named in the report."""
+    if '.lean' not in location or not log.is_file():
+        return {}
+    latest = {}
+    with log.open() as stream:
+        for line in stream:
+            call=json.loads(line)
+            if call['tool']!='check_imported_lean':
+                continue
+            reply=call['result']
+            if 'receipt' not in reply:
+                continue
+            document=call['arguments']['source'].get('document','')
+            if document.endswith('.lean') and re.search(r'(?<![\w.-])'+re.escape(document)+r'(?![\w.-])',location):
+                latest[document]=reply
+    return {name:{key:row[key] for key in ('status','receipt','diagnostics','next_action')}
+            for name,row in latest.items() if 'next_action' in row}
 
 
 environment_identity=lean_environment.identity
@@ -241,6 +279,9 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,allow_publis
         result['diagnostics']['upstream_context']=diagnostic(context)
     if result.get('upstream_check'):result['diagnostics']['upstream']=diagnostic(original)
     if result.get('candidate_check'):result['diagnostics']['candidate']=diagnostic(checked)
+    follow_up=FOLLOW_UP.get(decision['status'])
+    if follow_up:
+        result['next_action']={'source':source,'upstream':upstream,'instruction':follow_up}
     if decision['accepted_for_native_reuse']:
         result['checked_source']=checked['source'];result['module']=checked['module']
         if publish:

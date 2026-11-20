@@ -465,7 +465,7 @@ def run(job, budget, progress):
             'residual_class4':sorted(r['id'] for r in artifact['dependencies'] if r['category']==4)}
         if resume.get('mode')=='basis-revision':context['revision_report']=resume['report']
         progress(job['case'],'BASIS_SEMANTIC_REVIEW',directory=str(out/'review'))
-        context['semantic_review'],findings = basis_review.assess(out,context,artifact,sessions,budget,history)
+        context['semantic_review'],findings = basis_review.assess(out,context,artifact,sessions,budget,history,round_number=revision)
         if findings:
             if job['policy']=='first-pass':
                 raise StageFailure('BASIS_SEMANTIC_NONPASS','First basis correspondence review did not pass',

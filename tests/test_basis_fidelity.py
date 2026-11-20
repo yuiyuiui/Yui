@@ -143,6 +143,74 @@ class BasisFidelityTests(unittest.TestCase):
         self.assertEqual(issues,{})
         self.assertEqual(basis_review.verify(receipt,context,self.value),{})
 
+    def test_revised_basis_is_returned_to_the_reviewer_until_changed_contents_are_read(self):
+        from basis_fixtures import reviewed_value
+        out=self.revision.parent/'revision-handoff/0002'
+        previous=out.parent/'0001/review/inputs'/basis_review.PACKET
+        prior_packet=deepcopy(self.packet)
+        old_inferences=prior_packet['global_graph']['inferences']
+        old_inferences[0]['id']='R004'
+        old_inferences[1]['id']='R006'
+        prior_packet['proof']='Unchanged line.\n'+'x'*40000+'\nPrior application.\n'
+        write(previous,prior_packet)
+        value=deepcopy(self.value)
+        value['proof']=prior_packet['proof'].replace('Prior application.', 'Current '+'λ'*40000)
+        graph=value['global_graph']['inferences']
+        graph[0].update(id='R004',basis=['B002'],inputs=[*graph[0]['inputs'],'E002'])
+        graph[1]['id']='R006'
+        graph[1]['basis'].remove('B002')
+        graph[1]['inputs'].remove('E002')
+        path=out/'stage/accepted.json';write(path,value)
+        context={**self.context,'basis':bind(path)}
+        sessions=Sessions()
+
+        def review(stage):
+            packet=ir.load(stage.logs.parent/'inputs'/basis_review.PACKET)
+            revision=packet['revision']
+            self.assertEqual(revision['round'],2)
+            self.assertEqual(revision['previous_packet_sha256'],bind(previous)['sha256'])
+            self.assertIn(context['basis']['sha256'],stage.input_prompt)
+            for name in ('R004','R006'):
+                self.assertIn(name,stage.input_prompt)
+            edges={c['item']:c for c in revision['changes'] if c['pointer'].endswith('/basis')}
+            self.assertEqual(edges['R004']['added'],['B002'])
+            self.assertEqual(edges['R006']['removed'],['B002'])
+            proof=next(c for c in revision['changes'] if c['pointer']=='/proof')
+            start,end=proof['spans'][0]
+            self.assertGreater(start,40000)
+            self.assertEqual(end,len(value['proof']))
+            draft=reviewed_value(stage,{'B002':'UNVERIFIED'})
+            first=stage.dispatch('submit_draft',{'artifact':draft})
+            self.assertIn('BASIS_REVISION_UNREAD',first['error'])
+            self.assertIsNone(stage.accepted)
+
+            doc=basis_review.PACKET
+            stage.dispatch('read_task_inputs',{'requests':[{'id':doc,'pointer':'/global_graph/inferences/0'},
+                {'id':doc,'pointer':'/proof','offset':start+10}]})
+            second=stage.dispatch('submit_draft',{'artifact':draft})
+            self.assertIn('/proof',second['error'])
+            self.assertIn('R006',second['error'])
+            self.assertNotIn('R004',second['error'])
+            return synthetic_review(stage,{'B002':'UNVERIFIED'},saved_via='record')
+
+        with patch.object(ArtifactStage,'_execute',review):
+            receipt,findings=basis_review.assess(out,context,value,sessions,None,{},round_number=2)
+        sessions.close_all('BASIS_PREPARED',[out/'review/report.json'])
+        self.assertEqual(findings['B002']['verdict'],'UNVERIFIED')
+        self.assertEqual(basis_review.verify(receipt,context,value,require_pass=False),findings)
+
+        # A valid submission and rebound transcript without the recorded reads cannot be replayed.
+        review_dir=out/'review'
+        calls=review_dir/'stage/tools.jsonl'
+        calls.write_text(''.join(line for line in calls.read_text().splitlines(keepends=True)
+                                 if json.loads(line)['tool'] not in {'read_task_input','read_task_inputs'}))
+        assessment=review_dir/'assessment.json'
+        data=ir.load(assessment)
+        data['execution']=[bind(calls.parent/name) for name in basis_review.STAGE_FILES]
+        write(assessment,data)
+        with self.assertRaisesRegex(ValueError,'Missing current basis revision read evidence'):
+            basis_review.read_batch(bind(assessment))
+
     def test_complete_saved_submissions_from_checks_or_individual_judgments_verify(self):
         for mode in ('check','record'):
             with self.subTest(mode=mode):
