@@ -337,7 +337,28 @@ class ReviewControllerTests(unittest.TestCase):
                  'source_steps':[s['id'] for s in source['source_steps'][1:]],'explanation':'Substitution and additive identity.'}],
             'terminal':'T002','source_outputs':{'N001':'T001','P':'T002'},
             'endpoint_correspondence':{'P':{'mode':'direct','explanation':'For natural a,b with a=b, the source and export both assert a+0=b.'}}}
-        self.assertFalse(validator(draft)['mathematical_acceptance'])
+        author=t.InterfaceStage(out/'preflight-stage','Neutral interface preflight control.',
+            phase='interface-authoring', validator=validator, library=False)
+        self.addCleanup(shutil.rmtree, author.work, ignore_errors=True)
+        timed_out=dict(exit_code=124, stdout='', stderr='Synthetic native wall timeout.',
+            timed_out=True, error_kind='LEAN_TIMEOUT', timeout_scope='native_call')
+        diagnosis=dict(category='code_issue', line=1, quote='import Mathlib',
+            reason='Synthetic located diagnosis.', next_action='Repair the saved candidate.')
+        with patch('pilot_common._run_lean', return_value=timed_out) as native, \
+                patch('lean_timeout_policy.inspect_source', return_value=diagnosis):
+            failed=author.dispatch('submit_draft', {'artifact':draft})
+        self.assertEqual(native.call_args.kwargs['timeout'],60)
+        self.assertFalse(failed['accepted'])
+        self.assertIsNone(author.accepted)
+        self.assertIn('Candidate 1 saved',failed['error'])
+        self.assertIn('Synthetic native wall timeout.',failed['error'])
+        self.assertEqual(failed['repair_advice']['strategy']['id'],'ST020')
+        logged=json.loads((author.logs/'tools.jsonl').read_text().splitlines()[-1])['result']
+        self.assertEqual(logged,failed)
+        checked=author.dispatch('check_draft',{'artifact':draft})
+        self.assertTrue(checked['accepted'])
+        self.assertFalse(checked['validation']['mathematical_acceptance'])
+        self.assertNotIn('repair_advice',checked)
         paths=json.loads((out/'accepted-interface-paths.json').read_text())
         contract=json.loads(Path(paths['contract']).read_text())
         self.assertEqual(contract['source_steps'],source['source_steps'])
@@ -422,6 +443,7 @@ class ReviewControllerTests(unittest.TestCase):
 
     def test_partial_type_probes_do_not_accept_an_interface_or_proof(self):
         stage=t.InterfaceStage(self.root/'type-stage','Neutral controller test only.',phase='interface-authoring',library=False)
+        self.addCleanup(shutil.rmtree, stage.work, ignore_errors=True)
         stage.started=time.monotonic()
         result=stage.dispatch('check_lean_types',{'header':'import Mathlib\n',
             'parameters':[{'name':'K','type':'Type','binder_kind':'implicit'},
@@ -433,6 +455,26 @@ class ReviewControllerTests(unittest.TestCase):
         self.assertTrue(term['types_checked']);self.assertIsNone(stage.accepted)
         bad=stage.dispatch('check_lean_types',{'header':'import Mathlib\naxiom forged : False\n','parameters':[],'types':['False']})
         self.assertFalse(bad['types_checked']);self.assertIsNone(stage.accepted)
+
+        probe={'header':'import Mathlib\n','parameters':[],'types':['True']}
+        heartbeat=dict(exit_code=1, stdout='Types.lean:4:4: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached\n', stderr='')
+        with patch('pilot_common._run_lean', return_value=heartbeat) as native:
+            failed=stage.dispatch('check_lean_types',probe)
+            with patch.dict(stage.native_timeout_snapshot, status='UNAVAILABLE'):
+                unavailable=stage.dispatch('check_lean_types',probe)
+        self.assertEqual(native.call_args.kwargs['timeout'],60)
+        self.assertFalse(failed['types_checked'])
+        self.assertEqual(failed['repair_advice']['trigger'],'NATIVE_HEARTBEAT_EXHAUSTED')
+        self.assertEqual(failed['repair_advice']['strategy']['id'],'ST020')
+        self.assertEqual(unavailable['repair_advice']['status'],'UNAVAILABLE')
+        self.assertEqual(failed['stdout'],unavailable['stdout'])
+        for result in ({**heartbeat,'stdout':'Types.lean:4:4: error: type mismatch'},
+                       {**heartbeat,'cancelled':True}):
+            with patch('pilot_common._run_lean',return_value=result):
+                plain=stage.dispatch('check_lean_types',probe)
+            self.assertFalse(plain['types_checked'])
+            self.assertNotIn('repair_advice',plain)
+        self.assertIsNone(stage.accepted)
 
     def test_audit_b_requires_all_paired_native_locations_even_for_failed_reviews(self):
         out=self.root/'audit-b-review';inputs=out/'inputs';inputs.mkdir(parents=True)

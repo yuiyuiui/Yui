@@ -65,9 +65,10 @@ actual packet obstructions. Progress counters are passive; no idle-turn count
 cancels sibling work or authorizes interface changes.
 
 Whole-case/stage execution, total tokens and calls are unlimited by default.
-Native Lean checks start at 360 seconds with a finite heartbeat budget. A
-source-located workload diagnosis permits one 360-second increase per wall
-timeout, up to 1800 seconds. Code repairs retain the current limit. Keep measuring usage and allow explicit
+Interface authoring type checks use 60, 180 and 360 seconds, then increase by
+360 seconds up to 1800. Local proof and helper checks start at 360 seconds.
+A source-located workload diagnosis permits one increase per wall timeout.
+Code repairs retain the current limit. Keep measuring usage and allow explicit
 cancellation. Only a user-requested finite case deadline covers the entire
 translation, including preparation, queue waiting, parallel proofs, assembly
 and Audit B; later stages cannot reset that optional deadline. Preserve partial

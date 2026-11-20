@@ -17,13 +17,14 @@ and evidence with their runtime. The role's tool log records each actual read.
 
 ## Automatic native resource feedback
 
-Normal Yui proof queues separately freeze ST020 and its source/index/evidence
-hashes at entry. A failed main-proof or auxiliary check with actual structured
-`LEAN_TIMEOUT` metadata or a native heartbeat-exhaustion diagnostic receives
-`repair_advice` in that same tool result. The worker chooses a local repair
-method and checks the unchanged complete target. ST020 is retrieved locally. On an actual native wall timeout
-a separate diagnostic reviewer inspects that source and compiler output under
-the translation timeout policy. The original proof author retains the node.
+Normal Yui interface authors and proof queues freeze ST020 and its source,
+index and evidence at entry. A failed interface type probe, interface candidate
+check or submission, main-proof check, or auxiliary check receives
+`repair_advice` in the same tool result when Lean reports a native wall timeout
+or heartbeat exhaustion. ST020 is retrieved locally. The author chooses a
+repair and rechecks the affected candidate. On a native wall timeout, a
+separate diagnostic reviewer inspects the source and compiler output under the
+translation timeout policy.
 
 This does not enable arbitrary `find_strategies` queries. Successes, ordinary
 type errors, cancellation, provider faults, native cleanup faults and direct-arm

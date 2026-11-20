@@ -50,22 +50,25 @@ def whole_file_scope(root, *, key):
         yield
 
 
-def stage_scope(stage, key=''):
+def stage_scope(stage, key='', *, kind='local'):
     if getattr(stage, 'instruction_arm', None) != 'yui' or stage.mode == REVIEW_PHASE:
         return scope(None, None)
-    if active.get() is None and stage.mode not in {'proof', 'interface', 'plan'}:
+    if active.get() is None and kind == 'local' and stage.mode not in {'proof', 'interface', 'plan'}:
         return nullcontext()
     end = (getattr(stage, 'started', None) or time.monotonic()) + stage.timeout if stage.timeout is not None else None
-    return scope(stage.logs / 'lean-timeouts', stage.budget, key=key, deadline=end)
+    return scope(stage.logs / 'lean-timeouts', stage.budget, key=key, deadline=end, kind=kind)
 
 
 def ceiling(kind='local'):
-    initial, _, maximum = rules().limits(kind)
+    rule = rules()
+    _, _, maximum = rule.limits(kind)
+    configured_kind = 'whole_file' if kind == 'whole_file' else 'local'
+    default, _, _ = rule.limits(configured_kind)
     try:
         configured = runtime_config.configured_timeout('whole_file' if kind == 'whole_file' else 'native')
     except KeyError:
-        configured = initial  # Older frozen configurations have no whole-file field.
-    return configured if configured is not None and configured < initial else maximum
+        configured = default  # Older frozen configurations have no whole-file field.
+    return configured if configured is not None and configured < default else maximum
 
 
 PROMPT = """Inspect the exact Candidate.lean and native.json (including the compiler output) for

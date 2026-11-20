@@ -208,12 +208,14 @@ def native_timeout_kind(result):
     return None
 
 
-def freeze_native_timeout_policy(destination,bank=None):
+def freeze_native_timeout_policy(destination, bank=None, *, binding=None):
     """Snapshot one advice card at stage entry; no search or model call."""
     bank=Path(bank or BANK).resolve();destination=Path(destination).resolve()
     state={'policy':NATIVE_TIMEOUT_POLICY,'card_id':NATIVE_TIMEOUT_CARD,
            'status':'UNAVAILABLE','files':[],'bank_root':str(destination)}
     try:
+        if binding is not None:
+            bank, _, _ = bound_bank_data(binding)
         index=json.loads((bank/'index.json').read_text())
         if index.get('version')!=3 or index['source_sha256']!=sha(bank/'strategies.json'):
             raise ValueError('stale strategy index')

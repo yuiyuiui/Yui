@@ -1,6 +1,8 @@
 """Wall-clock policy inside nl02lean. A review can authorize a retry, never a proof."""
 INITIAL_SECONDS = 360
 MAX_SECONDS = 1800
+INTERFACE_INITIAL_SECONDS = 60
+INTERFACE_SECOND_SECONDS = 180
 WHOLE_FILE_INITIAL_SECONDS = 1800
 WHOLE_FILE_INCREMENT_SECONDS = 900
 WHOLE_FILE_MAX_SECONDS = 3600
@@ -10,6 +12,8 @@ CATEGORIES = ('code_issue', 'workload_only', 'uncertain')
 def limits(kind='local'):
     if kind == 'local':
         return INITIAL_SECONDS, INITIAL_SECONDS, MAX_SECONDS
+    if kind == 'interface':
+        return INTERFACE_INITIAL_SECONDS, INITIAL_SECONDS, MAX_SECONDS
     if kind == 'whole_file':
         return WHOLE_FILE_INITIAL_SECONDS, WHOLE_FILE_INCREMENT_SECONDS, WHOLE_FILE_MAX_SECONDS
     raise ValueError('Unknown native Lean check kind')
@@ -23,7 +27,11 @@ def decision(current, diagnosis, *, ceiling=None, kind='local'):
         return 'repair', current
     if diagnosis == 'uncertain':
         return 'inspect', current
-    following = current + increment
+    if kind == 'interface' and current < INITIAL_SECONDS:
+        following = (INTERFACE_SECOND_SECONDS if current < INTERFACE_SECOND_SECONDS
+                     else INITIAL_SECONDS)
+    else:
+        following = current + increment
     if following <= min(maximum, maximum if ceiling is None else ceiling):
         return 'retry', following
     return 'limit', current

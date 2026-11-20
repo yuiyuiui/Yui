@@ -36,3 +36,12 @@ steps. A completed modular implementation also motivates retaining separately
 checked helper declarations rather than repeatedly elaborating their bodies
 inside one large expression. That latter observation does not isolate a
 universal performance cause or predict a speedup.
+
+In a Hausdorff-dimension interface, a retained type probe hit a six-minute
+wall limit around a coercion and an implicit application. Replaying that probe
+with a smaller heartbeat budget reported a type mismatch and an `isDefEq`
+heartbeat failure in about 10–17 seconds. The accepted local proof gave its
+nonnegative exponent an explicit type, proved its extended-real coercion
+separately, and supplied the space, set and exponent by name to Mathlib.
+The replay locates the probe failure. Timing and causes for the complete
+failed interface were not isolated by this comparison.

@@ -28,7 +28,7 @@ import background
 import background_inputs
 import correspondence
 import concurrency
-from clean_stage import ArtifactStage
+from clean_stage import ArtifactStage, CandidateRejection
 import model_pilot as pilot
 from artifact_validation import expand_submission
 from dependency_instances import CALL_GUIDANCE, specialized_inputs
@@ -214,6 +214,15 @@ def artifact_schema(source):
     return p.obj(fields,required=set(fields)-{'shared_obligations'})
 
 
+def timeout_advice(native, snapshot):
+    if snapshot is None or not pilot.strategy_bank.native_timeout_kind(native):
+        return None
+    version = native.get('selected_environment', {}).get('lean_version')
+    if version is None:
+        version = ir.load_lock()['lean']['version_number']
+    return pilot.strategy_bank.native_timeout_feedback(native, version, snapshot)
+
+
 class InterfaceContract:
     def __init__(self,out):
         self.out=Path(out).resolve();self.attempt=0
@@ -224,6 +233,7 @@ class InterfaceContract:
         self.schema=editable(artifact_schema(self.source))
         self.documents={p.name:p.read_text() for p in (self.out/'inputs').iterdir() if p.is_file() and p.name!='inputs.json'}
         self.drafts={}
+        self.native_timeout_snapshot=None
         authority=json.loads((self.out/'authority.json').read_text());case=Path(authority['case'])
         self.source_data=source_preparation.read_source(**authority.get('source_authority',{
             'graph':str(case/'nl0.json'),'spec':str(case/'spec.json'),'audit_a':str(case/'audit-a.json')}))[0]
@@ -259,7 +269,9 @@ class InterfaceContract:
         try:
             return self.check(value,directory)
         except (ValueError,KeyError,TypeError) as error:
-            raise ValueError(f'Candidate {self.attempt} saved; repair it with base_candidate. {error}') from error
+            advice=error.repair_advice if isinstance(error,CandidateRejection) else None
+            raise CandidateRejection(f'Candidate {self.attempt} saved; repair it with base_candidate. {error}',
+                                     repair_advice=advice) from error
 
     def check(self,value,directory):
         import artifact_protocol as protocol
@@ -312,7 +324,8 @@ class InterfaceContract:
         if result['exit_code']!=0:
             failed=', '.join(result.get('failed_input_uses',[]))
             label=' for '+failed if failed else ''
-            raise ValueError('Actual Lean type check failed'+label+':\n'+ir.compiler_feedback(result))
+            raise CandidateRejection('Actual Lean type check failed'+label+':\n'+ir.compiler_feedback(result),
+                repair_advice=timeout_advice(result,self.native_timeout_snapshot))
         write(self.out/'accepted-interface-paths.json',{'contract':str(directory/'contract.json'),
             'plan':str(directory/'plan.json'),'author_output':str(self.out/'stage/accepted.json'),
             'paragraph_mapping':self.source['paragraph_mapping'],'source_outputs':value['source_outputs'],
@@ -336,6 +349,11 @@ class InterfaceStage(ArtifactStage):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.type_probes=0
+        if self.mode=='interface-authoring' and self.instruction_arm=='yui':
+            self.native_timeout_snapshot=pilot.strategy_bank.freeze_native_timeout_policy(
+                self.logs/'harness-snapshot/nl02lean/bank', binding=self.strategy_banks['lean'])
+            if isinstance(self.validator,InterfaceContract):
+                self.validator.native_timeout_snapshot=self.native_timeout_snapshot
         initial_prompt=self.input_prompt
         self.input_prompt+=('\nYou may revise an explicit pre-freeze prior-interface.json through '
             '{"base_input":"prior-interface.json","patches":[{"op":"replace","path":"/header","value":"complete replacement header"}]}. '
@@ -367,6 +385,14 @@ class InterfaceStage(ArtifactStage):
             self.tool_names={t['name'] for t in self.tools}
 
     def dispatch(self,name,args):
+        if self.mode=='interface-authoring' and self.instruction_arm=='yui' and name in {
+                'check_lean_types','check_draft','submit_draft','check_artifact','submit_artifact'}:
+            from lean_timeout_policy import stage_scope
+            with stage_scope(self,kind='interface'):
+                return self._dispatch_interface(name,args)
+        return self._dispatch_interface(name,args)
+
+    def _dispatch_interface(self,name,args):
         if name in {'save_interface_draft','read_interface_draft'} and not hasattr(self.validator,'drafts'):
             return {'accepted':False,'stage_complete':False,'error':'Interface authoring has not started; finish the current source-preparation assignment through submit_draft.'}
         if name=='save_interface_draft':
@@ -430,8 +456,11 @@ class InterfaceStage(ArtifactStage):
                 shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
             result={'stage_complete':False,'scope':'STRICT_EXPRESSION_DECLARATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
                 'type_check_policy':'strict-declaration-1',
-                'types_checked':native['exit_code']==0,'exit_code':native['exit_code'],
+                'types_checked':ir.native_succeeded(native),'exit_code':native['exit_code'],
                 'stdout':native['stdout'][:16000],'stderr':native['stderr'][:1500]}
+            advice=timeout_advice(native,self.native_timeout_snapshot)
+            if advice is not None:
+                result['repair_advice']=advice
         except (ValueError,KeyError,TypeError) as error:result={'stage_complete':False,'types_checked':False,'error':str(error)}
         pilot.carrier.append(self.logs/'tools.jsonl',{'tool':name,'arguments':args,'result':result,'wall_seconds':time.monotonic()-start})
         return result

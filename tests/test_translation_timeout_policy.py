@@ -75,6 +75,30 @@ class TranslationTimeouts(unittest.TestCase):
         self.assertEqual([row[0] for row in self.calls], [360,720,720,360])
         self.assertNotEqual(self.calls[1][2], self.calls[2][2])
 
+    def test_interface_timeout_ladder_and_explicit_cap(self):
+        with self.native([WALL]*7), policy.scope(self.root/'interface', None, kind='interface'), \
+                patch.object(policy, 'inspect_source', return_value=judgment('workload_only')) as review:
+            result = self.run_native()
+        self.assertEqual([row[0] for row in self.calls], [60, 180, 360, 720, 1080, 1440, 1800])
+        self.assertEqual(review.call_count, 7)
+        self.assertEqual(result['timeout_reviews'][-1]['action'], 'limit')
+        with self.native([WALL]), policy.scope(self.root/'limited', None, kind='interface'), \
+                patch.object(policy.runtime_config, 'configured_timeout', return_value=120), \
+                patch.object(policy, 'inspect_source', return_value=judgment('workload_only')):
+            limited = self.run_native()
+        self.assertEqual(self.calls[-1][0], 60)
+        self.assertEqual(limited['timeout_reviews'][0]['action'], 'limit')
+
+    def test_interface_code_issue_and_uncertainty_stay_at_one_minute(self):
+        for category, action in [('code_issue', 'repair'), ('uncertain', 'inspect')]:
+            with self.subTest(category=category), self.native([WALL]), \
+                    policy.scope(self.root/category, None, kind='interface'), \
+                    patch.object(policy, 'inspect_source', return_value=judgment(category)):
+                failure = self.run_native()
+            decision, = failure['timeout_reviews']
+            self.assertEqual((decision['action'], decision['next_seconds']), (action, 60))
+        self.assertEqual([row[0] for row in self.calls], [60, 60])
+
     def test_uncertainty_lower_cap_and_stage_or_external_stops(self):
         with self.native([WALL,WALL]), policy.scope(self.root/'short', None), \
                 patch.object(policy,'inspect_source',side_effect=[judgment('uncertain'),judgment('workload_only')]):

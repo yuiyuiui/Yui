@@ -21,6 +21,14 @@ sys.path.insert(0, str(CORE / 'nl02lean/scripts'))
 import model_pilot as pilot
 
 
+class CandidateRejection(ValueError):
+    """An editable candidate failure with optional native Lean repair advice."""
+
+    def __init__(self, message, *, repair_advice=None):
+        super().__init__(message)
+        self.repair_advice = repair_advice
+
+
 class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
                  kind='json', case_id=None, check_handoff=None):
@@ -649,6 +657,8 @@ class ArtifactStage(pilot.Stage):
                 self.record_tool_fault(name,args,e,started)
                 raise
             result = {'accepted': False, 'error': str(e), 'feedback_kind': 'candidate_rejected'}
+            if isinstance(e, CandidateRejection) and e.repair_advice is not None:
+                result['repair_advice'] = e.repair_advice
         except Exception as e:
             self.record_tool_fault(name,args,e,started)
             raise
