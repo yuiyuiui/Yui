@@ -9,7 +9,7 @@ different consequences at that boundary.
 | Boundary | What the receiver uses | What a failure does |
 | --- | --- | --- |
 | Working NL0 graph to proof author | Actual direct premises, output, definition closure and shared Audit A criteria | A known local error returns in the same author assignment. A located interface defect returns to the graph author. |
-| Graph revision to next author | Previous and current graph bindings, located findings and compatible proof bodies | The same merge fills unchanged bodies after either author or Audit A feedback. A directly disputed body or changed mathematical scope needs current work. |
+| Graph revision to next author | Previous and current graph bindings, located findings, compatible proof bodies and unresolved local Audit A findings | The same merge fills compatible bodies after either repair origin. It sends an exact matching rejected packet's findings to the author and requires a revised body. |
 | Completed NL0 to Audit A | Current independent global gate followed by a separate packet for each local R | Index checked history once and issue only unmatched local packets. Collect independent outcomes for the current version, then repair shared interfaces together when needed. |
 | Retained review or local repair conversation | Version from the exact current manifest, with changed and removed inputs identified | A judgment or local repair submission needs current-stage readback of the changed proof and findings. Unread changes return to the same assignment. An escalation also carries the independent audit's current diagnosis. |
 | Public Lean source to pre-freeze implementation | Retained source at an immutable public Git revision, real compiler output and an owned library binding | Diagnose absent imports as dependency work. The ordinary text-material wait is for a genuinely missing document. Native and semantic acceptance remain separate. |
@@ -39,13 +39,19 @@ Inspect downloaded Lean code in the selected environment first. When a missing
 compiled import belongs to an exact retained public GitHub source, the import
 tool can retrieve that revision and build its in-repository namespace closure
 with the existing sandboxed compiler. This path uses fixed Git commands and
-does not execute the repository's Lake configuration. Dependencies outside the
-namespace use their own explicit checked bindings. A declared original
+the host's HTTPS proxy settings while isolating Git configuration and
+credentials. It reads static Lake metadata to locate the module's source root, retries a
+failed shallow fetch once within the available budget and reuses the verified
+checkout in the owning case. It downloads only the source files the closure
+needs. Dependencies outside the namespace use their own
+explicit checked bindings. A declared original
 environment can be checked separately. Each compiler version needs its own
 binaries. A package requiring custom build flags, an additional module in
 an already bound namespace, or an actual compatibility port remains an explicit
-dependency action with diagnostics. In those cases use the checked attachment
-route for the resulting prepared package. An owned pre-freeze binding never
+dependency action with diagnostics. If operator action is needed, the native
+dependency receipt can be held for recheck. The text-material route handles
+missing readable statements. Use the checked attachment route for a package
+requiring explicit preparation. An owned pre-freeze binding never
 edits the job manifest. Semantic source review, native signatures and final
 dependency trust checks still decide whether the mathematical work is usable.
 

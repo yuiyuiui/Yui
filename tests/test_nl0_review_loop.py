@@ -33,7 +33,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         for path in self.workspaces:shutil.rmtree(path,ignore_errors=True)
         self.tmp.cleanup()
 
-    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None,repeat=None):
+    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None,repeat=None,route_graph=False):
         source=source or harness_support.CORE/'tests/fixtures/closed-addition'
         node_count=len(json.loads((source/'nl0.json').read_text())['inferences'])
         turns=threading.Barrier(node_count) if both_local_fail else None
@@ -69,7 +69,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                 result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','exposure':exposure,'usage':{'complete':True}}
             elif stage.mode=='nl0-local-repair':
                 validator=stage.validator
-                if global_escalation and n==1:
+                if n==1 and (global_escalation is True or global_escalation==role):
                     artifact={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Synthetic shared context clarification.', 'locations':['/inference/argument']}
                 else:
                     row=deepcopy(validator.original)
@@ -103,7 +103,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         initial_source=source
         with patch.object(ArtifactStage,'_execute',execute):
             result=loop.run({'root':str(self.root),'case':'closed-addition','policy':'normal'},self.serial,self.local,
-                lambda *a,**k:None,author,case_runner.repair_obligations)
+                lambda *a,**k:None,author,case_runner.repair_obligations,route_graph=route_graph)
         data=campaign.nl0.validate(result['graph'],result['spec'],result['audit_a'])[0]
         self.assertTrue(data['current_standard_receipt_valid'])
         self.assertEqual(self.local.report()['active_model_stages'],0)
@@ -144,6 +144,14 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.assertEqual(caught.exception.result['status'], 'REPAIR_UNCHANGED')
         self.assertEqual(self.counts['audit-a:R001'], 1)
         self.assertEqual(self.local.report()['active_model_stages'], 0)
+
+    def test_global_repair_handoff_retains_an_independent_local_nonpass(self):
+        import graph_repair
+        with self.assertRaises(graph_repair.Request) as caught:
+            self.exercise(global_escalation='nl0-author:R002',both_local_fail=True,repeat='local',route_graph=True)
+        rejection_files = [Path(folder)/'rejected-review.json' for folder in caught.exception.prior]
+        scopes = {campaign.nl0.load(path)['scope'] for path in rejection_files if path.is_file()}
+        self.assertEqual(scopes, {'R001','R002'})
 
     def test_global_revision_then_parallel_local_repair_merge(self):
         result=self.exercise(global_failure=True)

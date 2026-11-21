@@ -33,8 +33,9 @@ from the original proof. Saving is not machine or mathematical acceptance.
 Ordinary unfinished drafting/reduction is not a terminal obstacle: continue a
 concrete step. Only actual located source/math/execution blockers justify stopping.
 Follow the next action in imported Lean diagnostics for retained source. Continue
-other foundations while investigating the affected dependency. Use SOURCE_UNAVAILABLE
-for a specific missing source or dependency that still needs material from the owner.
+other foundations while investigating the affected dependency. Use
+wait_for_lean_dependency only if the outstanding native check needs operator
+action. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material.
 '''
 
     def controller_checkpoint(self):

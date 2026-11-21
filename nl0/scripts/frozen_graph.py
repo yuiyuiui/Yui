@@ -654,6 +654,7 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
             +graph_repair.RULE+' Work on independent inferences while collecting actual blockers you encounter. '
             'Return them together with report_graph_issue and include any ready local_proofs in that call. '
             'Read global-findings.json when supplied, focusing on changed_inferences and the located remedies. '
+            'Repair unresolved_reviews for still-matching rejected local packets before resubmitting those bodies. '
             'Send local_proofs containing only new or updated bodies. The same merge supplies compatible drafts '
             'whether the graph was returned by the author or by Audit A. Closing inspection checks the complete result.')
     if 'outline' in record:

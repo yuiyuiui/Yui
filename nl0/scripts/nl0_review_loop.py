@@ -127,7 +127,8 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             while not stop.is_set():
                 blocker=rejected.blocker(own,rid,data=own_data)
                 if blocker:
-                    return {'blocked':blocker}
+                    review=Path(blocker.result['rejected_review']['review']['path'])
+                    return {'blocked':blocker,'campaign':review.parents[2]}
                 if not revision and 'packet:'+rid in global_plan['inherited']:
                     return {'case':own,'campaign':None,'rid':rid}
                 revision+=1
@@ -207,7 +208,10 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             issues={'version':'yui-repair-obligations-1','baseline_input':'baseline.json',
                 'baseline_content_sha256':__import__('author_check').digest({'spec':nl0.load(merged/'spec.json'),'graph':graph}),
                 'issues':located}
-            prior.extend(v['campaign'] for v in global_issues)
+            for outcome in outcomes.values():
+                if outcome and ('global' in outcome or 'blocked' in outcome):
+                    prior.append(outcome['campaign'])
+            prior=list(dict.fromkeys(prior))
             review_index.extend(prior)
             source=merged
             continue

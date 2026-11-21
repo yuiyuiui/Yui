@@ -156,8 +156,8 @@ class BasisDraftTests(unittest.TestCase):
             self.assertTrue(stage.dispatch('save_basis_draft',{'artifact':{'proof':'Independent local work.'}})['saved'])
             self.assertEqual(stage.dispatch('report_obstacle',obstacle)['dependency_followup'],result['dependency_followup'])
             request.assert_not_called()
-            missing={**obstacle,'location':'MissingOriginalProject/Entry.lean upstream module tree',
-                     'explanation':'The needed source is still unavailable after checking the independent route.'}
+            missing={**obstacle,'status':'MISSING_SOURCE_STATEMENT','location':'Unobtainable reference, Theorem 4',
+                     'explanation':'The complete theorem statement is missing from accessible sources.'}
             self.assertTrue(stage.dispatch('report_obstacle',missing)['waiting_for_material'])
             request.assert_called_once()
 

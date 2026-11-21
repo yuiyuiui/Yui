@@ -6,12 +6,14 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from controller_common import bind,write
+from controller_common import bind,manifest,write
 import lean_environment
 import lean_imports
 import lean_libraries
@@ -176,36 +178,27 @@ class ImportedLeanTests(unittest.TestCase):
         self.assertEqual(lean_libraries.current(),[])
 
     def test_missing_public_import_builds_and_binds_real_modules_in_the_same_job(self):
-        import jobs
         import public_lean
 
-        problem=self.root/'public-proof.md';problem.write_text('Prove True.')
-        job=jobs.prepare(problem,track='full',profiles=harness_support.PROFILES,lean_environment=self.current,
-                         output=self.root/'public-case')
-        run=Path(job['root']); self.stage.logs=run/'public-stage'; self.stage.logs.mkdir()
+        run=self.public_job()
         job_before=bind(run/'job.json')
-        external=self.stage.logs/'external-sources'; external.mkdir()
-        checkout=self.root/'repository'; source=checkout/'PublicExample'; source.mkdir(parents=True)
-        (source/'Leaf.lean').write_text('import Mathlib\nnamespace PublicExample\ntheorem leaf : True := by trivial\nend PublicExample\n')
-        original='import PublicExample.Leaf\nnamespace PublicExample\ntheorem witness : True := leaf\nend PublicExample\n'
-        (source/'Entry.lean').write_text(original)
-        file=external/'module.lean'; file.write_text(original); pin='a'*40
-        write(external/'access-local-control.json',{'status':'READABLE',
-            'final_url':f'https://raw.githubusercontent.com/example/lean-lib/{pin}/PublicExample/Entry.lean',
-            'document':bind(file)})
-        evidence={'path':'external-sources/module.lean','sha256':bind(file)['sha256']}
-
-        def local_checkout(work, repository, revision, deadline):
-            self.assertEqual((repository,revision),('https://github.com/example/lean-lib.git',pin))
-            return Path(shutil.copytree(checkout,work/'checkout')).resolve()
-
+        repository=self.git_source('lean-lib',{
+            'PublicExample/Leaf.lean':
+                'import Mathlib\nnamespace PublicExample\ntheorem leaf : True := by trivial\nend PublicExample\n',
+            'PublicExample/Entry.lean':
+                'import PublicExample.Leaf\nnamespace PublicExample\ntheorem witness : True := leaf\nend PublicExample\n',
+        })
+        source=self.read_pinned(repository,'PublicExample/Entry.lean','original')
+        calls,transport=self.local_git_transport(repository)
         error=public_lean.BuildFailure('PUBLIC_SOURCE_FETCH_FAILED','Synthetic interrupted fetch.')
-        with lean_libraries.generated(run/'imported-lean'), patch.object(public_lean,'checkout',side_effect=error) as fetch:
-            first=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
+        with lean_libraries.generated(run/'imported-lean'):
+            with patch.object(public_lean,'checkout',side_effect=error):
+                first=lean_imports.check(self.stage,source,allow_publish=True)
             self.assertEqual(first['public_library']['status'],'PUBLIC_SOURCE_FETCH_FAILED')
             self.assertEqual(lean_libraries.current(),[])
-            fetch.side_effect=local_checkout
-            result=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
+            with transport:
+                result=lean_imports.check(self.stage,source,allow_publish=True)
+                again=lean_imports.check(self.stage,source,allow_publish=True)
             self.assertEqual(result['public_library']['status'],'PUBLIC_LEAN_READY',result)
             self.assertEqual(result['status'],'LOCAL_REUSED',result)
             self.assertFalse(result['semantic_acceptance'])
@@ -214,27 +207,192 @@ class ImportedLeanTests(unittest.TestCase):
             manifest=json.loads(Path(descriptor['manifest']['path']).read_text())
             self.assertEqual([row['module'] for row in manifest['modules']],['PublicExample.Leaf','PublicExample.Entry'])
             self.assertEqual(bind(run/'job.json'),job_before)
-            again=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
             self.assertTrue(again['current_cache_reused'])
-            self.assertEqual(fetch.call_count,2)
+            self.assertEqual(calls,[(repository[0],repository[2])])
 
     def test_compiled_dependency_does_not_enter_the_text_material_wait(self):
         from clean_stage import ArtifactStage
+        import fault_control
         import material_exchange
 
-        stage=ArtifactStage(self.root/'routing','Synthetic material reason control.',phase='basis-authoring',library=False)
-        stage.material_requests=True
-        value={'status':'SOURCE_UNAVAILABLE','location':'Missing PublicExample.Leaf.olean',
+        run = self.public_job()
+        inputs = self.root/'inputs'; inputs.mkdir()
+        (inputs/'original.lean').write_text('import PublicExample.Leaf\n')
+        manifest(inputs)
+        stage=ArtifactStage(run/'routing','Dependency routing control.',phase='basis-authoring',
+                            inputs=inputs/'inputs.json')
+        self.assertTrue(stage.material_requests)
+        value={'status':'SOURCE_UNAVAILABLE','location':'',
                'explanation':'The module dependency was not yet available.',
                'basis':'The real compiler reported a missing import.','partial_progress':'The source was read.'}
         try:
+            check=stage.dispatch('check_imported_lean',{'source':{'document':'original.lean'}})
+            self.assertEqual(check['status'],'UPSTREAM_ENVIRONMENT_REQUIRED',check)
+            self.assertTrue(Path(check['receipt']['path']).is_file())
             with patch.object(material_exchange,'request',return_value={'status':'WAITING'}) as wait:
-                reply=stage.dispatch('report_obstacle',value)
-                self.assertIn('LEAN_DEPENDENCY_ACTION_REQUIRED',reply['error']);wait.assert_not_called()
-                book=stage.dispatch('report_obstacle',{**value,'location':'Missing private-reference.pdf'})
+                for location in ('PublicExample.Leaf','B052 → B120 → R018'):
+                    with self.subTest(location=location):
+                        reply=stage.dispatch('report_obstacle',{**value,'location':location})
+                        self.assertIn('LEAN_DEPENDENCY_ACTION_REQUIRED',reply.get('error',''),reply)
+                        self.assertIn(check['receipt'],[row['receipt'] for row in reply['dependency_followup'].values()])
+                        wait.assert_not_called()
+                book=stage.dispatch('report_obstacle',{**value,'status':'MISSING_SOURCE_STATEMENT',
+                      'location':'An inaccessible public reference, Theorem 2',
+                      'explanation':'The complete theorem statement is absent from accessible text.'})
                 self.assertEqual(book['status'],'WAITING');wait.assert_called_once()
+
+            def recheck(gate):
+                self.assertEqual(gate.stage,'lean-dependency')
+                self.assertEqual(gate.state['checkpoint']['import_diagnostic'],check['receipt'])
+                self.assertEqual(fault_control.resume(run,gate.state['incident'])['status'],'RESUME_REQUESTED')
+
+            with patch.object(fault_control.Gate,'report',recheck):
+                resumed=stage.dispatch('wait_for_lean_dependency',{'receipt':check['receipt']})
+            self.assertEqual(resumed['status'],'RETRY_LEAN_DEPENDENCY',resumed)
+            self.assertEqual(resumed['dependency_followup']['receipt'],check['receipt'])
+            self.assertFalse(resumed['stage_complete'])
         finally:
             stage.release_resources('USER_CANCELLED')
+
+    def public_job(self):
+        import jobs
+        problem = self.root/'problem.md'; problem.write_text('Prove True.')
+        job = jobs.prepare(problem, track='full', profiles=harness_support.PROFILES,
+                           lean_environment=self.current, output=self.root/'case')
+        run = Path(job['root'])
+        self.stage.logs = run/'public-stage'; self.stage.logs.mkdir()
+        (self.stage.logs/'external-sources').mkdir()
+        return run
+
+    def git_source(self, repo, files):
+        repository = self.root/repo; repository.mkdir()
+        for name, text in files.items():
+            path = repository/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_text(text)
+        subprocess.run(['git','init','-q',str(repository)],check=True)
+        subprocess.run(['git','-C',str(repository),'config','uploadpack.allowFilter','true'],check=True)
+        subprocess.run(['git','-C',str(repository),'add','.'],check=True)
+        subprocess.run(['git','-C',str(repository),'-c','user.name=Yui Test','-c','user.email=test@example.invalid',
+                        '-c','commit.gpgsign=false','-c','core.hooksPath=/dev/null','commit','-qm','Pinned fixture'],check=True)
+        revision = subprocess.check_output(['git','-C',str(repository),'rev-parse','HEAD'],text=True).strip()
+        return f'https://github.com/example/{repo}.git', repository, revision
+
+    def read_pinned(self, source, relative, identifier):
+        _, repository, revision = source
+        path = self.stage.logs/'external-sources'/f'{identifier}.lean'
+        shutil.copyfile(repository/relative,path)
+        binding = bind(path)
+        write(path.with_name('access-'+identifier+'.json'),{'status':'READABLE','document':binding,
+              'final_url':f'https://raw.githubusercontent.com/example/{repository.name}/{revision}/{relative}'})
+        return {'evidence':{**binding,'path':str(path.relative_to(self.stage.logs))}}
+
+    def local_git_transport(self, *repositories, first_timeout=False):
+        import public_lean
+        real_git = public_lean.git
+        fixtures = {url:(path,revision) for url,path,revision in repositories}
+        calls = []
+        configured = {}
+
+        def git(work, cwd, args, deadline):
+            # Only substitute the transport. Checkout, revision verification,
+            # Lake metadata resolution, Lean compilation and binding all run.
+            if args[:3]==['remote','add','origin']:
+                url=args[-1]; configured[cwd]=url
+                path,_=fixtures[url]
+                args=[*args[:-1],path.as_uri()]
+            if args[0]=='fetch':
+                url=configured[cwd]; pin=args[-1]
+                _,revision=fixtures[url]
+                self.assertEqual(pin,revision); self.assertIn('--depth=1',args)
+                self.assertIn('--filter=blob:none',args)
+                calls.append((url,pin))
+                if first_timeout and len(calls)==1:
+                    raise public_lean.BuildFailure('PUBLIC_SOURCE_FETCH_FAILED', 'Injected Git transport timeout')
+            return real_git(work,cwd,['-c','protocol.file.allow=always',*args],deadline)
+
+        return calls, patch.object(public_lean,'git',side_effect=git)
+
+    def test_vendored_hyphenated_source_path_builds_declared_library(self):
+        run = self.public_job()
+        package = 'vendor/class-field-theory/'
+        path = package+'Lean4/ClassFieldTheory/Ray.lean'
+        source = self.git_source('vendored',{
+            package+'lakefile.toml':'name = "reciprocity"\n[[lean_lib]]\nname = "ClassFieldTheory.All"\nsrcDir = "Lean4"\nglobs = ["ClassFieldTheory.+"]\n',
+            package+'Lean4/ClassFieldTheory/Leaf.lean':'import Init\nnamespace ClassFieldTheory\ntheorem leaf : True := trivial\nend ClassFieldTheory\n',
+            path:'import ClassFieldTheory.Leaf\nnamespace ClassFieldTheory\ntheorem ray : True := leaf\nend ClassFieldTheory\n',
+        })
+        _, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            result = lean_imports.check(self.stage,self.read_pinned(source,path,'ray'),bind_public=True,allow_publish=True)
+            self.assertEqual(result['public_library']['status'],'PUBLIC_LEAN_READY',result)
+            self.assertIn('ClassFieldTheory.Ray',lean_libraries.permitted_imports())
+            proof = lean_imports.compile_unit('import ClassFieldTheory.Ray\nexample : True := ClassFieldTheory.ray\n',
+                       self.current,self.root/'verify-vendored',attachments=lean_libraries.current())
+            self.assertTrue(pilot_common.native_succeeded(proof['native']), proof['diagnostic'])
+
+    def test_nested_lean_package_compiles_and_satisfies_a_cross_repository_import(self):
+        run = self.public_job()
+        dependency_path = 'lean/OAI/Menu.lean'
+        child = self.git_source('upstream',{
+            'lean/lakefile.lean':'import Lake\nopen Lake DSL\npackage OAI\n@[default_target] lean_lib OAI\n',
+            dependency_path:'import Init\nnamespace OAI\ntheorem menu : True := trivial\nend OAI\n',
+        })
+        parent_path = 'Hindman/Main.lean'
+        parent = self.git_source('consumer',{
+            'lakefile.toml':'name = "hindman"\n[[lean_lib]]\nname = "Hindman"\n',
+            parent_path:'import OAI.Menu\nnamespace Hindman\ntheorem witness : True := OAI.menu\nend Hindman\n',
+        })
+        calls, transport = self.local_git_transport(child,parent)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            consumer = self.read_pinned(parent,parent_path,'parent')
+            before = lean_imports.check(self.stage,consumer,bind_public=True,allow_publish=True)
+            self.assertEqual(before['public_library']['status'],'PUBLIC_LEAN_DEPENDENCY_REQUIRED',before)
+            built = lean_imports.check(self.stage,self.read_pinned(child,dependency_path,'child'),bind_public=True,allow_publish=True)
+            self.assertEqual(built['public_library']['status'],'PUBLIC_LEAN_READY',built)
+            self.assertIn('OAI.Menu',lean_libraries.permitted_imports())
+            ready = lean_imports.check(self.stage,consumer,bind_public=True,allow_publish=True)
+            self.assertEqual(ready['public_library']['status'],'PUBLIC_LEAN_READY',ready)
+            self.assertEqual(set(lean_libraries.permitted_imports()),{'OAI.Menu','Hindman.Main'})
+            self.assertEqual(calls,[(parent[0],parent[2]),(child[0],child[2])])
+            proof = lean_imports.compile_unit('import Hindman.Main\nexample : True := Hindman.witness\n',
+                       self.current,self.root/'verify-cross-repo',attachments=lean_libraries.current())
+            self.assertTrue(pilot_common.native_succeeded(proof['native']),proof['diagnostic'])
+
+    def test_pinned_git_fetch_retries_without_refetching_a_verified_commit(self):
+        run = self.public_job()
+        source = self.git_source('cache-control',{
+            'Alpha/Entry.lean':'import Init\nnamespace Alpha\ntheorem witness : True := trivial\nend Alpha\n',
+            'Beta/Entry.lean':'import Init\nnamespace Beta\ntheorem witness : True := trivial\nend Beta\n',
+            'Examples/Unused.lean':'def unrelated : Nat := 42\n',
+        })
+        calls, transport = self.local_git_transport(source,first_timeout=True)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            for name in ('Alpha','Beta'):
+                result = lean_imports.check(self.stage,self.read_pinned(source,name+'/Entry.lean',name),
+                            bind_public=True,allow_publish=True)
+                self.assertEqual(result['public_library']['status'],'PUBLIC_LEAN_READY',result)
+            self.assertEqual(calls,[(source[0],source[2])]*2)
+            [cached] = [path for path in (run/'imported-lean/public-sources').iterdir() if path.is_dir()]
+            self.assertFalse((cached/'Examples/Unused.lean').exists())
+            inspect_blob = ['git','--no-lazy-fetch','-C',str(cached),'cat-file','-e']
+            subprocess.run([*inspect_blob,'HEAD:Alpha/Entry.lean'],capture_output=True,check=True)
+            blob = subprocess.run([*inspect_blob,'HEAD:Examples/Unused.lean'],capture_output=True)
+            self.assertNotEqual(blob.returncode,0, 'An unrelated blob was downloaded with the pinned revision.')
+
+    def test_public_git_respects_host_proxy_without_global_git_configuration(self):
+        import public_lean
+
+        proxy = 'http://127.0.0.1:9123'
+        with (patch('urllib.request.getproxies',return_value={'https':proxy}),
+              patch('urllib.request.proxy_bypass',return_value=False),
+              patch.dict(os.environ,{'GH_TOKEN':'unused-test-token'}),
+              patch.object(public_lean.subprocess,'Popen',wraps=subprocess.Popen) as child):
+            version = public_lean.git(self.root,self.root,['--version'],time.monotonic()+5)
+        self.assertIn('git version',version)
+        launched = next(call for call in child.call_args_list if call.args[0][0]=='/usr/bin/git')
+        env = launched.kwargs['env']
+        self.assertEqual(env.get('https_proxy'),proxy)
+        self.assertEqual(env['GIT_CONFIG_GLOBAL'],'/dev/null')
+        self.assertNotIn('GH_TOKEN',env)
 
 
 if __name__=='__main__':unittest.main()

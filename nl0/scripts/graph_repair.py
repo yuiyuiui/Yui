@@ -120,7 +120,8 @@ def revision_feedback(history, selected, current):
     if previous != nl0.load(selected['path'])['previous']:
         raise ValueError('Graph findings belong to a different predecessor')
     baseline = history.get('baseline', {})
-    verify_bindings([previous,*history['evidence'],*baseline.values()])
+    campaigns = history.get('campaigns', [])
+    verify_bindings([previous,*history['evidence'],*baseline.values(),*campaigns])
     record = nl0.load(previous['path'])
     verify_bindings([record['spec'],record['graph']])
     before = {key:nl0.load(record[key]['path']) for key in ('spec','graph')}
@@ -130,18 +131,35 @@ def revision_feedback(history, selected, current):
         compatible = set()
     report = history['obligations']
     drafts = {}
+    unresolved = []
     if baseline:
         detailed = {key:nl0.load(baseline[file]['path']) for key,file in (('spec','spec'),('graph','nl0'))}
         check_assignment(before,detailed['spec'],detailed['graph'])
         compatible -= disputed_inferences(detailed['graph'], report['issues'])
         drafts = {row['id']:{key:row[key] for key in ('id', *BODY_FIELDS)}
                   for row in detailed['graph']['inferences']}
+        if campaigns:
+            from audit_rejections import RejectedReviews
+            from pathlib import Path
+
+            rejections=RejectedReviews(Path(row['path']).parent for row in campaigns)
+            matching=sorted(compatible & drafts.keys() & rejections.history.keys())
+            if matching:
+                source=Path(baseline['nl0']['path']).parent
+                data=nl0.validate(source/'nl0.json',source/'spec.json')
+                for rid in matching:
+                    blocker=rejections.blocker(source,rid,data=data)
+                    if blocker:
+                        evidence=blocker.result['rejected_review']['review']
+                        unresolved.append({'inference':rid,'review':nl0.load(evidence['path']),'evidence':evidence})
     if 'blockers' in report:
         accepted = nl0.load(history['evidence'][0]['path'])
         drafts.update(proof_rows(before,accepted['local_proofs']))
+    pending={row['inference'] for row in unresolved}
     return {'previous_graph':previous,'current_graph':selected,'issues':report['issues'],
             'blockers':report.get('blockers',[]), 'changed_inferences':sorted(new.keys()-compatible),
-            'local_proofs':[row for rid,row in drafts.items() if rid in compatible]}
+            'local_proofs':[row for rid,row in drafts.items() if rid in compatible-pending],
+            'unresolved_reviews':unresolved}
 
 
 def disputed_inferences(graph, issues):

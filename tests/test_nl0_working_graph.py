@@ -421,6 +421,12 @@ class WorkingGraphTests(unittest.TestCase):
             self.assertEqual(final[0]['argument'],bodies[0]['argument'])
 
     def test_audit_return_uses_the_same_incremental_author_submission(self):
+        self.audit_return()
+
+    def test_audit_return_preserves_other_unresolved_review_without_retaining_its_body(self):
+        self.audit_return(other_rejection=True)
+
+    def audit_return(self, *, other_rejection=False):
         from controller_common import bind
 
         spec=nl0.load(self.source/'spec.json')
@@ -451,14 +457,41 @@ class WorkingGraphTests(unittest.TestCase):
             current=fg.read_working(selected)
             history={'global':previous,'obligations':{'issues':[issue]},'evidence':[bind(report)],
                      'baseline':{key:bind(baseline/(key+'.json')) for key in ('spec','nl0')}}
+            if other_rejection:
+                from audit_a_fixtures import synthetic_stage
+                from audit_rejections import RejectedReviews
+
+                old_source=Path(nl0.load(previous['path'])['spec']['path']).parent
+                for row in assigned['spec']['inputs']:
+                    relative=Path(row['path']); target=baseline/relative
+                    target.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copyfile(old_source/relative,target)
+                data=nl0.validate(baseline/'nl0.json',baseline/'spec.json')
+                campaign=root/'other-local-audit'; packet=campaign/'R001'; packet.mkdir(parents=True)
+                write(packet/'packet.json',nl0.packet(data,'R001'))
+                _, rejection=synthetic_stage(packet,local_verdict='FAIL')
+                write(campaign/'campaign.json',{'case':str(baseline),'graph':bind(baseline/'nl0.json'),
+                      'spec':bind(baseline/'spec.json'),'jobs':[{'id':'R001','library':False}]})
+                RejectedReviews(()).record(campaign,baseline,'R001',data=data)
+                history['campaigns']=[bind(campaign/'campaign.json')]
             feedback=graph_repair.revision_feedback(history,selected,current)
             self.assertEqual(feedback['changed_inferences'],['R002'])
-            self.assertEqual([row['id'] for row in feedback['local_proofs']],['R001'])
+            self.assertEqual([row['id'] for row in feedback['local_proofs']],[] if other_rejection else ['R001'])
+            if other_rejection:
+                backlog=feedback['unresolved_reviews']
+                self.assertEqual([(row['inference'],row['review']) for row in backlog],[('R001',rejection)])
             next_author=fg.AuthorContract(root/'next', {**docs,fg.ASSIGNED:json.dumps(current),
                 graph_repair.FEEDBACK:json.dumps(feedback)},spec['case_id'],fg.LOCAL)
             fixed={key:deepcopy(complete['inferences'][-1][key]) for key in ('id',*fg.BODY_FIELDS)}
             fixed['argument'][-1]['uses'].append('H001')
             fixed['argument'][-1]['text']+=' Use the supplied equality H001.'
-            next_author({'local_proofs':[fixed]})
-            self.assertEqual(next_author.valid_drafts[1]['graph']['inferences'][0]['argument'],detailed['inferences'][0]['argument'])
+            first_submit=next_author({'local_proofs':[fixed]})
+            expected=deepcopy(detailed['inferences'][0]['argument'])
+            if other_rejection:
+                self.assertEqual(first_submit['remaining_local_proofs'],['R001'])
+                repaired={key:deepcopy(detailed['inferences'][0][key]) for key in ('id',*fg.BODY_FIELDS)}
+                repaired['argument'][0]['text']+=' Repaired to address the retained finding.'
+                expected=repaired['argument']
+                next_author({'local_proofs':[repaired]})
+            self.assertEqual(next_author.valid_drafts[1]['graph']['inferences'][0]['argument'],expected)
             self.assertFalse(next_author.author_check.status(1)['author_release_ready'])

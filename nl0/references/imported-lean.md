@@ -39,14 +39,27 @@ still establish that those declarations match the actual source project.
 Timeouts, cancellation and unknown native results never establish a source bug.
 
 For an import failure from a retained `raw.githubusercontent.com` Lean source at
-its full Git commit, the tool can fetch that revision before freeze. It builds
-the original module and the available same-namespace closure using restricted
-Lean invocations, then binds the checked artifacts in the owned registry. Use
+its full Git commit, the tool can shallow-fetch that revision before freeze. It
+downloads the package metadata and the required source files from that tree.
+A failed initial fetch has one bounded retry. Subsequent requests in the case
+reuse a verified checkout of the same revision. Package metadata supplies the module
+root, including nested packages and TOML source directories. For a layout the
+static reader cannot resolve, pass the exact Lean import name in `module`; its
+corresponding file path must agree with the pinned source. The tool builds that
+module and its available same-namespace closure using restricted Lean
+invocations, then binds the checked artifacts in the owned registry. Use
 `bind_public:true` to request the original module name as a dependency even when
 the standalone code already compiles. A failed build returns actual diagnostics
 to the author. Bind additional namespaces using their checked public sources or
 the explicit library attachment. The original/version branch can diagnose a
 port with its own compiled context, whose artifacts stay with that environment.
+
+Follow compiler, import and fetch diagnostics through `check_imported_lean`.
+Where available, `wait_for_lean_dependency` accepts the outstanding check's
+`receipt` if operator intervention is required. After correcting the external
+condition, the operator uses `resume-error` for that incident, and the author
+rechecks the dependency. Use `MISSING_SOURCE_STATEMENT` for genuinely missing
+readable material required to obtain a complete statement.
 
 Supply the complete edited unit as `candidate` with the same source selection
 and upstream pins. `PORTED_CHECKED` requires its completed current native check.

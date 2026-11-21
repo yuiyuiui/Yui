@@ -20,6 +20,7 @@ rules=module_from_spec(_SPEC);_SPEC.loader.exec_module(rules)
 VERSION=rules.VERSION
 
 FOLLOW_UP = {
+    'LOCAL_CHECK_INCOMPLETE': 'Inspect the native diagnostic and retry the same local check after addressing the failure.',
     'UPSTREAM_ENVIRONMENT_REQUIRED': (
         'Use the source project\'s exact declared Lean and Mathlib pins to retry check_imported_lean. '
         'If the verified pair is unavailable, investigate an alternative for this foundation and continue independent work.'),
@@ -27,6 +28,7 @@ FOLLOW_UP = {
         'The source is retained. Investigate the missing dependency context for this foundation with the current author '
         'or investigate_basis_frontier. Locate the exact upstream imports or choose a checked alternative in the pinned '
         'environment. Continue independent foundations and keep the affected use pending until checked.'),
+    'UPSTREAM_CHECK_INCOMPLETE': 'Address the native failure and retry in the same declared upstream environment.',
     'COMPATIBILITY_PORT_REQUIRED': (
         'Use the retained original and these diagnostics to prepare the compatibility edit. After selecting the '
         'natural-language basis route, retry check_imported_lean with candidate in the current pinned environment.'),
@@ -35,6 +37,7 @@ FOLLOW_UP = {
         'natural-language basis route, retry check_imported_lean with candidate in the current pinned environment.'),
     'PORT_CHECK_FAILED': (
         'Use the current candidate diagnostic to repair the port and retry check_imported_lean with candidate.'),
+    'PORT_CHECK_INCOMPLETE': 'Address the native failure and recheck the same candidate in the current environment.',
 }
 
 
@@ -46,28 +49,47 @@ def diagnostic(check):
     return check['diagnostic'] if check is not None else None
 
 
-def dependency_followup(log, location):
-    """Find the latest matching import diagnosis for the reported dependency."""
-    if not ('.lean' in location or '.olean' in location) or not log.is_file():
-        return {}
+def dependency_followup(log):
+    """Recover outstanding native diagnostics from this stage's own tool receipts."""
+    if not log.is_file():return {}
     latest = {}
     with log.open() as stream:
         for line in stream:
             call=json.loads(line)
-            if call['tool']!='check_imported_lean':
-                continue
+            if call['tool']!='check_imported_lean':continue
             reply=call['result']
-            if 'receipt' not in reply:
-                continue
-            document=call['arguments']['source'].get('document','')
-            if document.endswith('.lean') and re.search(r'(?<![\w.-])'+re.escape(document)+r'(?![\w.-])',location):
-                latest[document]=reply
-            for field in ('public_library','upstream_public_library'):
-                built=reply.get(field,{})
-                module=built.get('origin',{}).get('module')
-                if module and module.split('.')[0] in location:latest[module]=reply
-    return {name:{key:row[key] for key in ('status','receipt','diagnostics','next_action','public_library','upstream_public_library') if key in row}
-            for name,row in latest.items() if 'next_action' in row}
+            if 'receipt' not in reply:continue
+            source=call['arguments']['source']
+            label=source.get('document') or source['evidence']['path']
+            latest[label]=reply['receipt']
+    pending={}
+    for label, receipt in latest.items():
+        path=Path(receipt['path']).resolve()
+        if path.parent.parent!=log.parent.resolve()/'imported-lean' or path.name!='result.json':
+            raise ValueError('Import diagnostic belongs to another stage')
+        verify_bindings([receipt]);result=json.loads(path.read_bytes())
+        if result['version']!=VERSION:raise ValueError('Unrecognized import diagnostic')
+        public=result.get('public_library')
+        unresolved_public=public and public['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}
+        if not result['accepted_for_native_reuse'] or unresolved_public:
+            pending[label]={**{key:result[key] for key in ('status','diagnostics','next_action','public_library',
+                                                         'upstream_public_library') if key in result},'receipt':receipt}
+    return pending
+
+
+def wait_for_dependency(stage, receipt):
+    """Wait for operator recheck of an exact, still-unresolved native dependency."""
+    from execution_state import current
+    from fault_control import Gate
+    diagnostic=next((row for row in dependency_followup(stage.logs/'tools.jsonl').values()
+                     if row['receipt']==receipt),None)
+    if diagnostic is None:raise ValueError('Select an outstanding check_imported_lean receipt from this stage')
+    recorder,task=current()
+    gate=Gate(stage.logs/'dependency-request',recorder=recorder,task=task,stage='lean-dependency')
+    gate.pause({'code':'workflow_blocked','message':'An external Lean dependency needs an operator recheck.'},
+               resumable=True,checkpoint={'import_diagnostic':receipt,'status':diagnostic['status']})
+    return {'status':'RETRY_LEAN_DEPENDENCY','dependency_followup':diagnostic,'stage_complete':False,
+            'instruction':'Retry the bound check using the current dependency diagnostic.'}
 
 
 environment_identity=lean_environment.identity
@@ -274,19 +296,13 @@ def public_context(stage, request, origin, environment, attachments, *, publish)
     identity=environment_identity(environment)
     directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,attachments])
     directory.parent.mkdir(parents=True,exist_ok=True)
-    root=Path(lean_libraries.generated_root()).resolve() if publish else None
+    owned=lean_libraries.generated_root()
+    root=Path(owned).resolve() if publish else None
+    source_cache=(Path(owned).resolve() if owned is not None else directory.parent.parent)/'public-sources'
     if root is not None:
-        namespace=origin['module'].split('.')[0]
-        existing=next((row for row in attachments if row['name']==namespace),None)
-        if existing:
-            metadata=json.loads(Path(existing['manifest']['path']).read_bytes())
-            if any(row['module']==origin['module'] and row['source_sha256']==origin['source_sha256'] for row in metadata['modules']):
-                return {'status':'PUBLIC_LEAN_ALREADY_BOUND','library':existing,'origin':origin}, []
-            return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
-                    'diagnostic':'An existing binding for '+namespace+' needs the additional module '+origin['module']}, []
         if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
             return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
-                    'diagnostic':'The current mathematical boundary is frozen. Revise the dependency binding before importing '+origin['module']}, []
+                    'diagnostic':'The current mathematical boundary is frozen. Revise the dependency binding before importing '+origin['source_path']}, []
     with (directory.parent/(directory.name+'.lock')).open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         with runtime_config.use_environment(environment),lean_libraries.use(attachments),lean_libraries.generated(None):
@@ -300,7 +316,8 @@ def public_context(stage, request, origin, environment, attachments, *, publish)
             else:
                 recorder,_=current()
                 limit=recorder.remaining(1800) if recorder else 1800
-                result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit)
+                result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit,
+                                         source_cache=source_cache)
                 if result['status']=='PUBLIC_LEAN_READY':
                     write(saved,{'result':result['receipt']})
             if result['status']!='PUBLIC_LEAN_READY':return result, []
@@ -317,8 +334,10 @@ def missing_import(check):
     return bool(re.search(r'unknown module prefix|object file.*\.olean.*does not exist',text,re.I))
 
 
-def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=False,allow_publish=False):
+def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=False,module=None,allow_publish=False):
     if type(publish) is not bool:raise ValueError('publish must be an explicit boolean')
+    if module is not None and (not isinstance(module,str) or not lean_libraries.MODULE.fullmatch(module)):
+        raise ValueError('Use the exact Lean module name for module')
     raw,text,origin=source_bytes(stage,source)
     request=stage.logs/'imported-lean'/('request-'+uuid.uuid4().hex);request.mkdir(parents=True)
     (request/'original.lean').write_bytes(raw);(request/'selected.lean').write_text(text);write(request/'source.json',origin)
@@ -333,8 +352,10 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
         from public_lean import known_source
         origin=known_source(stage.logs,source)
         if bind_public and not origin:
-            raise ValueError('Read the original public Lean file at its full Git commit before binding its library')
+            built={'status':'PUBLIC_SOURCE_EVIDENCE_REQUIRED',
+                   'diagnostic':'Read the original public Lean file at its full Git commit before binding its library.'}
         if origin:
+            if module is not None:origin['expected_module']=module
             built,descriptors=public_context(stage,request,origin,selected,attached,publish=True)
             if descriptors:
                 attached=lean_libraries.current()
@@ -382,6 +403,10 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
     if result.get('upstream_check'):result['diagnostics']['upstream']=diagnostic(original)
     if result.get('candidate_check'):result['diagnostics']['candidate']=diagnostic(checked)
     follow_up=FOLLOW_UP.get(decision['status'])
+    if built and built['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}:
+        follow_up=(follow_up+' ' if follow_up else '')+(
+            'Continue this dependency using the public-library diagnostic. If operator action is still required, '
+            'use wait_for_lean_dependency with this check receipt where available.')
     if follow_up:
         result['next_action']={'source':source,'upstream':upstream,'instruction':follow_up}
     if decision['accepted_for_native_reuse']:
@@ -401,5 +426,7 @@ def tools():
         'Check a complete, source-bound imported Lean unit in the current environment first. On failure, check declared source-project versions and imports before requesting compatibility porting or correction. A candidate must pass current checking. publish is allowed only before basis/interface freeze; no source or semantic approval is granted.',
         {'source':{'type':'object','additionalProperties':True},'upstream':{'type':'object','additionalProperties':False,
             'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'}},'required':['lean_version','mathlib_ref']},
-         'candidate':{'type':'string'},'publish':{'type':'boolean'},'bind_public':{'type':'boolean',
+         'candidate':{'type':'string'},'publish':{'type':'boolean'},
+         'module':{'type':'string','description':'Exact Lean import name when its source root cannot be discovered from static Lake metadata.'},
+         'bind_public':{'type':'boolean',
              'description':'Also register the checked original module name at its exact public Git commit, for use as a dependency.'}},['source'])]

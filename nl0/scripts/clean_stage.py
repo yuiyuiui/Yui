@@ -157,7 +157,7 @@ class ArtifactStage(pilot.Stage):
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
-                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. In NL0, use source retrieval and explicit conditional deferral for unavailable primary texts; MISSING_SOURCE_STATEMENT requires that no complete secondary statement can be obtained. Other stages may report SOURCE_UNAVAILABLE for an actual access obstacle. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
+                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material when no complete statement can be obtained. For a Lean dependency, follow the recorded check_imported_lean diagnostic. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
                            obstacle['properties'],obstacle['required'])]
         if kind=='nl0':
             for tool in self.tools:
@@ -267,6 +267,11 @@ class ArtifactStage(pilot.Stage):
             self.tools.append(pilot.carrier.tool('read_supplied_material','Read a bound operator attachment by incident and line range.',
                 {'incident':artifact_protocol.STRING,'start':{'type':'integer'},'end':{'type':'integer'},'column':{'type':'integer'}},
                 ['incident','start','end']))
+        if library and self.imported_lean_publication and owner.is_file():
+            self.tools.append(pilot.carrier.tool('wait_for_lean_dependency',
+                'After exhausting local repair or replacement, wait for an operator recheck of a bound outstanding import diagnostic.',
+                {'receipt':artifact_protocol.obj({'path':artifact_protocol.TEXT,'sha256':artifact_protocol.TEXT})},
+                ['receipt']))
         import basis_defect
         basis_defect.enable(self)
         pilot.strategy_bank.install_reference(self)
@@ -545,6 +550,9 @@ class ArtifactStage(pilot.Stage):
                 if self.mode=='basis-frontier' and args.get('candidate') is not None:
                     raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
                 result=lean_imports.check(self,allow_publish=self.imported_lean_publication,**args)
+            elif name=='wait_for_lean_dependency':
+                import lean_imports
+                result=lean_imports.wait_for_dependency(self,args['receipt'])
             elif name in {'read_lean_library','search_lean_library'}:
                 import lean_libraries
                 result=lean_libraries.dispatch(name,args,self.logs)
@@ -602,19 +610,26 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('PRIMARY_SOURCE_DEFERRED: use source search/read and defer_primary_source when a complete secondary statement exists. '
                         'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
                 artifact_protocol.validate(value,shape)
-                if self.material_requests and value['status'] in {'MISSING_SOURCE_STATEMENT','SOURCE_UNAVAILABLE'}:
+                if value['status']=='SOURCE_UNAVAILABLE':
                     from lean_imports import dependency_followup
-                    location=value['location']
-                    followup=dependency_followup(self.logs/'tools.jsonl',location)
-                    if followup or '.olean' in location:
+                    followup=dependency_followup(self.logs/'tools.jsonl')
+                    if followup:
                         result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
                             'error':'LEAN_DEPENDENCY_ACTION_REQUIRED: continue from the native import diagnostic. '
-                                    'For known public code, read the exact pinned source and use check_imported_lean. '
-                                    'Repair or replace the affected dependency using actual check results.',
+                                    'Repair or replace the dependency using actual check results. '
+                                    'For a genuinely missing statement, use MISSING_SOURCE_STATEMENT. '
+                                    'For operator dependency recheck, use wait_for_lean_dependency where available.',
                             'dependency_followup':followup}
+                    elif self.material_requests:
+                        result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                                'error':'Use MISSING_SOURCE_STATEMENT for a genuinely missing document or statement. '
+                                        'Use check_imported_lean to diagnose an external Lean dependency.'}
                     else:
-                        import material_exchange
-                        result = material_exchange.request(self,location+' — '+value['explanation'])
+                        self.accepted=value
+                        result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
+                elif self.material_requests and value['status']=='MISSING_SOURCE_STATEMENT':
+                    import material_exchange
+                    result = material_exchange.request(self,value['location']+' — '+value['explanation'])
                 else:
                     self.accepted = value
                     result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}

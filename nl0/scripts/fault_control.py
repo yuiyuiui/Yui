@@ -240,7 +240,7 @@ class Gate:
         while True:
             self.check_cancel()
             if operation is not None and operation.tick(self):return self.state
-            if self.stage in {'basis-decision','source-material'} and self.recorder is not None:
+            if self.stage in {'basis-decision','source-material','lean-dependency'} and self.recorder is not None:
                 try:self.recorder.check()
                 except execution.CaseDeadlineExceeded:
                     self.state.update(state='EXPIRED',expired_at_utc=execution.now())
@@ -269,6 +269,9 @@ class Gate:
                     if self.stage=='source-material':
                         from material_exchange import received
                         received(self.logs,incident,self.job_binding)
+                    elif self.stage=='lean-dependency':
+                        from controller_common import verify_bindings
+                        verify_bindings([self.state['checkpoint']['import_diagnostic']])
                 except (OSError,ValueError,KeyError) as error:
                     self.state['resume_rejected']=redact(str(error));self.persist()
                     self.wait(1);continue
