@@ -20,10 +20,10 @@ search unrelated research folders. Aliases of the same pair count once.
 Each candidate must match Mathlib's `lean-toolchain`, have clean tracked source
 and pinned dependencies, and pass an actual isolated `import Mathlib` proof.
 
-One unambiguous pair is selected automatically. Missing, incompatible or
-ambiguous choices return `LEAN_ENVIRONMENT_SELECTION_REQUIRED` before proof
-work. Ask once for matched paths or the desired versions, preserving any choice
-already supplied by the user. Do not silently select the newest available pair.
+For a default run, omit version and path options on `prepare` or `run` to use
+the environment verified by setup. Setup uses the repository default when
+there is no saved Lean environment or explicit selection. Missing, incompatible
+or ambiguous choices are reported before proof work.
 
 Pass `--lean-root /path/to/lean --mathlib-root /path/to/mathlib` to `prepare` or
 `run`, or use `--lean-version VERSION --mathlib-version TAG_OR_COMMIT` when that pair is

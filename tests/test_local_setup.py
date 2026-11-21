@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import jobs
+import lean_environment
 import local_config
 import local_setup
 import runtime_config
@@ -19,11 +20,29 @@ from controller_common import write
 from local_setup_fixtures import configuration
 
 
+RELEASE_LEAN = '4.35.0'
+RELEASE_MATHLIB = '56a005855ea17e0b0958f73ec801ae140b0a1679'
+
+
 def arguments(**overrides):
     p=argparse.ArgumentParser();local_setup.parsers(p.add_subparsers(dest='command'))
     value=p.parse_args(['setup','--mode','nl0'])
     for key,item in overrides.items():setattr(value,key,item)
     return value
+
+
+def lean_pair(root, version, revision):
+    return {
+        'version': lean_environment.rules.VERSION,
+        'lean': {'version_number': version, 'version': f'Lean (version {version}, fixture)',
+                 'toolchain': f'leanprover/lean4:v{version}', 'local_path': str(root/'lean'),
+                 'binary_sha256': 'a' * 64},
+        'mathlib': {'rev': revision, 'ref': f'v{version}', 'local_path': str(root/'mathlib'),
+                    'url': 'https://github.com/leanprover-community/mathlib4.git',
+                    'toolchain_sha256': 'b' * 64, 'manifest_sha256': 'c' * 64},
+        'dependencies': [],
+        'compatibility': {'accepted': True, 'exit_code': 0, 'source_sha256': 'd' * 64},
+    }
 
 
 class LocalSetupTests(unittest.TestCase):
@@ -51,6 +70,56 @@ class LocalSetupTests(unittest.TestCase):
             (deepcopy(self.value['host']),setup_checks.record(out,'host',{'fixture':'software control'}))))
         return self.stack.enter_context(patch.object(setup_checks,'provider',side_effect=lambda out,profiles:
             setup_checks.record(out,'provider',{'fixture':'software control, no model request'})))
+
+    def test_first_lean_setup_selects_the_exact_release_pair(self):
+        expected = lean_pair(self.root/'release', RELEASE_LEAN, RELEASE_MATHLIB)
+        old = lean_pair(self.root/'old', '4.32.2', 'e' * 40)
+        different_revision = lean_pair(self.root/'other', RELEASE_LEAN, 'f' * 40)
+        for previous in (None, self.value):
+            with self.subTest(previous_nl0=previous is not None), patch.object(
+                lean_environment, 'discover', return_value=([old, different_revision, expected], [])
+            ):
+                self.assertEqual(local_setup.select_environment(arguments(mode='lean'), previous), expected)
+
+    def test_missing_release_pair_reports_expected_versions_without_publishing(self):
+        provider = self.checks()
+        self.args.mode = 'lean'
+        old = lean_pair(self.root/'old', '4.32.2', 'e' * 40)
+        different_revision = lean_pair(self.root/'other', RELEASE_LEAN, 'f' * 40)
+        for candidate in (old, different_revision):
+            with self.subTest(revision=candidate['mathlib']['rev']), patch.object(
+                lean_environment, 'discover', return_value=([candidate], [])
+            ), patch.object(lean_environment, 'install') as install:
+                result = local_setup.run(self.args)
+                self.assertEqual(result['status'], 'NEEDS_USER_ACTION', result)
+                self.assertIn(RELEASE_LEAN, result['reason'])
+                self.assertIn(RELEASE_MATHLIB, result['reason'])
+                self.assertIn('setup --mode lean --install', result['reason'])
+                self.assertFalse(result['configuration_published'])
+                self.assertFalse(local_config.path().exists())
+                install.assert_not_called()
+        provider.assert_not_called()
+
+    def test_install_requests_the_same_missing_release_pair(self):
+        expected = lean_pair(self.root/'release', RELEASE_LEAN, RELEASE_MATHLIB)
+        directory = self.root/'install'
+        with patch.object(lean_environment, 'discover', return_value=([], [])), patch.object(
+            lean_environment, 'install', return_value=expected
+        ) as install:
+            args = arguments(mode='lean', install=True, directory=directory)
+            self.assertEqual(local_setup.select_environment(args, None), expected)
+        install.assert_called_once_with(lean_version=RELEASE_LEAN, mathlib_ref=RELEASE_MATHLIB,
+                                        directory=directory)
+
+    def test_explicit_and_saved_choices_take_priority_over_the_release_pair(self):
+        old = lean_pair(self.root/'old', '4.32.2', 'e' * 40)
+        release = lean_pair(self.root/'release', RELEASE_LEAN, RELEASE_MATHLIB)
+        with patch.object(lean_environment, 'verify', return_value=old) as verify:
+            self.assertEqual(local_setup.select_environment(arguments(mode='lean'), {'lean_environment': old}), old)
+            verify.assert_called_once_with(old)
+        with patch.object(lean_environment, 'discover', return_value=([release, old], [])):
+            args = arguments(mode='lean', lean_version='4.32.2', mathlib_version=old['mathlib']['rev'])
+            self.assertEqual(local_setup.select_environment(args, {'lean_environment': release}), old)
 
     def test_success_publishes_one_validated_config_and_repeat_setup_reuses_registration(self):
         provider=self.checks()

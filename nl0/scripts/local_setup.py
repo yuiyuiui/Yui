@@ -18,12 +18,15 @@ from controller_common import CORE,bind,write
 from runtime_config import use_environment,use_profiles
 
 
+DEFAULT_LEAN_PAIR = ('4.35.0', '56a005855ea17e0b0958f73ec801ae140b0a1679')
+
+
 def parsers(commands):
     p=commands.add_parser('setup',help='Execute setup/README.md: adapt, verify or switch the local default')
     p.add_argument('--mode',choices=['nl0','lean'])
     p.add_argument('--lean-root',type=Path);p.add_argument('--mathlib-root',type=Path)
     p.add_argument('--lean-version');p.add_argument('--mathlib-version')
-    p.add_argument('--install',action='store_true',help='Install the explicitly requested missing scientific environment')
+    p.add_argument('--install',action='store_true',help='Install the missing selected Lean/Mathlib pair')
     p.add_argument('--directory',type=Path)
     p.add_argument('--codex-binary',type=Path);p.add_argument('--auth-home',type=Path)
     p.add_argument('--rg-binary',type=Path);p.add_argument('--profiles-file',type=Path)
@@ -131,13 +134,20 @@ def select_environment(args,previous):
     explicit=any(getattr(args,key,None) for key in ('lean_root','mathlib_root','lean_version','mathlib_version'))
     if not explicit and previous and previous['lean_environment'] is not None:
         return environments.verify(previous['lean_environment'])
+    lean_version, mathlib_ref = (args.lean_version, args.mathlib_version) if explicit else DEFAULT_LEAN_PAIR
     try:
-        return environments.resolve(lean_root=args.lean_root,mathlib_root=args.mathlib_root,
-            lean_version=args.lean_version,mathlib_ref=args.mathlib_version)
-    except environments.SelectionRequired:
-        if not args.install or not args.mathlib_version or args.lean_root or args.mathlib_root:raise
-        return environments.install(lean_version=args.lean_version,mathlib_ref=args.mathlib_version,
-                                    directory=args.directory)
+        return environments.resolve(lean_root=args.lean_root, mathlib_root=args.mathlib_root,
+                                    lean_version=lean_version, mathlib_ref=mathlib_ref)
+    except environments.SelectionRequired as error:
+        if args.install and mathlib_ref and not (args.lean_root or args.mathlib_root):
+            return environments.install(lean_version=lean_version, mathlib_ref=mathlib_ref,
+                                        directory=args.directory)
+        if not explicit:
+            error.request['reason'] += (
+                f' The Yui default is Lean {lean_version} with Mathlib commit {mathlib_ref}.'
+                ' If the pair is missing, run setup --mode lean --install.'
+            )
+        raise
 
 
 def prune_evidence(storage, current):

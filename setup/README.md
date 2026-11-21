@@ -51,16 +51,17 @@ Keep the user's existing installations and data.
 For formalization, use --mode lean. For an explicitly natural-language-only
 installation, use --mode nl0; this mode must work without Lean.
 
-Respect a version or path already requested by the user. Otherwise reuse a
-verified saved default. If no default exists, inspect local candidates with
-lean-environments. Reuse one unambiguous compatible pair; with multiple choices,
-ask one consolidated question for the intended Mathlib/environment and any
-missing model choices. Do not silently select the newest pair.
+Respect a version or path already requested by the user. Otherwise reuse the
+verified saved Lean environment. When Lean is first enabled, setup selects Lean
+4.35.0 and the exact Mathlib v4.35.0 commit defined in [the setup selector](../nl0/scripts/local_setup.py).
+If the default pair is missing, `setup --mode lean --install` installs and
+verifies it. If multiple local paths match the requested pair, specify the
+intended paths.
 
 - Local pair: --lean-root and --mathlib-root.
 - Installed version: --mathlib-version (and optionally --lean-version).
-- Missing requested pair: add --install. Mathlib's lean-toolchain supplies
-  the matching Lean version if the user has not specified it.
+- Missing explicit pair: use --mathlib-version with --install. Mathlib's
+  lean-toolchain supplies the matching Lean version when only Mathlib is named.
 - Use a fresh --directory if a conflicting shared installation already exists.
 
 The shared tools stay outside this repository. Do not run lake update in an

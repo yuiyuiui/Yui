@@ -56,11 +56,10 @@ both separate phases. The project file supplies the NL0 and Lean model defaults
 and any overrides for each of the six stages. The user
 does not prepare queues, task packets or controller jobs manually.
 Before first use or an environment switch, execute [the local adaptation entry](setup/README.md).
-It publishes the checked local default; do not fill versions or paths into source files.
-For formalization, follow [per-run Lean/Mathlib selection](nl0/references/lean-environments.md).
-Use a verified unambiguous local pair, or retain the user's explicit paths or
-version choice. Ask for matched paths or desired versions when discovery is
-ambiguous, missing or incompatible. Install only the explicitly chosen versions.
+It publishes the checked local default. Use that default for formalization by
+omitting Lean and Mathlib version and path options on `prepare` and `run`.
+Pass [per-run overrides](nl0/references/lean-environments.md) when the user
+requests particular paths or versions. Resolve installation choices through setup.
 Freeze the actual selected environment with the job; pure NL0 requires no Lean
 selection. Parallel and nested private workers inherit the selected profiles
 and environment while owning independent role conversations.
