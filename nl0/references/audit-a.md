@@ -3,7 +3,7 @@
 <!-- yui-nl0-acceptance:begin -->
 ## Shared mathematical acceptance requirements
 
-Contract version: `yui-nl0-audit-a-2`.
+Contract version: `yui-nl0-audit-a-3`.
 
 The author and independent auditor use this same mathematical standard. NL0
 reviews a complete natural-language proof and necessary mathematical detail.
@@ -19,6 +19,7 @@ The following grouped criteria replace V1's ten separate per-R report rows.
 | `structure` | package | original_context_note | Verify the actual AND dependency graph, unique producers, absence of cycles and faithful exported statements. Retain every original H and disclose unused H. Internal results are proved, never new roots. |
 | `statement_closure` | closure | output_notes | Inputs and output state the mathematical content, objects, domains, quantifiers and conditions their consumers need. Check actual object occurrences and definitions. No missing identification can be supplied by an absent producer proof or a paper equation number. |
 | `dependency_closure` | closure | dependency_and_local_assumption_check | Check direct input use, earlier local facts, witness existence and proper discharge of assumptions. No circular dependency, future fact or escaped local object is allowed. Mathematically checked routine background may supplement the packet without prior native lookup. |
+| `packet_replay` | closure | dependency_and_local_assumption_check | Verify the actual conditional proof from this packet alone. Use each direct input as a premise with its complete exported statement, and retain only the definitions, local scope and qualified background actually supplied. |
 | `argument` | inference | dependency_and_local_assumption_check | Verify the complete implication and every output clause at ordinary rigorous mathematical granularity, including material limiting operations, domains and regularity. Compress correct routine reasoning; locate a real gap rather than requiring a transcript of elementary steps. |
 | `applicability` | inference | source_application_check | Check actual instantiations and all material premises of invoked E/M or routine background facts, with grounds in inputs or earlier local derivations. Required bridges are proved. A familiar theorem name or a proposed Lean tactic supplies no mathematical justification. |
 
@@ -33,6 +34,15 @@ Conversely, an input N exports only its full statement, not unexported facts
 from the producer's body. The fifth local criterion, packet_replay, assesses
 sufficiency under this exact boundary. The controller records execution
 identity and exposure independently of the mathematical judgment.
+
+At an intermediate transfer, check the exact clause the consumer needs on the
+same objects: hypotheses of a conditional estimate, the support of a witness,
+and bounds on the denominator of a normalized law when needed. A property
+holding on passing histories, or after a particular choice, does not extend to
+all histories or choices by naming the same construction. Keep such a condition
+in the statement and supply it at its use. For both author checks and audit,
+ask whether the exact premises allow the problematic case before rejecting a
+transfer; ordinary alternate exposition within a valid implication stays local.
 
 Review correctness rather than the number of displayed lines. Ordinary valid
 textbook compression is allowed. Material missing hypotheses, witnesses,

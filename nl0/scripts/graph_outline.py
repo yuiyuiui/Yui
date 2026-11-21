@@ -1,4 +1,4 @@
-"""Check source-backed NL0 proof outlines before assigning the working graph."""
+"""Validate source-backed outlines and locate blocks that need proof-based refinement."""
 from collections import defaultdict
 
 import artifact_protocol as protocol
@@ -11,6 +11,15 @@ VERSION = 'yui-nl0-proof-outline-1'
 REVIEW_CHARACTERS = 16000
 
 
+def retention_schema(*, checked=False):
+    required = ['kind', 'reason', 'at'] if checked else ['kind', 'reason']
+    return protocol.obj({
+        'kind': {'enum': ['shared_witness', 'shared_scope', 'single_argument']},
+        'reason': protocol.TEXT,
+        'at': protocol.array(protocol.TEXT, minItems=1, uniqueItems=True),
+    }, required=required)
+
+
 def schema():
     line = {'type': 'integer', 'minimum': 1}
     span = protocol.obj({'from_task': protocol.TEXT, 'start_line': line, 'end_line': line})
@@ -19,13 +28,9 @@ def schema():
         'uses': protocol.array(protocol.TEXT, uniqueItems=True),
         'source_spans': protocol.array(span, uniqueItems=True),
     })
-    reason = protocol.obj({
-        'kind': {'enum': ['shared_witness', 'shared_scope', 'single_argument']},
-        'reason': protocol.TEXT,
-    })
     inference = protocol.obj({
         'steps': protocol.array(step, minItems=1),
-        'keep_together': reason,
+        'keep_together': retention_schema(),
     }, required=['steps'])
     return protocol.obj({}, extra=inference)
 
@@ -62,7 +67,7 @@ def source_sizes(spans, documents, offsets, inference):
         merged, key=lambda span: span['characters'], default=None)
 
 
-def check(graph, outline, documents):
+def check(graph, outline, documents, *, provisional=False):
     """Return workload evidence for the declared derivations and bound sources."""
     protocol.validate(outline, schema())
     inferences = {row['id']: row for row in graph['inferences']}
@@ -76,7 +81,7 @@ def check(graph, outline, documents):
             consumers[premise].append(row['id'])
 
     labels = graph.get('foundation_ports', {}).get('labels', {})
-    offsets, workload, missing_reviews = {}, {}, []
+    offsets, workload = {}, {}
     for rid, row in inferences.items():
         entry = outline[rid]
         direct, earlier, used = set(row['inputs']), set(), set()
@@ -102,10 +107,19 @@ def check(graph, outline, documents):
         workload[rid] = {'output': row['output'], 'consumers': consumers[row['output']],
                          'main_steps': len(entry['steps']), 'source_characters': size,
                          'largest_source_span': largest, 'review_reasons': reasons}
-        if reasons and 'keep_together' not in entry:
-            missing_reviews.append(f'{rid} ({len(entry["steps"])} main steps, {size} source characters)')
-    if missing_reviews:
-        raise ValueError('OUTLINE_REVIEW: split the independently provable conclusions below into N/R units, '
-                         'or supply keep_together with the actual shared witness/scope or single argument: '
-                         + ', '.join(missing_reviews))
-    return {'schema': VERSION, 'inferences': outline, 'workload': workload}
+    report = {'schema': VERSION, 'inferences': outline, 'workload': workload}
+    if not provisional and pending(report):
+        raise ValueError('OUTLINE_REVIEW: split independent conclusions or explain an indivisible argument at '
+                         + ', '.join(pending(report)))
+    return report
+
+
+def pending(report):
+    return {rid: entry['review_reasons'] for rid, entry in report['workload'].items()
+            if entry['review_reasons'] and 'keep_together' not in report['inferences'][rid]}
+
+
+def include_written_size(report, graph):
+    for row in graph['inferences']:
+        if sum(len(step['text']) for step in row['argument']) >= REVIEW_CHARACTERS:
+            report['workload'][row['id']]['review_reasons'].append('large_argument')

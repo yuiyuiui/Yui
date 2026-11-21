@@ -1,4 +1,5 @@
 """Shared test paths and synthetic profiles; never imported by the runtime."""
+from copy import deepcopy
 from pathlib import Path
 import os
 import sys
@@ -22,6 +23,36 @@ PROFILES={'nl0':{'id':'gpt-6.1-sol','reasoning_effort':'high','speed':'standard'
 def elementary_outline(inferences):
     return {row['id']: {'steps':[{'conclusion':'Derive '+row['output']+' in this equality fixture.',
                 'uses':list(row['inputs']), 'source_spans':[]}]} for row in inferences}
+
+
+def addition_split(graph):
+    """Extract the additive-identity argument from the closed-addition fixture."""
+    consumer = deepcopy(next(row for row in graph['inferences'] if row['id']=='R002'))
+    producer = {**deepcopy(consumer),'id':'R003','inputs':[],'output':'N002','locals':[],
+                'applications':[],'argument':[{
+                    'id':'S001','text':'The additive identity gives a+0=a.', 'objects':['a','0'],
+                    'uses':[], 'uses_local':[], 'produces':[], 'introduces':[], 'discharges':[],
+                }]}
+    if consumer['applications']:
+        applications = consumer['applications']
+        producer['applications'] = [{**row,'at':'S001'} for row in applications]
+        moved = list(dict.fromkeys(row['input'] for row in applications))
+        producer['inputs'] = moved
+        producer['argument'][0].update(uses=moved,
+            text='Specialize the supplied additive identity at a to obtain a+0=a.')
+        consumer['applications'] = []
+        consumer['inputs'] = [pid for pid in consumer['inputs'] if pid not in moved]
+    consumer['locals'] = []
+    consumer['inputs'].append('N002')
+    last = consumer['argument'][-1]
+    last.update(id='S001',uses=[*last['uses'],'N002'],uses_local=[],objects=['a','b','0'],
+        text='N002 gives a+0=a. By symmetry N001 gives a=b, hence a+0=b.')
+    consumer['argument'] = [last]
+    premise = {'id':'N002','kind':'internal','statement':'a+0=a.','origin':'The first part of R002.',
+               'definitions':[],'binders':[],'objects':['a','0']}
+    rows=[producer,consumer]
+    return {'inference':'R002','propositions':[premise],'inferences':rows,
+            'proof_outline':elementary_outline(rows)}
 
 
 def native_available():

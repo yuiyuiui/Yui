@@ -274,16 +274,33 @@ for a combination that only uses already proved internal results.
 
 Each source span has `from_task`, `start_line` and `end_line` in a declared frozen
 document. Use inclusive line numbers, as in the task reader. A direct argument
-from its inputs may have an empty `source_spans` list. Multiple main steps or
-16,000 or more assigned source characters trigger review. Split the inference
-or supply `keep_together` with `kind` (`shared_witness`, `shared_scope` or
-`single_argument`) and a concrete `reason`. Source character counts deduplicate
-overlapping ranges within each inference. They describe source assignment size.
+from its inputs may have an empty `source_spans` list. The first outline is
+provisional. Use medium-sized blocks for long arguments and list each actual
+main derivation in its block. The versioned working receipt binds
+`proof-outline.json` to the specification and graph.
 
-The selected working graph's versioned receipt binds `proof-outline.json` to
-the exact specification and graph. Local authors receive the outline to locate
-the source and can request a split through `report_graph_issue`. Audit A still
-checks the actual argument, including the scope of each exported conclusion.
+After writing the proof, extract substantial independent derivations into
+their own N/R nodes, including results with only one consumer. Submit
+`refine_candidate` with the latest structurally checked proof and `splits`.
+Each split names the original inference and provides fresh internal
+`propositions`, the replacement `inferences` with complete proof bodies, and
+their `proof_outline`. Keep the original R ID at the output, preserve its
+exported statement and outside premises, and give each new node precisely the
+scope it needs. Compare each new producer's output, actual conditions and
+consumer use in the final author packet. Preserve the fixed witness, quantifiers
+and timing at that use. The author's existing dependency note records the
+comparison.
+
+Multiple main steps or at least 16,000 characters of assigned source or written
+argument require an explicit resolution before author release. Source counts
+deduplicate overlapping ranges within an inference. A genuinely indivisible
+argument may use `keep_together` keyed by R on the checked candidate with a
+located `reason` and `kind` (`shared_witness`, `shared_scope` or
+`single_argument`). Name the relevant written S steps in `at`. Explain why exposing the shared data would still fail to
+give a useful independent result. A changed body needs a fresh justification.
+Use `report_graph_issue` for defects in the outside assignment. Audit A
+independently checks the resulting fine graph and the actual proof at each
+exported interface.
 
 ## Inference fields
 

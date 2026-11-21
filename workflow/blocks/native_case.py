@@ -154,12 +154,14 @@ class Case:
                 self.working(data)
                 return detailed(source)
             if name=='audit':
+                source=Path(data['local']['path']).parent
+                data={**data,'global':frozen_graph.select_detail(self.job,data['global'],source)}
                 self.working(data)
                 history=self.read(data['history']) if 'history' in data else {}
                 prior=history.get('campaigns',[])
                 verify_bindings(prior)
                 authority=case_runner.nl0_work(self.job,self.recorder,self.budgets.serial,self.progress,
-                    audit_budget=self.budgets.audit,initial_source=Path(data['local']['path']).parent,
+                    audit_budget=self.budgets.audit,initial_source=source,
                     review_history=[Path(b['path']).parent for b in prior], sessions=self.reviews)
                 frozen=self.working(data)
                 selected=source_preparation.read_source(**authority)[0]

@@ -1,4 +1,4 @@
-"""Versioned NL0 working graphs. Local authors write R bodies against one selected revision."""
+"""Versioned NL0 outlines, local proofs and proof-derived working graphs."""
 from copy import deepcopy
 import json
 import os
@@ -8,6 +8,7 @@ from pathlib import Path
 import artifact_protocol as protocol
 import basis_graph
 import graph_outline
+import graph_refinement
 import nl0
 from artifact_validation import NL0Contract
 from controller_common import bind, manifest, verify_bindings, write
@@ -17,6 +18,7 @@ ORIGINAL_FIELDS = ('full_target', 'conclusion', 'parameters', 'hypotheses')
 GLOBAL_FIELDS = ('id', 'inputs', 'output', 'definitions')
 BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 ASSIGNED = 'assigned-global.json'
+ASSIGNED_PROOFS = 'assigned-local-proofs.json'
 PRIOR_OUTLINE = 'prior-proof-outline.json'
 DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
@@ -123,6 +125,14 @@ class AuthorContract(NL0Contract):
         self.earlier=json.loads(documents.get('protected-roots.json','[]'))
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
         self.graph_feedback = json.loads(documents.get(graph_repair.FEEDBACK,'{}'))
+        if self.frozen:
+            self.local_scope = self.frozen
+            self.assigned_proposition_ids = set(indexed(self.frozen['graph']['propositions']))
+            outline = json.loads(documents.get(graph_outline.FILENAME,'{}')).get('inferences',{})
+            self.local_outline = {rid:{'steps':entry['steps']} for rid,entry in outline.items()}
+            self.proposed_outline = None
+            self.granularity_pending = {}
+            self.assigned_proofs = graph_repair.proof_rows(self.frozen,self.graph_feedback.get('local_proofs',[]))
         self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
         if self.registry:
             self.seed, self.labels = basis_graph.handoff().numbered_seed(self.registry, self.prior['graph'] if self.prior else None)
@@ -146,50 +156,110 @@ class AuthorContract(NL0Contract):
             form = protocol.obj({'local_proofs':protocol.array(LOCAL_PROOF)})
         from payload_protocols import editable
         self.schema = editable(form) if phase==LOCAL else protocol.choice(form,protocol.obj({'accept_candidate':{'type':'integer','minimum':1}}))
+        if phase==LOCAL and self.local_outline:
+            self.schema = protocol.choice(self.schema,graph_refinement.schema())
 
     def __call__(self, value):
         protocol.validate(value,self.schema)
+        if self.phase==LOCAL:
+            return self.local_candidate(value)
         if set(value) & {'accept_candidate','base_candidate','base_input'}:
             return super().__call__(value)
-        if self.phase==LOCAL:
-            from graph_repair import retained_proofs
-            rows = indexed(retained_proofs(self.frozen,value,self.graph_feedback))
-            expanded = deepcopy(self.frozen)
-            steps = expanded['graph']['inferences']
-            if set(rows) != set(indexed(steps)):
-                raise ValueError('Supply one local proof for each frozen R ID')
-            for step in steps:
-                step.update({name:rows[step['id']][name] for name in BODY_FIELDS})
+        spec = deepcopy(value['spec'])
+        spec.setdefault('format_version',2)
+        if 'propositions' in value:
+            props, steps = deepcopy(value['propositions']), deepcopy(value['inferences'])
         else:
-            spec = deepcopy(value['spec'])
-            spec.setdefault('format_version',2)
-            if 'propositions' in value:
-                props, steps = deepcopy(value['propositions']), deepcopy(value['inferences'])
-            else:
-                details = value['proposition_details']
-                definitions = value['inference_definitions']
-                if set(details)!=set(indexed(self.seed['propositions'])) or set(definitions)!=set(indexed(self.seed['inferences'])):
-                    missing = sorted(set(indexed(self.seed['propositions'])) - set(details))
-                    raise ValueError(f'Supply metadata for the numbered-basis-graph.json IDs; missing {missing}')
-                props, steps = [], []
-                for row in self.seed['propositions']:
-                    extra=details[row['id']]
-                    if not isinstance(extra,dict) or {'id','statement'} & extra.keys():
-                        raise ValueError('Basis proposition identities and statements are supplied by the controller')
-                    props.append({**row,**extra})
-                for row in self.seed['inferences']:
-                    steps.append({k:row[k] for k in ('id','inputs','output')} |
-                                 {'definitions':definitions[row['id']]})
-            expanded={'spec':spec,'graph':{'format_version':2,'propositions':props,'inferences':steps,
-                                          graph_outline.FIELD:deepcopy(value[graph_outline.FIELD])}}
-            if self.registry:
-                if 'foundation_ports' in value and (not self.prior or value['foundation_ports']!=self.prior['graph'].get('foundation_ports')):
-                    raise ValueError('Use rename_foundations to revise the controller-owned foundation labels')
-                self.bind_graph(expanded['graph'], value.get('rename_foundations',{}))
+            details = value['proposition_details']
+            definitions = value['inference_definitions']
+            if set(details)!=set(indexed(self.seed['propositions'])) or set(definitions)!=set(indexed(self.seed['inferences'])):
+                missing = sorted(set(indexed(self.seed['propositions'])) - set(details))
+                raise ValueError(f'Supply metadata for the numbered-basis-graph.json IDs; missing {missing}')
+            props, steps = [], []
+            for row in self.seed['propositions']:
+                extra=details[row['id']]
+                if not isinstance(extra,dict) or {'id','statement'} & extra.keys():
+                    raise ValueError('Basis proposition identities and statements are supplied by the controller')
+                props.append({**row,**extra})
+            for row in self.seed['inferences']:
+                steps.append({k:row[k] for k in ('id','inputs','output')} |
+                             {'definitions':definitions[row['id']]})
+        expanded={'spec':spec,'graph':{'format_version':2,'propositions':props,'inferences':steps,
+                                      graph_outline.FIELD:deepcopy(value[graph_outline.FIELD])}}
+        if self.registry:
+            if 'foundation_ports' in value and (not self.prior or value['foundation_ports']!=self.prior['graph'].get('foundation_ports')):
+                raise ValueError('Use rename_foundations to revise the controller-owned foundation labels')
+            self.bind_graph(expanded['graph'], value.get('rename_foundations',{}))
         result=super().__call__(expanded)
         value.clear()
         value.update(expanded)
         return result
+
+    def local_candidate(self, value):
+        from graph_repair import proof_rows
+
+        last = self.valid_drafts.get(self.last_valid_candidate)
+        if 'refine_candidate' in value:
+            if last is None or value['refine_candidate'] != self.last_valid_candidate:
+                raise ValueError(f'NL0_REFINEMENT: first check the written local proof, then refine the latest '
+                                 f'checked candidate ({self.last_valid_candidate})')
+            expanded, self.proposed_outline = graph_refinement.apply(last, self.local_outline, value)
+        elif 'local_proofs' in value:
+            rows = proof_rows(self.local_scope,value['local_proofs'])
+            if last is None:
+                self.assigned_proofs.update(rows)
+                self.save_assigned_proofs()
+                rows = self.assigned_proofs
+                missing = sorted(indexed(self.frozen['graph']['inferences']).keys() - rows.keys())
+                if missing:
+                    return {'status':'LOCAL_DRAFT_SAVED','remaining_local_proofs':missing,'draft_pending':True,
+                            'mathematical_acceptance':False}
+            expanded = deepcopy(last or self.frozen)
+            for step in expanded['graph']['inferences']:
+                if step['id'] in rows:
+                    step.update({name:deepcopy(rows[step['id']][name]) for name in BODY_FIELDS})
+        else:
+            return super().__call__(value)
+        try:
+            result = super().__call__(expanded)
+        finally:
+            self.proposed_outline = None
+        value.clear()
+        value.update(expanded)
+        return result
+
+    def save_assigned_proofs(self):
+        write(self.directory/ASSIGNED_PROOFS,list(self.assigned_proofs.values()))
+
+    def validate_local(self, expanded):
+        spec, graph = expanded['spec'], expanded['graph']
+        if self.proposed_outline is None:
+            check_assignment(self.local_scope,spec,graph)
+            outline = deepcopy(self.local_outline)
+            if any('keep_together' in entry for entry in outline.values()):
+                last = indexed(self.local_scope['graph']['inferences'])
+                for step in graph['inferences']:
+                    if step != last[step['id']]:
+                        outline[step['id']].pop('keep_together',None)
+        else:
+            outline = self.proposed_outline
+        report = graph_outline.check(graph,outline,self.outline_documents(),provisional=True) if outline else None
+        result = super()._validate(expanded)
+        if report:
+            graph_outline.include_written_size(report,graph)
+            report.update(spec_sha256=graph['spec_sha256'],graph_sha256=nl0.sha(self.directory/'nl0.json'))
+            write(self.directory/graph_outline.FILENAME,report)
+            self.granularity_pending[self.attempt] = graph_outline.pending(report)
+            result['granularity_pending'] = self.granularity_pending[self.attempt]
+        if shape(graph)==shape(self.frozen['graph']):
+            self.assigned_proofs = {row['id']:{key:row[key] for key in ('id',*BODY_FIELDS)}
+                                    for row in graph['inferences']}
+            self.save_assigned_proofs()
+        self.local_scope,self.local_outline = expanded,outline
+        return result
+
+    def outline_documents(self):
+        return {Path(row['path']).name:self.documents[Path(row['path']).name] for row in self.expected_inputs}
 
     def bind_graph(self, graph, renames):
         rules = basis_graph.handoff()
@@ -249,14 +319,12 @@ class AuthorContract(NL0Contract):
                     # Recompute the inherited reverse index from the revised edges.
                     del usage['inferences']
         if self.frozen:
-            check_assignment(self.frozen, expanded['spec'],expanded['graph'])
-            return super()._validate(expanded)
+            return self.validate_local(expanded)
         # Keep the outline with each draft. Publish it beside the canonical NL0 graph.
         graph = expanded['graph']
         outline = graph[graph_outline.FIELD]
         canonical = {'spec':expanded['spec'], 'graph':{k:v for k,v in graph.items() if k!=graph_outline.FIELD}}
-        documents = {Path(row['path']).name: self.documents[Path(row['path']).name] for row in self.expected_inputs}
-        report = graph_outline.check(canonical['graph'],outline,documents)
+        report = graph_outline.check(canonical['graph'],outline,self.outline_documents(),provisional=True)
         result = super()._validate(canonical)
         report.update(spec_sha256=canonical['graph']['spec_sha256'],
                       graph_sha256=nl0.sha(self.directory/'nl0.json'))
@@ -380,10 +448,10 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
         write(inputs/'numbered-basis-graph.json',{'version':basis.basis_graph.handoff().VERSION,
               'labels':labels,'graph':numbered})
     manifest(inputs)
-    prompt=('Work backward from the target and record the exact mathematical fact each consumer needs. '
-            'Give each R one main derivation. Export independently usable conclusions as N with their own inputs, '
-            'including single-consumer conclusions that need substantial separate work. Reuse a sufficient proved fact at all its consumers. '
-            'Keep routine calculations local. Fix shared witnesses, sets, parameters and scope explicitly at every cut. '
+    prompt=('Work backward from the target and sketch the mathematical fact each consumer needs. '
+            'Give each R a manageable source-backed block. Break very long arguments into medium-size blocks first. '
+            'Inside each block list the distinct main derivations so the local author can write and extract their precise interfaces. '
+            'Keep routine calculations local. Record the shared witnesses, sets, parameters and scope at drafted boundaries. '
             'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
             'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
             'Write the mathematical claim in statement. For source uses add usage.references with '
@@ -392,9 +460,9 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
             'Each step states its conclusion, what it uses (direct inputs, optionally B IDs, or earlier steps named S001, S002, ...), '
             'and the actual source_spans using from_task, start_line, end_line. All earlier steps and direct inputs must feed the final step. '
             'Use actual inclusive task-input line numbers; an inference derived directly from its inputs can use empty source_spans. '
-            'Express independent work as multiple R rows rather than hiding it in one outline step. For a large span or several main steps '
-            'that genuinely belong together, supply keep_together identifying the actual shared witness/scope or indivisible argument. '
-            'A short final combination of previously proved inputs is one step. Local proof paragraphs come later. '
+            'Make the source assignments manageable and flag the actual main steps, including substantial single-use work. '
+            'A short final combination of previously proved inputs is one step. This is a provisional outline. '
+            'The next author writes the proofs and resolves granularity before independent audit. '
             +RULE+' For a checked candidate, read_author_packet shows a proposed receiving scope. ')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
@@ -493,6 +561,60 @@ def _select(job, checked, previous):
     return selected
 
 
+def select_detail(job, previous, source):
+    """Use the delivered local graph at the Audit A receiving boundary."""
+    import fcntl
+
+    root = Path(job['root']).resolve()
+    graphs = root/'global-graphs'
+    source = Path(source).resolve()
+    provisional = read_working(previous)
+    record = nl0.load(previous['path'])
+    spec_path, graph_path = source/'spec.json', source/'nl0.json'
+    spec, graph = nl0.load(spec_path), nl0.load(graph_path)
+    if 'outline' in record:
+        report = read_outline({'spec':bind(spec_path),'graph':bind(graph_path),
+                               'outline':bind(source/graph_outline.FILENAME)})
+        if graph_outline.pending(report):
+            raise ValueError('The detailed NL0 handoff still has blocks requiring refinement')
+    if shape(provisional['graph'])==shape(graph):
+        check_assignment(provisional,spec,graph)
+        return previous
+
+    assignment = Path(previous['path'])
+    if not assignment.is_relative_to(graphs) or not source.is_relative_to(root/'nl0') or 'outline' not in record:
+        raise ValueError('Refined NL0 must belong to the current outlined assignment')
+    staged_assignment = source.parent.parent/'inputs'/ASSIGNED
+    if nl0.load(staged_assignment)!=provisional:
+        raise ValueError('Refined NL0 author used a different assignment')
+    dirname = assignment.relative_to(graphs).parts[0]
+    destination = graphs/(dirname+'-detail')/'stage/case'
+    checked = destination/'checked-global.json'
+    projection = {**graph,**shape(graph)}
+    with (graphs/'.selection.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        current = nl0.load(root/'global-selection.json')
+        if current!=previous and current['path']!=str(destination/'working.json'):
+            raise ValueError('Stale outlined assignment for NL0 refinement')
+        if checked.exists():
+            binding = bind(checked)
+            if ({'spec':spec,'graph':projection}!=read_receipt(binding)
+                    or report['inferences']!=read_outline(nl0.load(checked))['inferences']):
+                raise ValueError('A different refined graph already owns this selection')
+        else:
+            destination.mkdir(parents=True,exist_ok=True)
+            for item in spec['inputs']:
+                target = destination/item['path']
+                target.parent.mkdir(parents=True,exist_ok=True)
+                copy_input(source/item['path'],target)
+            evidence(source,projection,destination)
+            copy_input(spec_path,destination/'spec.json')
+            write(destination/'nl0.json',projection)
+            write(destination/graph_outline.FILENAME,{**report,'graph_sha256':nl0.sha(destination/'nl0.json')})
+            binding = checked_receipt(destination,record['owner'],foundation=record.get('foundation'),previous=previous)
+        return _select(job,binding,previous)
+
+
 def issue_owner(issue, global_owner=None):
     """Audit findings on shared declarations and ports belong to the global NL0 author."""
     fields=issue.get('location','').strip('/').split('/')
@@ -513,29 +635,44 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     root=Path(job['root'])
     previous=nl0.load(root/'global-selection.json')
     frozen=read_working(previous)
-    nl0_author.prepare(basis.problem_inputs(job),directory,baseline=baseline,obligations=obligations)
+    author_obligations = ({k:obligations[k] for k in ('version','baseline_input','baseline_content_sha256','issues')}
+                          if baseline else None)
+    nl0_author.prepare(basis.problem_inputs(job),directory,baseline=baseline,obligations=author_obligations)
     inputs=directory/'inputs'
     write(inputs/ASSIGNED,frozen)
     record=nl0.load(previous['path'])
-    if graph_history and (baseline is None or 'blockers' in graph_history['obligations']):
+    if graph_history:
         write(inputs/graph_repair.FEEDBACK,graph_repair.revision_feedback(graph_history,previous,frozen))
     if 'outline' in record:
         copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
     manifest(inputs)
-    prompt=('Read assigned-global.json and the original proof. The controller supplies all global declarations, '
-            'statements and inference interfaces. Submit local_proofs with the rules, scoped locals, argument and '
-            'actual applications of every R. Use the NL0 authoring and closure rules. Use check_draft, '
-            'read_author_packet and record_author_checks before submitting accept_candidate. '
-            'Read read_author_packet with just inference to see its actual scope before drafting. '
-            'Report genuine mathematical gaps via report_obstacle. Only the detailed proofs are yours to edit. '
+    prompt=('Read assigned-global.json and the original proof. Draft the written derivation of each assigned R '
+            'with its rules, scoped locals, argument and actual applications. Read read_author_packet with '
+            'just inference for its scope. Save local_proofs in manageable batches with check_draft. '
+            'Use the NL0 authoring and closure rules. Report genuine mathematical gaps via report_obstacle. '
+            'Inspect the final candidate packets and record_author_checks before submitting accept_candidate. '
             +graph_repair.RULE+' Work on independent inferences while collecting actual blockers you encounter. '
             'Return them together with report_graph_issue and include any ready local_proofs in that call. '
             'Read global-findings.json when supplied, focusing on changed_inferences and the located remedies. '
-            'Compatible local_proofs in that file are included when checking a new draft; supply new or updated bodies.')
+            'Send local_proofs containing only new or updated bodies. The same merge supplies compatible drafts '
+            'whether the graph was returned by the author or by Audit A. Closing inspection checks the complete result.')
     if 'outline' in record:
         prompt+=(' Read proof-outline.json for the planned derivations and precise source ranges. '
-                 'Use local proof steps to separate substantial arguments within a valid assigned implication. '
-                 'Keep arguments sharing an indispensable witness or local scope together.')
+                 'For a large block, first write medium-size parts using explicit S steps and F facts. '
+                 'After checking the written derivations, use check_draft with refine_candidate and splits to extract '
+                 'substantial independently provable arguments, including single-use ones. Use fresh N/R IDs. '
+                 'A split supplies its original R, the new propositions, full replacement inferences with their bodies, '
+                 'and their local proof_outline. Move the relevant S/F reasoning and source uses from the draft '
+                 'into the new node and replace that derivation at the consumer by its explicit use. Preserve the '
+                 'old conclusion, outside premises, and all other blocks. Refine each remaining large subargument '
+                 'in the same way. Keep routine calculations local. For a genuinely indivisible flagged argument, '
+                 'give keep_together on the checked body, naming the inseparable S steps in at and explaining why an '
+                 'explicit scoped parameter, assumption or witness would not make a useful cut. '
+                 'Before submitting accept_candidate, use read_author_packet on the final written graph. '
+                 'For each new cut compare the supplied producer scope and the actual receiving use side by side. '
+                 'Check the exact clause, quantifiers, local assumptions, same witness and effective timing. '
+                 'Record the concrete S/F use in dependency_and_local_assumption_check. '
+                 'Use record_author_checks to close the final graph for independent Audit A.')
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget),
                         check_handoff=check_handoff)
@@ -545,7 +682,8 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     if nl0.load(stage.logs/'result.json').get('task_outcome')==graph_repair.STATUS:
         report=graph_repair.verify_local(stage.logs,previous)
         prior=None
-        if stage.validator.last_valid_candidate is not None:
+        if (stage.validator.last_valid_candidate is not None
+                and shape(stage.validator.local_scope['graph'])==shape(frozen['graph'])):
             from author_check import digest
             prior=stage.validator.directory
             candidate={'spec':nl0.load(prior/'spec.json'),'graph':nl0.load(prior/'nl0.json')}
@@ -555,5 +693,5 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
         raise graph_repair.Request(report,baseline=prior,evidence=[stage.logs/'accepted.json'])
     full_workflow.nl0_artifact_for_audit(directory)
     source=stage.validator.directory
-    check_assignment(frozen,nl0.load(source/'spec.json'),nl0.load(source/'nl0.json'))
+    check_assignment(stage.validator.local_scope,nl0.load(source/'spec.json'),nl0.load(source/'nl0.json'))
     return source

@@ -114,11 +114,13 @@ def check_revision(previous, after, blockers):
 def revision_feedback(history, selected, current):
     """Prepare the next local assignment from the actual previous repair handoff."""
     from controller_common import verify_bindings
+    from frozen_graph import BODY_FIELDS, check_assignment
     import nl0
     previous = history['global']
     if previous != nl0.load(selected['path'])['previous']:
         raise ValueError('Graph findings belong to a different predecessor')
-    verify_bindings([previous,*history['evidence']])
+    baseline = history.get('baseline', {})
+    verify_bindings([previous,*history['evidence'],*baseline.values()])
     record = nl0.load(previous['path'])
     verify_bindings([record['spec'],record['graph']])
     before = {key:nl0.load(record[key]['path']) for key in ('spec','graph')}
@@ -127,13 +129,37 @@ def revision_feedback(history, selected, current):
     if any(before['spec'][key] != current['spec'][key] for key in ('parameters','logic','pins','hypotheses')):
         compatible = set()
     report = history['obligations']
-    drafts = []
+    drafts = {}
+    if baseline:
+        detailed = {key:nl0.load(baseline[file]['path']) for key,file in (('spec','spec'),('graph','nl0'))}
+        check_assignment(before,detailed['spec'],detailed['graph'])
+        compatible -= disputed_inferences(detailed['graph'], report['issues'])
+        drafts = {row['id']:{key:row[key] for key in ('id', *BODY_FIELDS)}
+                  for row in detailed['graph']['inferences']}
     if 'blockers' in report:
         accepted = nl0.load(history['evidence'][0]['path'])
-        drafts = [row for row in accepted['local_proofs'] if row['id'] in compatible]
+        drafts.update(proof_rows(before,accepted['local_proofs']))
     return {'previous_graph':previous,'current_graph':selected,'issues':report['issues'],
             'blockers':report.get('blockers',[]), 'changed_inferences':sorted(new.keys()-compatible),
-            'local_proofs':drafts}
+            'local_proofs':[row for rid,row in drafts.items() if rid in compatible]}
+
+
+def disputed_inferences(graph, issues):
+    """An audit's own located objection invalidates that draft even if its port survives."""
+    result = set()
+    producers = {row['output']:row['id'] for row in graph['inferences']}
+    for issue in issues:
+        path = issue['location'].strip('/').split('/')
+        if len(path) < 3 or path[0] != 'graph' or not path[2].isdigit():
+            continue
+        index = int(path[2])
+        if path[1]=='inferences' and index < len(graph['inferences']):
+            result.add(graph['inferences'][index]['id'])
+        if path[1]=='propositions' and index < len(graph['propositions']):
+            owner = producers.get(graph['propositions'][index]['id'])
+            if owner:
+                result.add(owner)
+    return result
 
 
 class Request(Exception):
@@ -169,7 +195,7 @@ def locate(frozen, finding):
 def verify_local(stage,selected):
     from controller_common import bind, verify_bindings
     from execution_health import record_qualification
-    from frozen_graph import ASSIGNED,read_working
+    from frozen_graph import ASSIGNED,ASSIGNED_PROOFS,read_working
     import nl0
     result=nl0.load(stage/'result.json')
     accepted=nl0.load(stage/'accepted.json')
@@ -197,6 +223,11 @@ def verify_local(stage,selected):
         if manifest['task_documents'].get(FEEDBACK)!=bind(path)['sha256']:
             raise ValueError('Graph repair feedback changed during authoring')
         feedback=nl0.load(path)
+    if 'saved_proofs' in accepted:
+        saved=stage/'case'/ASSIGNED_PROOFS
+        if accepted['saved_proofs']!=bind(saved):
+            raise ValueError('Saved local proofs changed before graph repair')
+        feedback={'local_proofs':nl0.load(saved)}
     if accepted['local_proofs']!=retained_proofs(frozen,submission,feedback):
         raise ValueError('Local drafts differ from reported graph repair evidence')
     return assess(frozen,submission)

@@ -5,7 +5,6 @@ import json
 
 from execution_state import atomic
 import acceptance
-import foundations
 
 
 def digest(value):
@@ -73,16 +72,18 @@ class AuthorCheck:
         required=[r['id'] for r in graph['inferences']]
         note=self.notes.get(key,{})
         bound=note.get('acceptance_contract')==self.acceptance.metadata()
-        receipts={rid:self.read_receipt(self.view(number,rid)) for rid in required}
+        receipts={rid:self.read_receipt(self.interface(value,rid)) for rid in required}
         remaining=sorted(rid for rid in required if not receipts[rid])
         complete=bool(bound and note.get('coverage_complete') and not remaining)
-        ready=bool(complete and note.get('readiness')=='no_known_issue' and not self.open_issues)
+        pending=getattr(self.contract,'granularity_pending',{}).get(number,{})
+        ready=bool(complete and note.get('readiness')=='no_known_issue' and not self.open_issues and not pending)
         status={'candidate':number,'content_sha256':key,
             'acceptance_contract':self.acceptance.metadata(),
             'criteria_by_note_group':self.acceptance.author_groups(),
             'same_author_closing_notes_complete':complete,
             'reported_readiness':note.get('readiness','not_checked') if bound else 'not_checked',
             'author_release_ready':ready,
+            **({'granularity_pending':pending} if pending else {}),
             'open_issues':list(deepcopy(self.open_issues).values()),
             'mathematical_acceptance':False,
             'remaining_packet_reads':remaining,
@@ -99,6 +100,11 @@ class AuthorCheck:
     @staticmethod
     def next_actions(status):
         number=status['candidate']
+        if status.get('granularity_pending'):
+            return [{'tool':'check_draft','candidate':number,
+                     'instruction':'Use refine_candidate to extract independent conclusions from the checked bodies. '
+                                   'If a flagged body is indivisible, locate the precise reason in keep_together.',
+                     'inferences':status['granularity_pending']}]
         if status['remaining_packet_reads']:
             return [{'tool':'read_author_packet','arguments':{'candidate':number,'inference':rid}}
                     for rid in status['remaining_packet_reads'][:16]]
@@ -122,21 +128,24 @@ class AuthorCheck:
         rows=[r for r in graph['inferences'] if r['id']==inference]
         if len(rows)!=1:raise ValueError('AUTHOR_CHECK: choose an actual inference ID in this candidate')
         step=rows[0];props={p['id']:p for p in graph['propositions']};defs={d['id']:d for d in spec['definitions']}
-        inputs, output, definitions = closure.inference_scope(step, props, defs)
-        def port(p):
-            out=deepcopy(closure.inference_port(p))
-            source=out.pop('source_contract',None)
-            if source is not None:
-                out['source_conditions']=source['hypotheses']
-                if 'declaration' in source:out['source_declaration']=source['declaration']
-            return out
-        return {'parameters':deepcopy(spec['parameters']),
-            'logic':foundations.packet_logic(spec['logic']),
+        packet = {**deepcopy(closure.conditional_context(step, spec, props, defs)),
             'acceptance_contract':self.acceptance.metadata(),
             **({'workload':__import__('graph_workload').local(step)} if 'argument' in step else {}),
-            'definitions':deepcopy(definitions),
-            'inputs':[port(p) for p in inputs],'output':port(output),'inference':deepcopy(step),
             'warning':'Same-author inspection under the shared verified-background policy: direct inputs, definitions and fixed logic are supplied; eligible routine background may receive audit notes. No ancestor/other producer body or extra H is available. Inspect important source types separately. This read produces no judgment.'}
+        assigned = getattr(self.contract,'assigned_proposition_ids',None)
+        if assigned is not None:
+            new_inputs = set(step['inputs']) - assigned
+            if new_inputs:
+                cuts = {}
+                for producer in graph['inferences']:
+                    if producer['output'] in new_inputs:
+                        context = closure.conditional_context(producer,spec,props,defs)
+                        cuts[producer['output']] = {
+                            'producer':producer['id'],
+                            **{key:deepcopy(context[key]) for key in ('inputs','output','definitions')},
+                        }
+                packet['new_cut_producers'] = cuts
+        return packet
 
     def packet(self, number, inference):
         packet=self.view(number,inference)
@@ -175,6 +184,9 @@ class AuthorCheck:
         value,key=self.candidate(number);status=self.status(number)
         if readiness not in {'no_known_issue','unresolved','not_checked'}:
             raise ValueError('AUTHOR_CHECK: readiness is no_known_issue, unresolved or not_checked; it is not a mathematical verdict')
+        if readiness=='no_known_issue' and status.get('granularity_pending'):
+            raise ValueError('NL0_REFINEMENT: resolve the written blocks still needing extraction: '
+                             + ', '.join(status['granularity_pending']))
         if readiness=='no_known_issue' and status['remaining_packet_reads']:
             raise ValueError('AUTHOR_CHECK: read each own conditional packet first: '+repr(status['remaining_packet_reads']))
         if not isinstance(context_note,str) or not context_note.strip():

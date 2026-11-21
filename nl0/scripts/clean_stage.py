@@ -528,13 +528,16 @@ class ArtifactStage(pilot.Stage):
                 result=read_page(self.supplied_materials[args['incident']],args['start'],args['end'],column=args.get('column',0))
             elif name == 'report_graph_issue' and self.mode=='nl0-local-authoring':
                 import graph_repair
-                from frozen_graph import ASSIGNED
+                from frozen_graph import ASSIGNED, ASSIGNED_PROOFS
                 from controller_common import bind
                 graph_repair.assess(self.validator.frozen,args)
-                drafts=graph_repair.retained_proofs(self.validator.frozen,args,self.validator.graph_feedback)
+                saved=self.validator.directory/ASSIGNED_PROOFS
+                feedback={'local_proofs':json.loads(saved.read_text())} if saved.is_file() else self.validator.graph_feedback
+                drafts=graph_repair.retained_proofs(self.validator.frozen,args,feedback)
                 assigned=bind(self.logs.parent/'inputs'/ASSIGNED)
                 self.accepted={'version':graph_repair.VERSION,'status':graph_repair.STATUS,'assigned':assigned,
-                               'batch':deepcopy(args),'local_proofs':drafts}
+                               'batch':deepcopy(args),'local_proofs':drafts,
+                               **({'saved_proofs':bind(saved)} if saved.is_file() else {})}
                 result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':graph_repair.STATUS}
             elif name == 'report_basis_defect':
                 import basis_defect
@@ -614,7 +617,7 @@ class ArtifactStage(pilot.Stage):
             elif name == 'read_author_packet':
                 check=self.validator.author_check
                 if self.mode=='nl0-local-authoring' and 'candidate' not in args:
-                    result=check.interface(self.validator.frozen,args['inference'])
+                    result=check.interface(self.validator.local_scope,args['inference'])
                 elif self.author_closing:
                     result=check.packet(args['candidate'],args['inference'])
                 else:
@@ -655,7 +658,11 @@ class ArtifactStage(pilot.Stage):
                         raise ValueError('Preserve your recorded background notes; do not drop or replace them at submission')
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}
                 result = {'accepted': True, 'validation': checked, 'stage_complete': name in {'submit_artifact','submit_draft'}}
-                if self.author_closing:
+                if checked.get('draft_pending'):
+                    if result['stage_complete']:
+                        result.update(accepted=False,stage_complete=False,feedback_kind='author_action_required',
+                                      error='Local bodies were saved. Check the remaining assigned proofs before submitting.')
+                elif self.author_closing:
                     own=self.validator.author_check.status(self.validator.attempt)
                     result['author_closing_check']=own
                     if result['stage_complete'] and not own['author_release_ready']:

@@ -7,8 +7,8 @@ import tempfile
 import unittest
 
 import harness_support as support
-from basis_fixtures import active_artifact,artifact,checked_context,dependency
-from controller_common import bind,write
+from basis_fixtures import active_artifact,add_external_applications,artifact,checked_context,dependency
+from controller_common import bind,manifest,write
 from execution_health import StageFailure
 import basis_graph
 import frozen_graph as fg
@@ -72,9 +72,8 @@ class WorkingGraphTests(unittest.TestCase):
             self.assertEqual(next(p for p in changed if p['id']=='H001')['usage']['inferences'],['R001','R002'])
             self.assertEqual(next(p for p in changed if p['id']=='N001')['usage'],prop['usage'])
 
-    def test_both_entries_split_a_long_derivation_before_selection(self):
+    def test_both_entries_extract_from_the_written_proof_before_audit(self):
         spec = nl0.load(self.source/'spec.json')
-        complete = fg.shape(nl0.load(self.source/'nl0.json'))
         proof = 'First derivation. ' + 'x' * 8200 + '\nSecond derivation. ' + 'y' * 8200 + '\n'
         with tempfile.TemporaryDirectory() as raw:
             for owner in (fg.DIRECT,fg.BASIS):
@@ -82,37 +81,93 @@ class WorkingGraphTests(unittest.TestCase):
                     root = Path(raw)/owner
                     directory = root/'global-graphs/0001/stage/case'
                     docs = {'problem.md':proof}
+                    complete = nl0.load(self.source/'nl0.json')
                     if owner==fg.BASIS:
-                        registry = artifact()
-                        context = checked_context(root/'foundations',registry)
+                        registry = artifact(dependency(category=2))
+                        originals = root/'originals'
+                        originals.mkdir(parents=True)
+                        (originals/'problem.md').write_text(proof)
+                        manifest(originals)
+                        context = checked_context(root/'foundations',registry,documents=originals)
                         docs['basis-registry.json'] = Path(context['basis']['path']).read_text()
                         docs['proof-context.json'] = json.dumps(context)
+                        add_external_applications(complete,registry,[{'input':'problem.md'}])
                     author = fg.AuthorContract(directory,docs,spec['case_id'],owner)
-                    bundled = {'spec':deepcopy(spec),**deepcopy(complete)}
-                    bundled['propositions'] = [p for p in bundled['propositions'] if p['id']!='N001']
-                    bundled['inferences'] = [{'id':'R002','inputs':['H001'],'output':'P','definitions':[]}]
-                    bundled['proof_outline'] = support.elementary_outline(bundled['inferences'])
-                    bundled['proof_outline']['R002']['steps'][0]['source_spans'] = [
-                        {'from_task':'problem.md','start_line':1,'end_line':2}]
-                    with self.assertRaisesRegex(ValueError,'OUTLINE_REVIEW:.*R002'):
-                        author(bundled)
-                    self.assertFalse((directory/fg.graph_outline.FILENAME).exists())
-                    split = {'spec':deepcopy(spec),**deepcopy(complete)}
-                    split['proof_outline'] = support.elementary_outline(split['inferences'])
-                    for line, rid in enumerate(('R001','R002'),1):
-                        split['proof_outline'][rid]['steps'][0]['source_spans'] = [
-                            {'from_task':'problem.md','start_line':line,'end_line':line}]
-                    checked = author(split)
-                    submitted = {'accept_candidate':checked['candidate_number']}
-                    author(submitted)
-                    selected = fg.select({'root':str(root)},fg.checked_receipt(directory,owner))
+                    bundled = {'spec':deepcopy(spec),**fg.shape(deepcopy(complete))}
+                    outline = support.elementary_outline(bundled['inferences'])
+                    span = lambda line: [{'from_task':'problem.md','start_line':line,'end_line':line}]
+                    identity = ['E001'] if owner==fg.BASIS else []
+                    outline['R002'] = {'steps':[
+                        {'conclusion':'The additive identity gives a+0=a.', 'uses':identity, 'source_spans':span(1)},
+                        {'conclusion':'By N001 and symmetry, a+0=b.', 'uses':['N001','S001'], 'source_spans':span(2)}]}
+                    checked = author({**bundled,'proof_outline':outline})
+                    self.assertEqual(checked['outline_reviewed'],['R002'])
+                    job = {'root':str(root)}
+                    foundation = bind(context['basis']['path']) if owner==fg.BASIS else None
+                    selected = fg.select(job,fg.checked_receipt(directory,owner,foundation=foundation))
                     record = nl0.load(selected['path'])
-                    self.assertEqual(record['version'],'yui-working-graph-5')
-                    readback = fg.read_outline(record)
-                    self.assertEqual(readback['inferences'],submitted['graph']['proof_outline'])
-                    self.assertEqual(readback['workload']['R001']['consumers'],['R002'])
+                    assignment = fg.read_working(selected)
+                    local = root/'nl0/local/stage/case'
+                    write(local.parent.parent/'inputs'/fg.ASSIGNED,assignment)
+                    validator = fg.AuthorContract(local,{
+                        **docs,fg.ASSIGNED:json.dumps(assignment),
+                        fg.graph_outline.FILENAME:json.dumps(fg.read_outline(record)),
+                    },spec['case_id'],fg.LOCAL)
+                    split = support.addition_split(complete)
+                    for line, rid in enumerate(('R003','R002'),1):
+                        split['proof_outline'][rid]['steps'][0]['source_spans'] = span(line)
+                    with self.assertRaisesRegex(ValueError,'first check the written local proof'):
+                        validator({'refine_candidate':1,'splits':[split]})
+                    drafts = [{k:row[k] for k in ('id',*fg.BODY_FIELDS)} for row in complete['inferences']]
+                    first = validator({'local_proofs':drafts[:1]})
+                    self.assertEqual(first['remaining_local_proofs'],['R002'])
+                    validator({'local_proofs':drafts[1:]})
+                    self.assertFalse(validator.author_check.status(1)['author_release_ready'])
+                    self.assertEqual(validator.author_check.status(1)['granularity_pending']['R002'],
+                                     ['multiple_main_steps','large_source_span'])
+                    with self.assertRaisesRegex(ValueError,'resolve the written blocks'):
+                        validator.author_check.record(1,'context',[],[],readiness='no_known_issue')
+                    escaped = deepcopy(split)
+                    escaped['inferences'][0]['inputs'].append('H001')
+                    with self.assertRaisesRegex(ValueError,'must preserve its outside premises'):
+                        validator({'refine_candidate':1,'splits':[escaped]})
+                    leaked = deepcopy(split)
+                    leaked['propositions'][0]['objects'].append('c')
+                    with self.assertRaisesRegex(ValueError,"undeclared 'c'"):
+                        validator({'refine_candidate':1,'splits':[leaked]})
+                    detailed = {'refine_candidate':1,'splits':[split]}
+                    self.assertEqual(validator(detailed)['granularity_pending'],{})
+                    self.assertEqual(detailed['graph']['inferences'][0],complete['inferences'][0])
+                    number = validator.last_valid_candidate
+                    packet = validator.author_check.packet(number,'R002')
+                    self.assertEqual(packet['new_cut_producers']['N002']['producer'],'R003')
+                    self.assertEqual(packet['new_cut_producers']['N002']['output'],packet['inputs'][-1])
+                    for rid in ('R001','R003'):
+                        validator.author_check.packet(number,rid)
+                    note='The last step uses the additive identity for the same a and the symmetry of a=b.'
+                    status=validator.author_check.record(number,note,
+                        [{'id':p,'note':note} for p in ('N001','N002','P')],
+                        [{'id':rid,'dependency_and_local_assumption_check':note,
+                          'source_application_check':note,'declaration_check':note} for rid in ('R001','R003','R002')],
+                        readiness='no_known_issue')
+                    self.assertTrue(status['author_release_ready'])
+                    with self.assertRaisesRegex(ValueError,'latest checked candidate'):
+                        validator({'refine_candidate':1,'splits':[split]})
+                    validator({'accept_candidate':number})
+                    final = fg.select_detail(job,selected,local)
+                    self.assertEqual(final,fg.select_detail(job,selected,local))
+                    final_record = nl0.load(final['path'])
+                    self.assertEqual(final_record.get('foundation'),foundation)
+                    if owner==fg.BASIS:
+                        self.assertEqual(fg.read_working(final)['graph']['foundation_ports'],
+                                         assignment['graph']['foundation_ports'])
+                        self.assertEqual(packet['new_cut_producers']['N002']['inputs'][0]['id'],'E001')
+                    self.assertEqual(final_record['previous'],selected)
+                    readback = fg.read_outline(final_record)
+                    self.assertEqual(readback['workload']['R003']['consumers'],['R002'])
                     self.assertEqual(sum(row['source_characters'] for row in readback['workload'].values()),len(proof))
                     self.assertLess(max(row['source_characters'] for row in readback['workload'].values()),len(proof))
+                    self.assertEqual(fg.shape(fg.read_working(final)['graph']),fg.shape(detailed['graph']))
                     (directory/fg.graph_outline.FILENAME).write_text('{}')
                     with self.assertRaisesRegex(ValueError,'Frozen input/runtime changed'):
                         fg.read_working(selected)
@@ -364,3 +419,46 @@ class WorkingGraphTests(unittest.TestCase):
             self.assertFalse(author.author_check.status(1)['author_release_ready'])
             final=nl0.load(author.directory/'nl0.json')['inferences']
             self.assertEqual(final[0]['argument'],bodies[0]['argument'])
+
+    def test_audit_return_uses_the_same_incremental_author_submission(self):
+        from controller_common import bind
+
+        spec=nl0.load(self.source/'spec.json')
+        complete=nl0.load(self.source/'nl0.json')
+        docs={'problem.txt':(self.source/'problem.txt').read_text()}
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve(); job={'root':str(root)}
+            first=fg.AuthorContract(root/'global-graphs/0001/stage/case',docs,spec['case_id'],fg.DIRECT)
+            shape=fg.shape(deepcopy(complete))
+            first({'spec':spec,**shape,'proof_outline':support.elementary_outline(shape['inferences'])})
+            previous=fg.select(job,fg.checked_receipt(first.directory,fg.DIRECT))
+            assigned=fg.read_working(previous)
+            baseline=root/'baseline'; baseline.mkdir()
+            detailed=deepcopy(assigned['graph'])
+            for row,old in zip(detailed['inferences'],complete['inferences']):
+                row.update({key:old[key] for key in fg.BODY_FIELDS})
+            write(baseline/'spec.json',assigned['spec']); write(baseline/'nl0.json',detailed)
+            report=root/'audit-finding.json'
+            issue={'id':'ISSUE001','criterion':'structure','location':'/graph/inferences/1/inputs',
+                   'note':'The final calculation uses the original equality directly.'}
+            write(report,issue)
+            revised=fg.shape(deepcopy(assigned['graph']))
+            revised['inferences'][-1]['inputs'].append('H001')
+            author=fg.AuthorContract(root/'global-graphs/0002/stage/case',
+                {**docs,'prior-global.json':json.dumps(assigned)},spec['case_id'],fg.DIRECT)
+            author({'spec':assigned['spec'],**revised,'proof_outline':support.elementary_outline(revised['inferences'])})
+            selected=fg.select(job,fg.checked_receipt(author.directory,fg.DIRECT,previous=previous),previous=previous)
+            current=fg.read_working(selected)
+            history={'global':previous,'obligations':{'issues':[issue]},'evidence':[bind(report)],
+                     'baseline':{key:bind(baseline/(key+'.json')) for key in ('spec','nl0')}}
+            feedback=graph_repair.revision_feedback(history,selected,current)
+            self.assertEqual(feedback['changed_inferences'],['R002'])
+            self.assertEqual([row['id'] for row in feedback['local_proofs']],['R001'])
+            next_author=fg.AuthorContract(root/'next', {**docs,fg.ASSIGNED:json.dumps(current),
+                graph_repair.FEEDBACK:json.dumps(feedback)},spec['case_id'],fg.LOCAL)
+            fixed={key:deepcopy(complete['inferences'][-1][key]) for key in ('id',*fg.BODY_FIELDS)}
+            fixed['argument'][-1]['uses'].append('H001')
+            fixed['argument'][-1]['text']+=' Use the supplied equality H001.'
+            next_author({'local_proofs':[fixed]})
+            self.assertEqual(next_author.valid_drafts[1]['graph']['inferences'][0]['argument'],detailed['inferences'][0]['argument'])
+            self.assertFalse(next_author.author_check.status(1)['author_release_ready'])

@@ -7,7 +7,7 @@ description: Route frozen Yui proof requests through natural-language review, co
 
 Give the Yui operator a proof, its complete target and one of three goals. Use `nl0/scripts/yui.py run` from the parent Yui installation. The `audit` entry ends after independent natural-language Audit A. The `conditional` entry continues to checked Lean assembly and Audit B. The `unconditional` entry additionally prepares the foundation registry before local authoring and checks actual discharge at the end. A residual theorem requires an explicit user decision. Each exit in [the definition](workflow.json) identifies the scope actually achieved.
 
-The unconditional entry freezes the reviewed foundations and supplies a structured route seed. The NL0 global author can keep that seed or revise intermediate statements and edges. Local authors work against one version. A located graph defect goes back to the NL0 global author, who can publish a replacement under the same foundations. Independent Audit A seals the resulting complete graph for delivery or Lean. The native case adapter invokes the mathematical workers and checkers in the pinned Yui runtime. Their prompts, native check policies, compatible cached libraries and recovery histories remain with those workers.
+The unconditional entry freezes the reviewed foundations and supplies a structured route seed. Both entries select a provisional NL0 outline. The local author writes its proofs, then extracts fine nodes from the actual derivations. A located defect in the outside assignment goes back to the NL0 global author, who can publish a replacement under the same foundations. Independent Audit A seals the completed fine graph for delivery or Lean. The native case adapter invokes the mathematical workers and checkers in the pinned Yui runtime. Their prompts, native check policies, compatible cached libraries and recovery histories remain with those workers.
 
 Before any new foundation proof bodies, the basis author saves and selects the
 complete natural-language source-to-target route using the existing preparation
@@ -31,11 +31,14 @@ source checking. Delivered source rebuilds without the cache. One complete nativ
 inspection artifact is retained; compiler records reference its exact bytes.
 
 The local author can read the assigned scope with `read_author_packet` before
-writing the proof. `report_graph_issue` hands back a batch of concrete blockers
-with optional partial proof bodies. Use local proof steps for organizational
-changes within a valid implication. The next assignment receives the findings
-and reuses drafts with the same effective scope. A true mathematical obstacle
-keeps its own outcome. A protected foundation defect uses `report_basis_defect`.
+writing the proof. `check_draft` saves local body batches and checks the whole
+proof when they are complete. The same tool extracts independently provable
+nodes inside a checked block. The detailed handoff binds the assigned outline
+and the completed graph. The Audit A receiver selects that fine graph before
+starting review. The local author inspects both ends of each new interface in
+the existing author checks. `report_graph_issue` hands back a batch of outside
+blockers with saved compatible bodies. A true mathematical obstacle keeps its
+own outcome. A protected foundation defect uses `report_basis_defect`.
 Independent Audit A reviews the completed proof in its selected context. An
 identical rejected graph pauses immediately. The definition bounds global
 repair rounds. A first-pass request records its first nonpass.

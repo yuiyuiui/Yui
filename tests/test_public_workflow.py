@@ -37,13 +37,24 @@ class PublicEntryTests(unittest.TestCase):
             job=jobs.prepare(problem,track='nl0',profiles=support.PROFILES,output=base/'case',max_concurrency=1)
             run=Path(job['root'])
             bridge=support.TESTS/'tooling/public_entry_control.py'
-            cmd=[sys.executable,'-B',str(bridge),'standalone-flow','start',str(base/'outer'),'audit',
+            cmd=[sys.executable,'-B',str(bridge),'standalone-flow-refinement','start',str(base/'outer'),'audit',
                  json.dumps({'job':bind(run/'job.json')})]
             result=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
             self.assertEqual(result.returncode,0,(result.stdout+result.stderr)[-1800:])
             self.assertEqual(json.loads(result.stdout)['status'],'completed')
             self.assertEqual(delivery.verify(run/'delivery')['scope'],'NL0')
             self.assertEqual(len(list(run.glob('global-graphs/*/stage/accepted.json'))),1)
+            selected=nl0.load(run/'global-selection.json')
+            self.assertIn('0001-detail',selected['path'])
+            self.assertEqual(nl0.load(run/'handoffs/audited-nl0.json')['global'],selected)
+            final=nl0.load(run/'delivery/nl0/nl0.json')
+            self.assertEqual({row['id'] for row in final['inferences']},{'R001','R002','R003'})
+            tools=[json.loads(line) for line in (run/'nl0/local/stage/tools.jsonl').read_text().splitlines()]
+            attempts=[row['result'] for row in tools if row['tool']=='submit_draft']
+            self.assertFalse(attempts[0]['stage_complete'])
+            self.assertEqual(attempts[0]['author_closing_check']['granularity_pending'],
+                             {'R002':['multiple_main_steps']})
+            self.assertTrue(attempts[-1]['stage_complete'])
 
     def test_three_real_entries_from_cli_through_clean_and_standalone_readback(self):
         for track,goal,mode,scope,ids in [('nl0','conditional','direct','NL0',[]),

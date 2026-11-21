@@ -10,8 +10,8 @@ class AcceptanceTests(unittest.TestCase):
     def test_executable_review_sets_come_from_one_authority(self):
         contract=acceptance.current()
         self.assertEqual(nl0.CHECKS,contract.check_ids('inference'))
-        self.assertEqual(nl0.closure.CLOSURE_CHECKS,contract.check_ids('closure')|{'packet_replay'})
-        self.assertNotIn('packet_replay',contract.rows)
+        self.assertEqual(nl0.closure.CLOSURE_CHECKS,contract.check_ids('closure'))
+        self.assertIn('packet_replay',contract.author_groups()['dependency_and_local_assumption_check'])
         grouped=contract.author_groups()
         self.assertEqual(set().union(*(set(v) for v in grouped.values())),set(contract.rows))
         self.assertEqual(grouped['output_notes'],['statement_closure'])

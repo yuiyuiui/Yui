@@ -19,7 +19,7 @@ _ACCEPTANCE_SPEC=importlib.util.spec_from_file_location('nl0_acceptance',Path(__
 acceptance=importlib.util.module_from_spec(_ACCEPTANCE_SPEC)
 _ACCEPTANCE_SPEC.loader.exec_module(acceptance)
 
-CLOSURE_CHECKS = acceptance.current().check_ids('closure') | {'packet_replay'}
+CLOSURE_CHECKS = acceptance.current().check_ids('closure')
 _IDS = re.compile(r"\b(?:[HEMN]\d{3,}|F\d{3,})\b")
 _NUMBERED = re.compile(
     r"\b(?:formula|equation|identity|estimate|bound|theorem|lemma|proposition|corollary|section)"
@@ -106,6 +106,15 @@ def inference_port(proposition):
         fields = ('hypotheses','declaration','signature') if proposition['kind']=='mathlib' else ('hypotheses',)
         port['source_contract'] = {key:proposition['source'][key] for key in fields}
     return port
+
+
+def conditional_context(step, spec, props, defs):
+    """The same mathematical view for the author and independent Audit A."""
+    inputs, output, definitions = inference_scope(step, props, defs)
+    return {"parameters": spec["parameters"], "logic": foundations.packet_logic(spec["logic"]),
+            "pins": spec["pins"], "definitions": definitions,
+            "inputs": [inference_port(row) for row in inputs],
+            "output": inference_port(output), "inference": step}
 
 
 def check_definition_guards(step, definitions):
@@ -237,18 +246,12 @@ def digest(payload):
 def packet(data, inference):
     result, _, spec, props, steps, defs, _, _ = data
     step = steps[inference]
-    inputs, output, definitions = inference_scope(step, props, defs)
-
     payload = {"contract_version": 2, "case_id": spec["case_id"],
                "graph_sha256": result["graph_sha256"], "spec_sha256": result["spec_sha256"],
-               "parameters": spec["parameters"], "logic": foundations.packet_logic(spec["logic"]), "pins": spec["pins"],
                "foundation_profile": foundations.PROFILE,
                "standard_language": foundations.STANDARD_LANGUAGE,
                "background_policy": background.POLICY,
-               "definitions": definitions,
-               "inputs": [copy.deepcopy(inference_port(row)) for row in inputs],
-               "output": copy.deepcopy(inference_port(output)),
-               "inference": step,
+               **copy.deepcopy(conditional_context(step, spec, props, defs)),
                "warning": "Direct inputs and fixed logic are supplied. Audit A may record mathematically checked routine background with actual conditions and justification; exact Lean bindings belong to nl02lean. No ancestor proof or extra H is available. A packet is not an audit certificate."}
     payload["packet_sha256"] = digest(payload)
     return payload

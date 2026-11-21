@@ -119,8 +119,14 @@ def author_code(stage):
             'inference_definitions':{r['id']:r['definitions'] for r in graph['inferences']},
             'proof_outline':outline})
     if stage.mode==fg.DIRECT:
+        outline = harness_support.elementary_outline(graph['inferences'])
+        if mode=='direct-refinement':
+            outline['R002']['steps'] = [
+                {'conclusion':'a+0=a.', 'uses':[], 'source_spans':[]},
+                {'conclusion':'a+0=b.', 'uses':['S001','N001'], 'source_spans':[]},
+            ]
         return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),
-                    'proof_outline':harness_support.elementary_outline(graph['inferences'])})
+                    'proof_outline':outline})
     draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
            if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
     if mode=='local-edge' and stage.mode==fg.LOCAL:
@@ -128,17 +134,28 @@ def author_code(stage):
         if not feedback['blockers'] or [r['id'] for r in feedback['local_proofs']]!=['R001']:
             raise AssertionError('The revised local assignment needs the blocker and the unaffected earlier draft')
         draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
-    code=call('check_draft',artifact=draft)
+    candidate=1
+    if mode=='direct-refinement' and stage.mode==fg.LOCAL:
+        code=call('check_draft',artifact={'local_proofs':draft['local_proofs'][:1]})
+        code+=call('check_draft',artifact={'local_proofs':draft['local_proofs'][1:]})
+        code+=call('submit_draft',artifact={'accept_candidate':1})
+        split=harness_support.addition_split(graph)
+        code+=call('check_draft',artifact={'refine_candidate':2,'splits':[split]})
+        graph['propositions']+=split['propositions']
+        graph['inferences'][1:]=split['inferences']
+        candidate=3
+    else:
+        code=call('check_draft',artifact=draft)
     for row in graph['inferences']:
-        code+=call('read_author_packet',candidate=1,inference=row['id'])
+        code+=call('read_author_packet',candidate=candidate,inference=row['id'])
     repaired=json.loads(stage.task_inputs.get('repair-obligations.json','{"issues":[]}'))
     resolutions=[{'id':i['id'],'location':i['location'],'note':'The revised N001 is the symmetric equality.'} for i in repaired['issues']]
-    code+=call('record_author_checks',candidate=1,readiness='no_known_issue',open_issues=[],resolutions=resolutions,
+    code+=call('record_author_checks',candidate=candidate,readiness='no_known_issue',open_issues=[],resolutions=resolutions,
         original_context_note=NOTE,output_notes=[{'id':row['id'],'note':NOTE} for row in graph['propositions']
                                                 if row['kind'] in {'internal','target'}],
         inference_notes=[{'id':row['id'],'dependency_and_local_assumption_check':NOTE,
             'source_application_check':NOTE,'declaration_check':NOTE} for row in graph['inferences']])
-    return code+call('submit_draft',artifact={'accept_candidate':1})
+    return code+call('submit_draft',artifact={'accept_candidate':candidate})
 
 
 def review_value(stage):

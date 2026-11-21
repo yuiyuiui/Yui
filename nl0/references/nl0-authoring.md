@@ -55,17 +55,19 @@ output or give the consumer another genuine direct input. Then write the
 producer under precisely its inputs. This implements `statement_closure`,
 the grouped argument and applicability criteria; it is not permission to invent a stronger theorem.
 
-At the global outline stage, name the conclusions used separately by later
-arguments, and give each substantial, independently provable one its own N and
-producer. A construction, an estimate for that construction and an application
-of the estimate can be separate even when each has one consumer. Keep the exact
-parameters, uniformity and scope at the cut. If two results need the same
-witness, state the argument for one fixed witness or export a joint conclusion
-with a single witness. Record the source and use of each step in
+At the global outline stage, name the conclusions later arguments need and
+assign manageable source-backed blocks. Record the source and use of each step in
 [`proof_outline`](nl0-format.md#global-proof-outline).
 
 During local writing, read the assigned conditional packet with
-`read_author_packet(inference=...)`. Report a graph blocker by locating the
+`read_author_packet(inference=...)`. Write the actual derivations in scoped
+steps and save bodies in manageable batches. Extract each substantial
+independent conclusion from those derivations before Audit A. A construction,
+its estimate and the final application can each have one consumer. Keep exact
+parameters, uniformity and scope at each cut. If two results need the same
+witness, prove the argument for one fixed witness or export a joint conclusion
+with a single witness. Inspect the actual paired producer scope and consumer
+use in the final graph. Report a graph blocker by locating the
 missing or incorrect part of the packet and explaining which proof or use it
 prevents. Continue independent inferences and return the blockers you encounter
 in one batch with any available draft bodies. Use local steps for another sound

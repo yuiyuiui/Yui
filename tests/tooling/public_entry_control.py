@@ -25,13 +25,14 @@ def unexpected(gate,error,**kw):
 
 if __name__=='__main__':
     mode=sys.argv.pop(1)
-    if mode=='standalone-flow':
+    if mode in ('standalone-flow','standalone-flow-refinement'):
         import runpy
         original_run=subprocess.run
+        fixture='direct-refinement' if mode.endswith('refinement') else 'direct'
         def offline_case(command,*args,**kwargs):
             if isinstance(command,list) and '--job' in command and any(str(x).endswith('/case_runner.py') for x in command):
                 job=command[command.index('--job')+1]
-                return original_run([sys.executable,'-B',str(tests/'tooling/basis_path_control.py'),job,'direct'],*args,**kwargs)
+                return original_run([sys.executable,'-B',str(tests/'tooling/basis_path_control.py'),job,fixture],*args,**kwargs)
             return original_run(command,*args,**kwargs)
         sys.argv[0]=str(tests.parent/'workflow/scripts/flow.py')
         sys.path.insert(0,str(tests.parent/'workflow/scripts'))
