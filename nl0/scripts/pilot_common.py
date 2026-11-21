@@ -92,20 +92,20 @@ def native_succeeded(result):
 
 
 def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = True,
-             output: Path | None = None, timeout: float | None = None) -> dict:
+             output: Path | None = None, timeout: float | None = None, module_root: Path | None = None) -> dict:
     import lean_timeout_policy
     from staging_storage import reserve, NATIVE_RESERVE
     adaptive = lean_timeout_policy.active.get() is not None
     def invoke(limit):
         with reserve(work, NATIVE_RESERVE):
             return _run_lean(file, work, extra=extra, sandbox=sandbox, output=output,
-                             timeout=limit, reviewed_policy=adaptive)
+                             timeout=limit, reviewed_policy=adaptive, module_root=module_root)
     if adaptive:
         return lean_timeout_policy.run(file, timeout, invoke)
     return invoke(timeout)
 
 
-def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False):
+def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False, module_root=None):
     import native_workspace
     native_workspace.record(work, confirmed=True, phase='not-started')
     config = __import__('runtime_config')
@@ -115,7 +115,7 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
     lock = load_lock()
     for name in ['home', 'tmp', 'output']:
         (work / name).mkdir(parents=True, exist_ok=True)
-    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(file.parent), '-j', '1',
+    cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(module_root or file.parent), '-j', '1',
            '-DmaxHeartbeats='+str(heartbeats)]
     if output: cmd += ['-o', str(output)]
     cmd += [str(file)]

@@ -77,8 +77,9 @@ class DependencyInstanceTests(unittest.TestCase):
         import translation_author as author
         c=author.InterfaceContract.__new__(author.InterfaceContract)
         c.out=self.path.parent;c.documents={};c.drafts={};c.attempt=0
-        s=author.InterfaceStage.__new__(author.InterfaceStage)
-        s.logs=self.path.parent;s.accepted=None;s.validator=c;s.type_probes=0
+        s=author.InterfaceStage(self.path.parent/'stage','Synthetic interface draft control.',
+                               phase='interface-authoring',validator=c,library=False)
+        self.addCleanup(s.release_resources,'USER_CANCELLED')
         self.assertTrue(s.dispatch('save_interface_draft',{'artifact':{'steps':[{'id':'T001'}]}})['saved'])
         bad=s.dispatch('save_interface_draft',{'artifact':{'steps':[{'id':'T001','unknown_universes':['u']}]}})
         self.assertIn('/steps/0 (T001)',bad['error'])

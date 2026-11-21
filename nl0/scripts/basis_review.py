@@ -184,44 +184,10 @@ def revision_changes(previous, packet):
 
 
 def unread_revision(log, revision):
-    """Check what current-stage read tools actually returned to the reviewer."""
-    values, ranges = set(), {}
-    if log.is_file():
-        with log.open() as stream:
-            for line in stream:
-                call = json.loads(line)
-                if call['tool'] not in {'read_task_input','read_task_inputs'}:
-                    continue
-                result = call['result']
-                for view in result.get('results', [result]):
-                    if view.get('id') != PACKET:
-                        continue
-                    if view.get('view') == 'value':
-                        values.add(view['pointer'])
-                    elif view.get('view') == 'string':
-                        ranges.setdefault(view['pointer'], []).append((view['offset'], view['end_offset']))
-
-    def covers(pages, start, end):
-        for first, last in sorted(pages):
-            if first > start:
-                break
-            if last >= end:
-                return True
-            start = max(start, last)
-        return False
-
-    missing = []
-    for change in revision['changes']:
-        pointer = change['pointer']
-        if any(pointer == parent or pointer.startswith(parent+'/') for parent in values):
-            continue
-        if 'spans' in change:
-            spans = [span for span in change['spans'] if not covers(ranges.get(pointer, []), *span)]
-            if spans:
-                missing.append({**change,'spans':spans})
-        else:
-            missing.append(change)
-    return missing
+    """Use the shared current-stage read receipt check for the basis packet."""
+    from review_contract import unread_views
+    return [{key:value for key,value in item.items() if key!='document'}
+            for item in unread_views(log, {PACKET: revision['changes']})]
 
 
 JUDGMENT_FIELDS = {

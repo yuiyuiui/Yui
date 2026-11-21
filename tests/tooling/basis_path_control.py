@@ -250,11 +250,16 @@ def scripted(stage):
         return call('submit_draft',artifact={'route':'derivation','statement':item['statement'],'argument':NOTE,
             'source':'Synthetic fixture only','consumer_uses':[{'id':'R002','application':NOTE}],'evidence':[]})
     if stage.mode=='basis-semantic-review':
+        from basis_review import PACKET
+        current=json.loads(stage.task_inputs[PACKET])
+        reads=''.join(call('read_task_input',id=PACKET,pointer=change['pointer'],offset=start)
+                      for change in current.get('revision',{}).get('changes',[])
+                      for start,_ in change.get('spans',[(0,0)]))
         reject=mode in {'mismatch','first-pass'} and stage.logs.parents[1].name=='0001'
         review=reviewed_value(stage,{'B001':'FAIL'} if reject else {})
         if mode=='evidence-repair':
-            return call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
-        return call('submit_draft',artifact=review)
+            return reads+call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
+        return reads+call('submit_draft',artifact=review)
     if stage.mode in {'nl0-authoring','nl0-global','nl0-global-from-basis','nl0-local-authoring'}:return author_code(stage)
     if (stage.mode,mode) in {('interface-semantic-review','late'),('interface-proof-diagnosis','late-proof')}:
         row=json.loads(stage.task_inputs['basis-registry.json'])['dependencies'][0]
@@ -265,7 +270,9 @@ def scripted(stage):
             'correction':'Use the universal natural-number addition identity as the basis statement.'}
         return call('report_basis_defect',**{**finding,'basis_id':'B999'})+call('report_basis_defect',**finding)
     if stage.mode in {'interface-semantic-review','audit-a-global','audit-a-packet-replay'}:
-        return call('submit_draft',artifact=review_value(stage))
+        commands=''.join(call('read_task_input',id=doc,pointer=change['pointer'])
+                         for doc,changes in getattr(stage,'review_changes',{}).items() for change in changes)
+        return commands+call('submit_draft',artifact=review_value(stage))
     if stage.mode=='translation-source-preparation':
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':

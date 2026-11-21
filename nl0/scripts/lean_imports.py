@@ -47,8 +47,8 @@ def diagnostic(check):
 
 
 def dependency_followup(log, location):
-    """Find the latest import diagnosis for an exact staged document named in the report."""
-    if '.lean' not in location or not log.is_file():
+    """Find the latest matching import diagnosis for the reported dependency."""
+    if not ('.lean' in location or '.olean' in location) or not log.is_file():
         return {}
     latest = {}
     with log.open() as stream:
@@ -62,7 +62,11 @@ def dependency_followup(log, location):
             document=call['arguments']['source'].get('document','')
             if document.endswith('.lean') and re.search(r'(?<![\w.-])'+re.escape(document)+r'(?![\w.-])',location):
                 latest[document]=reply
-    return {name:{key:row[key] for key in ('status','receipt','diagnostics','next_action')}
+            for field in ('public_library','upstream_public_library'):
+                built=reply.get(field,{})
+                module=built.get('origin',{}).get('module')
+                if module and module.split('.')[0] in location:latest[module]=reply
+    return {name:{key:row[key] for key in ('status','receipt','diagnostics','next_action','public_library','upstream_public_library') if key in row}
             for name,row in latest.items() if 'next_action' in row}
 
 
@@ -202,41 +206,118 @@ def original_environment(declared):
         raise
 
 
-def publish_checked(check,root):
-    """Publish availability before freeze, preserving checked bytes as public library input."""
+def publish_library(specification,root,receipt):
+    """Publish one verified manifest atomically within the owned pre-freeze registry."""
     root=Path(root).resolve()
     if root.name!='imported-lean' or not (root.parent/'job.json').is_file():raise ValueError('Publish checked imports only inside an explicitly owned prepared case')
-    if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
-        raise ValueError('The basis/interface is frozen; use its authorized revision route before adding imports')
-    if not rules.passed(check):raise ValueError('Only a completed current native check can publish imported code')
-    if check['environment']!=environment_identity(runtime_config.require_environment()):raise ValueError('Cannot publish a check from another selected environment')
-    verify_bindings([check['receipt'],*check['bindings']])
+    if not Path(receipt['path']).resolve().is_relative_to(root.parent):raise ValueError('Library check belongs to another case')
+    verify_bindings([receipt])
     root.mkdir(parents=True,exist_ok=True)
     with (root/'.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
+        if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
+            raise ValueError('The basis/interface is frozen; use its authorized revision route before adding imports')
+        spec=json.loads(Path(specification).read_bytes());name=spec['name']
+        if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name):raise ValueError('Invalid generated library namespace')
         prior=lean_libraries.read_generated(root)
-        existing=next((row for row in prior if row['name']==check['module']),None)
-        if existing:return existing
-        module=check['module'];source=Path(check['source']['path']);build=source.parent.parent/'build'
-        companions={p.name[len(module):]:bind(p)['sha256'] for p in build.iterdir() if p.name!=module+'.olean'}
-        spec={'version':lean_libraries.VERSION,'name':module,'lean_version':check['environment']['lean_version'],
-              'mathlib_commit':check['environment']['mathlib_commit'],'source_root':str(source.parent),
-              'build_root':str(build),'imports':[module],'modules':[{'module':module,
-              'source_sha256':check['source']['sha256'],'olean_sha256':bind(build/(module+'.olean'))['sha256'],
-              **({'companions':companions} if companions else {})}]}
-        path=root/('spec-'+module+'.json');write(path,spec)
-        try:descriptor=lean_libraries.capture(path,root)
-        finally:path.unlink(missing_ok=True)
+        existing=next((row for row in prior if row['name']==name),None)
+        if existing:
+            metadata=json.loads(Path(existing['manifest']['path']).read_bytes())
+            if any(metadata[key]!=spec[key] for key in ('imports','modules','lean_version','mathlib_commit')):
+                raise ValueError('An existing library name has different checked contents: '+name)
+            return existing
+        check=json.loads(Path(receipt['path']).read_bytes())
+        if check.get('version')=='yui-public-lean-build-1':
+            from public_lean import qualify
+            qualify(check,spec)
         index=root/'index.json'
         value=json.loads(index.read_text()) if index.is_file() else {
             'version':'yui-imported-lean-registry-1','job':bind(root.parent/'job.json'),'entries':[]}
-        value['entries'].append({'library':descriptor,'check':check['receipt']})
-        write(index,value)
-        lean_libraries.read_generated(root)
+        destination=root/'lean-libraries'/name
+        if destination.exists() or destination.is_symlink():
+            raise ValueError('An unregistered generated library is already present: '+name)
+        saved=index.is_file(); published=False
+        try:
+            descriptor=lean_libraries.capture(specification,root)
+            write(index,{**value,'entries':[*value['entries'],{'library':descriptor,'check':receipt}]})
+            published=True
+            lean_libraries.read_generated(root)
+        except BaseException:
+            if published:
+                if saved:write(index,value)
+                else:index.unlink()
+            if destination.is_dir() and not destination.is_symlink():shutil.rmtree(destination)
+            raise
         return descriptor
 
 
-def check(stage,source,*,upstream=None,candidate=None,publish=False,allow_publish=False):
+def publish_checked(check,root):
+    """Publish a single completed check before freeze."""
+    if not rules.passed(check):raise ValueError('Only a completed current native check can publish imported code')
+    if check['environment']!=environment_identity(runtime_config.require_environment()):raise ValueError('Cannot publish a check from another selected environment')
+    verify_bindings([check['receipt'],*check['bindings']])
+    module=check['module'];source=Path(check['source']['path']);build=source.parent.parent/'build'
+    companions={p.name[len(module):]:bind(p)['sha256'] for p in build.iterdir() if p.name!=module+'.olean'}
+    spec={'version':lean_libraries.VERSION,'name':module,'lean_version':check['environment']['lean_version'],
+          'mathlib_commit':check['environment']['mathlib_commit'],'source_root':str(source.parent),
+          'build_root':str(build),'imports':[module],'modules':[{'module':module,
+          'source_sha256':check['source']['sha256'],'olean_sha256':bind(build/(module+'.olean'))['sha256'],
+          **({'companions':companions} if companions else {})}]}
+    path=Path(check['receipt']['path']).with_name('library.json');write(path,spec)
+    return publish_library(path,root,check['receipt'])
+
+
+def public_context(stage, request, origin, environment, attachments, *, publish):
+    """Acquire and compile a known dependency before escalating at the author boundary."""
+    import public_lean
+    from execution_state import current
+    identity=environment_identity(environment)
+    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,attachments])
+    directory.parent.mkdir(parents=True,exist_ok=True)
+    root=Path(lean_libraries.generated_root()).resolve() if publish else None
+    if root is not None:
+        namespace=origin['module'].split('.')[0]
+        existing=next((row for row in attachments if row['name']==namespace),None)
+        if existing:
+            metadata=json.loads(Path(existing['manifest']['path']).read_bytes())
+            if any(row['module']==origin['module'] and row['source_sha256']==origin['source_sha256'] for row in metadata['modules']):
+                return {'status':'PUBLIC_LEAN_ALREADY_BOUND','library':existing,'origin':origin}, []
+            return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
+                    'diagnostic':'An existing binding for '+namespace+' needs the additional module '+origin['module']}, []
+        if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
+            return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
+                    'diagnostic':'The current mathematical boundary is frozen. Revise the dependency binding before importing '+origin['module']}, []
+    with (directory.parent/(directory.name+'.lock')).open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        with runtime_config.use_environment(environment),lean_libraries.use(attachments),lean_libraries.generated(None):
+            directory.mkdir(exist_ok=True)
+            saved=directory/'result.json'
+            if saved.is_file():
+                ref=json.loads(saved.read_bytes())['result'];verify_bindings([ref])
+                result={**json.loads(Path(ref['path']).read_bytes()),'receipt':ref}
+                if result['origin']!=origin or result['environment']!=identity:
+                    raise ValueError('Changed public Lean build provenance')
+            else:
+                recorder,_=current()
+                limit=recorder.remaining(1800) if recorder else 1800
+                result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit)
+                if result['status']=='PUBLIC_LEAN_READY':
+                    write(saved,{'result':result['receipt']})
+            if result['status']!='PUBLIC_LEAN_READY':return result, []
+            specification=result['specification'];verify_bindings([specification])
+            if root is None:
+                return result,[lean_libraries.capture(specification['path'],request)]
+        descriptor=publish_library(specification['path'],root,result['receipt'])
+        return result,[descriptor]
+
+
+def missing_import(check):
+    if not check or 'diagnostic' not in check:return False
+    native=check['diagnostic'];text=native.get('stdout','')+'\n'+native.get('stderr','')
+    return bool(re.search(r'unknown module prefix|object file.*\.olean.*does not exist',text,re.I))
+
+
+def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=False,allow_publish=False):
     if type(publish) is not bool:raise ValueError('publish must be an explicit boolean')
     raw,text,origin=source_bytes(stage,source)
     request=stage.logs/'imported-lean'/('request-'+uuid.uuid4().hex);request.mkdir(parents=True)
@@ -244,9 +325,24 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,allow_publis
     selected=runtime_config.require_environment();attached=lean_libraries.current()
     timeout=stage.lean_timeout() if hasattr(stage,'lean_timeout') else None
     current=compile_unit(text,selected,stage.logs/'imported-lean/checks',attachments=attached,timeout=timeout)
+    origin=None; built=None
+    can_bind=allow_publish and lean_libraries.generated_root() is not None
+    if bind_public and not can_bind:
+        raise ValueError('This role cannot add a public library to its bound context')
+    if can_bind and (bind_public or missing_import(current)):
+        from public_lean import known_source
+        origin=known_source(stage.logs,source)
+        if bind_public and not origin:
+            raise ValueError('Read the original public Lean file at its full Git commit before binding its library')
+        if origin:
+            built,descriptors=public_context(stage,request,origin,selected,attached,publish=True)
+            if descriptors:
+                attached=lean_libraries.current()
+                current=compile_unit(text,selected,stage.logs/'imported-lean/checks',attachments=attached,timeout=timeout)
     result={'source':bind(request/'source.json'),'original_source':bind(request/'original.lean'),
             'selected_source':bind(request/'selected.lean'),'current_check':current['receipt'],
             'current_cache_reused':current['cache_reused']}
+    if built:result['public_library']=built
     checked=current
     decision=rules.decide(current)
     if decision['status']=='UPSTREAM_ENVIRONMENT_REQUIRED' and upstream is not None:
@@ -259,6 +355,12 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,allow_publis
             old_libraries=attached if compatible else []
             context=(compile_unit(header,old,stage.logs/'imported-lean/checks',attachments=old_libraries,timeout=timeout)
                      if header is not None else None)
+            if origin and not compatible and missing_import(context):
+                old_build, extra=public_context(stage,request,origin,old,old_libraries,publish=False)
+                result['upstream_public_library']=old_build
+                if extra:
+                    old_libraries=[*old_libraries,*extra]
+                    context=compile_unit(header,old,stage.logs/'imported-lean/checks',attachments=old_libraries,timeout=timeout)
             original=None
             if rules.passed(context):
                 original=current if compatible else compile_unit(text,old,stage.logs/'imported-lean/checks',attachments=old_libraries,timeout=timeout)
@@ -299,4 +401,5 @@ def tools():
         'Check a complete, source-bound imported Lean unit in the current environment first. On failure, check declared source-project versions and imports before requesting compatibility porting or correction. A candidate must pass current checking. publish is allowed only before basis/interface freeze; no source or semantic approval is granted.',
         {'source':{'type':'object','additionalProperties':True},'upstream':{'type':'object','additionalProperties':False,
             'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'}},'required':['lean_version','mathlib_ref']},
-         'candidate':{'type':'string'},'publish':{'type':'boolean'}},['source'])]
+         'candidate':{'type':'string'},'publish':{'type':'boolean'},'bind_public':{'type':'boolean',
+             'description':'Also register the checked original module name at its exact public Git commit, for use as a dependency.'}},['source'])]

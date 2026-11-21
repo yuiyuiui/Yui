@@ -47,6 +47,34 @@ class ReviewCompletionTests(unittest.TestCase):
         self.assertEqual(complete['checks']['b']['verdict'],'UNVERIFIED')
         self.assertNotIn('coverage',complete)
 
+    def test_revised_packet_rejects_a_replayed_verdict_until_current_content_is_read(self):
+        from controller_common import write, manifest
+
+        def stage(name, conclusion):
+            directory=self.root/name
+            inputs=directory/'inputs'; inputs.mkdir(parents=True)
+            write(inputs/'packet.json',{'inference':{'text':conclusion}}); manifest(inputs)
+            contract=ReviewContract(directory/'review',{'checks':{}},['/checks/a'],lambda value:{})
+            return ArtifactStage(directory/'stage','Review the assigned packet.',phase='audit-a-packet-replay',
+                inputs=inputs/'inputs.json',validator=contract,library=False)
+
+        previous=stage('previous','The claim omits its domain.')
+        revised=stage('revised','The claim is restricted to the nonzero domain.')
+        try:
+            previous.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference/text'})
+            revision=revised.prepare_role_revision(previous)
+            self.assertNotEqual(revision['version_id'],revision['previous_version_id'])
+            artifact={'checks':{'a':self.row()},'coverage':{'/checks/a':'assessed'},'findings':[]}
+            failed=revised.dispatch('submit_draft',{'artifact':artifact})
+            self.assertFalse(failed['accepted']); self.assertIsNone(revised.accepted)
+            self.assertIn('REVIEW_REVISION_UNREAD',failed['error'])
+            revised.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference/text'})
+            passed=revised.dispatch('submit_draft',{'artifact':artifact})
+            self.assertTrue(passed['stage_complete'],passed)
+        finally:
+            previous.release_resources('USER_CANCELLED')
+            revised.release_resources('USER_CANCELLED')
+
     def test_identical_partial_checkpoint_cannot_invent_progress_or_duplicate_history(self):
         self.c.bind_context({'source':'fixed source'})
         guard=ReviewProgressGuard(self.c)

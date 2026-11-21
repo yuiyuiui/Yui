@@ -1,6 +1,6 @@
 """Synthetic inheritance controls. No actual model judgment is produced here."""
 import harness_support
-from audit_a_fixtures import AuditReuseFixture
+from audit_a_fixtures import AuditReuseFixture, synthetic_stage
 
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +15,49 @@ import audit_reuse as reuse
 
 
 class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
+
+    def test_prepare_one_hundred_packets_reads_a_hundred_prior_campaigns_once(self):
+        graph = a.nl0.load(self.new/'nl0.json')
+        first, last = graph['inferences']
+        middle = graph['propositions'][1]
+        graph['propositions'] = [graph['propositions'][0], *[
+            {**middle, 'id':f'N{i:03}'} for i in range(1,100)], graph['propositions'][-1]]
+        steps = [first]
+        for i in range(2,100):
+            premise = f'N{i-1:03}'
+            steps.append({**first, 'id':f'R{i:03}', 'inputs':[premise], 'output':f'N{i:03}',
+                'argument':[{**first['argument'][0], 'uses':[premise], 'text':f'{premise} gives b=a.'}]})
+        last = deepcopy(last); last['id']='R100'; last['inputs']=['N099']
+        last['locals'][0]['scope']='R100/argument'
+        last['argument'][1]['uses']=['N099']
+        last['argument'][1]['text']=last['argument'][1]['text'].replace('N001','N099')
+        graph['inferences']=[*steps,last]; a.write(self.new/'nl0.json',graph)
+        data=a.nl0.validate(self.new/'nl0.json',self.new/'spec.json')
+        prior=[]; jobs=[]
+        for rid in data[4]:
+            folder=self.root/'past'/rid; folder.mkdir(parents=True)
+            packet=folder/rid; packet.mkdir(); job={'id':rid,'library':False}; jobs.append(job)
+            a.write(folder/'campaign.json',{'case':str(self.new),'spec':a.bind(self.new/'spec.json'),
+                'graph':a.bind(self.new/'nl0.json'),'jobs':[job]})
+            a.write(packet/'packet.json',a.nl0.packet(data,rid)); synthetic_stage(packet)
+            prior.append(folder)
+        gate=self.root/'global-acceptance.json'; a.write(gate,{'accepted':True,
+            'source':{k:data[0][k] for k in ('graph_sha256','spec_sha256')},
+            'public_scope_sha256':a.public_scope_digest(data)})
+        gate_receipt=a.bind(gate)
+        with patch.object(reuse,'load',wraps=reuse.load) as reads, patch.object(a.nl0,'validate',wraps=a.nl0.validate) as validates:
+            index=reuse.ReviewIndex(data[2]['case_id'],prior)
+            for job in jobs:
+                rid=job['id']; prepared=a.prepare_packet(self.new,self.root/'next'/rid,rid,
+                    data=data,review_index=index,global_gate=gate_receipt)
+                self.assertEqual(prepared['jobs'],[job])
+                self.assertEqual(list(prepared['inherited']),['packet:'+rid])
+            self.assertEqual(sum(c.args[0].name=='campaign.json' for c in reads.call_args_list),100)
+            self.assertEqual(validates.call_count,1)
+        changed=deepcopy(data);changed[0]['graph_sha256']='wrong';changed[4]['R002']['inputs']=['H001']
+        with self.assertRaisesRegex(ValueError,'different public graph'):
+            a.prepare_packet(self.new,self.root/'unrelated','R002',
+                data=changed,review_index=index,global_gate=gate_receipt)
 
     def test_concurrent_evidence_publication_never_exposes_a_partial_file(self):
         source=self.root/'large-evidence';source.write_bytes(b'evidence'*10000)

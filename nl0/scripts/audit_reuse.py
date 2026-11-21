@@ -12,6 +12,7 @@ import background
 
 from execution_health import qualification, record_qualification
 from execution_state import atomic
+from collections import defaultdict
 
 VERSION='yui-review-reuse-1'
 SEMANTIC_RULES=('nl0/references/nl0-format.md','nl0/references/self-containment.md',
@@ -108,24 +109,47 @@ def all_pass(row):
     return True
 
 
-def select(data,campaigns):
-    """Explicit prior campaigns only; no cross-case or implicit warm cache."""
-    import nl0
-    hits={}
-    for campaign in campaigns:
+class ReviewIndex:
+    """Verify explicit history once, then look up the actual receiving scope."""
+
+    def __init__(self, case_id, campaigns=()):
+        self.case_id = case_id
+        self.rules = rules()
+        self.campaigns = set()
+        self.sources = {}
+        self.items = defaultdict(list)
+        self.extend(campaigns)
+
+    def extend(self, campaigns):
+        for directory in campaigns:
+            campaign = Path(directory).resolve()
+            if campaign not in self.campaigns:
+                self.add(campaign)
+                self.campaigns.add(campaign)
+
+    def add(self, campaign):
+        import nl0
         campaign=Path(campaign).resolve();plan=load(campaign/'campaign.json')
-        for key in ['graph','spec']:
-            if sha(plan[key]['path'])!=plan[key]['sha256']:raise ValueError('Previous audit source changed')
-        old=nl0.validate(plan['graph']['path'],plan['spec']['path'])
-        if old[2]['case_id']!=data[2]['case_id']:raise ValueError('Review reuse cannot cross case identities')
+        graph, spec = plan['graph'], plan['spec']
+        key = (graph['path'], graph['sha256'], spec['path'], spec['sha256'])
+        if key not in self.sources:
+            for ref in (graph, spec):
+                if sha(ref['path']) != ref['sha256']:
+                    raise ValueError('Previous audit source changed')
+            self.sources[key] = nl0.validate(graph['path'], spec['path'])
+        old = self.sources[key]
+        if old[2]['case_id'] != self.case_id:
+            raise ValueError('Review reuse cannot cross case identities')
         for job in plan['jobs']:
             directory=campaign/job['id'];stage=directory/'stage'
             if not (stage/'accepted.json').is_file():continue
             result=load(stage/'result.json')
             if result.get('status')!='ACCEPTED' or not record_qualification(result)['submitted_record_qualified']:continue
             manifest=load(stage/'execution-manifest.json')
-            if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=rules():continue
-            raw=load(stage/'accepted.json');items=[]
+            if {k:manifest.get('rule_documents',{}).get(k) for k in SEMANTIC_RULES}!=self.rules:continue
+            raw_file=stage/'accepted.json'
+            raw_bytes=raw_file.read_bytes();raw=json.loads(raw_bytes);items=[]
+            raw_sha256=hashlib.sha256(raw_bytes).hexdigest()
             if job['library']:
                 from source_qualification import source_only_finding
                 if any((f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'})
@@ -148,17 +172,43 @@ def select(data,campaigns):
                 background.validate(raw.get('background_notes', []), packet, stage)
                 items=[('packet:'+job['id'],'',raw)]
             for scope,selector,row in items:
-                conditional=conditional_source(data,scope,row,Path(plan['case']))
-                if scope in hits or not row.get('notes') or not (row.get('verdict')=='PASS' and all_pass(row) or conditional):continue
+                passing = row.get('verdict') == 'PASS' and all_pass(row)
+                unverified_source = scope.startswith('source:') and row.get('verdict') == 'UNVERIFIED'
+                if not row.get('notes') or not (passing or unverified_source):continue
                 policy='public_graph' if scope=='structure' else 'whole_graph'
-                try:old_context=context(old,scope,structure_policy=policy);new_context=context(data,scope,structure_policy=policy)
+                try:old_context=context(old,scope,structure_policy=policy,semantic_rules=self.rules)
                 except (KeyError,ValueError):continue
-                if old_context!=new_context:continue
-                hits[scope]={'scope':scope,'selector':selector,'row':deepcopy(row),
-                    'campaign':str(campaign),'directory':str(directory),'context_sha256':hashed(old_context),
+                digest = hashed(old_context)
+                hit = {'scope':scope,'selector':selector,'row':deepcopy(row),
+                    'campaign':str(campaign),'directory':str(directory),'context_sha256':digest,
                     'graph':plan['graph'],'spec':plan['spec'],'measurement':qualification(result),
-                    'structure_policy':policy,'conditional_source':conditional}
-    return hits
+                    'structure_policy':policy,'raw_sha256':raw_sha256}
+                self.items[scope, digest].append((old_context, hit, Path(plan['case']), passing))
+
+    def select(self, data, scopes=None):
+        if data[2]['case_id'] != self.case_id:
+            raise ValueError('Review reuse cannot cross case identities')
+        hits = {}
+        if scopes is None:
+            scopes = dict.fromkeys(scope for scope, _ in self.items)
+        for scope in scopes:
+            policy = 'public_graph' if scope == 'structure' else 'whole_graph'
+            try:
+                current = context(data, scope, structure_policy=policy, semantic_rules=self.rules)
+            except (KeyError, ValueError):
+                continue
+            for old, hit, base, passing in self.items.get((scope, hashed(current)), ()):
+                if old != current:
+                    continue
+                if passing or conditional_source(data, scope, hit['row'], base):
+                    hits[scope] = {**hit, 'conditional_source': not passing}
+                    break
+        return hits
+
+
+def select(data, campaigns):
+    """Explicit prior campaigns only; no cross-case or implicit warm cache."""
+    return ReviewIndex(data[2]['case_id'], campaigns).select(data)
 
 
 def conditional_source(data,scope,row,base):
@@ -193,7 +243,10 @@ def materialize(hit,case):
     if hit['scope'].startswith('packet:') and (directory/'stage/tools.jsonl').is_file():
         files['tools']=directory/'stage/tools.jsonl'
     for name,path in files.items():
-        digest=sha(path);target=folder/(digest+'-'+path.name)
+        digest=sha(path)
+        expected=hit[name]['sha256'] if name in {'graph','spec'} else hit.get('raw_sha256') if name=='raw' else None
+        if expected is not None and expected!=digest:raise ValueError('Indexed audit evidence changed: '+str(path))
+        target=folder/(digest+'-'+path.name)
         publish_evidence(path,target,digest)
         previous[name]={'path':str(target.relative_to(case)),'sha256':digest}
     record={'version':VERSION,'scope':hit['scope'],'selector':hit['selector'],

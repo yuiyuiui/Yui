@@ -38,6 +38,16 @@ are native judgments under the declared versions. Ordinary source review must
 still establish that those declarations match the actual source project.
 Timeouts, cancellation and unknown native results never establish a source bug.
 
+For an import failure from a retained `raw.githubusercontent.com` Lean source at
+its full Git commit, the tool can fetch that revision before freeze. It builds
+the original module and the available same-namespace closure using restricted
+Lean invocations, then binds the checked artifacts in the owned registry. Use
+`bind_public:true` to request the original module name as a dependency even when
+the standalone code already compiles. A failed build returns actual diagnostics
+to the author. Bind additional namespaces using their checked public sources or
+the explicit library attachment. The original/version branch can diagnose a
+port with its own compiled context, whose artifacts stay with that environment.
+
 Supply the complete edited unit as `candidate` with the same source selection
 and upstream pins. `PORTED_CHECKED` requires its completed current native check.
 A failed or incomplete recheck cannot be reused. Original and edited sources,

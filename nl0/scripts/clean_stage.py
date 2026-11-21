@@ -308,8 +308,7 @@ class ArtifactStage(pilot.Stage):
             'own_state_policy':own_state.POLICY if kind=='nl0' else None,
             'output_verbosity':self.output_verbosity,
             'transport':'native-codex-stdio-v1','arm':arm,'phase':phase,'artifact_contract':kind,'runtime_files':files,
-            'resolved_environment':pilot.load_lock(),'task_documents':
-            {k:hashlib.sha256(v.encode()).hexdigest() for k,v in self.task_inputs.items()},
+            'resolved_environment':pilot.load_lock(),'task_documents':self.document_hashes(),
             'frozen_task_files':task_bindings,
             'rule_documents':{str(Path(k).relative_to(CORE)):hashlib.sha256(v.encode()).hexdigest() for k,v in self.rule_texts.items()},
             'acceptance_contract':self.acceptance_authority.metadata() if self.acceptance_authority else None,
@@ -467,6 +466,44 @@ class ArtifactStage(pilot.Stage):
             basis_defect.stop(self.logs)
         return result,artifact
 
+    def document_hashes(self):
+        return {key:hashlib.sha256(value.encode()).hexdigest() for key,value in self.task_inputs.items()}
+
+    def prepare_role_revision(self, previous):
+        """Bind a reused conversation to the newly delivered documents."""
+        from review_contract import ReviewProgressGuard, changed_views
+        before, after = previous.document_hashes(), self.document_hashes()
+        version = ReviewProgressGuard.digest([self.mode, after])
+        changed = sorted(key for key in after if after[key] != before.get(key))
+        revision = {'version_id':version, 'previous_version_id':ReviewProgressGuard.digest([previous.mode,before]),
+                    'changed_documents':changed, 'removed_documents':sorted(before.keys()-after.keys())}
+        revision_inputs = {
+            'audit-a-global':('global-overview.json',), 'audit-a-packet-replay':('packet.json',),
+            'interface-semantic-review':('contract.json','plan.json','local-tasks.json'),
+            'nl0-local-repair':('findings.json','packet.json'),
+        }
+        envelope = {'graph_sha256','spec_sha256','packet_sha256'}
+        self.review_changes = {}
+        for name in revision_inputs.get(self.mode, ()):
+            if name not in changed or name not in before:continue
+            old=json.loads(previous.task_inputs[name]);new=json.loads(self.task_inputs[name])
+            changes=changed_views({k:v for k,v in old.items() if k not in envelope},
+                                  {k:v for k,v in new.items() if k not in envelope})
+            if changes:self.review_changes[name]=changes
+        self.input_prompt += '\nCurrent bound role revision: '+json.dumps(revision)+'. Use the current task documents.'
+        if self.review_changes:
+            preview=[{'document':name,**change} for name,changes in self.review_changes.items() for change in changes]
+            self.input_prompt += (' Read the changed mathematical contents in this assignment before submitting. '
+                'Use read_task_input or read_task_inputs with the exact pointers and continuation offsets. '
+                'First changes: '+json.dumps(preview[:12])+'.')
+            if 'read_review_progress' in self.tool_names:
+                self.input_prompt += ' read_review_progress shows unread changes.'
+        return revision
+
+    def unread_review_changes(self):
+        from review_contract import unread_views
+        return unread_views(self.logs/'tools.jsonl',self.review_changes) if getattr(self,'review_changes',{}) else []
+
     def dispatch(self, name, args):
         return self._dispatch(name,args)
 
@@ -498,7 +535,12 @@ class ArtifactStage(pilot.Stage):
                 raise PermissionError('Tool is not allowed')
             if self.accepted is not None:
                 raise ValueError('Stage is already complete')
-            if name=='check_imported_lean':
+            unread = self.unread_review_changes() if name in {'submit_artifact','submit_draft','submit_review_blocker'} else []
+            if unread:
+                result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                        'error':'REVIEW_REVISION_UNREAD: read the current changes, then resubmit in this stage.',
+                        'unread_current_changes':unread[:12],'unread_current_change_count':len(unread)}
+            elif name=='check_imported_lean':
                 import lean_imports
                 if self.mode=='basis-frontier' and args.get('candidate') is not None:
                     raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
@@ -561,8 +603,18 @@ class ArtifactStage(pilot.Stage):
                         'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
                 artifact_protocol.validate(value,shape)
                 if self.material_requests and value['status'] in {'MISSING_SOURCE_STATEMENT','SOURCE_UNAVAILABLE'}:
-                    import material_exchange
-                    result = material_exchange.request(self,value['location']+' — '+value['explanation'])
+                    from lean_imports import dependency_followup
+                    location=value['location']
+                    followup=dependency_followup(self.logs/'tools.jsonl',location)
+                    if followup or '.olean' in location:
+                        result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                            'error':'LEAN_DEPENDENCY_ACTION_REQUIRED: continue from the native import diagnostic. '
+                                    'For known public code, read the exact pinned source and use check_imported_lean. '
+                                    'Repair or replace the affected dependency using actual check results.',
+                            'dependency_followup':followup}
+                    else:
+                        import material_exchange
+                        result = material_exchange.request(self,location+' — '+value['explanation'])
                 else:
                     self.accepted = value
                     result = {'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
@@ -578,6 +630,9 @@ class ArtifactStage(pilot.Stage):
             elif name == 'read_review_progress':
                 result=self.validator.progress(**args)
                 if self.background_review:result['background_notes']=deepcopy(self.background_notes)
+                if getattr(self,'review_changes',{}):
+                    unread=self.unread_review_changes()
+                    result.update(unread_current_changes=unread[:12], unread_current_change_count=len(unread))
             elif name == 'submit_review_blocker':
                 self.accepted=self.validator.blocker(args['finding'])
                 result={'accepted':True,'stage_complete':True,'review_coverage':'INCOMPLETE','mathematical_acceptance':False}

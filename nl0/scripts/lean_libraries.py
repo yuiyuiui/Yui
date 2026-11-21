@@ -354,6 +354,10 @@ def read_generated(root,*,base=None,full=False):
         if not path.resolve().is_relative_to(root.parent):raise ValueError('Generated Lean check belongs to another case')
         _verify_file(path,entry['check']['sha256'],full)
         check=json.loads(path.read_text())
+        if check.get('version')=='yui-public-lean-build-1':
+            from public_lean import qualify
+            qualify(check,metadata,full=full)
+            continue
         for binding in check['bindings']:_verify_file(Path(binding['path']),binding['sha256'],full)
         if (check.get('version')!='yui-imported-lean-1' or check.get('source_policy_passed') is not True
                 or not native_succeeded(check.get('native',{})) or check['environment']!=expected

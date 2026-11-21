@@ -83,6 +83,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
     epoch=max((int(p.name.split('-')[1]) for p in (root/'nl0').glob('merged-[0-9]*')),default=0)
     from basis import problem_inputs
     rejected=RejectedReviews(prior)
+    review_index=None
     while True:
         epoch+=1
         # A restored global role uses the saved accepted draft and actual local
@@ -105,32 +106,36 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             if blocker:raise blocker
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
             problem=problem_inputs(job)
-            campaign.prepare(source,problem,global_dir,reuse_from=prior)
+            if review_index is None:
+                review_index=audit_reuse.ReviewIndex(nl0.load(source/'spec.json')['case_id'],prior)
+            global_plan=campaign.prepare(source,problem,global_dir,review_index=review_index)
             progress(job['case'],'AUDIT_A_GLOBAL',directory=str(global_dir))
             campaign.run(global_dir,budget=budget,audit_budget=audit_budget,only='global',sessions=sessions)
             gate=campaign.global_acceptance(global_dir)
             if gate['accepted']:break
             rejected.record(global_dir,source,'global')
             issues=repair_obligations(source,global_dir);prior.append(global_dir)
+            review_index.extend((global_dir,))
             if not issues['issues']:raise StageFailure('REVIEW_INCOMPLETE','Global review has no complete located repair findings',evidence=global_dir/'global-acceptance.json')
         sessions.close(['nl0-author','audit-a-global'],'GLOBAL_REVIEW_PASSED',[global_dir/'global-acceptance.json'])
         prior.append(global_dir)
+        global_gate=bind(global_dir/'global-acceptance.json')
         data=nl0.validate(source/'nl0.json',source/'spec.json');stop=threading.Event();outcomes={}
 
         def local(rid):
-            own=source;revision=0
+            own=source;own_data=data;revision=0
             while not stop.is_set():
-                blocker=rejected.blocker(own,rid)
+                blocker=rejected.blocker(own,rid,data=own_data)
                 if blocker:
-                    stop.set()
                     return {'blocked':blocker}
+                if not revision and 'packet:'+rid in global_plan['inherited']:
+                    return {'case':own,'campaign':None,'rid':rid}
                 revision+=1
                 directory=root/'audit-a'/f'local-{epoch:04d}-{rid}-{revision:04d}'
-                prepared=campaign.prepare(own,problem,directory,reuse_from=prior)
+                prepared=campaign.prepare_packet(own,directory,rid,data=own_data,
+                    review_index=review_index,global_gate=global_gate)
                 if 'packet:'+rid in prepared['inherited']:
-                    campaign.global_acceptance(directory)
                     return {'case':own,'campaign':directory,'rid':rid}
-                # Admission still checks the exact inherited global scope.
                 campaign.run(directory,budget=budget,audit_budget=audit_budget,only=rid,sessions=sessions)
                 stage=directory/rid/'stage';result=json.loads((stage/'result.json').read_text())
                 try:require_review_execution(result,stage/'result.json',phase='audit-a-local')
@@ -139,11 +144,11 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 review=json.loads((stage/'accepted.json').read_text())
                 if review.get('verdict')=='PASS' and audit_reuse.all_pass(review):
                     return {'case':own,'campaign':directory,'rid':rid}
-                rejected.record(directory,own,rid)
+                rejected.record(directory,own,rid,data=own_data)
                 if stop.is_set():return None
                 author=root/'nl0'/f'local-{epoch:04d}-{rid}-{revision:04d}'
                 inputs=author/'inputs';inputs.mkdir(parents=True)
-                write(inputs/'packet.json',nl0.packet(nl0.validate(own/'nl0.json',own/'spec.json'),rid))
+                write(inputs/'packet.json',nl0.packet(own_data,rid))
                 write(inputs/'findings.json',review);manifest(inputs)
                 validator=NodePatch(own,rid,author)
                 prompt=('Repair only the supplied R proof under its unchanged public input/output and definitions. '
@@ -156,10 +161,12 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 with sessions.use('nl0-author:'+rid):candidate.execute()
                 require_review_execution(json.loads((author/'stage/result.json').read_text()),author/'stage/result.json',phase='nl0-local-repair')
                 if validator.selected=='global':
-                    stop.set()
-                    return {'global':json.loads((author/'stage/accepted.json').read_text()),'rid':rid,'campaign':directory}
+                    diagnosis={key:review[key] for key in ('notes','findings') if key in review}
+                    return {'global':nl0.load(author/'stage/accepted.json'),'rid':rid,
+                            'campaign':directory,'audit_diagnosis':diagnosis}
                 own=validator.selected
                 if own is None:raise StageFailure('LOCAL_REPAIR_INCOMPLETE','No selected own-node patch')
+                own_data=nl0.validate(own/'nl0.json',own/'spec.json')
             return None
 
         def run_local(rid):
@@ -174,8 +181,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
                 pending={rid:pool.submit(copy_context().run,run_local,rid) for rid in sorted(data[4])}
                 for rid,future in pending.items():outcomes[rid]=future.result()
-        # No new local work is started after a global issue; current assignments
-        # reach their normal handoffs before the serial global author is restored.
+        # Collect independent outcomes on this version before changing the graph.
         global_issues=[v for v in outcomes.values() if v and 'global' in v]
         if not global_issues:
             for outcome in outcomes.values():
@@ -187,18 +193,27 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             if value and 'case' in value:
                 patch=next(r for r in json.loads((value['case']/'nl0.json').read_text())['inferences'] if r['id']==rid)
                 graph['inferences']=[patch if r['id']==rid else r for r in graph['inferences']]
-                prior.append(value['campaign'])
+                if value['campaign'] is not None:prior.append(value['campaign'])
         write(merged/'nl0.json',graph);nl0.validate(merged/'nl0.json',merged/'spec.json')
         if global_issues:
+            indices={row['id']:index for index,row in enumerate(graph['inferences'])}
+            located=[]
+            for outcome in global_issues:
+                rid=outcome['rid']
+                current=json.dumps(outcome['audit_diagnosis'],ensure_ascii=False)
+                note=rid+': '+outcome['global']['explanation']+'\nCurrent independent Audit A diagnosis: '+current
+                located.append({'id':f'ISSUE{len(located)+1:03d}','criterion':'structure',
+                    'location':f'/graph/inferences/{indices[rid]}','note':note})
             issues={'version':'yui-repair-obligations-1','baseline_input':'baseline.json',
-                'baseline_content_sha256':__import__('author_check').digest({'spec':json.loads((merged/'spec.json').read_text()),'graph':graph}),
-                'issues':[{'id':'ISSUE'+str(i+1).zfill(3),'criterion':'structure','location':'/graph/inferences',
-                    'note':v['rid']+': '+v['global']['explanation']} for i,v in enumerate(global_issues)]}
+                'baseline_content_sha256':__import__('author_check').digest({'spec':nl0.load(merged/'spec.json'),'graph':graph}),
+                'issues':located}
             prior.extend(v['campaign'] for v in global_issues)
+            review_index.extend(prior)
             source=merged
             continue
         final=root/'audit-a'/f'final-{epoch:04d}'
-        campaign.prepare(merged,problem,final,reuse_from=prior)
+        review_index.extend(prior)
+        campaign.prepare(merged,problem,final,review_index=review_index)
         # Every scope must be inherited from an actual current reviewed version.
         campaign.run(final,budget=budget,audit_budget=audit_budget,sessions=sessions)
         accepted=campaign.collect(final,None)

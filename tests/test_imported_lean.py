@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -173,6 +174,67 @@ class ImportedLeanTests(unittest.TestCase):
             write(run/'basis-selection.json',{'frozen':'Synthetic freeze guard.'})
             with self.assertRaisesRegex(ValueError,'frozen'):self.check(publish=True,allow_publish=True)
         self.assertEqual(lean_libraries.current(),[])
+
+    def test_missing_public_import_builds_and_binds_real_modules_in_the_same_job(self):
+        import jobs
+        import public_lean
+
+        problem=self.root/'public-proof.md';problem.write_text('Prove True.')
+        job=jobs.prepare(problem,track='full',profiles=harness_support.PROFILES,lean_environment=self.current,
+                         output=self.root/'public-case')
+        run=Path(job['root']); self.stage.logs=run/'public-stage'; self.stage.logs.mkdir()
+        job_before=bind(run/'job.json')
+        external=self.stage.logs/'external-sources'; external.mkdir()
+        checkout=self.root/'repository'; source=checkout/'PublicExample'; source.mkdir(parents=True)
+        (source/'Leaf.lean').write_text('import Mathlib\nnamespace PublicExample\ntheorem leaf : True := by trivial\nend PublicExample\n')
+        original='import PublicExample.Leaf\nnamespace PublicExample\ntheorem witness : True := leaf\nend PublicExample\n'
+        (source/'Entry.lean').write_text(original)
+        file=external/'module.lean'; file.write_text(original); pin='a'*40
+        write(external/'access-local-control.json',{'status':'READABLE',
+            'final_url':f'https://raw.githubusercontent.com/example/lean-lib/{pin}/PublicExample/Entry.lean',
+            'document':bind(file)})
+        evidence={'path':'external-sources/module.lean','sha256':bind(file)['sha256']}
+
+        def local_checkout(work, repository, revision, deadline):
+            self.assertEqual((repository,revision),('https://github.com/example/lean-lib.git',pin))
+            return Path(shutil.copytree(checkout,work/'checkout')).resolve()
+
+        error=public_lean.BuildFailure('PUBLIC_SOURCE_FETCH_FAILED','Synthetic interrupted fetch.')
+        with lean_libraries.generated(run/'imported-lean'), patch.object(public_lean,'checkout',side_effect=error) as fetch:
+            first=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
+            self.assertEqual(first['public_library']['status'],'PUBLIC_SOURCE_FETCH_FAILED')
+            self.assertEqual(lean_libraries.current(),[])
+            fetch.side_effect=local_checkout
+            result=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
+            self.assertEqual(result['public_library']['status'],'PUBLIC_LEAN_READY',result)
+            self.assertEqual(result['status'],'LOCAL_REUSED',result)
+            self.assertFalse(result['semantic_acceptance'])
+            self.assertIn('PublicExample.Entry',lean_libraries.permitted_imports())
+            descriptor=lean_libraries.current()[0]
+            manifest=json.loads(Path(descriptor['manifest']['path']).read_text())
+            self.assertEqual([row['module'] for row in manifest['modules']],['PublicExample.Leaf','PublicExample.Entry'])
+            self.assertEqual(bind(run/'job.json'),job_before)
+            again=lean_imports.check(self.stage,{'evidence':evidence},allow_publish=True)
+            self.assertTrue(again['current_cache_reused'])
+            self.assertEqual(fetch.call_count,2)
+
+    def test_compiled_dependency_does_not_enter_the_text_material_wait(self):
+        from clean_stage import ArtifactStage
+        import material_exchange
+
+        stage=ArtifactStage(self.root/'routing','Synthetic material reason control.',phase='basis-authoring',library=False)
+        stage.material_requests=True
+        value={'status':'SOURCE_UNAVAILABLE','location':'Missing PublicExample.Leaf.olean',
+               'explanation':'The module dependency was not yet available.',
+               'basis':'The real compiler reported a missing import.','partial_progress':'The source was read.'}
+        try:
+            with patch.object(material_exchange,'request',return_value={'status':'WAITING'}) as wait:
+                reply=stage.dispatch('report_obstacle',value)
+                self.assertIn('LEAN_DEPENDENCY_ACTION_REQUIRED',reply['error']);wait.assert_not_called()
+                book=stage.dispatch('report_obstacle',{**value,'location':'Missing private-reference.pdf'})
+                self.assertEqual(book['status'],'WAITING');wait.assert_called_once()
+        finally:
+            stage.release_resources('USER_CANCELLED')
 
 
 if __name__=='__main__':unittest.main()

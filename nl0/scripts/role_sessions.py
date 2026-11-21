@@ -43,6 +43,7 @@ class Sessions:
             _active.reset(token)
 
     def execute(self, template, role):
+        revision = None
         with self.lock:
             entry = self.roles.get(role)
             if entry is None:
@@ -68,6 +69,8 @@ class Sessions:
                 if not {t['name'] for t in template.tools} <= entry['native_tools']:
                     raise ValueError('Role handoff requires tools absent from its original native registration')
                 stage.check_runtime_state()
+                if hasattr(template,'prepare_role_revision'):
+                    revision=template.prepare_role_revision(stage)
                 transport = {k: getattr(stage, k) for k in (
                     'proc', 'work', 'reader_thread', 'inbox', 'rpc_id', 'thread_id',
                     'model_calls', 'tool_history', 'allowed_user_messages',
@@ -116,6 +119,7 @@ class Sessions:
             stage.role_session = {'role': role, 'prior_submissions': list(entry['records']),
                 'restored_role': bool(self.history.get(role)),
                 'disclosure': 'Distinct author/reviewer roles; prior_submissions records retained or explicitly restored own handoffs. A restored closed role uses a fresh carrier and explicit saved inputs.'}
+            if revision is not None:stage.role_session['revision']=revision
             manifest = stage.logs/'execution-manifest.json'
             if manifest.is_file():
                 value = json.loads(manifest.read_text()); value['role_session'] = stage.role_session

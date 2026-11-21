@@ -305,13 +305,13 @@ def verify_global_overview(out,plan):
         raise ValueError('Global overview differs from its bound exhaustive canonical projection')
 
 
-def prepare(case, problem, out, *, reuse_from=()):
+def prepare(case, problem, out, *, reuse_from=(), review_index=None):
     case, problem, out = [Path(p).resolve() for p in (case, problem, out)]
     data = nl0.validate(case/'nl0.json', case/'spec.json')
     import basis
     basis.source_context(case/'nl0.json',case/'spec.json')
     foundations.require_canonical(data[2]['logic'])
-    hits=audit_reuse.select(data,reuse_from)
+    hits=(audit_reuse.select(data,reuse_from) if review_index is None else review_index.select(data))
     out.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(__file__, out/'controller.py.snapshot.txt')
     g = out/'global'; g.mkdir()
@@ -353,6 +353,40 @@ def prepare(case, problem, out, *, reuse_from=()):
     return plan
 
 
+def prepare_packet(case, out, rid, *, data, review_index, global_gate):
+    """Prepare one local assignment from the checked graph and global gate."""
+    case, out = Path(case).resolve(), Path(out).resolve()
+    path=Path(global_gate['path'])
+    if bind(path)!=global_gate:raise ValueError('Changed global Audit A gate')
+    gate=json.loads(path.read_bytes())
+    graph_hash,spec_hash=data[0]['graph_sha256'],data[0]['spec_sha256']
+    if not gate['accepted'] or (gate['source'] != {'graph_sha256':graph_hash,'spec_sha256':spec_hash}
+            and gate['public_scope_sha256']!=public_scope_digest(data)):
+        raise ValueError('Local packet belongs to a different public graph than the approved Audit A gate')
+    scope = 'packet:'+rid
+    hits = review_index.select(data, (scope,))
+    directory = out/rid
+    directory.mkdir(parents=True, exist_ok=False)
+    write(directory/'packet.json', nl0.packet(data, rid))
+    manifest(directory)
+    (directory/'prompt.txt').write_text(PACKET)
+    inherited = {}
+    for key, hit in hits.items():
+        inheritance = audit_reuse.materialize(hit, case)
+        audit_reuse.validate(case, inheritance, data, key)
+        inherited[key] = inheritance
+    plan = {'case': str(case), 'graph': {'path':str(case/'nl0.json'), 'sha256':graph_hash},
+            'spec': {'path':str(case/'spec.json'), 'sha256':spec_hash},
+            'global_gate': global_gate, 'jobs': [{'id':rid,'library':False}],
+            'inherited': inherited, 'status': 'PREPARED_NOT_REVIEWED'}
+    write(out/'campaign.json', plan)
+    return plan
+
+
+def public_scope_digest(data):
+    return audit_reuse.hashed(audit_reuse.context(data,'structure',structure_policy='public_graph'))
+
+
 def global_acceptance(out):
     """Require actual complete global judgments, including inherited scopes."""
     import source_qualification
@@ -381,17 +415,26 @@ def global_acceptance(out):
     if unresolved:qualified,_=source_qualification.classify(unresolved,data[3],Path(plan['case']))
     findings_ok=not any(blocking_finding(f) and not source_qualification.source_only_finding(f,data,Path(plan['case'])) for f in raw.get('findings',[]))
     accepted=complete and all(r.get('verdict')=='PASS' for r in ordinary) and findings_ok and (not unresolved or qualified)
-    result={'accepted':bool(accepted),'conditional':bool(accepted and unresolved),'review':raw,'complete':complete}
+    result={'accepted':bool(accepted),'conditional':bool(accepted and unresolved),'review':raw,'complete':complete,
+            'source':{k:data[0][k] for k in ('graph_sha256','spec_sha256')},
+            'public_scope_sha256':public_scope_digest(data)}
     write(out/'global-acceptance.json',result)
     return result
 
 
 def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, sessions=None, review_role=None):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
-    verify_global_overview(out,plan)
+    gate=plan.get('global_gate')
+    if gate:
+        gate_path=Path(gate['path'])
+        if (only!=plan['jobs'][0]['id'] or bind(gate_path)!=gate
+                or not json.loads(gate_path.read_bytes())['accepted']):
+            raise ValueError('Local Audit A requires its bound passing global gate')
+    else:
+        verify_global_overview(out,plan)
     budget=concurrency.serial_budget(budget)
     audit_budget=audit_budget or concurrency.Budget(concurrency.resolve(),execution=budget.execution,role='audit_r')
-    if audit_budget.role != 'preparation_review':
+    if not gate and audit_budget.role != 'preparation_review':
         audit_budget.configure(sum(not job['library'] for job in plan['jobs']))
     def execute(job):
         directory=out/job['id']
@@ -441,7 +484,13 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
         local=[job for job in plan['jobs'] if not job['library'] and (only in {None,'local'} or only==job['id'])]
         if local and any(j['library'] for j in plan['jobs']) and not global_acceptance(out)['accepted']:
             local=[]
-        if local:
+        if gate and local:
+            job=local[0]
+            try:results.append(execute(job))
+            except Exception as error:
+                failures.append(error)
+                results.append(failed(job,error))
+        elif local:
             with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
                 pending=[(job,pool.submit(copy_context().run,execute,job)) for job in local]
                 for job,future in pending:
@@ -449,7 +498,9 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
                     except Exception as error:
                         failures.append(error)
                         results.append(failed(job,error))
-        verify_global_overview(out,plan)
+        if gate:
+            if bind(gate_path)!=gate:raise ValueError('Global Audit A gate changed during local review')
+        else:verify_global_overview(out,plan)
     finally:
         report={'results':results,'concurrency':budget.report(),'r_concurrency':audit_budget.report(),
                 'execution_policy':'Serial global checks; bounded independent R reviews; deterministic collection.'}

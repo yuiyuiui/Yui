@@ -13,7 +13,7 @@ from unittest.mock import patch
 import audit_a_campaign as campaign
 import case_runner
 from clean_stage import ArtifactStage
-from controller_common import write
+from controller_common import manifest, write
 from execution_health import StageFailure
 import concurrency
 import nl0_review_loop as loop
@@ -27,6 +27,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.serial=concurrency.Budget(concurrency.resolve(1),role='preparation_review')
         self.local=concurrency.Budget(concurrency.resolve(2),role='audit_r')
         self.calls=[];self.lock=threading.Lock();self.counts={};self.workspaces=[]
+        self.repair_reports=[]
 
     def tearDown(self):
         for path in self.workspaces:shutil.rmtree(path,ignore_errors=True)
@@ -41,6 +42,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
             self.workspaces.append(stage.work)
             source=directory/'stage/case'
             loop.copy_source(baseline or initial_source,source)
+            if obligations:self.repair_reports.append(obligations)
             if baseline and repeat != 'global':
                 graph=json.loads((source/'nl0.json').read_text())
                 graph['inferences'][0]['argument'][0]['text']+=' Global exposition repaired.'
@@ -160,6 +162,51 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.assertTrue(any(role=='nl0-author' and restored for role,n,restored in self.calls))
         self.assertGreaterEqual(self.counts['audit-a:R001'],2)
         self.assertEqual(self.serial.report()['active_model_stages'],0)
+        [issue] = self.repair_reports[0]['issues']
+        self.assertEqual(issue['location'],'/graph/inferences/0')
+        review = campaign.nl0.load(self.root/'audit-a/local-0001-R001-0001/R001/stage/accepted.json')
+        current = json.loads(issue['note'].split('\nCurrent independent Audit A diagnosis: ',1)[1])
+        self.assertEqual(current['notes'],review['notes'])
+        self.assertEqual(current['findings'],review['findings'])
+
+    def test_local_repair_escalation_requires_the_current_review_and_proof(self):
+        def assignment(name, note, argument_suffix):
+            directory=self.root/name
+            source=directory/'case'
+            loop.copy_source(harness_support.FIXTURES/'closed-addition',source)
+            graph=campaign.nl0.load(source/'nl0.json')
+            graph['inferences'][0]['argument'][0]['text']+=argument_suffix
+            write(source/'nl0.json',graph)
+            data=campaign.nl0.validate(source/'nl0.json',source/'spec.json')
+            inputs=directory/'inputs';inputs.mkdir()
+            write(inputs/'packet.json',campaign.nl0.packet(data,'R001'))
+            write(inputs/'findings.json',{'notes':note})
+            manifest(inputs)
+            return ArtifactStage(directory/'stage','Repair the current assignment.',phase='nl0-local-repair',
+                validator=loop.NodePatch(source,'R001',directory),inputs=inputs/'inputs.json',library=False)
+
+        previous=assignment('previous','The claimed property lacks its domain.','')
+        revised=assignment('revised','The domain is now fixed. The construction needs a witness.',' Restrict to the stated domain.')
+        try:
+            previous.dispatch('read_task_input',{'id':'findings.json','pointer':''})
+            previous.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference'})
+            revision=revised.prepare_role_revision(previous)
+            self.assertEqual(revision['changed_documents'],['findings.json','packet.json'])
+            stale={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Add the missing domain.','locations':['/inference/argument']}
+            rejected=revised.dispatch('submit_draft',{'artifact':stale})
+            self.assertEqual({v['document'] for v in rejected['unread_current_changes']},{'findings.json','packet.json'})
+            self.assertIsNone(revised.validator.selected)
+            revised.dispatch('read_task_input',{'id':'findings.json','pointer':''})
+            current={**stale,'explanation':'Supply the construction witness for the current domain.'}
+            rejected=revised.dispatch('submit_draft',{'artifact':current})
+            self.assertEqual({v['document'] for v in rejected['unread_current_changes']},{'packet.json'})
+            revised.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference'})
+            accepted=revised.dispatch('submit_draft',{'artifact':current})
+            self.assertTrue(accepted['stage_complete'],accepted)
+            self.assertEqual(revised.accepted,current)
+        finally:
+            previous.release_resources('USER_CANCELLED')
+            revised.release_resources('USER_CANCELLED')
 
     def test_reviewers_and_repair_authors_share_n_active_slots_while_idle_roles_remain(self):
         self.exercise(both_local_fail=True)

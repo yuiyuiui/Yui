@@ -95,9 +95,9 @@ class NativeWorkspaceTests(unittest.TestCase):
 
     def test_interface_type_tool_retains_its_native_input(self):
         import translation_author
-        stage=object.__new__(translation_author.InterfaceStage)
-        stage.accepted=None;stage.type_probes=0;stage.lean_calls=0;stage.logs=self.root/'type-tool'
-        stage.lean_timeout=lambda:360
+        stage=translation_author.InterfaceStage(self.root/'type-tool','Synthetic native workspace control.',
+                                               phase='interface-authoring',library=False)
+        self.addCleanup(stage.release_resources,'USER_CANCELLED')
         with patch.object(ir,'run_lean',side_effect=self.unknown):
             with self.assertRaisesRegex(RuntimeError,'cleanup'):
                 stage.dispatch('check_lean_types',{'header':'import Mathlib\n','parameters':[],'types':['True']})

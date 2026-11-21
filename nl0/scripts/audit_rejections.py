@@ -18,8 +18,9 @@ def _content(value):
     return value
 
 
-def review_key(source, scope):
-    data = nl0.validate(source/'nl0.json', source/'spec.json')
+def review_key(source, scope, *, data=None):
+    if data is None:
+        data = nl0.validate(source/'nl0.json', source/'spec.json')
     if scope == 'global':
         spec = dict(data[2])
         # Warm-repair instructions describe the earlier verdict. They add no
@@ -60,7 +61,7 @@ class RejectedReviews:
             raise ValueError('Invalid rejected review scope')
         return directory/scope/'stage/accepted.json'
 
-    def record(self, directory, source, scope, *, persist=True):
+    def record(self, directory, source, scope, *, persist=True, data=None):
         path = self.review_path(directory, scope)
         review = nl0.load(path)
         if scope == 'global':
@@ -72,7 +73,7 @@ class RejectedReviews:
                 raise ValueError('Unqualified local execution cannot be a mathematical rejection')
             if review.get('verdict') == 'PASS' and audit_reuse.all_pass(review):
                 raise ValueError('Passing packet cannot enter failure history')
-        key = review_key(source, scope)
+        key = review_key(source, scope, data=data)
         saved = {'scope':scope, 'key':key, 'review':bind(path)}
         self.history.setdefault(scope,{})[key] = saved
         self.latest[scope] = key
@@ -80,10 +81,10 @@ class RejectedReviews:
             write(directory/'rejected-review.json', saved)
         return saved
 
-    def blocker(self, source, scope):
+    def blocker(self, source, scope, *, data=None):
         if scope not in self.history:
             return None
-        key = review_key(source, scope)
+        key = review_key(source, scope, data=data)
         rejected = self.history[scope].get(key)
         if rejected:
             verify_bindings([rejected['review']])
