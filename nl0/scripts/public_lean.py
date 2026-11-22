@@ -13,7 +13,7 @@ import tomllib
 import urllib.request
 
 from controller_common import bind, write
-from execution_state import current, capture_process, terminate_owned, ProcessIdentityUnconfirmed
+from execution_state import current, capture_process, terminate_owned
 import lean_libraries
 import lean_ports
 import native_workspace
@@ -66,12 +66,8 @@ def git(work, cwd, arguments, deadline):
     owner={'pid':process.pid,'pgid':process.pid,'started':None}
     native_workspace.record(work,confirmed=False,phase='public-source-fetch',process=owner)
     try:
-        try:
-            owner=(recorder.register_process(process,'public-lean-fetch',task,private_group=True)
-                   if recorder else capture_process(process,private_group=True))
-        except ProcessIdentityUnconfirmed:
-            if process.poll() is None:
-                raise native_workspace.unconfirmed('Public Lean Git process identity could not be confirmed',work)
+        owner=(recorder.register_process(process,'public-lean-fetch',task,private_group=True)
+               if recorder else capture_process(process,private_group=True))
         while True:
             if recorder:recorder.check(task)
             if time.monotonic()>=deadline:

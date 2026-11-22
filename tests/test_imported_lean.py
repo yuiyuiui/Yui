@@ -1,5 +1,6 @@
 """Real Lean local/upstream/port checks with source and environment bindings."""
 import harness_support
+from contextlib import contextmanager
 from copy import deepcopy
 import hashlib
 import json
@@ -613,6 +614,84 @@ class ImportedLeanTests(unittest.TestCase):
             subprocess.run([*inspect_blob,'HEAD:Alpha/Entry.lean'],capture_output=True,check=True)
             blob = subprocess.run([*inspect_blob,'HEAD:Examples/Unused.lean'],capture_output=True)
             self.assertNotEqual(blob.returncode,0, 'An unrelated blob was downloaded with the pinned revision.')
+
+    @contextmanager
+    def git_identity_gap(self, repository, arguments):
+        import execution_state
+
+        spawn, identity = subprocess.Popen, execution_state.identity
+        children = []
+
+        def launch(command, *args, **kwargs):
+            if (command[0] != '/usr/bin/git' or kwargs.get('cwd') != repository
+                    or command[-len(arguments):] != arguments):
+                return spawn(command, *args, **kwargs)
+            # Keep the real command pending through poll(); release it when the
+            # held child handle is actually waited on, without a timing sleep.
+            child = spawn(['/bin/sh', '-c', 'read -r gate; exec "$@"', 'git-fixture', *command],
+                          *args, **{**kwargs, 'stdin': subprocess.PIPE})
+            wait = child.wait
+
+            def release_and_wait(*args, **kwargs):
+                if child.stdin is not None:
+                    child.stdin.close()
+                    child.stdin = None
+                return wait(*args, **kwargs)
+
+            child.wait = release_and_wait
+            children.append(child.pid)
+            self.addCleanup(child.stdout.close)
+            self.addCleanup(child.stderr.close)
+            return child
+
+        with patch.object(subprocess, 'Popen', side_effect=launch), \
+                patch.object(execution_state, 'identity', side_effect=lambda pid: None if pid in children else identity(pid)):
+            yield children
+
+    def test_cached_git_identity_gap_still_binds_real_lean_module(self):
+        import public_lean
+
+        run = self.public_job()
+        source = self.git_source('short-git', {
+            'Lib/Entry.lean': 'import Init\nnamespace Lib\ntheorem witness : True := trivial\nend Lib\n',
+        })
+        url, _, revision = source
+        origin = {'repository': url, 'revision': revision}
+        registry = run/'imported-lean'
+        work = self.root/'seed-cache'; work.mkdir()
+        fetches, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(registry):
+            with public_lean.cached_checkout(work, origin, registry/'public-sources', time.monotonic()+30) as cached:
+                self.assertTrue((cached/'.git').is_dir())
+            with self.git_identity_gap(cached, ['rev-parse', 'HEAD']) as children:
+                result = lean_imports.check(self.stage, self.read_pinned(source, 'Lib/Entry.lean', 'entry'),
+                                            bind_public=True, allow_publish=True, module='Lib.Entry')
+            self.assertEqual(len(children), 1)
+            self.assertEqual(fetches, [(url, revision)])
+            self.assertEqual(result['public_library']['status'], 'PUBLIC_LEAN_READY', result)
+            consumer = lean_imports.compile_unit('import Lib.Entry\nexample : True := Lib.witness\n',
+                         self.current, self.root/'consumer', attachments=lean_libraries.current())
+            self.assertTrue(pilot_common.native_succeeded(consumer['native']), consumer['diagnostic'])
+
+    def test_short_git_failure_keeps_original_stderr(self):
+        import native_workspace
+        import public_lean
+
+        _, repository, _ = self.git_source('failed-git', {'file': 'pinned\n'})
+        arguments = ['rev-parse', '--verify', 'refs/heads/missing']
+        expected = subprocess.run(['/usr/bin/git', *arguments], cwd=repository, capture_output=True, text=True)
+        self.assertNotEqual(expected.returncode, 0)
+        self.assertTrue(expected.stderr)
+        with native_workspace.temporary('yui-git-failure-', logs=self.logs) as work:
+            with self.git_identity_gap(repository, arguments) as children:
+                with self.assertRaises(public_lean.BuildFailure) as failed:
+                    public_lean.git(work, repository, arguments, time.monotonic()+10)
+            self.assertEqual(len(children), 1)
+            self.assertEqual(failed.exception.status, 'PUBLIC_SOURCE_FETCH_FAILED')
+            self.assertEqual(str(failed.exception), expected.stderr)
+            cleanup = native_workspace.read_cleanup(work)
+            self.assertTrue(cleanup['cleanup_confirmed'])
+            self.assertEqual(cleanup['exit_code'], expected.returncode)
 
     def test_public_git_respects_host_proxy_without_global_git_configuration(self):
         import public_lean

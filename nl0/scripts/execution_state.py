@@ -120,7 +120,12 @@ def remaining_processes(record, table):
 def capture_process(process, *, private_group=False):
     record = identity(process.pid)
     if record is None:
-        if process.poll() is None:raise ProcessIdentityUnconfirmed('Cannot establish child process ownership')
+        # The child can disappear from ps before its exit is waitable. Only the
+        # held child handle can bridge that gap; the caller still owns its pipes.
+        try:
+            process.wait(timeout=0.2)
+        except subprocess.TimeoutExpired:
+            raise ProcessIdentityUnconfirmed('Cannot establish child process ownership') from None
         record={'pid':process.pid,'started':None,'pgid':process.pid if private_group else None}
         # A reaped PID-only child owns no private group. Group-owning callers
         # explicitly opt in so even a fast-exiting leader still requires inspection.

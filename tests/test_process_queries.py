@@ -73,6 +73,17 @@ class ProcessQueryTests(unittest.TestCase):
             self.assertFalse(execution.terminate_owned(child,record))
             self.assertIn('cleanup_uncertainty',record)
 
+    def test_live_child_without_identity_cannot_be_registered_or_signalled(self):
+        with subprocess.Popen([sys.executable, '-B', '-c', 'import sys; sys.stdin.read()'],
+                              stdin=subprocess.PIPE, start_new_session=True) as child:
+            with patch.object(execution, 'identity', return_value=None), \
+                    patch.object(execution.os, 'kill') as kill, patch.object(execution.os, 'killpg') as killpg:
+                with self.assertRaises(execution.ProcessIdentityUnconfirmed):
+                    execution.capture_process(child, private_group=True)
+                self.assertIsNone(child.poll())
+                kill.assert_not_called()
+                killpg.assert_not_called()
+
     def test_real_slow_response_uses_longer_wait_instead_of_three_short_failures(self):
         # The first actual child exceeds five seconds. A fresh six-second child
         # then succeeds under fifteen, proving real subprocess timeout behavior.
