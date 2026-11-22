@@ -71,11 +71,15 @@ time. Submit author-written compatibility edits through the two-environment
 port procedure below.
 
 Follow compiler, import and fetch diagnostics through `check_imported_lean`.
-Where available, `wait_for_lean_dependency` accepts the outstanding check's
-`receipt` if operator intervention is required. After correcting the external
-condition, the operator uses `resume-error` for that incident, and the author
-rechecks the dependency. Use `MISSING_SOURCE_STATEMENT` for genuinely missing
-readable material required to obtain a complete statement.
+Three unsuccessful checks of the same fixed public module in the same selected
+environment end that case with its diagnostics and independent work preserved.
+Continue another foundation or select a checked alternative before exhausting
+these checks. `wait_for_lean_dependency` accepts an outstanding receipt that
+requests access authorization or approval of a genuinely unavailable declared
+upstream pair. After addressing that action, the operator uses `resume-error`
+for the incident and the author rechecks the dependency. Use
+`MISSING_SOURCE_STATEMENT` for missing readable material needed for a complete
+statement.
 
 Supply the complete edited unit as `candidate` with the same source selection
 and upstream pins. `PORTED_CHECKED` requires its completed current native check.

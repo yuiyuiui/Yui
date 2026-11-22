@@ -154,7 +154,7 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
                 paused=case_outcomes.saved_pause(root,record)
                 if paused and (root/'cancel-request.json').exists():
                     cancel_saved_pause(root,record,request_cancel(root))
-                bound_stop=(not isinstance(value,dict) or value.get('status')!='STOPPED_BY_USER'
+                bound_stop=(not isinstance(value,dict) or value.get('status') not in {'STOPPED_BY_USER','UNFINISHED_LEAN_DEPENDENCY'}
                             or record.get('job')==bind(root/'job.json'))
                 if not bound_stop or not (paused or case_outcomes.terminal(root,value)):
                     write(result,{'job':bind(root/'job.json'),'result':case_exit(root,process,record)})

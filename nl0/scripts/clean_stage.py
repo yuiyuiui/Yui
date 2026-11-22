@@ -269,7 +269,7 @@ class ArtifactStage(pilot.Stage):
                 ['incident','start','end']))
         if library and self.imported_lean_publication and owner.is_file():
             self.tools.append(pilot.carrier.tool('wait_for_lean_dependency',
-                'After exhausting local repair or replacement, wait for an operator recheck of a bound outstanding import diagnostic.',
+                'Request the operator action named by an outstanding import or access receipt. Public compiler and dependency failures stay with the author.',
                 {'receipt':artifact_protocol.obj({'path':artifact_protocol.TEXT,'sha256':artifact_protocol.TEXT})},
                 ['receipt']))
         import basis_defect
@@ -550,6 +550,9 @@ class ArtifactStage(pilot.Stage):
                 if self.mode=='basis-frontier' and args.get('candidate') is not None:
                     raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
                 result=lean_imports.check(self,allow_publish=self.imported_lean_publication,**args)
+                import lean_libraries
+                if self.mode=='basis-authoring' and lean_libraries.generated_root() is not None:
+                    result=lean_imports.record_dependency_attempt(self,result)
             elif name=='wait_for_lean_dependency':
                 import lean_imports
                 result=lean_imports.wait_for_dependency(self,args['receipt'])
@@ -622,7 +625,7 @@ class ArtifactStage(pilot.Stage):
                             'error':'LEAN_DEPENDENCY_ACTION_REQUIRED: continue from the native import diagnostic. '
                                     'Repair or replace the dependency using actual check results. '
                                     'For a genuinely missing statement, use MISSING_SOURCE_STATEMENT. '
-                                    'For operator dependency recheck, use wait_for_lean_dependency where available.',
+                                    'Use wait_for_lean_dependency only when a receipt names an operator action.',
                             'dependency_followup':followup}
                     elif self.material_requests:
                         result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',

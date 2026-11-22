@@ -1,5 +1,6 @@
 """Genuine frozen case, local native clients and Lean. Only model replies and operator choices are scripted."""
 from collections import Counter
+from contextlib import ExitStack
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -215,6 +216,21 @@ def review_value(stage):
 def scripted(stage):
     if stage.mode=='basis-authoring':
         revision=stage.logs.parent.name
+        if mode=='dependency-exhaustion':
+            if requests[stage.logs]>1:
+                raise AssertionError('The same failed dependency did not reach its recorded terminal outcome')
+            spec=ir.load(run.parent/'dependency-fixture.json')
+            original=Path(spec['checkout'])/'Budget/Blocked.lean'
+            sha=hashlib.sha256(original.read_bytes()).hexdigest()
+            repo=Path(spec['checkout']).name
+            url=f'https://raw.githubusercontent.com/example/{repo}/{spec["revision"]}/Budget/Blocked.lean'
+            lookup={'evidence':{'path':'external-sources/fixture-module.lean','sha256':sha}}
+            route=active_artifact(artifact(dependency(category=2)))
+            for row in route['dependencies']:row['lean']['proof']=None
+            return (call('save_basis_draft',artifact=route)
+                    +call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
+                    +call('read_external_source',url=url)
+                    +3*call('check_imported_lean',source=lookup,bind_public=True,module='Budget.Blocked'))
         wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision','relabel-residual'} and revision=='0001'
         cat=4 if wants_residual else 2
         row=dependency(category=cat)
@@ -447,9 +463,26 @@ if __name__ == '__main__':
                     queue_controller.cancel_batch([run])
                 gate.wait=cancel
             return pause(gate,error,**options)
-        with patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
+        with ExitStack() as dependencies, patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
              patch.object(execution_state.Recorder,'register_process',registered), \
              patch.object(workflow_checkpoint,'write',operator_checkpoint):
+            if mode=='dependency-exhaustion':
+                import source_access
+                import test_imported_lean
+                from controller_common import bind,write
+                spec=ir.load(run.parent/'dependency-fixture.json')
+                repository=(spec['remote'],Path(spec['checkout']),spec['revision'])
+                _,transport=test_imported_lean.ImportedLeanTests().local_git_transport(repository)
+                def retrieve(directory,url,**options):
+                    directory.mkdir(exist_ok=True)
+                    source=directory/'fixture-module.lean'
+                    source.write_bytes((repository[1]/'Budget/Blocked.lean').read_bytes())
+                    receipt=directory/'access-fixture-module.json'
+                    result={'status':'READABLE','url':url,'final_url':url,'document':bind(source),'text':bind(source)}
+                    write(receipt,result)
+                    return {**result,'record':bind(receipt)}
+                dependencies.enter_context(transport)
+                dependencies.enter_context(patch.object(source_access,'fetch',retrieve))
             result=case_runner.execute(job)
             if result['status']=='PAUSED_ERROR' and not unexpected:
                 queue_controller.cancel_batch([run])

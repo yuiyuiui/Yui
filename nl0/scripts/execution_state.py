@@ -595,6 +595,9 @@ class Recorder:
         if status=='STOPPED_BY_USER':
             from case_outcomes import verify_basis_decision
             verify_basis_decision(self.root,result['outcome']['user_decision'],'stop')
+        if status=='UNFINISHED_LEAN_DEPENDENCY':
+            from case_outcomes import verify_dependency_exhaustion
+            verify_dependency_exhaustion(self.root,result['outcome']['dependency_exhaustion'])
         if status=='PAUSED_ERROR':
             from case_outcomes import saved_pause
             from controller_common import bind
@@ -604,7 +607,8 @@ class Recorder:
         authorization=('USER_CANCELLED' if status in {'CANCELLED','DIFFERENT_RESULT_DELIVERED','STOPPED_BY_USER'} else 'WORKFLOW_FINALIZED'
             if status in {'WORKFLOW-PASSED','WORKFLOW-CONDITIONAL','AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}
             else 'AUDIT_A_FINALIZED' if status in {'DRAFT-AUDIT-PASSED','DRAFT-AUDIT-CONDITIONAL'}
-            else 'CASE_PAUSED' if status=='PAUSED_ERROR' else None)
+            else 'CASE_PAUSED' if status=='PAUSED_ERROR'
+            else 'DEPENDENCY_EXHAUSTED' if status=='UNFINISHED_LEAN_DEPENDENCY' else None)
         if authorization is None and (self.retained_stages or self._handles):
             table = process_table()
             pending = any(cleanup_pending(row, table) for row in self.state['processes'].values())

@@ -38,8 +38,9 @@ prepare_basis_graph with prove=false to select a complete route with pending
 imports. Bind them before starting Lean proof workers or submitting proof bodies.
 For an original-name port use check_imported_lean with bind_public=true, the
 complete retained pinned source, its upstream pair, and the exact module.
-wait_for_lean_dependency only if the outstanding native check needs operator
-action. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material.
+Use wait_for_lean_dependency when an outstanding receipt names an operator
+action. Use the remaining dependency attempts for concrete fixes or a checked
+alternative. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material.
 '''
 
     def controller_checkpoint(self):

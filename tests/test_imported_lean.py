@@ -223,6 +223,9 @@ class ImportedLeanTests(unittest.TestCase):
         run = self.public_job()
         inputs = self.root/'inputs'; inputs.mkdir()
         (inputs/'original.lean').write_text('import PublicExample.Leaf\n')
+        (inputs/'broken.lean').write_text('import Init\nexample : True := absentOriginalProof\n')
+        version=json.dumps(self.old['lean']['version_number'])
+        (inputs/'old-only.lean').write_text(f'import Lean\n#guard Lean.versionString == {version}\n')
         manifest(inputs)
         stage=ArtifactStage(run/'routing','Dependency routing control.',phase='basis-authoring',
                             inputs=inputs/'inputs.json')
@@ -251,6 +254,21 @@ class ImportedLeanTests(unittest.TestCase):
                 self.assertEqual(gate.state['checkpoint']['import_diagnostic'],check['receipt'])
                 self.assertEqual(fault_control.resume(run,gate.state['incident'])['status'],'RESUME_REQUESTED')
 
+            with patch.object(fault_control.Gate,'report',side_effect=AssertionError('Public dependency must not pause')):
+                refused=stage.dispatch('wait_for_lean_dependency',{'receipt':check['receipt']})
+                with patch.object(lean_environment,'discover',return_value=([self.old],[])):
+                    samples=[('broken.lean','CORRECTION_AND_PORT_REQUIRED')]
+                    if self.old!=self.current:samples.append(('old-only.lean','COMPATIBILITY_PORT_REQUIRED'))
+                    for document,status in samples:
+                        problem=stage.dispatch('check_imported_lean',{'source':{'document':document},'upstream':self.upstream()})
+                        self.assertEqual(problem['status'],status,problem)
+                        declined=stage.dispatch('wait_for_lean_dependency',{'receipt':problem['receipt']})
+                        self.assertIn('operator action',declined['error'].lower())
+            self.assertIn('operator action',refused['error'].lower())
+            with patch.object(lean_environment,'discover',return_value=([self.current],[])):
+                check=stage.dispatch('check_imported_lean',{'source':{'document':'original.lean'},
+                    'upstream':{'lean_version':'4.99.0','mathlib_ref':'a'*40}})
+            self.assertEqual(check['operator_action']['kind'],'AUTHORIZE_UPSTREAM_ENVIRONMENT',check)
             with patch.object(fault_control.Gate,'report',recheck):
                 resumed=stage.dispatch('wait_for_lean_dependency',{'receipt':check['receipt']})
             self.assertEqual(resumed['status'],'RETRY_LEAN_DEPENDENCY',resumed)

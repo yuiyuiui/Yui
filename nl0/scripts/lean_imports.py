@@ -19,6 +19,8 @@ import runtime_config
 _SPEC=spec_from_file_location('yui_imported_lean_rules',Path(__file__).resolve().parents[2]/'workflow/blocks/imported_lean.py')
 rules=module_from_spec(_SPEC);_SPEC.loader.exec_module(rules)
 VERSION=rules.VERSION
+DEPENDENCY_LIMIT=3
+UNFINISHED='UNFINISHED_LEAN_DEPENDENCY'
 
 FOLLOW_UP = {
     'LOCAL_CHECK_INCOMPLETE': 'Inspect the native diagnostic and retry the same local check after addressing the failure.',
@@ -74,21 +76,74 @@ def dependency_followup(log):
         unresolved_public=public and public['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}
         if not result['accepted_for_native_reuse'] or unresolved_public:
             pending[label]={**{key:result[key] for key in ('status','diagnostics','next_action','public_library',
-                                                         'upstream_public_library') if key in result},'receipt':receipt}
+                                                         'upstream_public_library','operator_action') if key in result},'receipt':receipt}
     return pending
 
 
+def dependency_key(result):
+    public=result.get('public_library')
+    if not public or 'origin' not in public or result.get('accepted_for_native_reuse') or result.get('operator_action'):return None
+    if result['status'] not in {'PUBLIC_SOURCE_FETCH_FAILED','PUBLIC_LEAN_BUILD_FAILED',
+                               'PUBLIC_LEAN_DEPENDENCY_REQUIRED','COMPATIBILITY_PORT_REQUIRED','PORT_CHECK_FAILED'}:
+        return None
+    origin=public['origin'];module=public.get('module') or origin.get('expected_module')
+    if not module:return None
+    return {'module':module,'repository':origin['repository'],'revision':origin['revision'],
+            'patch_order':origin.get('patch_order',[]),'environment':public['environment']}
+
+
+def record_dependency_attempt(stage,result):
+    key=dependency_key(result)
+    if key is None:return result
+    log=stage.logs/'tools.jsonl';receipt=result['receipt'];previous={}
+    if log.is_file():
+        for call in map(json.loads,log.read_text().splitlines()):
+            if call['tool']!='check_imported_lean':continue
+            reply=call['result']
+            if reply.get('dependency_attempt',{}).get('dependency')!=key:continue
+            old=reply['receipt'];verify_bindings([old])
+            if dependency_key(json.loads(Path(old['path']).read_bytes()))!=key:
+                raise ValueError('Changed Lean dependency attempt')
+            previous[old['path']]=old
+    previous[receipt['path']]=receipt
+    result['dependency_attempt']={'dependency':key,'used':len(previous),'limit':DEPENDENCY_LIMIT}
+    if len(previous)>=DEPENDENCY_LIMIT:
+        from fault_control import run_root
+        path=stage.logs/'lean-dependency-exhausted.json'
+        write(path,{'version':UNFINISHED,'job':bind(run_root(stage.logs)/'job.json'),'dependency':key,
+                    'attempts':list(previous.values()),'diagnostics':result['diagnostics']})
+        stage.accepted={'status':UNFINISHED,'dependency_exhaustion':bind(path)}
+        result.update(status=UNFINISHED,stage_complete=True,dependency_exhaustion=bind(path))
+    return result
+
+
+def access_request(log,receipt):
+    if not log.is_file():return None
+    for call in map(json.loads,log.read_text().splitlines()):
+        if call['tool']=='read_external_source' and call['result'].get('record')==receipt:
+            path=Path(receipt['path'])
+            if path.parent!=log.parent/'external-sources' or path.resolve()!=path:return None
+            verify_bindings([receipt]);record=json.loads(path.read_bytes())
+            if record.get('status')=='HTTP_ERROR' and record.get('http_status')==401:
+                return {'status':'SOURCE_ACCESS_REQUIRED','receipt':receipt,
+                        'operator_action':{'kind':'AUTHORIZE_SOURCE_ACCESS','url':record['url']}}
+    return None
+
+
 def wait_for_dependency(stage, receipt):
-    """Wait for operator recheck of an exact, still-unresolved native dependency."""
+    """Accept only concrete operator actions backed by this stage's receipts."""
     from execution_state import current
     from fault_control import Gate
     diagnostic=next((row for row in dependency_followup(stage.logs/'tools.jsonl').values()
                      if row['receipt']==receipt),None)
-    if diagnostic is None:raise ValueError('Select an outstanding check_imported_lean receipt from this stage')
+    if diagnostic is None:diagnostic=access_request(stage.logs/'tools.jsonl',receipt)
+    if not diagnostic or not diagnostic.get('operator_action'):
+        raise ValueError('This receipt does not require operator action. Continue dependency repair or use a checked alternative.')
     recorder,task=current()
     gate=Gate(stage.logs/'dependency-request',recorder=recorder,task=task,stage='lean-dependency')
-    gate.pause({'code':'workflow_blocked','message':'An external Lean dependency needs an operator recheck.'},
-               resumable=True,checkpoint={'import_diagnostic':receipt,'status':diagnostic['status']})
+    gate.pause({'code':'workflow_blocked','message':'An external Lean dependency requires an operator decision.'},
+               resumable=True,checkpoint={'import_diagnostic':receipt,'status':diagnostic['status'],
+                                          'operator_action':diagnostic['operator_action']})
     return {'status':'RETRY_LEAN_DEPENDENCY','dependency_followup':diagnostic,'stage_complete':False,
             'instruction':'Retry the bound check using the current dependency diagnostic.'}
 
@@ -228,6 +283,14 @@ def original_environment(declared):
     except lean_environment.SelectionRequired as error:
         error.request['discovery_errors']=errors
         raise
+
+
+def environment_request(error, declared):
+    result={'selection_request':error.request}
+    version=declared['lean_version'];mathlib=declared['mathlib_ref']
+    if re.fullmatch(r'v?\d+\.\d+\.\d+(?:-rc\d+)?',version) and re.fullmatch(r'[0-9a-f]{40}|v\d+\.\d+\.\d+(?:-rc\d+)?',mathlib):
+        result['operator_action']={'kind':'AUTHORIZE_UPSTREAM_ENVIRONMENT','lean_version':version,'mathlib_ref':mathlib}
+    return result
 
 
 def publish_library(specification,root,receipt):
@@ -404,8 +467,7 @@ def public_port(stage, request, origin, target, declared, environment, attachmen
     try:
         old=original_environment(declared)
     except lean_environment.SelectionRequired as error:
-        if candidate is None:return None
-        raise ValueError('The pinned upstream Lean/Mathlib pair must be available before original-name porting') from error
+        return {'status':'UPSTREAM_ENVIRONMENT_REQUIRED',**environment_request(error,declared)}
     if environment_identity(old)==environment_identity(environment):
         if candidate is None:return None
         raise ValueError('The declared upstream pair must differ from the target for a compatibility port')
@@ -511,7 +573,7 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
     if decision['status']=='UPSTREAM_ENVIRONMENT_REQUIRED' and upstream is not None:
         try:old=original_environment(upstream)
         except lean_environment.SelectionRequired as error:
-            result['selection_request']=error.request
+            result.update(environment_request(error,upstream))
         else:
             compatible=(environment_identity(old)==environment_identity(selected))
             with runtime_config.use_environment(old):
@@ -548,8 +610,7 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
     follow_up=FOLLOW_UP.get(decision['status'])
     if built and built['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}:
         follow_up=(follow_up+' ' if follow_up else '')+(
-            'Continue this dependency using the public-library diagnostic. If operator action is still required, '
-            'use wait_for_lean_dependency with this check receipt where available.')
+            'Continue this dependency using the public-library diagnostic or choose a checked alternative.')
     if follow_up:
         result['next_action']={'source':source,'upstream':upstream,'instruction':follow_up}
     if decision['accepted_for_native_reuse']:
