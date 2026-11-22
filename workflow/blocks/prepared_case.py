@@ -42,11 +42,13 @@ def invoke(ctx, data):
                 import jobs
                 import runtime_snapshot
                 jobs.validate(job)
+                snapshot=job['runtime_snapshot']
+                executable=Path(snapshot['root'])/'nl0/scripts/case_runner.py'
                 log=root/'logs/protocol-launch.log'
                 log.parent.mkdir(exist_ok=True)
                 with log.open('a') as stream:
-                    subprocess.run([sys.executable,'-B',str(runtime_snapshot.root_for(job)/'nl0/scripts/case_runner.py'),
-                                    '--job',str(path)],env=runtime_snapshot.environment(job),stdout=stream,
+                    subprocess.run([sys.executable,'-B',str(executable),
+                                    '--job',str(path)],env=runtime_snapshot.environment(job,snapshot=snapshot),stdout=stream,
                                    stderr=subprocess.STDOUT,check=False)
     with storage.lock(run):
         inner=Run(run,read_only=True)

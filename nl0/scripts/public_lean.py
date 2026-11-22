@@ -104,6 +104,18 @@ def git(work, cwd, arguments, deadline):
         env['https_proxy']=proxy
     cmd=['/usr/bin/git','-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',
          '-c','protocol.file.allow=never',*arguments]
+    if arguments==['rev-parse','HEAD']:
+        if recorder:recorder.check(task)
+        remaining=deadline-time.monotonic()
+        try:
+            if remaining<=0:raise subprocess.TimeoutExpired(cmd,0)
+            result=subprocess.run(cmd,cwd=cwd,env=env,stdin=subprocess.DEVNULL,capture_output=True,
+                                  text=True,timeout=min(remaining,5))
+        except subprocess.TimeoutExpired as error:
+            raise BuildFailure('PUBLIC_SOURCE_FETCH_FAILED','Pinned local Git HEAD read reached its time limit.') from error
+        if recorder:recorder.check(task)
+        if result.returncode:raise BuildFailure('PUBLIC_SOURCE_FETCH_FAILED',result.stderr[-4000:])
+        return result.stdout.strip()
     process=subprocess.Popen(cmd,cwd=cwd,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE,text=True,start_new_session=True)
     owner={'pid':process.pid,'pgid':process.pid,'started':None}

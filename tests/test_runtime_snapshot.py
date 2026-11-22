@@ -67,11 +67,16 @@ class RuntimeSnapshotTests(unittest.TestCase):
 
     def test_case_launcher_uses_the_retained_executable(self):
         job=self.capture();path=self.run/'job.json';path.write_text(json.dumps(job))
-        with patch.object(queue_controller.subprocess,'Popen') as start:
+        with patch.object(queue_controller.subprocess,'Popen') as start, patch.object(snapshots,'validate',wraps=snapshots.validate) as check:
             queue_controller.launch_case(path,self.run)
+        check.assert_called_once()
         argv=start.call_args.args[0]
         self.assertEqual(Path(argv[3]),self.run/'runtime/nl0/scripts/case_runner.py')
         self.assertNotIn('YUI_LIBRARY_ROOT',start.call_args.kwargs['env'])
+        (self.run/'runtime/SKILL.md').write_text('tampered before launch')
+        with patch.object(queue_controller.subprocess,'Popen') as start, self.assertRaisesRegex(ValueError,'changed'):
+            queue_controller.launch_case(path,self.run)
+        start.assert_not_called()
 
     def test_capture_rejects_a_changed_or_undeclared_external_file(self):
         (self.core/'SKILL.md').write_text('not the collected source')

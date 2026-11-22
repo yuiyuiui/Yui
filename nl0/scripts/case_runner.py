@@ -286,13 +286,12 @@ def execute(job, root=None):
                 model={'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']});recorder.flush_progress(force=True)
         try:
             with execution.activate(recorder),recorder.signals():
-                jobs.validate(job)
                 if resume.get('mode')=='basis-final-closure':
                     import basis_closure_recovery
                     result=basis_closure_recovery.run(job,progress)
                 elif job.get('workflow_protocol'):
                     import workflow_execution
-                    result=workflow_execution.run(job,recorder,budgets,progress)
+                    result=workflow_execution.run(job,recorder,budgets,progress,snapshot=job['runtime_snapshot'])
                 elif job['track']=='audit-b':
                     import audit_b_continuation
                     result=audit_b_continuation.run(job['audit'],root/'audit-b',budget=budgets.serial)
@@ -329,7 +328,8 @@ def execute(job, root=None):
                 'checkpoint':{'phase':recorder.state.get('phase'),'artifacts':recorder.state.get('stage_artifacts',{}),
                     'preserve_completed_work':True,'restart_whole_workflow':False}}
         finally:
-            if not case_outcomes.terminal(root,result):
+            terminal=case_outcomes.terminal(root,result)
+            if not terminal:
                 from fault_control import Gate,outcome_error
                 saved=dict(result)
                 try:
@@ -345,7 +345,7 @@ def execute(job, root=None):
                             'pause_incident':bind(gate.logs/'error-incidents'/(incident['incident']+'.json'))}
                 except execution.Cancelled:
                     result={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_error':saved}
-            terminal=case_outcomes.terminal(root,result)
+                terminal=case_outcomes.terminal(root,result)
             passed=result.get('status') in case_outcomes.PASSED and terminal
             conditional=result.get('status') in case_outcomes.CONDITIONAL and terminal
             accepted_with_warning=bool(result.get('audit_b',{}).get('freeze_deviation') and not result['audit_b'].get('source_conditional',True))

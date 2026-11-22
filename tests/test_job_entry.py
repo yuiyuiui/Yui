@@ -37,7 +37,7 @@ def run_case_pause_fixture(job_path, phase):
     stage = ArtifactStage(root/'fixture-stage', 'Offline resource fixture.', phase='interface-authoring', library=False)
     child = subprocess.Popen([sys.executable, '-B', '-c', 'import time; time.sleep(45)'],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, start_new_session=True)
-    def fail_case(job, recorder, budgets, progress):
+    def fail_case(job, recorder, budgets, progress, *, snapshot):
         progress(job['case'], phase)
         recorder.register_process(child, 'fixture-carrier', private_group=True)
         stage.execution, stage.proc = recorder, child
@@ -416,6 +416,7 @@ class JobEntryTests(unittest.TestCase):
 
     def test_progress_snapshot_write_failure_does_not_abort_the_active_case(self):
         import workflow_execution
+        import runtime_snapshot
 
         job = self.job()
         root = Path(job['root'])
@@ -428,18 +429,55 @@ class JobEntryTests(unittest.TestCase):
                 raise OSError('transient observation snapshot failure')
             ordinary_write(path, value)
 
-        def execute(job, recorder, budgets, progress):
+        def execute(job, recorder, budgets, progress, *, snapshot):
+            self.assertEqual(snapshot,job['runtime_snapshot'])
             progress(job['case'], 'BASIS_TEST_PROGRESS')
             self.assertEqual(json.loads(recorder.path.read_text())['phase'], 'BASIS_TEST_PROGRESS')
             return {'status':'CANCELLED', 'fixture_progress_returned':True}
 
         with patch.object(workflow_execution, 'run', execute), patch.object(execution_state, 'atomic', transient), \
+                patch.object(case_runner.case_outcomes,'terminal',wraps=case_runner.case_outcomes.terminal) as terminal, \
+                patch.object(runtime_snapshot,'validate',wraps=runtime_snapshot.validate) as snapshot, \
                 patch('fault_control.Gate.pause', side_effect=execution_state.Cancelled('Unexpected fixture pause')) as pause:
             result = case_runner.execute(job)
         self.assertEqual(len(misses), 1)
         self.assertTrue(result.get('fixture_progress_returned'), result)
         self.assertEqual(json.loads((root/'execution-status.json').read_text())['observation_write']['failures'], 1)
         pause.assert_not_called()
+        self.assertEqual((terminal.call_count,snapshot.call_count),(1,1))
+
+    def test_execute_launch_scans_runtime_once_before_the_batch_process(self):
+        import runtime_snapshot
+        from types import SimpleNamespace
+        job=self.job();root=Path(job['root'])
+        parser=argparse.ArgumentParser();entrypoint.parsers(parser.add_subparsers(dest='command'))
+        args=parser.parse_args(['execute',str(root),'--detach'])
+        child=SimpleNamespace(pid=123,poll=lambda:None)
+        with patch.object(runtime_snapshot,'validate',wraps=runtime_snapshot.validate) as validate, \
+             patch.object(entrypoint,'preflight_profiles'), patch('runtime_config.verify'), \
+             patch.object(entrypoint,'subprocess') as process_api, \
+             patch('owner_observation.handoff',return_value={}), \
+             patch.object(execution_state,'observe_launched_child',return_value=None):
+            process_api.Popen.return_value=child
+            result=entrypoint.dispatch(args)
+        self.assertEqual(result['status'],'DISPATCHED',result)
+        self.assertEqual(validate.call_count,1)
+        self.assertIn(str(root/'runtime/nl0/scripts/queue_controller.py'),process_api.Popen.call_args.args[0])
+
+    def test_synchronous_batch_reuses_the_launcher_preflight(self):
+        import queue_controller
+        import runtime_snapshot
+        job=self.job()
+        def child(job_file,out):
+            from controller_common import write
+            write(out/'case-result.json',{'result':{'status':'CANCELLED'}})
+            return subprocess.Popen([sys.executable,'-B','-c','pass'],start_new_session=True)
+        with patch.object(entrypoint,'preflight_profiles'),patch('runtime_config.verify'), \
+             patch.object(queue_controller,'launch_case',side_effect=child), \
+             patch.object(runtime_snapshot,'validate',wraps=runtime_snapshot.validate) as validate:
+            response=entrypoint.launch([job])
+        self.assertEqual(response['outcomes'][job['id']]['status'],'CANCELLED',response)
+        self.assertEqual(validate.call_count,1)
 
     def test_standalone_copy_prepares_and_reports_without_repository_or_test_support(self):
         elsewhere=self.root/'unrelated working directory';elsewhere.mkdir()

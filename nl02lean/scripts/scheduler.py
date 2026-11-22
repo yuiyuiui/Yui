@@ -14,7 +14,7 @@ import proof_repair
 import proof_round_policy as proof_rounds
 
 
-def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, execution=None):
+def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, execution=None, _frozen_types=None):
     """worker(sid, packet) -> {proof: tactic body, ...disclosed metadata}.
 
     All proof ports must already be frozen. Dependency edges are discharged
@@ -25,7 +25,13 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
     _, nodes, order = ir.validate(cpath, plan)
     max_workers = len(nodes) if max_workers is None else max_workers
     ir.need(type(max_workers) is int and max_workers >= 1, 'worker bound must be positive')
-    typecheck = ir.check(cpath, plan, types_only=True)
+    typecheck = _frozen_types
+    if typecheck is None or 'plan_digest' not in typecheck:
+        typecheck=ir.check(cpath,plan,types_only=True)
+    else:
+        ir.need(ir.native_succeeded(typecheck) and typecheck.get('status')=='IR-TYPES-CHECKED'
+                and ir.digest(cpath)==typecheck['contract_sha256']
+                and shared_lemmas.hashed(plan)==typecheck['plan_digest'],'Invalid frozen type check')
     ir.need(typecheck['exit_code'] == 0, 'frozen interface/representation expressions failed Lean: '
             + ', '.join(typecheck.get('failed_input_uses',[])))
     initial_contract = ir.digest(cpath)
@@ -169,8 +175,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
     if requests:complete=False
     if execution:execution.update(phase='assembly' if complete else 'proof-diagnosis' if requests else 'proof-unfinished')
     assembly = ir.check(cpath, plan, proofs, out=out/'assembly' if out else None) if complete else None
-    fresh = ir.check(cpath, plan, proofs, out=out/'fresh-verifier' if out else None) if complete else None
-    accepted = complete and assembly['exit_code'] == fresh['exit_code'] == 0
+    accepted = complete and ir.native_succeeded(assembly)
     report = {'status': proof_rounds.state_for(complete=complete, accepted=accepted, repair_requested=bool(requests)),
               'repair_requests':requests,
               'contract_sha256': initial_contract, 'plan_digest': initial_plan,
@@ -180,7 +185,7 @@ def prove_graph(cpath, plan, worker, *, max_workers=None, store=None, out=None, 
               'interface_typecheck': typecheck,
               'cache_hits': sum(j.get('lookup', {}).get('status') == 'HIT' for j in jobs),
               'wall_seconds': time.monotonic()-start, 'jobs': jobs,
-              'initial_shared_input': initial_store, 'assembly': assembly, 'fresh_verifier': fresh,
+              'initial_shared_input': initial_store, 'assembly': assembly,
               'proofs': proofs, 'full_audit_b': False, 'speedup_established': False}
     if out:
         ir.write(out/'scheduler-report.json', report)

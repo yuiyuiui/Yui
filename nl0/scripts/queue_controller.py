@@ -51,11 +51,13 @@ def cancel_batch(directories):
 def launch_case(job_file,out):
     import runtime_snapshot
     job=json.loads(Path(job_file).read_text())
+    snapshot=runtime_snapshot.validate(job)
+    script=Path(snapshot['root'])/'nl0/scripts/case_runner.py'
     out=Path(out);(out/'logs').mkdir(exist_ok=True)
     with (out/'logs/controller.log').open('w') as log:
-        return subprocess.Popen([sys.executable,'-u','-B',str(runtime_snapshot.root_for(job)/'nl0/scripts/case_runner.py'),
+        return subprocess.Popen([sys.executable,'-u','-B',str(script),
             '--job',str(job_file)],stdout=log,stderr=log,start_new_session=True,
-            env=runtime_snapshot.environment(job))
+            env=runtime_snapshot.environment(job,snapshot=snapshot))
 
 
 def case_exit(root, process, record):
@@ -77,6 +79,10 @@ def case_exit(root, process, record):
 def serve(jobs,*,case_concurrency=None,report_progress=False):
     jobs=list(jobs)
     for job in jobs:validate_job(job)
+    return _serve_admitted(jobs,case_concurrency=case_concurrency,report_progress=report_progress)
+
+
+def _serve_admitted(jobs,*,case_concurrency=None,report_progress=False):
     if len({j['root'] for j in jobs})!=len(jobs) or len({j['problem'] for j in jobs})!=len(jobs):
         raise ValueError('Duplicate case input/output in one batch')
     count=len(jobs) if case_concurrency is None else case_concurrency

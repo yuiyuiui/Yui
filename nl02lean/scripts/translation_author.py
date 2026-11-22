@@ -326,14 +326,17 @@ class InterfaceContract:
             label=' for '+failed if failed else ''
             raise CandidateRejection('Actual Lean type check failed'+label+':\n'+ir.compiler_feedback(result),
                 repair_advice=timeout_advice(result,self.native_timeout_snapshot))
+        import interface_types
+        types_receipt=interface_types.create(directory/'contract.json',directory/'plan.json')
         write(self.out/'accepted-interface-paths.json',{'contract':str(directory/'contract.json'),
             'plan':str(directory/'plan.json'),'author_output':str(self.out/'stage/accepted.json'),
             'paragraph_mapping':self.source['paragraph_mapping'],'source_outputs':value['source_outputs'],
             'source_graph_sha256':contract['source']['sha256'],
             'contract_sha256':ir.digest(directory/'contract.json'),'plan_sha256':ir.digest(directory/'plan.json'),
+            'types_receipt':types_receipt,
             'status':'IR_TYPES_CHECKED_SEMANTIC_REVIEW_PENDING_AUDIT_B'})
         return {'status':'IR-TYPES-CHECKED','candidate':self.attempt,'mathematical_acceptance':False,
-                'decomposition':decomposition,
+                'decomposition':decomposition,'types_receipt':types_receipt,
                 'scope':'Source-boundary and types checked; normal entry still requires independent pre-freeze semantics, actual proofs and final machine acceptance.'}
 
 

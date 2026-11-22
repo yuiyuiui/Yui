@@ -133,6 +133,7 @@ def verify_candidate_artifact(actual,c,p,outputs):
 
 
 def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
+    import interface_types
     author,out=[Path(p).resolve() for p in (author,out)]
     result=ir.load(author/'stage/result.json')
     if not qualification(result)['identity_and_input_boundary_verified']:
@@ -153,17 +154,21 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
             feedback=event.get('result',{}).get('validation',{})
             if feedback.get('status')=='IR-TYPES-CHECKED' and feedback.get('candidate')==candidate and event['result'].get('accepted'):
                 args=event['arguments'];value=args.get('artifact') if event['tool'] in {'check_draft','submit_draft'} else json.loads(args['artifact_json'])
-                matches.append((index+1,value))
+                matches.append((index+1,value,feedback.get('types_receipt')))
         if len(matches)!=1:raise ValueError('Select exactly one actual successful model type-check event')
-        row_number,actual=matches[0]
+        row_number,actual,types_receipt=matches[0]
         if ir.load(contract.parent/'types/result.json')['exit_code']!=0:raise ValueError('The selected actual native type check did not pass')
         source=ir.load(author/'inputs/source-map.json')
-        paths={'paragraph_mapping':source['paragraph_mapping'],'source_outputs':actual['source_outputs']}
+        paths={'paragraph_mapping':source['paragraph_mapping'],'source_outputs':actual['source_outputs'],
+               'types_receipt':types_receipt}
         selection.update(mode='EXPLICIT_RECOVERY_OF_CHECKED_MODEL_CANDIDATE_NOT_AUTHOR_SUBMISSION',
             candidate=candidate,tool_row_number=row_number,tool_log=bind(author/'stage/tools.jsonl'),
             note='The author result is preserved. Selecting an actual immutable model draft grants no semantic, proof or performance acceptance; this new independent review must establish correspondence.')
     c=ir.load(contract);p=ir.load(plan)
     verify_candidate_artifact(actual,c,p,paths['source_outputs'])
+    types_receipt=paths.get('types_receipt')
+    if types_receipt is not None:interface_types.read(contract,plan,types_receipt)
+    elif (contract.parent/'types'/interface_types.NAME).exists():raise ValueError('Missing bound author type check evidence')
     out.mkdir(parents=True,exist_ok=False);inputs=out/'inputs';inputs.mkdir()
     write(inputs/'workload.json',ir.decomposition(contract,ir.load(plan)))
     local_tasks=inputs/lean_task.REVIEW_INPUT
@@ -187,7 +192,7 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
         adjudication={'prior_review':bind(prior/'stage/accepted.json'),'dispute':bind(dispute),
                       'disclosure':'One targeted adjudication with the prior verdict and located dispute disclosed; not an untouched independent review.'}
     candidate=contract.parent
-    for name in ['Check.lean','result.json']:
+    for name in [*interface_types.FILES.values(),*([interface_types.NAME] if types_receipt else [])]:
         if (candidate/'types'/name).exists():shutil.copyfile(candidate/'types'/name,inputs/('type-'+name))
     repair_context=None
     if (author/'inputs/internal-repair-context.json').is_file():
@@ -208,6 +213,7 @@ def prepare(author,out,candidate=None,*,adjudicate=None,dispute=None):
         'local_tasks_sha256':ir.digest(local_tasks),
         'paragraph_mapping':paths['paragraph_mapping'],'source_outputs':paths['source_outputs'],
         'candidate_selection':selection,'adjudication':adjudication,
+        **({'types_receipt':types_receipt} if types_receipt else {}),
         **({'internal_repair':repair_context} if repair_context else {})})
     shutil.copyfile(__file__,out/'controller.py.snapshot.txt')
 
@@ -275,6 +281,23 @@ def bound_local_tasks(out, bindings):
     return digest
 
 
+def bound_types(out,bindings):
+    from interface_types import FILES,NAME
+    ref=bindings.get('types_receipt');delivered=out/'inputs'/('type-'+NAME)
+    staged=ir.load(out/'stage/execution-manifest.json').get('task_documents',{})
+    if ref is None:
+        ir.need(not delivered.exists() and delivered.name not in staged,'Missing bound author type check evidence')
+        return None
+    ir.need(delivered.is_file() and staged.get(delivered.name)==ref['sha256']==ir.digest(delivered),
+            'Changed author type check evidence in reviewer inputs')
+    disclosed=ir.load(delivered)
+    for key,name in FILES.items():
+        member=out/'inputs'/('type-'+name)
+        ir.need(member.is_file() and staged.get(member.name)==disclosed[key]['sha256']==ir.digest(member),
+                'Changed author type check evidence in reviewer inputs')
+    return ref
+
+
 def collect(out):
     out=Path(out).resolve();bindings=ir.load(out/'bindings.json');result=ir.load(out/'stage/result.json')
     qualification=require_review_execution(result,out/'stage/result.json',phase='interface')
@@ -301,6 +324,8 @@ def collect(out):
     local_tasks_sha256=bound_local_tasks(out,bindings)
     if local_tasks_sha256 is not None:
         review['local_tasks_sha256']=local_tasks_sha256
+    types_receipt=bound_types(out,bindings)
+    if types_receipt:review['types_receipt']=types_receipt
     if bindings.get('internal_repair'):
         import internal_interface_repair as repair
         repair.verify_revision(bindings['internal_repair'],bindings['contract']['path'],bindings['plan']['path'])
@@ -327,7 +352,8 @@ def verify_receipt(path,contract,plan,graph_sha256):
     """Read back an actual independent reviewer, not a hand-written PASS wrapper."""
     path=Path(path).resolve();out=path.parent;review=ir.load(path)
     bindings=ir.load(out/'bindings.json');raw=ir.load(out/'stage/accepted.json')
-    require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='interface')
+    executed=ir.load(out/'stage/result.json')
+    require_review_execution(executed,out/'stage/result.json',phase='interface')
     validate(raw,out)
     import source_preparation
     source_preparation.reviewer(review['reviewer'])
@@ -335,14 +361,22 @@ def verify_receipt(path,contract,plan,graph_sha256):
             and review['reviewer'].get('mode') in {'fresh_model_review','retained_role_review'},
             'A full workflow requires an independent author-separated interface review')
     if review['reviewer']['mode']=='retained_role_review':
-        result=ir.load(out/'stage/result.json')
-        ir.need(result.get('role_session',{}).get('role')=='lean-global-reviewer' and
-            result['role_session'].get('prior_submissions'),'Undisclosed retained reviewer history')
-    ir.need(review['source_graph_sha256']==bindings['source_graph']['sha256']==graph_sha256
+        ir.need(executed.get('role_session',{}).get('role')=='lean-global-reviewer' and
+            executed['role_session'].get('prior_submissions'),'Undisclosed retained reviewer history')
+    authored=bindings.get('candidate_selection',{}).get('author_result')
+    if authored:
+        source_preparation.unchanged(authored)
+        thread=ir.load(authored['path']).get('native_thread_id')
+        reviewer_thread=executed.get('native_thread_id')
+        if thread and reviewer_thread:ir.need(thread!=reviewer_thread,'Interface author and reviewer share a thread')
+    ir.need(review['version']==workflow.VERSION
+        and review['source_graph_sha256']==bindings['source_graph']['sha256']==graph_sha256
         and review['contract_sha256']==bindings['contract']['sha256']==ir.digest(contract)
         and review['plan_sha256']==bindings['plan']['sha256']==ir.digest(plan),
         'stale interface review')
+    ir.need(all(review[key]==bindings[key] for key in ('paragraph_mapping','source_outputs')),'Changed interface review source map')
     ir.need(review.get('local_tasks_sha256')==bound_local_tasks(out,bindings), 'Stale local task review')
+    ir.need(review.get('types_receipt')==bound_types(out,bindings),'Changed author type check evidence in interface review')
     for key in ['contract','plan','source_graph','spec']:
         source_preparation.unchanged(bindings[key])
     ir.need(review['checks']==raw['checks'] and set(raw['checks'])==workflow.INTERFACE_CHECKS

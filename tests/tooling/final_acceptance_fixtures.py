@@ -14,8 +14,8 @@ import workflow
 
 def qualified_artifact(stage,artifact):
     exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':__import__('native_carrier').MODEL,'errors':[]}
-    tasks=Path(stage).parent/'inputs/local-tasks.json'
-    documents={tasks.name:ir.digest(tasks)} if tasks.is_file() else {}
+    inputs=Path(stage).parent/'inputs'
+    documents={path.name:ir.digest(path) for path in inputs.glob('*') if path.is_file() and path.name!='inputs.json'}
     for name,value in [('accepted.json',artifact),('exposure-audit.json',exposure),
         ('execution-manifest.json',{'fixture':'SYNTHETIC review execution; not an actual mathematical audit',
             'task_documents':documents}),

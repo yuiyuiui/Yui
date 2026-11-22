@@ -7,6 +7,7 @@ artifacts and composes existing implementations; it is not a general NL parser.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import shutil
@@ -92,7 +93,8 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     graph, spec, contract, plan, out = [Path(x).resolve() for x in (graph, spec, contract, plan, out)]
     data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
     ir.need(usable(data[0]), 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
-    c, nodes, _ = ir.validate(contract, ir.load(plan))
+    proposed=ir.load(plan)
+    c, nodes, _ = ir.validate(contract, proposed)
     import basis
     basis_context=basis.source_context(graph,spec)
     basis.check_interface(basis_context,c,data[1])
@@ -103,16 +105,13 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
                 and c['source'].get('background_supplement')==supplement,
                 'interface omitted or changed accepted background supplement')
     if interface_review is not None:
+        import interface_review as semantic_review
         interface_review = Path(interface_review).resolve()
-        review = ir.load(interface_review)
-        ir.need(review['version'] == VERSION and review['source_graph_sha256'] == ir.digest(graph)
-                and review['contract_sha256'] == ir.digest(contract) and review['plan_sha256'] == ir.digest(plan), 'stale interface review')
-        source.reviewer(review['reviewer'])
-        ir.need(set(review['checks']) == INTERFACE_CHECKS and all(x['verdict'] == 'PASS' and x['notes'].strip() for x in review['checks'].values()), 'unperformed interface review')
-        ir.need(review['evidence'], 'missing actual interface review evidence')
-        record_paths = [interface_review]+source.evidence_paths(review['evidence'], interface_review.parent)
+        review=semantic_review.verify_receipt(interface_review,contract,plan,c['source']['sha256'])
+        record_paths = [interface_review,interface_review.parent/'bindings.json',
+                        *(interface_review.parent/item['path'] for item in review['evidence'])]
         if 'local_tasks_sha256' in review:
-            record_paths.append(lean_task.review_input(interface_review.parent,review['local_tasks_sha256']))
+            record_paths.append(interface_review.parent/'inputs'/lean_task.REVIEW_INPUT)
         semantic_status = 'INTERFACE_REVIEW_PASSED_FINAL_AUDIT_B_REQUIRED'
     else:
         ir.need(interface_binding is not None, 'Deferred review requires an actual bound interface artifact')
@@ -124,17 +123,27 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
         ir.need(review.get('status') == 'IR_TYPES_CHECKED_SEMANTIC_REVIEW_PENDING_AUDIT_B', 'not a mechanically checked interface')
         record_paths = [interface_binding]
         semantic_status = 'PENDING_AUDIT_B'
-    check_source_boundary(data,c,ir.load(plan),review['paragraph_mapping'],review['source_outputs'])
+    check_source_boundary(data,c,proposed,review['paragraph_mapping'],review['source_outputs'])
     configuration = concurrency.resolve(max_concurrency, node_count=len(nodes))
-    with tempfile.TemporaryDirectory(prefix='yui-interface-types-') as scratch:
-        checked = Path(scratch)/'types'
-        typed = ir.check(contract, ir.load(plan), types_only=True, out=checked)
-        ir.need(typed['exit_code'] == 0, 'interface types/representations fail Lean')
+    import interface_types
+    with ExitStack() as scratch:
+        ref=review.get('types_receipt')
+        if ref is not None:
+            typed=interface_types.read(contract,plan,ref);checked=contract.parent/'types'
+            record_paths.extend(checked/name for name in (interface_types.NAME,*interface_types.FILES.values()))
+        else:
+            ir.need(not (contract.parent/'types'/interface_types.NAME).exists(),'Missing bound author type check evidence')
+            checked=Path(scratch.enter_context(tempfile.TemporaryDirectory(prefix='yui-interface-types-')))/'types'
+            typed=ir.check(contract,proposed,types_only=True,out=checked)
+            ir.need(typed['exit_code']==0,'interface types/representations fail Lean')
         out.mkdir(parents=True, exist_ok=False)
         copied, _ = run_graph.package(contract, plan, out)
         lean_interface = out/'interface-types/Check.lean'
         lean_interface.parent.mkdir()
         shutil.copyfile(checked/'Check.lean', lean_interface)
+        ir.need(ir.digest(lean_interface)==typed['lean_sha256'],'Changed author type check evidence while freezing')
+    import shared_lemmas
+    typed={**typed,'plan_digest':shared_lemmas.hashed(proposed)}
     bindings = [source.binding(p) for p in dict.fromkeys(authority_paths+[contract,plan]+record_paths)]
     runtime_paths=[*(ir.HERE/'scripts').glob('*.py'),*(ir.ROOT/'nl0/scripts').glob('*.py'),
                    *(ir.ROOT/'nl0/scripts').glob('*.mjs'),
@@ -165,7 +174,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     return manifest
 
 
-def bound(directory):
+def bound_source(directory):
     out = Path(directory).resolve(); manifest = ir.load(out/'manifest.json')
     seal = ir.load(out/'freeze-seal.json')
     ir.need(seal['version'] == VERSION and Path(seal['manifest']['path']) == out/'manifest.json', 'invalid workflow freeze seal')
@@ -179,7 +188,11 @@ def bound(directory):
     context=basis.source_context(manifest['authority']['graph'],manifest['authority']['spec'])
     ir.need(context==manifest.get('basis_context'),'Frozen basis authority changed')
     basis.check_interface(context,ir.contract(manifest['contract']),data[1])
-    return manifest
+    return manifest,data
+
+
+def bound(directory):
+    return bound_source(directory)[0]
 
 
 def select_proof_run(directory,selected):
@@ -208,7 +221,7 @@ def run(directory, *, shared_store=None, timeout_seconds=None, bank=False):
         with execution_state.activate(recorder),recorder.signals():
             result = run_graph.run(Path(manifest['contract']),Path(manifest['plan']),out/'proof-run',
                                shared_store=shared_store,timeout_seconds=timeout_seconds,bank=bank,budget=budget,
-                               reviewed_interface=manifest['interface_review'])
+                               reviewed_interface=manifest['interface_review'],_frozen_types=manifest.get('types_check'))
             bound(out)
             return result
     finally:
@@ -229,21 +242,28 @@ def prepare_audit(directory):
     return prepared
 
 
-def finish(directory, review=None, *, machine=False, exceptional_review=None):
-    out = Path(directory).resolve(); manifest = bound(out)
+def finish(directory, review=None, *, machine=False, exceptional_review=None, _defer_deviation=False):
+    out = Path(directory).resolve()
+    if machine:
+        import final_acceptance
+        assessed=final_acceptance.assess(out)
+        gate,manifest,data=assessed
+        if _defer_deviation and not gate['interface_consistent']:
+            return gate
+    else:
+        manifest,data=bound_source(out)
     selected=proof_run(out)
     ir.need(ir.digest(selected/'inputs/contract.json') == ir.digest(manifest['contract'])
             and ir.digest(selected/'inputs/plan.json') == ir.digest(manifest['plan']), 'proof/audit interface changed after freeze')
     if machine:
-        import final_acceptance
-        verdict=final_acceptance.finish(out,exceptional_review=exceptional_review)
+        verdict=final_acceptance._finish_assessed(out,assessed,exceptional_review=exceptional_review)
         review=verdict['receipt_path']
     else:verdict = audit_b.check(out/'audit-b',Path(review).resolve())
     ir.need(verdict['status'] in {'AUDIT-B-PASSED','AUDIT-B-CONDITIONAL'}, 'whole workflow requires whole-proof Audit B acceptance')
     proof = ir.load(selected/'report.json')
     review_path=Path(review).resolve()
     report = {'version':VERSION,'status':'WORKFLOW-PASSED' if verdict['status']=='AUDIT-B-PASSED' else 'WORKFLOW-CONDITIONAL','audit_b':verdict,
-              'source_status':source.read_source(**manifest['authority'])[0][0]['audit_status'],
+              'source_status':data[0]['audit_status'],
               'concurrency':proof['concurrency'],'freeze_seconds':manifest['freeze_seconds'],
               'proof_phase_wall_seconds':proof['runner_wall_seconds'],
               'elapsed_since_freeze_seconds':time.time()-manifest['created_at_unix'],

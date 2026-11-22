@@ -115,10 +115,12 @@ class FinalAcceptanceTests(unittest.TestCase):
             ir.write(directory/'report.json',row);return row,directory
         with patch.object(full_workflow.interface_review,'run',side_effect=review) as preproof,\
              patch.object(full_workflow,'prove_with_repair',side_effect=proof),\
+             patch.object(final,'proof_integrity',wraps=final.proof_integrity) as integrity,\
              patch.object(audit_b_review,'run',side_effect=AssertionError('Normal route must not dispatch B-final')),\
              patch.object(full_workflow.audit_b_mapping,'run',side_effect=AssertionError('No connection author needed')):
             result=full_workflow.from_interface('closed-addition',source,author,out,concurrency.serial_budget(),lambda *a,**k:None)
         self.assertEqual(preproof.call_count,1)
+        integrity.assert_called_once()
         self.assertEqual(result['status'],'WORKFLOW-PASSED')
         self.assertEqual(result['audit_b']['acceptance_basis'],'FROZEN_INTERFACE_SEMANTICS_INHERITED')
         self.assertFalse(result['audit_b']['final_semantic_model_called'])
@@ -139,6 +141,84 @@ class FinalAcceptanceTests(unittest.TestCase):
         result=validator(fixed)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED')
         self.assertEqual(ir.load(workflow.bound(out)['contract']),ir.load(mapping_dir/'inputs/contract.json'))
+
+
+class ValidationReductionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temp=tempfile.TemporaryDirectory(prefix='yui-validation-reduction-')
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.root=Path(cls.temp.name).resolve()
+        cls.original=frozen_case(cls.root/'fixture')
+
+    def arguments(self):
+        base=self.original.parent;source=base/'source';author=base/'author'
+        paths=ir.load(author/'accepted-interface-paths.json')
+        return {'graph':source/'nl0.json','spec':source/'spec.json','contract':Path(paths['contract']),
+                'plan':Path(paths['plan']),'interface_review':base/'interface-review/review.json',
+                'audit_a':source/'audit-a.json','max_concurrency':1}
+
+    def test_freeze_reuses_the_exact_author_check_and_runs_the_actual_review_gate_once(self):
+        import interface_review
+        arguments=self.arguments();out=self.root/'reused-at-freeze'
+        with patch.object(ir,'check',wraps=ir.check) as compiler, \
+             patch.object(interface_review,'verify_receipt',wraps=interface_review.verify_receipt) as verify:
+            result=workflow.freeze(**arguments,out=out)
+        self.assertEqual((verify.call_count,compiler.call_count),(1,0))
+        self.assertEqual(result['types_check']['lean_sha256'],ir.digest(out/'interface-types/Check.lean'))
+
+    def test_freeze_rejects_changed_check_receipt_plan_and_forged_review_without_recompiling(self):
+        arguments=self.arguments();types=arguments['contract'].parent/'types'
+        with patch.object(ir,'check',side_effect=AssertionError('Invalid authority cannot be replaced by compilation')):
+            for name in ('Check.lean','result.json','receipt.json'):
+                path=types/name;original=path.read_bytes()
+                try:
+                    path.write_bytes(original+b' ')
+                    with self.subTest(name=name),self.assertRaisesRegex(ValueError,'type check evidence'):
+                        workflow.freeze(**arguments,out=self.root/('changed-'+name))
+                finally:path.write_bytes(original)
+            plan=ir.load(arguments['plan']);plan['representation_notes']+=' Changed without independent review.'
+            changed_plan=self.root/'changed-plan.json';ir.write(changed_plan,plan)
+            with self.assertRaisesRegex(ValueError,'stale interface review'):
+                workflow.freeze(**{**arguments,'plan':changed_plan},out=self.root/'plan-mismatch')
+            review=ir.load(arguments['interface_review'])
+            next(iter(review['checks'].values()))['notes']='An invented passing review.'
+            forged=arguments['interface_review'].with_name('forged.json');ir.write(forged,review)
+            with self.assertRaisesRegex(ValueError,'No complete actual passing interface review'):
+                workflow.freeze(**{**arguments,'interface_review':forged},out=self.root/'forged-review')
+
+    def test_full_queue_assembles_two_real_lean_nodes_once_before_independent_audit_b(self):
+        import run_graph
+        import scheduler
+        out=self.root/'real-queue';frozen=workflow.freeze(**self.arguments(),out=out)
+        bodies={'T001':'exact h_H001.symm','T002':'simpa only [Nat.add_zero] using h_T001.symm'}
+        def actor(*args,**kwargs):
+            from types import SimpleNamespace
+            return SimpleNamespace(execute=lambda:({'status':'ACCEPTED'},{'proof':bodies[args[5]]}))
+        with patch.object(run_graph.pilot,'Stage',side_effect=actor),patch.object(ir,'check',wraps=ir.check) as native:
+            result=workflow.run(out)
+        self.assertEqual(result['status'],'FRAGMENT_ASSEMBLED',result)
+        types=sum(call.kwargs.get('types_only',False) for call in native.call_args_list)
+        assemblies=sum(not call.kwargs.get('types_only') and not call.kwargs.get('only')
+                       for call in native.call_args_list)
+        self.assertEqual((types,assemblies),(0,1))
+        self.assertFalse((out/'proof-run/graph/fresh-verifier').exists())
+        mechanical=build(out)
+        self.assertEqual(mechanical['status'],'AUDIT-B-MECHANICAL-PASSED',mechanical)
+        self.assertTrue((out/'audit-b/compiler.json').is_file())
+        self.assertTrue((out/'audit-b/assembly-compiler.json').is_file())
+        with patch.object(ir,'check',wraps=ir.check) as independent:
+            standalone=scheduler.prove_graph(frozen['contract'],ir.load(frozen['plan']),
+                lambda sid,packet:{'proof':bodies[sid] if sid=='T001' else 'exact absentProof'})
+        self.assertEqual(sum(call.kwargs.get('types_only',False) for call in independent.call_args_list),1)
+        self.assertIsNone(standalone['assembly'])
+        self.assertNotEqual(standalone['status'],'FRAGMENT_ASSEMBLED')
+        broken=ir.load(out/'proof-run/proofs.json');broken['proofs']['T002']='exact absentProof'
+        broken_path=out/'unclosed-proof.json';ir.write(broken_path,broken)
+        rejected=out/'unclosed-audit'
+        audit_b.prepare(frozen['contract'],frozen['plan'],broken_path,rejected,**frozen['authority'])
+        self.assertEqual(audit_b.build(rejected)['status'],'AUDIT-B-MECHANICAL-FAILED')
+        self.assertIn('LOCAL_INPUT_CLOSURE_FAILED',ir.load(rejected/'mechanical.json')['errors'])
 
 
 class FrozenExternalNativeTests(unittest.TestCase):

@@ -118,7 +118,7 @@ class LeanPhaseTests(unittest.TestCase):
         self.assertEqual(report['concurrency']['requested'],'auto')
         self.assertEqual(report['concurrency']['effective'],5)
         self.assertEqual(report['concurrency']['observed_peak_model_stages'],5)
-        self.assertEqual(report['fresh_verifier']['exit_code'],0)
+        self.assertEqual(report['assembly']['exit_code'],0)
         state=ir.load(out/'execution-status.json')['concurrency']
         self.assertEqual(state['roles']['proof']['configuration']['node_count'],5)
         self.assertEqual(state['roles']['proof']['observed_peak'],5)

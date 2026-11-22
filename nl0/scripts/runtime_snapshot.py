@@ -70,7 +70,7 @@ def root_for(job):
     return Path(validate(job)['root'])
 
 
-def environment(job):
+def environment(job, *, snapshot=None):
     import os
     env=dict(os.environ)
     env['YUI_FROZEN_LOCAL_CONFIG']=json.dumps(job.get('local_configuration'),sort_keys=True)
@@ -83,5 +83,6 @@ def environment(job):
     if 'lean_environment' in job:
         env['YUI_LEAN_ENVIRONMENT']=json.dumps(job['lean_environment'],sort_keys=True)
     if 'runtime_snapshot' in job:
-        validate(job)
+        if snapshot is None:validate(job)
+        elif snapshot!=job['runtime_snapshot']:raise ValueError('Verified runtime belongs to another job')
     return env

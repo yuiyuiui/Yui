@@ -151,7 +151,8 @@ def launch(prepared, *, detached=False, case_concurrency=None):
     if detached:
         from owner_observation import handoff
         import runtime_snapshot
-        runner=runtime_snapshot.root_for(prepared[0])/'nl0/scripts/queue_controller.py'
+        snapshot=prepared[0]['runtime_snapshot']
+        runner=Path(snapshot['root'])/'nl0/scripts/queue_controller.py'
         reports=runner.with_name('owner_reports.py').is_file()
         observation=handoff([job['root'] for job in prepared],controller=reports)
         root=Path(prepared[0]['root']);(root/'logs').mkdir(exist_ok=True)
@@ -162,7 +163,7 @@ def launch(prepared, *, detached=False, case_concurrency=None):
         from execution_state import finish_launch, launch_intent, observe_launched_child, unregistered_group_exited
         roots=[p['root'] for p in prepared]
         with (root/'logs/batch-controller.log').open('w') as log, launch_intent(roots,'batch-launch-pending.json') as token:
-            environment=runtime_snapshot.environment(prepared[0])
+            environment=runtime_snapshot.environment(prepared[0],snapshot=snapshot)
             environment['YUI_BATCH_LAUNCH_TOKEN']=token
             process=subprocess.Popen(command,stdout=log,stderr=log,start_new_session=True,env=environment)
         who=observe_launched_child(process)
@@ -178,7 +179,7 @@ def launch(prepared, *, detached=False, case_concurrency=None):
                 'owner_observation':observation,
                 'scope':'Actual mathematical acceptance is pending; use status/cancel on these run paths'}
     import queue_controller
-    return {'status':'EXECUTORS_FINISHED','outcomes':queue_controller.serve(prepared,case_concurrency=case_concurrency)}
+    return {'status':'EXECUTORS_FINISHED','outcomes':queue_controller._serve_admitted(prepared,case_concurrency=case_concurrency)}
 
 
 def dispatch(args):
@@ -304,7 +305,7 @@ def dispatch(args):
         launched['source_policy_notice']=summary['source_policy_notice']
         return launched
     if args.command=='execute':
-        prepared=[jobs.validate(json.loads((p/'job.json').read_text())) for p in args.runs]
+        prepared=[json.loads((p/'job.json').read_text()) for p in args.runs]
         return launch(prepared,detached=args.detach,case_concurrency=args.case_concurrency)
     if args.command=='status':
         from execution_state import inspect, same_process

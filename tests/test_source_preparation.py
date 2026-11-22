@@ -186,7 +186,7 @@ class RevisionTests(unittest.TestCase):
         self.assertTrue(source.check(second)['result']['current_standard_receipt_valid'])
 
     def test_workflow_requires_source_acceptance_and_freezes_exact_arguments(self):
-        cp,pp,rp=interface(self.g,self.s,self.base/'interfaces');synthetic_interface_review(rp)
+        cp,pp,rp=interface(self.g,self.s,self.base/'interfaces');rp=synthetic_interface_review(rp,self.s)
         with self.assertRaisesRegex(ir.Invalid,'source is not accepted'):
             workflow.freeze(self.g,self.s,cp,pp,rp,self.base/'bad-run')
         manifest=workflow.freeze(self.g,self.s,cp,pp,rp,self.base/'good-run',audit_a=self.audit)
@@ -198,7 +198,7 @@ class RevisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ir.Invalid,'stale bound artifact'):workflow.bound(self.base/'good-run')
 
     def test_frozen_configuration_and_mapping_cannot_be_edited(self):
-        cp,pp,rp=interface(self.g,self.s,self.base/'interfaces');synthetic_interface_review(rp)
+        cp,pp,rp=interface(self.g,self.s,self.base/'interfaces');rp=synthetic_interface_review(rp,self.s)
         directory=self.base/'frozen-run';workflow.freeze(self.g,self.s,cp,pp,rp,directory,audit_a=self.audit)
         path=directory/'manifest.json';value=ir.load(path);value['concurrency']['effective']=10;ir.write(path,value)
         with self.assertRaisesRegex(ir.Invalid,'stale bound artifact'):workflow.bound(directory)
@@ -208,7 +208,7 @@ class RevisionTests(unittest.TestCase):
         g,s=out/'case/nl0.json',out/'case/spec.json'
         cp,pp,rp=interface(g,s,self.base/'interfaces')
         plan=ir.load(pp);plan['steps'][0]['inputs']=['H001'];ir.write(pp,plan)
-        review=ir.load(rp);review['plan_sha256']=ir.digest(pp);ir.write(rp,review);synthetic_interface_review(rp)
+        rp=synthetic_interface_review(rp,s)
         with self.assertRaisesRegex(ir.Invalid,'source input boundary'):
             workflow.freeze(g,s,cp,pp,rp,self.base/'bad-run',incremental=out/'source-acceptance.json')
 

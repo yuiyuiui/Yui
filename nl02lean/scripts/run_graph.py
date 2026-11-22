@@ -37,7 +37,7 @@ def package(cpath, ppath, out):
     return inputs/'contract.json', ir.load(inputs/'plan.json')
 
 
-def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None, repair_guidance=None, reviewed_interface=None,sessions=None,diagnostic_interface=None):
+def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout_seconds=None, bank=False, budget=None, arm='yui', prior_run=None, repair_guidance=None, reviewed_interface=None,sessions=None,diagnostic_interface=None,_frozen_types=None):
     timeout_seconds = __import__('runtime_config').time_limit(timeout_seconds)
     ir.need(arm in {'yui','direct'}, 'unknown instruction arm')
     ir.need(arm != 'direct' or (not bank and shared_store is None), 'direct arm cannot use Yui strategy or proof stores')
@@ -72,7 +72,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
             return _run_frozen(cpath,plan,out,shared_store,configuration,worker_budget=budget,
                 timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder,prior_run=prior_run,
                 repair_guidance=repair_guidance,reviewed_interface=reviewed_interface,sessions=sessions,
-                diagnostic_interface=diagnostic_interface)
+                diagnostic_interface=diagnostic_interface,frozen_types=_frozen_types)
     finally:
         if owns_recorder:
             status=recorder.state.get('proof_result','EXECUTION_FAULT')
@@ -86,7 +86,7 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
                 except execution_state.Cancelled:recorder.close('CANCELLED')
 
 
-def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None,sessions=None,diagnostic_interface=None):
+def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeout_seconds,bank,arm,lock,started,recorder,prior_run=None,repair_guidance=None,reviewed_interface=None,sessions=None,diagnostic_interface=None,frozen_types=None):
     import basis_defect
     basis_revision=basis_defect.is_revision_program(out,prior_run)
     budget=worker_budget
@@ -167,7 +167,8 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
             with sessions.use('lean:'+sid):result,proof=stage.execute()
         else:result, proof = stage.execute()
         return {'proof':proof['proof'] if proof else None,'stage':result}
-    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',execution=recorder)
+    result = scheduler.prove_graph(cpath,plan,worker,max_workers=configuration['effective'],store=store,out=out/'graph',
+                                   execution=recorder,_frozen_types=frozen_types)
     result['runner_wall_seconds'] = time.monotonic()-started
     result['concurrency'] = budget.report()
     if proof_rounds.locally_complete(result.get('status')):

@@ -96,7 +96,7 @@ class Case:
                 raise ValueError('Transition belongs to a different job')
             goal = 'audit' if self.job['track']=='nl0' else basis.mode(self.job)
             if name.startswith('request_'):
-                jobs.validate(self.job)
+                jobs.validate(self.job,verify_runtime=False)
                 if name != 'request_'+goal:
                     raise ValueError('Prepared job goal differs from public entry')
                 return routes.outcome('selected',{**data,'goal':goal})

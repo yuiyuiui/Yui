@@ -18,9 +18,14 @@ def block_module(project, name):
     return module
 
 
-def run(job,recorder,budgets,progress):
-    from runtime_snapshot import root_for
-    project=root_for(job)/'workflow'
+def run(job,recorder,budgets,progress,*,snapshot=None):
+    if snapshot is None:
+        from runtime_snapshot import root_for
+        runtime=root_for(job)
+    else:
+        if snapshot!=job['runtime_snapshot']:raise ValueError('Verified runtime belongs to another job')
+        runtime=Path(snapshot['root'])
+    project=runtime/'workflow'
     sys.path.insert(0,str(project/'scripts'))
     try:
         from wfcore.engine import start

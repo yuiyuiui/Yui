@@ -980,6 +980,16 @@ class ImportedLeanTests(unittest.TestCase):
                          self.current, self.root/'consumer', attachments=lean_libraries.current())
             self.assertTrue(pilot_common.native_succeeded(consumer['native']), consumer['diagnostic'])
 
+    def test_git_head_read_avoids_the_process_group_registration(self):
+        import public_lean
+        repo=self.git_source('quick-head',{'Lib/A.lean':'import Init\n'})
+        work=self.root/'scratch';(work/'home').mkdir(parents=True)
+        with patch.object(public_lean,'capture_process',side_effect=AssertionError('HEAD needs only its local child handle')):
+            observed=public_lean.git(work,repo[1],['rev-parse','HEAD'],time.monotonic()+10)
+            self.assertEqual(observed,repo[2])
+            with self.assertRaisesRegex(public_lean.BuildFailure,'not a git repository'):
+                public_lean.git(work,work,['rev-parse','HEAD'],time.monotonic()+10)
+
     def test_short_git_failure_keeps_original_stderr(self):
         import native_workspace
         import public_lean

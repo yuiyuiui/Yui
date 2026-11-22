@@ -152,7 +152,8 @@ def prove_with_repair(case,frozen,destination,interface,budget,proof_budget,prog
         proof=run_graph.run(Path(frozen['contract']),Path(frozen['plan']),current,
             timeout_seconds=stage_seconds(proof_budget),budget=proof_budget,prior_run=prior_run,
             repair_guidance=guidance,reviewed_interface=reviewed_interface,sessions=sessions,diagnostic_interface=interface,
-            shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None)
+            shared_store=destination/'shared-proofs' if ir.load(frozen['contract']).get('shared_obligations') else None,
+            _frozen_types=frozen.get('types_check'))
         rounds.append(bind(current/'report.json'))
         workflow.bound(destination)
         if budget.execution:budget.execution.check()
@@ -245,7 +246,6 @@ def from_interface(case,source,interface,destination,budget,progress,*,proof_bud
         raise StageFailure('INTERFACE_REVIEW_FAILED','The proposed types do not have a passing independent source-correspondence review',
             phase='interface-review',evidence=review_directory/'report.json',details={'review_status':reviewed['review_status']})
     progress(case,'INTERFACE_SEMANTIC_REVIEW_PASSED',directory=str(review_directory))
-    interface_review.verify_receipt(review_directory/'review.json',bindings['contract'],bindings['plan'],ir.digest(authority['graph']))
     workflow.freeze(**authority,contract=bindings['contract'],plan=bindings['plan'],interface_review=review_directory/'review.json',out=destination,
         max_concurrency=proof_budget.configuration['requested'],interface_binding=interface/'accepted-interface-paths.json')
     frozen=workflow.bound(destination)
@@ -287,9 +287,8 @@ def finish_translation(case,destination,budget,progress):
     from fault_control import Gate,outcome_error
     from controller_common import bind,write
     destination=Path(destination)
-    gate=final_acceptance.check(destination)
-    if gate['interface_consistent']:
-        return workflow.finish(destination,machine=True)
+    gate=workflow.finish(destination,machine=True,_defer_deviation=True)
+    if gate['status']!='INTERFACE_DEVIATION_REQUIRES_B_FINAL':return gate
     review_number=0
     while True:
         review_number+=1

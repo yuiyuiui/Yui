@@ -48,6 +48,23 @@ class LeanLibraryTests(unittest.TestCase):
         self.assertIn('True.intro', path.read_text())
         self.assertFalse(path.is_symlink())
 
+    def test_captured_olean_is_read_once_then_revalidated_when_identity_changes(self):
+        target=self.root/'run/lean-libraries/FixtureLib/lib/FixtureLib/Leaf.olean'
+        read_bytes=Path.read_bytes;reads=[]
+        def count(path):
+            if path==target:reads.append(path)
+            return read_bytes(path)
+        with patch.object(Path,'read_bytes',count):
+            snapshot=self.capture()
+            for _ in range(2):
+                with libraries.use([snapshot]):self.assertEqual(libraries.binding(),[snapshot])
+            self.assertEqual(len(reads),1)
+            replacement=target.with_name('replacement.olean')
+            replacement.write_bytes(b'modified');replacement.replace(target)
+            with self.assertRaisesRegex(ValueError,'changed'):
+                with libraries.use([snapshot]):self.fail('Changed binary reached the consumer')
+            self.assertEqual(len(reads),2)
+
     def test_explicit_scope_survives_worker_context_and_restores(self):
         descriptor = self.capture()
         with libraries.use([descriptor]):

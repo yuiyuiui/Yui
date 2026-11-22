@@ -26,6 +26,7 @@ MODULE=rules.MODULE
 _UNSET=object()
 _selected=ContextVar('yui_lean_libraries',default=None)
 _verified_files={}
+os.register_at_fork(after_in_child=_verified_files.clear)
 _module=rules.module
 
 
@@ -76,7 +77,6 @@ def capture(specification, run):
             if bind(source)['sha256']!=expected:raise ValueError('Lean library input changed: '+str(source))
             target=destination/folder/(str(relative)+suffix)
             target.parent.mkdir(parents=True,exist_ok=True);copy_input(source,target)
-            if bind(target)['sha256']!=expected:raise ValueError('Lean library copy changed')
     import lean_ports
     for evidence in (lean_ports,lean_patches):
         evidence.copy_evidence(roots['source_root'].parent,destination,metadata)
@@ -141,7 +141,7 @@ def validate(descriptors, *, full=False):
 
 @contextmanager
 def use(descriptors):
-    validate(descriptors, full=True)
+    validate(descriptors)
     token = _selected.set(deepcopy(descriptors))
     try:
         yield

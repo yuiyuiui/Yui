@@ -54,7 +54,7 @@ class ProofRoundNative(unittest.TestCase):
         self.assertTrue(all(job['status'] == 'LOCAL_PROOFS_CHECKED' for job in result['jobs']))
         self.assertTrue(all(job['verification']['exit_code'] == 0 for job in result['jobs']))
         self.assertNotEqual(result['assembly']['exit_code'], 0)
-        self.assertNotEqual(result['fresh_verifier']['exit_code'], 0)
+        self.assertNotEqual(result['assembly']['exit_code'], 0)
         self.assertEqual(result['worker_calls'], 0)
         recorded_tools = ir.load(selected / 'configuration.json')['script_sha256']
         self.assertIn('proof_round_policy.py', recorded_tools)

@@ -34,9 +34,9 @@ def proof_integrity(directory):
     return manifest,m,evidence
 
 
-def check(directory):
+def assess(directory):
     import workflow,interface_review
-    out=Path(directory).resolve();frozen=workflow.bound(out)
+    out=Path(directory).resolve();frozen,data=workflow.bound_source(out)
     ir.need(frozen['interface_review'] is not None,'Machine final acceptance requires pre-proof semantic authority')
     interface_review.verify_receipt(frozen['interface_review'],frozen['contract'],frozen['plan'],
         ir.digest(frozen['authority']['graph']))
@@ -52,15 +52,24 @@ def check(directory):
     ir.need(len(rows)==len(expected) and {r['id'] for r in rows}==expected,'Missing complete frozen endpoint inspection')
     consistent=(actual['header']==wanted['header'] and actual['pins']==wanted['pins'] and
         all(r['definitionally_equal'] for r in rows))
-    return {'interface_consistent':consistent,'proof_integrity_passed':True,
+    gate={'interface_consistent':consistent,'proof_integrity_passed':True,
         'status':'FROZEN_INTERFACE_CONSISTENT' if consistent else 'INTERFACE_DEVIATION_REQUIRES_B_FINAL',
         'semantic_review':source_preparation.binding(frozen['interface_review']),
         'mechanical':source_preparation.binding(out/'audit-b/mechanical.json')}
+    return gate,frozen,data
+
+
+def check(directory):
+    return assess(directory)[0]
 
 
 def finish(directory, *, exceptional_review=None):
-    import workflow,audit_b_review
-    out=Path(directory).resolve();gate=check(out);frozen=workflow.bound(out)
+    return _finish_assessed(directory,assess(directory),exceptional_review=exceptional_review)
+
+
+def _finish_assessed(directory, assessment, *, exceptional_review=None):
+    import audit_b_review
+    out=Path(directory).resolve();gate,_,data=assessment
     deviation=not gate['interface_consistent']
     if deviation:
         ir.need(exceptional_review is not None,'Interface deviation needs actual B-final semantic review')
@@ -70,7 +79,6 @@ def finish(directory, *, exceptional_review=None):
         ir.need(ir.load(Path(exceptional_review).parent/'bindings.json')['audit']==str(out/'audit-b'),'B-final reviewed another artifact')
     else:
         ir.need(exceptional_review is None,'Normal final acceptance needs no final semantic model')
-    data=source_preparation.read_source(**frozen['authority'])[0]
     conditional=deviation or not data[0].get('current_standard_receipt_valid')
     receipt={'schema':SCHEMA,'workflow':str(out),'status':'AUDIT-B-CONDITIONAL' if conditional else 'AUDIT-B-PASSED',
         'acceptance_basis':'EXCEPTIONAL_FINAL_SEMANTIC_REVIEW' if deviation else 'FROZEN_INTERFACE_SEMANTICS_INHERITED',
@@ -94,16 +102,13 @@ def validate_receipt(path):
     """Read-only validation; never calls a model or Lean."""
     path=Path(path);receipt=ir.load(path);ir.need(receipt['schema']==SCHEMA,'Unknown machine final acceptance')
     for binding in receipt['bindings']:source_preparation.unchanged(binding)
-    gate=check(receipt['workflow']);ir.need(gate==receipt['gate'],'Final acceptance gate changed')
+    gate,_,data=assess(receipt['workflow']);ir.need(gate==receipt['gate'],'Final acceptance gate changed')
     if receipt['exceptional_review']:
         import audit_b_review
         source_preparation.unchanged(receipt['exceptional_review'])
         audit_b_review.verify_actual_review(Path(receipt['exceptional_review']['path']).parent)
         ir.need(not gate['interface_consistent'] and receipt['final_semantic_model_called'] and receipt['freeze_deviation'],'Invalid exceptional review scope')
     else:ir.need(gate['interface_consistent'] and not receipt['final_semantic_model_called'] and not receipt['freeze_deviation'],'Invalid inherited semantic scope')
-    import workflow
-    frozen=workflow.bound(receipt['workflow'])
-    data=source_preparation.read_source(**frozen['authority'])[0]
     conditional=receipt['freeze_deviation'] or not data[0].get('current_standard_receipt_valid')
     ir.need(receipt['source_conditional']==(not data[0].get('current_standard_receipt_valid')),'Source qualification changed')
     ir.need(receipt['status']==('AUDIT-B-CONDITIONAL' if conditional else 'AUDIT-B-PASSED'),'Final acceptance scope was promoted')

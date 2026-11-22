@@ -144,10 +144,23 @@ def interface(graph,spec,directory):
     return cp,pp,rp
 
 
-def synthetic_interface_review(path):
-    value=ir.load(path);note=Path(path).parent/'TEST_ONLY_INTERFACE_SHAPE.txt'
-    note.write_text('SYNTHETIC INTERFACE RECEIPT FORMAT ONLY.\n')
-    value['reviewer']={'identity':'TEST_ONLY_INDEPENDENCE_FIELD_CONTROL','mode':'external_review','independent':True,
-                       'disclosure':'Fabricated independence fields for a positive validator branch only; not actual mathematical acceptance.'}
-    for row in value['checks'].values():row.update(verdict='PASS',notes='Synthetic schema-control judgment only.')
-    value['evidence']=[{'path':note.name,'sha256':ir.digest(note)}];ir.write(path,value)
+def synthetic_interface_review(path, spec):
+    import shutil
+    from controller_common import bind
+    from final_acceptance_fixtures import qualified_artifact
+    import interface_review
+    directory=Path(path).parent;value=ir.load(path)
+    inputs=directory/'inputs';inputs.mkdir()
+    paths={'contract':directory/'contract.json','plan':directory/'plan.json',
+           'source_graph':directory/'nl0.json','spec':spec}
+    for name,source_path in [('contract.json',paths['contract']),('spec.json',spec)]:
+        shutil.copyfile(source_path,inputs/name)
+    bindings={key:bind(file) for key,file in paths.items()}
+    ir.write(directory/'bindings.json',{**bindings,'author':str(directory/'synthetic-author'),
+        'paragraph_mapping':value['paragraph_mapping'],'source_outputs':value['source_outputs']})
+    checks={name:{'verdict':'PASS','notes':'Synthetic source-boundary control only.',
+        'locations':[{'document':'spec.json','pointer':'/full_target'},{'document':'contract.json','pointer':'/conclusion/type'}]}
+        for name in workflow.INTERFACE_CHECKS}
+    qualified_artifact(directory/'stage',{'checks':checks,'findings':[]})
+    interface_review.collect(directory)
+    return directory/'review.json'

@@ -42,7 +42,7 @@ class DependencyInstanceTests(unittest.TestCase):
         self.assertNotIn('\ntheorem P ',preflight)
         result=scheduler.prove_graph(self.path,self.plan,lambda sid,packet:{'proof':self.proofs[sid]},max_workers=2)
         self.assertEqual(result['status'],'FRAGMENT_ASSEMBLED',result)
-        self.assertEqual(result['fresh_verifier']['exit_code'],0)
+        self.assertEqual(result['assembly']['exit_code'],0)
         result=ir.check_auxiliary(self.path,self.plan,'T002',self.contract['conclusion']['type'],
                                   self.proofs['T002'],out=self.path.parent/'helper')
         self.assertTrue(result['auxiliary_valid'],result['stdout'])
@@ -132,7 +132,7 @@ class DependencyInstanceTests(unittest.TestCase):
         program=ir.render(self.path,self.plan,proofs)
         self.assertNotIn('__yui_preflight',program)
         self.assertNotIn('False.elim',program)
-        self.assertTrue(set(report['fresh_verifier']['axioms']) <= {'propext','Classical.choice','Quot.sound'})
+        self.assertTrue(set(report['assembly']['axioms']) <= {'propext','Classical.choice','Quot.sound'})
         # With the valid ambient instance left intact, a bad index must still be located.
         second['input_instances']['T001'][0]['levels'][1]='1'
         wrong=ir.check(self.path,self.plan,types_only=True)

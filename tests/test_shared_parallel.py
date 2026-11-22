@@ -200,7 +200,7 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual([x['id'] for x in packets['T002']['inputs']], ['T001'])
         intervals = [(j['started_offset_seconds'], j['finished_offset_seconds']) for j in report['jobs']]
         self.assertLess(max(x[0] for x in intervals), min(x[1] for x in intervals))
-        self.assertNotIn('h_T001', report['fresh_verifier']['stdout'].split('depends on axioms')[0])
+        self.assertNotIn('h_T001', report['assembly']['stdout'].split('depends on axioms')[0])
 
     def test_warm_cache_skips_producer_and_still_checks_root(self):
         store = shared.Store(self.temp/'store')
