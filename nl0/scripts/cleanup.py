@@ -23,7 +23,7 @@ import time
 
 CORE = Path(__file__).resolve().parents[2]
 REPO = CORE
-from execution_state import atomic, now, request_cancel, remaining_processes
+from execution_state import atomic, now, pending_launches, request_cancel, remaining_processes
 from run_resources import MARKER, SCHEMA
 
 
@@ -98,6 +98,7 @@ def inventory(repo, outputs=None):
     records, workspaces, snapshots, batches, errors = [], {}, [], [], []
     temp_root = Path(tempfile.gettempdir()).resolve()
     for root in roots:
+        errors.extend('Unconfirmed controller launch: '+str(path) for path in pending_launches(root))
         if root.is_symlink():
             errors.append('Refuse symlink output root: '+str(root)); continue
         if not root.exists():
@@ -351,6 +352,11 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
                 report.update(status='BLOCKED',errors=['Queued-case cancellation not acknowledged'],waiting_runs=waiting)
                 return report
             time.sleep(.1)
+        inv = inventory(repo, outputs); table = process_table()
+        owned = discover(inv, table, repo)
+        if inv['errors']:
+            report.update(status='BLOCKED', errors=inv['errors'], residual_pids=sorted(owned))
+            return report
         signal_owned(owned, signal.SIGTERM)
         deadline = time.monotonic()+grace
         while owned and time.monotonic() < deadline:
@@ -361,6 +367,9 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
         # Rescan after graceful shutdown to include children registered during cancellation.
         inv = inventory(repo, outputs); table = process_table()
         owned = {**{pid: r for pid, r in owned.items() if matching(r, table)}, **discover(inv, table, repo)}
+        if inv['errors']:
+            report.update(status='BLOCKED', errors=inv['errors'], residual_pids=sorted(owned))
+            return report
         signal_owned(owned, signal.SIGKILL)
         deadline = time.monotonic()+3
         while owned and time.monotonic() < deadline:
@@ -378,9 +387,15 @@ def clean(repo=REPO, *, apply=False, grace=10, outputs=None):
             elif job.get('workflow_protocol') and (root/'execution-status.json').is_file():
                 anchors[root]=delivery.partial(job)
         for work in inv['workspaces']:
+            if any(pending_launches(root) for root in roots):
+                report.update(status='BLOCKED', errors=['A controller launch is still unconfirmed'])
+                return report
             shutil.rmtree(work)
             report['removed_temporary_directories'] += 1
         for root in inv['roots']:
+            if pending_launches(root):
+                report.update(status='BLOCKED', errors=['A controller launch is still unconfirmed: '+str(root)])
+                return report
             if root in anchors:
                 delivery.verify(root/'delivery',anchor=anchors[root])
                 for path in root.iterdir():

@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 _scope = contextvars.ContextVar('yui_execution_scope', default=(None, None))
 STALE_HEARTBEAT_SECONDS = 15
+LAUNCH_MARKERS = ('case-launch-pending.json', 'batch-launch-pending.json')
 
 
 class Cancelled(Exception):
@@ -27,6 +28,10 @@ class Cancelled(Exception):
 class ProcessIdentityUnconfirmed(RuntimeError):
     """A launched child has no fresh, complete OS start identity yet."""
     fault_code='PROCESS_IDENTITY_UNCONFIRMED'
+
+
+class LaunchBlocked(RuntimeError):
+    """A run could not be reserved for a new child."""
 
 
 class CaseDeadlineExceeded(TimeoutError):
@@ -70,6 +75,70 @@ def matches_identity(record, current):
             and isinstance(record.get('started'), str) and bool(record['started'])
             and isinstance(current.get('started'), str)
             and ' '.join(current.get('started', '').split()) == ' '.join(record['started'].split()))
+
+
+@contextlib.contextmanager
+def launch_intent(roots, marker):
+    """Publish uncertainty before Popen, then check the cleaner's lock."""
+    if marker not in LAUNCH_MARKERS:
+        raise ValueError('Invalid launch marker')
+    token = uuid.uuid4().hex
+    acquired = []
+    try:
+        for root in sorted({Path(root) for root in roots}):
+            path = root/marker
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError as error:
+                raise LaunchBlocked('Another launch is pending for '+str(root)) from error
+            acquired.append(path)
+            with os.fdopen(fd, 'w') as handle:
+                json.dump({'token': token}, handle)
+            if (root/'.cleanup.lock').exists() or (root/'cancel-request.json').exists() or not (root/'job.json').is_file():
+                raise LaunchBlocked('The run is being cancelled or cleaned: '+str(root))
+        yield token
+    except BaseException:
+        for path in acquired:
+            path.unlink(missing_ok=True)
+        raise
+
+
+def finish_launch(root, marker, token):
+    """Only the launcher or its acknowledging child may release the fence."""
+    if not token:
+        return
+    path = Path(root)/marker
+    try:
+        if json.loads(path.read_text()) == {'token': token}:
+            path.unlink(missing_ok=True)
+    except FileNotFoundError:
+        return
+
+
+def pending_launches(root):
+    return [path for path in (Path(root)/name for name in LAUNCH_MARKERS)
+            if path.is_symlink() or path.exists()]
+
+
+def observe_launched_child(process, *, lookup=None):
+    """Use the held child handle to bridge a missing OS identity at exit."""
+    if process.poll() is not None:
+        return None
+    record = (lookup or identity)(process.pid)
+    if record is None:
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=.2)
+    return record
+
+
+def unregistered_group_exited(process):
+    if process.poll() is None:
+        return False
+    try:
+        members, _ = remaining_processes({'pid':process.pid,'pgid':process.pid}, process_table())
+        return not members
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
 
 
 def process_table():
@@ -266,7 +335,21 @@ class Recorder:
     def _loop(self):
         while not self.done.wait(.1):
             self.poll_control()
-            self.flush()
+            self.flush_progress()
+
+    def flush_progress(self, *, force=False):
+        """A missing progress snapshot does not invalidate accepted work."""
+        for _ in range(2 if force else 1):
+            try:
+                self.flush(force=force)
+                return
+            except OSError as error:
+                with self.lock:
+                    prior = self.state.get('observation_write', {})
+                    self.state['observation_write'] = {
+                        'failures':prior.get('failures', 0)+1,
+                        'last_failure_at_utc':now(), 'error':type(error).__name__+': '+str(error)}
+                    self.dirty = True
 
     def poll_control(self):
         for path in (self.root/'control').glob('*.json'):
@@ -542,17 +625,22 @@ class Recorder:
             self.process_finished(process)
         with self.lock:
             ledgers={row['usage_ledger'] for row in self.state['tasks'].values() if row.get('usage_ledger')}|set(self.state.get('archived_usage_ledgers',[]))
-            actual={};missing=[]
+            actual={};missing=[];ledger_errors=[]
             for path in sorted(ledgers):
                 ledger=Path(path).with_name('usage-ledger.jsonl')
                 if not ledger.is_file():missing.append(path);continue
-                for line in ledger.read_text().splitlines():
-                    row=json.loads(line);actual[row.get('response_id') or row['record_id']]=row['usage']
+                try:
+                    with ledger.open() as stream:
+                        for line in stream:
+                            row=json.loads(line)
+                            actual[row.get('response_id') or row['record_id']]=row['usage']
+                except (OSError, ValueError, TypeError, AttributeError, KeyError) as error:
+                    ledger_errors.append({'path':str(ledger),'error':type(error).__name__+': '+str(error)})
             if ledgers:
                 expected={'native-stage:'+k:v for k,v in self._native_usage.items()}
-                matches=actual==expected and not missing
+                matches=actual==expected and not missing and not ledger_errors
                 self.state['usage']['final_ledger_reconciliation']={'status':'MATCHED' if matches else 'INCOMPLETE_OR_MISMATCH',
-                    'stage_usage_files':sorted(ledgers),'missing_ledgers':missing}
+                    'stage_usage_files':sorted(ledgers),'missing_ledgers':missing,'ledger_errors':ledger_errors}
                 if not matches:self._usage_errors.append('Final ledger reconciliation incomplete/mismatched')
             self.state['controller']['state']='FINALIZED'
             self.state['result']={'status':status,**result}

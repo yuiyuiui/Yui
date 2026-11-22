@@ -110,6 +110,7 @@ class OwnerObservationTests(unittest.TestCase):
                 patch.object(subprocess, 'Popen') as launch, \
                 patch('execution_state.identity', return_value=self.identity):
             launch.return_value.pid = self.identity['pid']
+            launch.return_value.poll.return_value = None
             result = entrypoint.launch([self.job], detached=True)
         self.assertEqual(launch.call_count, 1)
         self.assertIn('--controller-reports', launch.call_args.args[0])
@@ -124,9 +125,35 @@ class OwnerObservationTests(unittest.TestCase):
                 patch('runtime_snapshot.environment'), patch.object(subprocess, 'Popen') as launch, \
                 patch('execution_state.identity', return_value=self.identity):
             launch.return_value.pid = self.identity['pid']
+            launch.return_value.poll.return_value = None
             result = entrypoint.launch([self.job], detached=True)
         self.assertNotIn('--controller-reports', launch.call_args.args[0])
         self.assertEqual(result['owner_observation']['registration'], 'HOST_REGISTRATION_REQUIRED')
+
+    def test_detached_short_exit_observes_the_held_child_result(self):
+        import sys
+        from types import SimpleNamespace
+
+        children, launch_was_reserved = [], []
+
+        def start_detached(*args, **kwargs):
+            launch_was_reserved.append((self.run/'batch-launch-pending.json').is_file())
+            child = subprocess.Popen([sys.executable, '-B', '-c', 'import time;time.sleep(.08);raise SystemExit(17)'],
+                                     start_new_session=True)
+            children.append(child)
+            return child
+
+        try:
+            with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
+                    patch.object(entrypoint, 'subprocess', SimpleNamespace(Popen=start_detached)), \
+                    patch('execution_state.identity', return_value=None):
+                result = entrypoint.launch([self.job], detached=True)
+            self.assertEqual(launch_was_reserved, [True])
+            self.assertEqual((result['status'], result['exit_code']), ('CONTROLLER_EXITED', 17))
+            self.assertFalse((self.run/'batch-launch-pending.json').exists())
+        finally:
+            for child in children:
+                child.wait(timeout=5)
 
     def test_controller_reports_completion_after_persisting_batch_result(self):
         write(self.run/'owner-context.json', {'thread_id': 'owner-task'})

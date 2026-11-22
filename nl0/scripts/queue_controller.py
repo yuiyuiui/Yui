@@ -14,7 +14,8 @@ from contextlib import ExitStack
 from controller_common import write, bind, final_write
 import case_outcomes
 import jobs as job_contract
-from execution_state import identity, terminate_owned, request_cancel
+from execution_state import (LaunchBlocked, finish_launch, identity, launch_intent, observe_launched_child,
+                             request_cancel, terminate_owned, unregistered_group_exited)
 
 
 def validate_job(value):
@@ -57,6 +58,22 @@ def launch_case(job_file,out):
             env=runtime_snapshot.environment(job))
 
 
+def case_exit(root, process, record):
+    """Report an exited child without suspending the other batch slots."""
+    from execution_state import Cancelled
+    from fault_control import Gate
+    retained = record.get('result') if isinstance(record, dict) else None
+    error = {'code':'harness_bug','message':'Case process exited without task completion or user cancellation',
+             'exit_code':process.returncode, 'retained_case_outcome':retained,
+             'read_error':record.get('read_error') if isinstance(record, dict) else 'Invalid result envelope'}
+    try:
+        Gate(root/'logs/batch-errors',stage='case-process-exited').pause(error,resumable=False,wait_for_control=False)
+    except Cancelled:
+        return {'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED','retained_case_outcome':retained}
+    return {'status':'EXECUTION_FAULT','error':error['message'], 'exit_code':error['exit_code'],
+            'retained_case_outcome':retained,'read_error':error['read_error']}
+
+
 def serve(jobs,*,case_concurrency=None,report_progress=False):
     jobs=list(jobs)
     for job in jobs:validate_job(job)
@@ -64,13 +81,15 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
         raise ValueError('Duplicate case input/output in one batch')
     count=len(jobs) if case_concurrency is None else case_concurrency
     if type(count) is not int or count<1:raise ValueError('Positive concurrent-case count required')
-    pending=list(jobs);active={};outcomes={};stopping=False;previous={}
+    pending=list(jobs);active={};outcomes={};stopping=False;previous={};uncertain_groups=[]
     owner=identity(os.getpid())
     if owner is None:raise RuntimeError('Cannot establish batch controller identity')
     for job in jobs:
-        write(Path(job['root'])/'batch.json',{'controller':owner,'concurrent_cases':count,
+        root=Path(job['root'])
+        write(root/'batch.json',{'controller':owner,'concurrent_cases':count,
             'case_run_roots':[j['root'] for j in jobs],'case':job['case'],
             'scope':'Controller metadata only; never a model input'})
+        finish_launch(root, 'batch-launch-pending.json', os.environ.get('YUI_BATCH_LAUNCH_TOKEN'))
     def stop(*_):
         nonlocal stopping
         stopping=True;cancel_batch([j['root'] for j in jobs])
@@ -93,10 +112,17 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
                 if (root/'cancel-request.json').exists():
                     outcomes[job['id']]={'status':'CANCELLED','model_worker_called':False}
                     write(root/'case-result.json',{'job':bind(root/'job.json'),'result':outcomes[job['id']]});continue
-                process=launch_case(root/'job.json',root);who=identity(process.pid)
-                if who is None and process.poll() is None:raise RuntimeError('Missing case process identity')
-                if who:write(root/'case-process.json',{'schema_version':'yui-owned-process-1','process':who,'kind':'case-controller'})
-                active[job['id']]={'job':job,'process':process,'identity':who,'cancel_at':None}
+                try:
+                    with launch_intent([root], 'case-launch-pending.json') as token:
+                        process=launch_case(root/'job.json',root)
+                        active[job['id']]={'job':job,'process':process,'identity':None,'cancel_at':None,
+                                           'launch_token':token,'identity_attempts':0}
+                except LaunchBlocked as error:
+                    if (root/'cancel-request.json').is_file():
+                        outcomes[job['id']]={'status':'CANCELLED','model_worker_called':False}
+                        write(root/'case-result.json',{'job':bind(root/'job.json'),'result':outcomes[job['id']]})
+                    else:
+                        outcomes[job['id']]={'status':'EXECUTION_FAULT','error':str(error)}
             if stopping:
                 for job in pending:
                     outcomes[job['id']]={'status':'CANCELLED','model_worker_called':False}
@@ -104,11 +130,23 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
                 pending.clear()
             for key,row in list(active.items()):
                 root=Path(row['job']['root']);process=row['process']
+                if row['identity'] is None and row['identity_attempts'] < 2:
+                    row['identity_attempts']+=1
+                    who=observe_launched_child(process,lookup=identity)
+                    if who is not None:
+                        row['identity']=who
+                        write(root/'case-process.json',{'schema_version':'yui-owned-process-1','process':who,'kind':'case-controller'})
+                        finish_launch(root,'case-launch-pending.json',row['launch_token'])
                 if (root/'cancel-request.json').exists() and process.poll() is None:
                     row['cancel_at']=row['cancel_at'] or time.monotonic()
                     if (root/'execution-status.json').is_file():request_cancel(root)
                     if time.monotonic()-row['cancel_at']>35 and row['identity']:terminate_owned(process,row['identity'])
                 if process.poll() is None:continue
+                if row['identity'] is None:
+                    if unregistered_group_exited(process):
+                        finish_launch(root,'case-launch-pending.json',row['launch_token'])
+                    else:
+                        uncertain_groups.append(process.pid)
                 result=root/'case-result.json'
                 try:record=json.loads(result.read_text())
                 except (OSError,ValueError) as error:record={'read_error':str(error)}
@@ -119,16 +157,7 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
                 bound_stop=(not isinstance(value,dict) or value.get('status')!='STOPPED_BY_USER'
                             or record.get('job')==bind(root/'job.json'))
                 if not bound_stop or not (paused or case_outcomes.terminal(root,value)):
-                    from fault_control import Gate
-                    from execution_state import Cancelled
-                    try:
-                        Gate(root/'logs/batch-errors',stage='case-process-exited').pause(
-                            {'code':'harness_bug','message':'Case process exited without task completion or user cancellation',
-                             'exit_code':process.returncode,'retained_case_outcome':value,
-                             'read_error':record.get('read_error') if isinstance(record,dict) else 'Invalid result envelope'},resumable=False)
-                    except Cancelled:
-                        write(result,{'job':bind(root/'job.json'),'result':{'status':'CANCELLED',
-                            'task_outcome':'EXTERNAL_CANCELLED','retained_case_outcome':value}})
+                    write(result,{'job':bind(root/'job.json'),'result':case_exit(root,process,record)})
                 outcomes[key]=json.loads(result.read_text())['result'];del active[key]
             if pending or active:time.sleep(.1)
     except Exception as error:
@@ -138,7 +167,8 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
             if job['id'] in outcomes:continue
             root=Path(job['root'])
             try:
-                Gate(root/'logs/batch-errors',stage='batch-controller').pause(error,resumable=False)
+                Gate(root/'logs/batch-errors',stage='batch-controller').pause(error,resumable=False,wait_for_control=False)
+                outcomes[job['id']]={'status':'EXECUTION_FAULT','error':str(error)}
             except Cancelled:
                 outcomes[job['id']]={'status':'CANCELLED','task_outcome':'EXTERNAL_CANCELLED'}
     finally:
@@ -151,7 +181,9 @@ def serve(jobs,*,case_concurrency=None,report_progress=False):
             try:row['process'].wait(timeout=35)
             except subprocess.TimeoutExpired:
                 if row['identity']:terminate_owned(row['process'],row['identity'])
-        unresolved=[row['process'].pid for row in active.values() if row['process'].poll() is None]
+        unresolved=uncertain_groups+[row['process'].pid for row in active.values()
+                                     if row['process'].poll() is None
+                                     or (row['identity'] is None and not unregistered_group_exited(row['process']))]
         for sig,handler in previous.items():signal.signal(sig,handler)
         for job in jobs:
             if not Path(job['root']).is_dir():continue
@@ -175,4 +207,5 @@ if __name__=='__main__':
     parser.add_argument('--controller-reports',action='store_true');args=parser.parse_args()
     results=serve([json.loads(p.read_text()) for p in args.job],case_concurrency=args.case_concurrency,
                   report_progress=args.controller_reports)
-    raise SystemExit(0 if all(r.get('completion',{}).get('acceptance_target_satisfied') for r in results.values()) else 1)
+    raise SystemExit(0 if len(results)==len(args.job) and all(
+        r.get('completion',{}).get('acceptance_target_satisfied') for r in results.values()) else 1)

@@ -80,4 +80,120 @@ class QueueControllerTests(unittest.TestCase):
         self.assertEqual(result[selected[0]['id']]['status'],'CANCELLED')
         self.assertEqual(result[selected[1]['id']]['retained_case_outcome']['status'],'SYNTHETIC_NONPASS')
 
+    def test_unidentified_short_exit_reports_failure_and_frees_the_slot(self):
+        first, second = [self.job(i) for i in range(2)]
+        children, incidents = [], []
+        lookup = q.identity
+
+        def launch(job_file, out):
+            if not children:
+                program = 'import time;time.sleep(.08);raise SystemExit(7)'
+            else:
+                program = ('from pathlib import Path;import sys;'
+                           'Path(sys.argv[1]).write_text(\'{"result":{"status":"CANCELLED"}}\')')
+            child = subprocess.Popen([sys.executable, '-B', '-c', program, str(out/'case-result.json')],
+                                     start_new_session=True)
+            children.append(child)
+            return child
+
+        def miss_first(pid):
+            return None if children and pid == children[0].pid else lookup(pid)
+
+        def incident(gate, error, **options):
+            incidents.append((gate.stage, error, options.get('wait_for_control', True)))
+
+        try:
+            with patch.object(q, 'launch_case', side_effect=launch), patch.object(q, 'identity', side_effect=miss_first), \
+                    patch('fault_control.Gate.pause', incident):
+                results = q.serve([first, second], case_concurrency=1)
+            self.assertEqual(len(children), 2)
+            self.assertEqual(results[first['id']]['exit_code'], 7)
+            self.assertEqual(results[second['id']]['status'], 'CANCELLED')
+            self.assertEqual([(stage, error['exit_code'], waits) for stage, error, waits in incidents],
+                             [('case-process-exited', 7, False)])
+        finally:
+            for child in children:
+                child.wait(timeout=5)
+
+    def test_live_unconfirmed_child_is_fenced_while_sibling_runs(self):
+        import cleanup
+        first, second = [self.job(i) for i in range(2)]
+        first_root = Path(first['root'])
+        release = self.root/'release-child'
+        children, observed = [], []
+        lookup = q.identity
+
+        def launch(job_file, out):
+            self.assertTrue((out/'case-launch-pending.json').is_file())
+            if out == first_root:
+                program = ('import sys,time\nfrom pathlib import Path\n'
+                           'while not Path(sys.argv[1]).exists(): time.sleep(.02)\n'
+                           'Path(sys.argv[2]).write_text(\'{"result":{"status":"CANCELLED"}}\')')
+                args = [str(release), str(out/'case-result.json')]
+            else:
+                observed.append(children[0].poll() is None)
+                with patch.object(cleanup, 'signal_owned') as signals:
+                    result = cleanup.clean(apply=True, grace=0, outputs=[first_root])
+                self.assertEqual(result['status'], 'BLOCKED')
+                signals.assert_not_called()
+                self.assertTrue(first_root.is_dir())
+                program = ('from pathlib import Path;import sys;'
+                           'Path(sys.argv[1]).write_text(\'{"result":{"status":"CANCELLED"}}\');'
+                           'Path(sys.argv[2]).touch()')
+                args = [str(out/'case-result.json'), str(release)]
+            child = subprocess.Popen([sys.executable, '-B', '-c', program, *args], start_new_session=True)
+            children.append(child)
+            return child
+
+        def miss_first(pid):
+            return None if children and pid == children[0].pid else lookup(pid)
+
+        try:
+            with patch.object(q, 'launch_case', side_effect=launch), patch.object(q, 'identity', side_effect=miss_first), \
+                    patch.object(q, 'terminate_owned') as terminate, patch('fault_control.Gate.pause') as pause:
+                results = q.serve([first, second], case_concurrency=2)
+            self.assertEqual(observed, [True])
+            self.assertEqual(set(results), {first['id'], second['id']})
+            terminate.assert_not_called()
+            pause.assert_not_called()
+        finally:
+            release.touch()
+            for child in children:
+                child.wait(timeout=5)
+
+    def test_cleanup_never_signals_a_child_discovered_between_scans_without_identity(self):
+        import cleanup
+        from controller_common import write
+
+        job = self.job(0)
+        root = Path(job['root'])
+        release = self.root/'release-late-child'
+        signals = []
+        process = None
+
+        def signal_attempt(candidates, signal_kind):
+            nonlocal process
+            if signal_kind == __import__('signal').SIGTERM:
+                program = ('import sys,time\nfrom pathlib import Path\n'
+                           'while not Path(sys.argv[1]).exists(): time.sleep(.02)\n')
+                worker = str(CORE/'nl0/scripts/case_runner.py')
+                process = subprocess.Popen([sys.executable, '-B', '-c', program, str(release), worker,
+                                            '--job', str(root/'job.json')], start_new_session=True)
+                write(root/'case-process.json', {'schema_version':'yui-owned-process-1',
+                                                 'process':{'pid':process.pid,'pgid':process.pid,'started':None}})
+            signals.extend(candidates)
+
+        try:
+            with patch.object(cleanup, 'signal_owned', signal_attempt):
+                result = cleanup.clean(apply=True, grace=0, outputs=[root])
+            self.assertIsNotNone(process)
+            self.assertEqual(result['status'], 'BLOCKED')
+            self.assertNotIn(process.pid, signals)
+            self.assertTrue(root.is_dir())
+            self.assertIsNone(process.poll())
+        finally:
+            release.touch()
+            if process is not None:
+                process.wait(timeout=5)
+
 if __name__=='__main__':unittest.main()

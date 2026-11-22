@@ -159,15 +159,22 @@ def launch(prepared, *, detached=False, case_concurrency=None):
         if reports:command.append('--controller-reports')
         for job in prepared:command.extend(['--job',str(Path(job['root'])/'job.json')])
         if case_concurrency is not None:command.extend(['--case-concurrency',str(case_concurrency)])
-        with (root/'logs/batch-controller.log').open('w') as log:
-            process=subprocess.Popen(command,stdout=log,stderr=log,start_new_session=True,
-                env=runtime_snapshot.environment(prepared[0]))
-        from execution_state import identity
-        who=identity(process.pid)
-        if who is None and process.poll() is None:raise RuntimeError('Cannot verify detached controller identity')
-        for job in prepared:write(Path(job['root'])/'launch.json',{'controller':who,'runs':[p['root'] for p in prepared],
-            'owner_observation':observation})
-        return {'status':'DISPATCHED','controller':who,'runs':[p['root'] for p in prepared],
+        from execution_state import finish_launch, launch_intent, observe_launched_child, unregistered_group_exited
+        roots=[p['root'] for p in prepared]
+        with (root/'logs/batch-controller.log').open('w') as log, launch_intent(roots,'batch-launch-pending.json') as token:
+            environment=runtime_snapshot.environment(prepared[0])
+            environment['YUI_BATCH_LAUNCH_TOKEN']=token
+            process=subprocess.Popen(command,stdout=log,stderr=log,start_new_session=True,env=environment)
+        who=observe_launched_child(process)
+        exited=process.poll()
+        for directory in roots:
+            write(Path(directory)/'launch.json',{'controller':who,'runs':roots,
+                'pending_pid':process.pid if who is None and exited is None else None,'exit_code':exited,
+                'owner_observation':observation})
+            if who is not None or (exited is not None and unregistered_group_exited(process)):
+                finish_launch(directory,'batch-launch-pending.json',token)
+        return {'status':'DISPATCHED' if exited is None else 'CONTROLLER_EXITED',
+                'controller':who,'exit_code':exited,'runs':roots,
                 'owner_observation':observation,
                 'scope':'Actual mathematical acceptance is pending; use status/cancel on these run paths'}
     import queue_controller
@@ -316,7 +323,8 @@ def dispatch(args):
                 who=launch_record.get('controller')
                 live=bool(who and same_process(who))
                 value={'phase':'CANCEL_REQUESTED_NOT_STARTED' if (p/'cancel-request.json').exists() else
-                       'QUEUED' if live else 'CONTROLLER_EXITED_BEFORE_CASE_START' if who else 'PREPARED_NOT_STARTED',
+                       'QUEUED' if live else 'PROCESS_IDENTITY_PENDING' if launch_record.get('pending_pid') else
+                       'CONTROLLER_EXITED_BEFORE_CASE_START' if who or launch_record.get('exit_code') is not None else 'PREPARED_NOT_STARTED',
                        'controller':who,'controller_identity_matches':live,
                        'track':job['track'],'profiles':job['profiles']}
             result[str(p)]=value

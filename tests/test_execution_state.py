@@ -52,6 +52,20 @@ class ExecutionTests(unittest.TestCase):
         self.assertIsNone(value['usage']['in_flight_or_unreported_requests'])
         self.assertEqual(value['usage']['usage_last_observed_at_utc'],observed)
 
+    def test_truncated_usage_ledger_retains_original_bytes_and_releases_the_owner(self):
+        ledger = self.root/'usage-ledger.jsonl'
+        broken = b'{"record_id":'
+        ledger.write_bytes(broken)
+        self.r.task('T001', usage_ledger=str(self.root/'usage.json'))
+        self.r.close('CONTROL_FINISHED')
+        self.assertEqual(ledger.read_bytes(), broken)
+        self.assertFalse(self.r.owner_lock.exists())
+        status = json.loads(self.r.path.read_text())
+        reconciliation = status['usage']['final_ledger_reconciliation']
+        self.assertEqual(reconciliation['status'], 'INCOMPLETE_OR_MISMATCH')
+        self.assertEqual(reconciliation['ledger_errors'][0]['path'], str(ledger))
+        self.assertEqual(status['result']['status'], 'CONTROL_FINISHED')
+
     def test_concurrent_updates_are_atomic_and_preserve_all_tasks(self):
         failures=[];stop=threading.Event()
         def reader():

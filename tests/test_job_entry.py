@@ -414,6 +414,33 @@ class JobEntryTests(unittest.TestCase):
         author.assert_not_called();self.assertFalse(result['completion']['acceptance_target_satisfied'])
         self.assertFalse(execution_state.inspect(Path(job['root']))['inspection']['residual_owned_processes'])
 
+    def test_progress_snapshot_write_failure_does_not_abort_the_active_case(self):
+        import workflow_execution
+
+        job = self.job()
+        root = Path(job['root'])
+        ordinary_write = execution_state.atomic
+        misses = []
+
+        def transient(path, value):
+            if Path(path) == root/'execution-status.json' and value.get('phase') == 'BASIS_TEST_PROGRESS' and not misses:
+                misses.append(path)
+                raise OSError('transient observation snapshot failure')
+            ordinary_write(path, value)
+
+        def execute(job, recorder, budgets, progress):
+            progress(job['case'], 'BASIS_TEST_PROGRESS')
+            self.assertEqual(json.loads(recorder.path.read_text())['phase'], 'BASIS_TEST_PROGRESS')
+            return {'status':'CANCELLED', 'fixture_progress_returned':True}
+
+        with patch.object(workflow_execution, 'run', execute), patch.object(execution_state, 'atomic', transient), \
+                patch('fault_control.Gate.pause', side_effect=execution_state.Cancelled('Unexpected fixture pause')) as pause:
+            result = case_runner.execute(job)
+        self.assertEqual(len(misses), 1)
+        self.assertTrue(result.get('fixture_progress_returned'), result)
+        self.assertEqual(json.loads((root/'execution-status.json').read_text())['observation_write']['failures'], 1)
+        pause.assert_not_called()
+
     def test_standalone_copy_prepares_and_reports_without_repository_or_test_support(self):
         elsewhere=self.root/'unrelated working directory';elsewhere.mkdir()
         parent=self.root/'standalone';install=parent/'renamed skill root'

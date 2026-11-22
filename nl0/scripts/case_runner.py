@@ -283,7 +283,7 @@ def execute(job, root=None):
                 if recorder.cancelled():raise execution.Cancelled('External cancellation requested during delivery')
             else:recorder.check()
             recorder.update(phase=phase,stage_artifacts=extra,model_selection=profile,
-                model={'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']});recorder.flush(force=True)
+                model={'id':profile['id'],'effort':profile['reasoning_effort'],'speed':profile['speed']});recorder.flush_progress(force=True)
         try:
             with execution.activate(recorder),recorder.signals():
                 jobs.validate(job)
