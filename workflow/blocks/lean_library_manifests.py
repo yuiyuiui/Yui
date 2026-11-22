@@ -17,7 +17,8 @@ def module(name,prefix):
 
 
 def validate(value,environment):
-    if not isinstance(value,dict) or set(value)!={'version','name','lean_version','mathlib_commit','imports','modules'} or value['version']!=SNAPSHOT:
+    required={'version','name','lean_version','mathlib_commit','imports','modules'}
+    if (not isinstance(value,dict) or set(value)-{'ports'}!=required or value['version']!=SNAPSHOT):
         raise ValueError('Invalid Lean library snapshot metadata')
     name=value['name']
     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name) or name in RESERVED:
@@ -42,4 +43,8 @@ def validate(value,environment):
             raise ValueError('Invalid explicit compiler companion identity')
     if not isinstance(value['imports'],list) or not value['imports'] or any(not isinstance(v,str) for v in value['imports']) or len(set(value['imports']))!=len(value['imports']) or not set(value['imports'])<=seen:
         raise ValueError('Lean library imports must name bound modules')
+    ports=value.get('ports',{})
+    if not isinstance(ports,dict) or any(module not in seen or not isinstance(sha,str) or not SHA.fullmatch(sha)
+                                        for module,sha in ports.items()):
+        raise ValueError('Lean port receipts must bind actual library modules')
     return value

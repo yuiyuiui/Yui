@@ -580,7 +580,7 @@ class ArtifactStage(pilot.Stage):
                 import graph_repair
                 from frozen_graph import ASSIGNED, ASSIGNED_PROOFS
                 from controller_common import bind
-                graph_repair.assess(self.validator.frozen,args)
+                graph_repair.assess(self.validator.frozen,args,self.task_inputs)
                 saved=self.validator.directory/ASSIGNED_PROOFS
                 feedback={'local_proofs':json.loads(saved.read_text())} if saved.is_file() else self.validator.graph_feedback
                 drafts=graph_repair.retained_proofs(self.validator.frozen,args,feedback)

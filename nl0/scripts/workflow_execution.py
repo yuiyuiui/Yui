@@ -41,7 +41,7 @@ def run(job,recorder,budgets,progress):
         entry='audit' if job['track']=='nl0' else basis.mode(job)
         view=start(project,root/'protocol',entry,{'job':bind(root/'job.json')})
         if session.failure: raise session.failure
-        if (view['status']=='paused' and view['node']=='nl0-local/revise-graph'
+        if (view['status']=='paused' and view['node'] in {'nl0-local/revise-graph','nl0-local/revise-audit-graph'}
                 and 'visit budget' in str(view.get('error'))):
             from execution_health import StageFailure
             from graph_repair import LIMIT

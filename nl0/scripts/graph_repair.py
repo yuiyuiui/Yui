@@ -1,7 +1,10 @@
 """Located objections to the current NL0 graph. No report grants mathematical acceptance."""
 import json
+from pathlib import Path
+import hashlib
 
 import artifact_protocol as protocol
+from graph_outline import SOURCE_SPAN, source_sizes
 
 STATUS = 'NL0_GRAPH_REVISION_REQUIRED'
 UNRESOLVED = 'NL0_GRAPH_REVISION_UNRESOLVED'
@@ -26,7 +29,9 @@ FIELDS = {'missing_input':'inputs', 'wrong_input':'inputs',
 BLOCKER = protocol.obj({'inference':protocol.TEXT,
                        'kind':{'enum':list(FIELDS)},
                        'subject':protocol.nullable(protocol.TEXT),
-                       'explanation':protocol.TEXT})
+                       'explanation':protocol.TEXT,
+                       'source_spans':protocol.array(SOURCE_SPAN,uniqueItems=True)},
+                       required=['inference','kind','subject','explanation'])
 
 
 def batch_schema():
@@ -69,7 +74,7 @@ def retained_proofs(frozen, batch, feedback):
     return list(retained.values())
 
 
-def assess(frozen, batch):
+def assess(frozen, batch, documents=None):
     """Admit located blockers against the same effective scope the author sees."""
     protocol.validate(batch,batch_schema())
     proof_rows(frozen,batch.get('local_proofs',[]))
@@ -77,6 +82,8 @@ def assess(frozen, batch):
     props={p['id'] for p in frozen['graph']['propositions']}
     defs={d['id'] for d in frozen['spec']['definitions']}
     issues=[]
+    originals={Path(row['path']).name:row['sha256'] for row in frozen['spec']['inputs']}
+    offsets={}
     for f in batch['findings']:
         rid, kind, subject = f['inference'], f['kind'], f['subject']
         if rid not in scopes:
@@ -94,6 +101,12 @@ def assess(frozen, batch):
             raise ValueError(f'{rid}: choose an existing item from the actual conditional packet')
         if kind=='wrong_statement' and subject not in props:
             raise ValueError(f'{rid}: choose the actual incorrect intermediate proposition')
+        spans=f.get('source_spans',[])
+        for name in {span['from_task'] for span in spans}-offsets.keys():
+            text=(documents or {}).get(name)
+            if text is None or hashlib.sha256(text.encode()).hexdigest()!=originals.get(name):
+                raise ValueError(f'{rid}: graph issue source is not a bound original task input: {name}')
+        source_sizes(spans,documents or {},offsets,rid)
         issue=locate(frozen,{'inference':rid,'related_propositions':related,'field':FIELDS[kind],
                              'explanation':f'{kind} {subject or "unregistered content"}. '+f['explanation']})
         issue['id']=f'ISSUE{len(issues)+1:03d}'
@@ -248,4 +261,51 @@ def verify_local(stage,selected):
         feedback={'local_proofs':nl0.load(saved)}
     if accepted['local_proofs']!=retained_proofs(frozen,submission,feedback):
         raise ValueError('Local drafts differ from reported graph repair evidence')
-    return assess(frozen,submission)
+    names={span['from_task'] for row in submission['findings'] for span in row.get('source_spans',[])}
+    originals={Path(row['path']).name for row in frozen['spec']['inputs']}
+    documents={name: (inputs.parent/name).read_text() for name in names.intersection(originals)}
+    return assess(frozen,submission,documents)
+
+
+def consecutive_reports(root, receipt):
+    """Read consecutive named local objections from the exact repair lineage."""
+    from controller_common import bind, verify_bindings
+    import nl0
+
+    groups={};wanted=None;seen=set();newer=None
+    job=bind(root/'job.json')
+    while receipt is not None:
+        path=Path(receipt['path'])
+        if path.parent!=root/'handoffs' or path in seen:
+            raise ValueError('Invalid NL0 repair history lineage')
+        seen.add(path)
+        verify_bindings([receipt])
+        report=nl0.load(path)
+        graph=report['global']
+        if report['job']!=job or not Path(graph['path']).is_relative_to(root/'global-graphs'):
+            raise ValueError('NL0 repair history belongs to a different run')
+        verify_bindings([graph])
+        if newer is not None and newer!=graph:
+            verify_bindings([newer])
+            if nl0.load(newer['path'])['previous']!=graph:
+                raise ValueError('NL0 repair history is not a predecessor of the current graph')
+        blockers=report['obligations'].get('blockers',[])
+        pairs={(row['inference'],row['subject']) for row in blockers if row['subject'] is not None}
+        wanted=pairs if wanted is None else wanted & pairs
+        if not wanted:break
+        [evidence]=report['evidence']
+        verify_bindings([evidence])
+        stage=Path(evidence['path']).parent
+        if not stage.is_relative_to(root/'nl0') or stage/'accepted.json'!=Path(evidence['path']):
+            raise ValueError('NL0 repair history lacks its own qualified local report')
+        checked=verify_local(stage,graph)
+        if checked['blockers']!=blockers or checked['issues']!=report['obligations']['issues']:
+            raise ValueError('NL0 repair history differs from the accepted local report')
+        for consumer,interface in sorted(wanted):
+            findings=[row for row in blockers if (row['inference'],row['subject'])==(consumer,interface)]
+            groups.setdefault((consumer,interface),[]).append(
+                {'graph':graph,'receipt':receipt,'evidence':evidence,'findings':findings})
+        newer=nl0.load(graph['path'])['previous']
+        receipt=report.get('previous_repair')
+    return [{'consumer':consumer,'interface':interface,'reports':list(reversed(reports))}
+            for (consumer,interface),reports in groups.items() if len(reports)>1]

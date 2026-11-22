@@ -56,6 +56,38 @@ class PublicEntryTests(unittest.TestCase):
                              {'R002':['multiple_main_steps']})
             self.assertTrue(attempts[-1]['stage_complete'])
 
+    def test_consecutive_graph_reports_reach_split_author_and_keep_independent_draft(self):
+        import jobs
+        with tempfile.TemporaryDirectory() as raw:
+            base=Path(raw).resolve()
+            problem=base/'problem.md';problem.write_text(TARGET)
+            job=jobs.prepare(problem,track='nl0',profiles=support.PROFILES,
+                             output=base/'case',max_concurrency=1)
+            run=Path(job['root'])
+            program=support.TESTS/'tooling/basis_path_control.py'
+            result=subprocess.run([sys.executable,'-B',str(program),str(run/'job.json'),'serial-graph'],
+                                  capture_output=True,text=True,timeout=180)
+            self.assertEqual(result.returncode,0,(result.stdout+result.stderr)[-4000:])
+            report=nl0.load(run/'global-graphs/0003/inputs/global-findings.json')
+            spans=report['consecutive_blockers']
+            self.assertEqual([(group['consumer'],group['interface']) for group in spans],[('R002','N001')])
+            history=spans[0]['reports']
+            self.assertEqual(len(history),2)
+            self.assertNotEqual(history[0]['graph'],history[1]['graph'])
+            for row in history:
+                self.assertEqual(row['receipt'],bind(row['receipt']['path']))
+                self.assertEqual(row['findings'][0]['source_spans'],
+                                 [{'from_task':'problem.md','start_line':1,'end_line':1}])
+                tools=Path(row['evidence']['path']).with_name('tools.jsonl')
+                calls=[json.loads(line) for line in tools.read_text().splitlines()]
+                self.assertTrue(any('invalid line range' in call['result'].get('error','') for call in calls))
+            next_author=nl0.load(run/'nl0/local-0003/inputs/global-findings.json')
+            self.assertEqual([row['id'] for row in next_author['local_proofs']],['R001'])
+            self.assertEqual(set(next_author['changed_inferences']),{'R002','R003'})
+            final=nl0.load(run/'delivery/nl0/nl0.json')
+            self.assertIn('R003',{row['id'] for row in final['inferences']})
+            self.assertEqual(delivery.verify(run/'delivery')['scope'],'NL0')
+
     def test_three_real_entries_from_cli_through_clean_and_standalone_readback(self):
         for track,goal,mode,scope,ids in [('nl0','conditional','direct','NL0',[]),
                 ('full','conditional','direct-external','CONDITIONAL_LEAN',['P','E001']),

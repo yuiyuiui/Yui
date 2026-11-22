@@ -140,12 +140,16 @@ def check(source, checks, roots, out, *, compiled_prefix=None):
     return result
 
 
-def verify(path):
+def verify(path, *, before_recheck=False):
     path = Path(path);value = ir.load(path)
     ir.need(value['version']=='yui-basis-native-3', 'Unknown basis native receipt')
     from controller_common import verify_bindings
     verify_bindings(value['bindings'])
-    ir.need(value['environment']==audit_b.environment(), 'Basis pinned environment changed')
+    current=audit_b.environment()
+    if value['environment']!=current:
+        import lean_libraries
+        ir.need(before_recheck and lean_libraries.environment_extended(value['environment'],current),
+                'Basis pinned environment changed')
     native = ir.load(path.parent/'compiler.json')
     evidence = inspection_evidence.verify(native, path.parent)
     inspected,_=inspection_source((path.parent/'Proof.lean').read_text(),value['checks'],value['roots'],value['compiled_prefix'])

@@ -25,16 +25,26 @@ def freeze_basis(ctx, data):
     return outcome('frozen',data)
 
 def detail(ctx, data):
+    if data['job']['path']=='eight-local-then-audit':
+        revision=data['global']['path']
+        if revision=='outline' or int(revision.rsplit('-',1)[-1])<8:
+            return outcome('repair',{**data,'repair':ref('missing input')})
     if data['job']['path']=='recurring-edge' or (data['job']['path']=='local-edge' and data['global']['path']=='outline'):
         return outcome('repair',{**data,'repair':ref('missing input')})
     return outcome('detailed',{**data,'local':ref('local')})
 
 def revise_graph(ctx, data):
+    if data['job']['path']=='eight-local-then-audit':
+        revision=data['global']['path']
+        number=0 if revision=='outline' else int(revision.rsplit('-',1)[-1])
+        return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(number+1))})
     return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(ctx.activation))})
 
 def audit(ctx, data):
     common={k:data[k] for k in ('job','goal','global')}
-    if data['job']['path']=='audit-edge' and data['global']['path']=='outline':
+    if ((data['job']['path']=='audit-edge' and data['global']['path']=='outline')
+            or (data['job']['path']=='eight-local-then-audit' and data['global']['path']=='revised-8')
+            or data['job']['path']=='recurring-audit-edge'):
         return outcome('repair',{**common,'repair':ref('audit finding')})
     return outcome('reviewed',{**common,'authority':ref('reviewed source')})
 

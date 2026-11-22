@@ -99,7 +99,9 @@ def check_types(stage,candidate):
     directory.mkdir(parents=True,exist_ok=True)
     saved=directory/'selected.json'
     if saved.is_file():
-        ref=ir.load(saved);verify_bindings([ref]);basis_native.verify(ref['path']);return
+        ref=ir.load(saved);verify_bindings([ref])
+        result=basis_native.verify(ref['path'],before_recheck=True)
+        if result['environment']==basis_native.audit_b.environment():return
     attempt=Path(tempfile.mkdtemp(prefix='candidate-',dir=directory))/'native'
     result=basis_native.check(source,checks,[r[1] for r in checks],attempt)
     if not result['passed']:
@@ -140,16 +142,17 @@ def guard_proofs(validator,candidate):
         if any(existing.get(key)!=proof for key,proof in proofs.items()):raise
 
 
-def select_route(stage,candidate,shape,*,number=None):
+def select_route(stage,candidate,shape,*,number=None,pending_imports=None):
     import basis
     from basis_preapproval import plan_identity
-    basis.validate(shape,stage.validator.target)
+    basis.validate(shape,stage.validator.target,pending_imports=pending_imports)
     evidence=basis.evidence_bindings(shape,stage.validator.out/'inputs',stage.logs)
     file=route_path(stage.validator,candidate)
     if file.exists():return require_selected_route(stage.validator,candidate)
     source=stage.validator.out/'candidates'/f'{number or stage.validator.attempt:04d}'/'basis.json'
     write(file,{'version':'yui-basis-route-1','plan_identity':plan_identity(basis_graph.optimize(candidate)),
         'candidate':bind(source),'inputs':bind(stage.validator.out/'inputs/inputs.json'),'evidence':evidence,
+        'pending_imports':pending_imports or [],
         'scope':'Complete selected NL route saved before proof work; no mathematical acceptance.'})
     return bind(file)
 
@@ -168,10 +171,13 @@ def prepare(stage,args):
     shape=deepcopy(candidate)
     for row in shape['dependencies']:
         if row['category']!=4 and row['lean']['proof'] is None:row['lean']['proof']='trivial'
+    if args.get('prove') is False:
+        pending_imports=[]
+        route=select_route(stage,candidate,shape,number=n,pending_imports=pending_imports)
+        return {'candidate':n,'route_ready':True,'route':route,'pending_imports':pending_imports,
+                'proof_workers_started':False,'stage_complete':False}
     rows,_=basis.validate(shape,stage.validator.target)
     route=select_route(stage,candidate,shape,number=n)
-    if args.get('prove') is False:
-        return {'candidate':n,'route_ready':True,'route':route,'proof_workers_started':False,'stage_complete':False}
     if pending:check_types(stage,candidate)
     import basis_sources
     # Direct library facts need no model proof author. Their complete source

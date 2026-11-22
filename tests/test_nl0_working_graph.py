@@ -16,6 +16,43 @@ import graph_repair
 import nl0
 
 
+class RevisionBudgets(unittest.TestCase):
+    def test_eight_local_repairs_leave_an_audit_repair_and_ninth_visits_pause(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import runtime_snapshot
+        import workflow_execution
+
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve()
+            package=root/'workflow'
+            shutil.copytree(support.CORE/'workflow',package)
+            shutil.copyfile(package/'test_adapters.py',package/'adapters.py')
+            for label,phase in [('recurring-edge','revise-graph'),('eight-local-then-audit',None),
+                                ('recurring-audit-edge','revise-audit-graph')]:
+                with self.subTest(case=label):
+                    run=root/label
+                    run.mkdir()
+                    job={'root':str(run),'track':'nl0'}
+                    case=SimpleNamespace(failure=None,result={'outcome':'audited'})
+                    ref={'path':label,'sha256':'a'*64}
+                    with (patch.object(runtime_snapshot,'root_for',return_value=root),
+                          patch.object(workflow_execution,'block_module',return_value=SimpleNamespace(Case=lambda *_:case)),
+                          patch.object(workflow_execution,'bind',return_value=ref)):
+                        if phase:
+                            with self.assertRaises(StageFailure) as failure:
+                                workflow_execution.run(job,None,None,None)
+                            self.assertEqual(failure.exception.result['status'],graph_repair.LIMIT)
+                        else:
+                            self.assertEqual(workflow_execution.run(job,None,None,None),case.result)
+                    trace=nl0.load(run/'protocol/work/state.json')['trace']
+                    nodes=[step['node'] for step in trace]
+                    if phase:
+                        self.assertEqual(nodes.count('nl0-local/'+phase),8)
+                    else:
+                        self.assertEqual(nodes.count('nl0-local/revise-graph'),8)
+                        self.assertEqual(nodes.count('nl0-local/revise-audit-graph'),1)
+                        self.assertLess(nodes.index('nl0-local/audit'),nodes.index('nl0-local/revise-audit-graph'))
 class WorkingGraphTests(unittest.TestCase):
     def setUp(self):
         self.registry=active_artifact(artifact(dependency(category=4)))

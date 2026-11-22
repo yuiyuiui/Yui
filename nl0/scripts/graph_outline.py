@@ -7,6 +7,8 @@ import artifact_protocol as protocol
 FILENAME = 'proof-outline.json'
 FIELD = 'proof_outline'
 VERSION = 'yui-nl0-proof-outline-1'
+SOURCE_SPAN = protocol.obj({'from_task':protocol.TEXT,
+    'start_line':{'type':'integer','minimum':1}, 'end_line':{'type':'integer','minimum':1}})
 # Flag larger source assignments for a granularity review.
 REVIEW_CHARACTERS = 16000
 
@@ -21,12 +23,10 @@ def retention_schema(*, checked=False):
 
 
 def schema():
-    line = {'type': 'integer', 'minimum': 1}
-    span = protocol.obj({'from_task': protocol.TEXT, 'start_line': line, 'end_line': line})
     step = protocol.obj({
         'conclusion': protocol.TEXT,
         'uses': protocol.array(protocol.TEXT, uniqueItems=True),
-        'source_spans': protocol.array(span, uniqueItems=True),
+        'source_spans': protocol.array(SOURCE_SPAN, uniqueItems=True),
     })
     inference = protocol.obj({
         'steps': protocol.array(step, minItems=1),

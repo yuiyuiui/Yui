@@ -14,6 +14,7 @@ run = Path(job['root'])
 options=sys.argv[2].split('+');mode=options[0]
 read_strategies='reference' in options[1:]
 imported_code='imported-lean' in options[1:]
+ported_code='port' in options[1:]
 tests = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl02lean/scripts'),
                 str(tests.parent/'nl0/scripts'),str(tests.parent/'nl02lean/scripts')]
@@ -72,6 +73,26 @@ def author_code(stage):
                 'bindings':'Specialize the displayed division identity at a, 1 and 1.','hypothesis_checks':[]})
     if mode=='direct-external':
         add_external_applications(graph,artifact(dependency(category=2)),evidence)
+    if mode=='serial-graph' and stage.mode in (fg.DIRECT,fg.LOCAL):
+        assigned=json.loads(stage.task_inputs.get('prior-global.json',stage.task_inputs.get(fg.ASSIGNED,'{}')))
+        earlier={r['id']:r for r in assigned.get('graph',{}).get('inferences',[])}
+        if stage.mode==fg.LOCAL and 'R003' not in earlier:
+            report={'inference':'R002','kind':'wrong_input','subject':'N001',
+                    'explanation':'The consumer still lacks the needed derivation of the additive step.',
+                    'source_spans':[{'from_task':'problem.md','start_line':1,'end_line':1}]}
+            first=graph['inferences'][0]
+            body={} if 'H001' in earlier['R002']['inputs'] else {
+                'local_proofs':[{k:first[k] for k in ('id',*fg.BODY_FIELDS)}]}
+            invalid={**report,'source_spans':[{'from_task':'problem.md','start_line':1,'end_line':2}]}
+            return call('report_graph_issue',findings=[invalid])+call('report_graph_issue',findings=[report],**body)
+        if earlier:
+            last=graph['inferences'][-1]
+            last['inputs'].append('H001')
+            last['argument'][-1]['uses'].append('H001')
+            if 'H001' in earlier['R002']['inputs']:
+                split=harness_support.addition_split(graph)
+                graph['propositions']+=split['propositions']
+                graph['inferences'][1:]=split['inferences']
     if mode=='local-gap' and stage.mode==fg.LOCAL:
         return call('report_obstacle',status='SUBSTANTIVE_GAP',location='R002 last implication',
             basis='The supplied statements do not imply the requested implication.',
@@ -133,6 +154,8 @@ def author_code(stage):
         feedback=json.loads(stage.task_inputs['global-findings.json'])
         if not feedback['blockers'] or [r['id'] for r in feedback['local_proofs']]!=['R001']:
             raise AssertionError('The revised local assignment needs the blocker and the unaffected earlier draft')
+        draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
+    if mode=='serial-graph' and stage.mode==fg.LOCAL:
         draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
     candidate=1
     if mode=='direct-refinement' and stage.mode==fg.LOCAL:
@@ -219,16 +242,18 @@ def scripted(stage):
                 base['origin'].update(reference='material-001.lean: ImportedExample.add_zero',
                                       evidence=[{'input':'material-001.lean'}])
                 prefix=call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
+            if ported_code:
+                module='Lib.Consumer'
+                base['lean']['proof']='exact Lib.consumer'
             derived=dependency('B002',3)
             rows=[base,derived]
             if mode!='planned-closed' and (mode!='planned-continue' or requests[stage.logs]==1):
                 rows.append(dependency('B003',4,port='E003'))
             value=active_artifact(artifact(*rows))
-            if imported_code:value['lean_header']='import Mathlib\nimport '+module+'\n'
-            target=value['dependencies'][1]
-            target['lean']['proof']=None
+            if imported_code or ported_code:value['lean_header']='import Mathlib\nimport '+module+'\n'
+            if not ported_code:value['dependencies'][1]['lean']['proof']=None
             frontier=''
-            if mode=='planned-closed':
+            if mode=='planned-closed' and not ported_code:
                 frontier=call('investigate_basis_frontier',obligations=[
                     {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
                     for r in value['dependencies']])
@@ -284,7 +309,7 @@ def scripted(stage):
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
-        if imported_code:value['header']=ir.load(registry)['lean_header']
+        if imported_code or ported_code:value['header']=ir.load(registry)['lean_header']
         for row in rows:
             if mode.startswith('relabel-'):row['port']='E014'
             if not row['port'] or (mode=='planned-unused-residual' and row['port']=='E003'):continue
@@ -319,7 +344,7 @@ def scripted(stage):
             return call('check_transition',proof='exact True.intro')+call('report_proof_obstruction',layer='interface',
                 explanation='The supplied basis statement differs from its formal premise.',locations=['/target'],
                 candidates=[{'kind':'proof','candidate':1}])
-        if mode=='planned-closed' and stage.step=='T001':
+        if mode=='planned-closed' and not ported_code and stage.step=='T001':
             work=stage.helper_work
             if not work.jobs:
                 return call('check_transition',proof='exact Nat.zero')+call('dispatch_helpers',candidate=1,
@@ -346,7 +371,8 @@ def scripted(stage):
 def respond(f,handler,number,payload):
     stage=f.stage;requests[stage.logs]+=1
     try:
-        helper_turns=mode=='planned-closed' and getattr(stage,'helper_work',None) is not None and stage.step=='T001'
+        helper_turns=(mode=='planned-closed' and not ported_code
+                      and getattr(stage,'helper_work',None) is not None and stage.step=='T001')
         if requests[stage.logs]>(10 if helper_turns else 2):
             rows=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()] if (stage.logs/'tools.jsonl').exists() else []
             detail=json.dumps([{'tool':r['tool'],'result':r['result']} for r in rows if r.get('result',{}).get('error')][-4:])

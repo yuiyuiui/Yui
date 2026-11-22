@@ -57,7 +57,7 @@ def capture(specification, run):
     """Copy only explicitly enumerated public modules; never scan sibling files."""
     specification = Path(specification).resolve(strict=True)
     value = json.loads(specification.read_text())
-    if set(value) != {'version', 'name', 'lean_version', 'mathlib_commit',
+    if set(value)-{'ports'} != {'version', 'name', 'lean_version', 'mathlib_commit',
                       'source_root', 'build_root', 'imports', 'modules'} or value['version'] != VERSION:
         raise ValueError('Invalid explicit Lean library specification')
     metadata = _metadata({k: v for k, v in value.items() if k not in {'source_root', 'build_root', 'version'}}
@@ -76,6 +76,8 @@ def capture(specification, run):
             target=destination/folder/(str(relative)+suffix)
             target.parent.mkdir(parents=True,exist_ok=True);copy_input(source,target)
             if bind(target)['sha256']!=expected:raise ValueError('Lean library copy changed')
+    import lean_ports
+    lean_ports.copy_evidence(roots['source_root'].parent,destination,metadata)
     write(destination / 'manifest.json', metadata)
     descriptor = {'name': value['name'], 'root': str(destination),
                   'manifest': bind(destination / 'manifest.json')}
@@ -123,6 +125,8 @@ def validate(descriptors, *, full=False):
                 expected.add(str(path))
                 _input(root,path)
                 _verify_file(root/path,expected_sha,full)
+        import lean_ports
+        expected.update(str(path) for path in lean_ports.inventory(root,data,full=full)[0])
         for path in root.rglob('*'):
             if path.is_symlink():raise ValueError('Nonportable Lean library snapshot member')
         actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
@@ -171,7 +175,7 @@ def summary():
             for row, data in validate(current())]
 
 
-def strip_attached_imports(header):
+def strip_attached_imports(header, *, pending=None):
     """Retain the old header check after validating each explicit extra import."""
     if not isinstance(header, str) or not header.startswith('import Mathlib\n'):
         return header
@@ -181,8 +185,12 @@ def strip_attached_imports(header):
     seen = set()
     while offset < len(lines) and lines[offset].startswith('import '):
         module = lines[offset][7:].strip()
-        if module not in allowed or module in seen:
-            raise ValueError('Basis import is not an explicitly attached Lean library module')
+        if not MODULE.fullmatch(module) or module.partition('.')[0] in rules.RESERVED or module in seen:
+            raise ValueError('Invalid or duplicate external Lean module: '+module)
+        if module not in allowed:
+            if pending is None:
+                raise ValueError('Basis import is not an explicitly attached Lean library module: '+module)
+            pending.append(module)
         seen.add(module)
         offset += 1
     return lines[0] + ''.join(lines[offset:])
@@ -251,6 +259,8 @@ def export_sources(directory):
     for row,data in rows:
         root=Path(row['root']);target=directory/row['name'];target.mkdir()
         copy_input(root/'manifest.json',target/'manifest.json')
+        import lean_ports
+        lean_ports.copy_evidence(root,target,data)
         for item in data['modules']:
             relative=_module(item['module'],row['name']).with_suffix('.lean')
             source=target/'source'/relative;source.parent.mkdir(parents=True,exist_ok=True)
@@ -283,6 +293,8 @@ def verify_export(directory, expected):
         if data['version']!=SNAPSHOT or data['name']!=name:
             raise ValueError('Delivered Lean library source identity changed')
         wanted.add(str(Path(name)/'manifest.json'))
+        import lean_ports
+        wanted.update(str(Path(name)/path) for path in lean_ports.inventory(directory/name,data,full=True)[0])
         for item in data['modules']:
             relative=Path(name)/'source'/_module(item['module'],name).with_suffix('.lean')
             wanted.add(str(relative))
@@ -330,43 +342,73 @@ def generated_root():
     return os.environ.get('YUI_LEAN_IMPORT_ROOT') if value is _UNSET else value
 
 
-def read_generated(root,*,base=None,full=False):
+def registry_index(root):
     root=Path(root).resolve();index=root/'index.json'
-    if not index.exists():return []
+    return json.loads(index.read_text()) if index.exists() else {
+        'version':'yui-imported-lean-registry-1','job':bind(root.parent/'job.json'),'entries':[]}
+
+
+def generated_inventory(root, *, base=None, full=False, proposed=None):
+    root=Path(root).resolve();index=root/'index.json'
+    base=_static() if base is None else base
+    available={(row['name'],row['manifest']['sha256']) for row in base}
+    if not index.exists() and proposed is None:return [],available
     if root.name!='imported-lean' or index.is_symlink() or root.is_symlink():raise ValueError('Invalid generated Lean library registry')
-    value=json.loads(index.read_text());job=json.loads((root.parent/'job.json').read_text())
+    value=registry_index(root) if proposed is None else proposed
+    job=json.loads((root.parent/'job.json').read_text())
     if (value.get('version')!='yui-imported-lean-registry-1' or set(value)!={'version','job','entries'}
             or value['job']!=bind(root.parent/'job.json') or job['root']!=str(root.parent)):
         raise ValueError('Generated Lean library registry belongs to another job')
-    rows=[entry['library'] for entry in value['entries']]
-    selected=validate(rows,full=full)
-    base=_static() if base is None else base
-    available={json.dumps({'name':row['name'],'manifest_sha256':row['manifest']['sha256']},sort_keys=True)
-               for row in [*base,*rows]}
     import lean_environment
     from runtime_config import require_environment
     from pilot_common import native_succeeded
     expected=lean_environment.identity(require_environment())
-    for entry,(row,metadata) in zip(value['entries'],selected):
-        if set(entry)!={'library','check'} or Path(row['root']).parent!=root/'lean-libraries':
+    current={}
+    attached={row['name'] for row in base}
+    for entry in value['entries']:
+        if set(entry)!={'library','check'}:
+            raise ValueError('Invalid generated Lean library entry')
+        (row,metadata),=validate([entry['library']],full=full)
+        parent=Path(row['root']).parent
+        if (row['name'] in attached or (parent!=root/'lean-libraries' and
+                parent.parent.parent!=root/'generations')):
             raise ValueError('Generated Lean library escapes this case registry')
         path=Path(entry['check']['path'])
         if not path.resolve().is_relative_to(root.parent):raise ValueError('Generated Lean check belongs to another case')
         _verify_file(path,entry['check']['sha256'],full)
         check=json.loads(path.read_text())
+        previous=current.get(row['name'])
         if check.get('version')=='yui-public-lean-build-1':
             from public_lean import qualify
-            qualify(check,metadata,full=full)
-            continue
-        for binding in check['bindings']:_verify_file(Path(binding['path']),binding['sha256'],full)
-        if (check.get('version')!='yui-imported-lean-1' or check.get('source_policy_passed') is not True
-                or not native_succeeded(check.get('native',{})) or check['environment']!=expected
-                or check['module']!=row['name'] or len(metadata['modules'])!=1
-                or metadata['modules'][0]['module']!=row['name'] or metadata['imports']!=[row['name']]
-                or metadata['modules'][0]['source_sha256']!=check['source']['sha256']
-                or any(json.dumps(item,sort_keys=True) not in available for item in check['libraries'])):
-            raise ValueError('Generated Lean library lost its completed current check')
-        artifacts={Path(item['path']).name:item['sha256'] for item in check['artifacts']}
-        if any(artifacts.get(row['name']+suffix)!=sha for suffix,sha in _artifacts(metadata['modules'][0])):
-            raise ValueError('Generated Lean compiler artifacts differ from the bound library')
-    return rows
+            qualify(check,metadata,previous=previous,full=full)
+        else:
+            for binding in check['bindings']:_verify_file(Path(binding['path']),binding['sha256'],full)
+            if (previous or check.get('version')!='yui-imported-lean-1' or check.get('source_policy_passed') is not True
+                    or not native_succeeded(check.get('native',{})) or check['environment']!=expected
+                    or check['module']!=row['name'] or len(metadata['modules'])!=1
+                    or metadata['modules'][0]['module']!=row['name'] or metadata['imports']!=[row['name']]
+                    or metadata['modules'][0]['source_sha256']!=check['source']['sha256']
+                    or any((item['name'],item['manifest_sha256']) not in available for item in check['libraries'])):
+                raise ValueError('Generated Lean library lost its completed current check')
+            artifacts={Path(item['path']).name:item['sha256'] for item in check['artifacts']}
+            if any(artifacts.get(row['name']+suffix)!=sha for suffix,sha in _artifacts(metadata['modules'][0])):
+                raise ValueError('Generated Lean compiler artifacts differ from the bound library')
+        current[row['name']]=(row,metadata,check)
+        available.add((row['name'],row['manifest']['sha256']))
+    return [row for row,_,_ in current.values()],available
+
+
+def read_generated(root, *, base=None, full=False):
+    return generated_inventory(root,base=base,full=full)[0]
+
+
+def environment_extended(previous, current):
+    """Recognize saved pre-freeze inputs in the verified current registry lineage."""
+    old = {key:value for key,value in previous.items() if key!='lean_libraries'}
+    new = {key:value for key,value in current.items() if key!='lean_libraries'}
+    root=generated_root()
+    if root is None or old!=new:return False
+    active,available=generated_inventory(root)
+    identities={(row['name'],row['manifest']['sha256']) for row in [*_static(),*active]}
+    return identities=={(row['name'],row['manifest_sha256']) for row in current.get('lean_libraries',[])} and all(
+        (row['name'],row['manifest_sha256']) in available for row in previous.get('lean_libraries',[]))

@@ -168,7 +168,7 @@ class BasisCaseBatchTests(unittest.TestCase):
             self.assertEqual(len(list(root.glob('global-graphs/*/stage/accepted.json'))),2)
             first=ir.load(root/'active-inputs/global-nl0.json')
             steps=[r['node'] for r in ir.load(root/'protocol/work/state.json')['trace']]
-            self.assertEqual(steps.count('nl0-local/revise-graph'),1)
+            self.assertEqual(steps.count('nl0-local/revise-audit-graph'),1)
             final=ir.load(root/'delivery/nl0/global.json')['graph']
             statement=lambda g:next(p['statement'] for p in g['propositions'] if p['id']=='N001')
             self.assertEqual(statement(first),'Both numbers vanish.')

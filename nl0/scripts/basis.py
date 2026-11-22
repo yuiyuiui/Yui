@@ -65,7 +65,7 @@ def artifact_schema(version=None, *, planning=False):
             'original_dependency':p.TEXT,'replacement':p.array(p.TEXT,minItems=1),'explanation':p.TEXT}))})
 
 
-def validate(value, target):
+def validate(value, target, *, pending_imports=None):
     import artifact_protocol as p
     if not isinstance(value,dict) or value.get('version') != VERSION:
         raise ValueError('Unknown basis protocol version')
@@ -75,7 +75,7 @@ def validate(value, target):
     text(value['proof'], 'basis proof')
     header = value['lean_header'];text(header, 'basis Lean header')
     import lean_libraries
-    checked_header = lean_libraries.strip_attached_imports(header)
+    checked_header = lean_libraries.strip_attached_imports(header,pending=pending_imports)
     if (not checked_header.startswith('import Mathlib\n') or re.search(
             r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#', checked_header)
             or re.search(r'\n\s*import\b', checked_header)):
@@ -304,17 +304,18 @@ class BasisContract:
     def __call__(self, value):
         if (isinstance(value,dict) and set(value)=={'accept_candidate'} and
                 type(value['accept_candidate']) is int and value['accept_candidate']==self.last_checked):
-            # Explicit selection of the identical checked bytes needs no second Lean process.
+            # Use the saved bytes. A checked library extension makes the native check stale.
             try:
                 verify_bindings([self.last_receipt])
                 checked=ir.load(self.last_receipt['path'])
                 verify_bindings([checked['basis'],checked['native'],*checked['evidence']])
-                basis_native.verify(checked['native']['path'])
+                native=basis_native.verify(checked['native']['path'],before_recheck=True)
             except (ValueError,KeyError) as error:
                 raise RuntimeError('Previously checked basis evidence changed') from error
-            self.selected=Path(self.last_receipt['path']).parent
             value.clear();value.update(ir.load(checked['basis']['path']))
-            return {'candidate':self.last_checked,'status':'BASIS_MACHINE_CHECKED','mathematical_acceptance':False}
+            if native['environment']==basis_native.audit_b.environment():
+                self.selected=Path(self.last_receipt['path']).parent
+                return {'candidate':self.last_checked,'status':'BASIS_MACHINE_CHECKED','mathematical_acceptance':False}
         candidate,directory = self.save(value)
         try:
             if self.version and candidate.get('version')!=self.version:

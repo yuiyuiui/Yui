@@ -64,6 +64,7 @@ class Case:
                 'evidence':[bind(p) for p in request.evidence],
                 'baseline':{name:bind(case/(name+'.json')) for name in ('spec','nl0')} if case else {},
                 'campaigns':[bind(Path(p)/'campaign.json') for p in sorted(campaigns)]}
+        if 'history' in data:report['previous_repair']=data['history']
         path=self.save('graph-repair-'+Path(data['global']['path']).parents[2].name,report)
         return {'port':'repair','data':{k:data[k] for k in ('job','goal','global')} | {'repair':path}}
 
@@ -129,7 +130,9 @@ class Case:
                     if report['job']!=data['job'] or report['global']!=data['global']:
                         raise ValueError('Stale or foreign NL0 graph repair')
                     verify_bindings(report['evidence']+report['campaigns']+list(report['baseline'].values()))
-                    previous,findings=data['global'],report['obligations']
+                    previous=data['global']
+                    findings={**report['obligations'],
+                              'consecutive_blockers':graph_repair.consecutive_reports(self.root,data['repair'])}
                 self.progress(self.job['case'],'NL0_GLOBAL_REVISION' if previous else 'NL0_GLOBAL_REVIEW',owner=owner)
                 checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner,previous=previous,findings=findings,foundation=foundation)
                 selected=frozen_graph.select(self.job,checked,previous=previous)

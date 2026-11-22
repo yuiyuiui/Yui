@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from types import SimpleNamespace
@@ -34,7 +35,10 @@ class ImportedLeanTests(unittest.TestCase):
 
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
-        self.root=Path(self.temp.name).resolve();self.logs=self.root/'stage';self.logs.mkdir()
+        self.use_fixture_root(self.temp.name)
+
+    def use_fixture_root(self, root):
+        self.root=Path(root).resolve();self.logs=self.root/'stage';self.logs.mkdir()
         # These controls test native routing, with room for concurrent suite load.
         self.stage=SimpleNamespace(logs=self.logs,task_inputs={'original.lean':GOOD},lean_timeout=lambda:120)
         context=runtime_config.use_environment(self.current);context.__enter__();self.addCleanup(context.__exit__,None,None,None)
@@ -254,11 +258,15 @@ class ImportedLeanTests(unittest.TestCase):
         finally:
             stage.release_resources('USER_CANCELLED')
 
-    def public_job(self):
+    def public_job(self, *, unconditional=False):
         import jobs
-        problem = self.root/'problem.md'; problem.write_text('Prove True.')
+        from basis_fixtures import TARGET
+        problem = self.root/'problem.md'
+        problem.write_text(TARGET if unconditional else 'Prove True.')
+        target = __import__('target_selection').resolve(problem,requested=TARGET) if unconditional else None
         job = jobs.prepare(problem, track='full', profiles=harness_support.PROFILES,
-                           lean_environment=self.current, output=self.root/'case')
+                           formalization='unconditional' if unconditional else 'conditional',
+                           target=target,lean_environment=self.current,output=self.root/'case',max_concurrency=1)
         run = Path(job['root'])
         self.stage.logs = run/'public-stage'; self.stage.logs.mkdir()
         (self.stage.logs/'external-sources').mkdir()
@@ -310,6 +318,234 @@ class ImportedLeanTests(unittest.TestCase):
             return real_git(work,cwd,['-c','protocol.file.allow=always',*args],deadline)
 
         return calls, patch.object(public_lean,'git',side_effect=git)
+
+    def basis_stage(self, run, *, name='2basis/0001'):
+        from basis import BasisContract, PROMPT
+        from basis_author import BasisStage
+        from basis_fixtures import TARGET
+        out = run/name
+        inputs = out/'inputs'
+        inputs.mkdir(parents=True)
+        (inputs/'problem.md').write_text(TARGET)
+        manifest(inputs)
+        stage = BasisStage(out/'stage', PROMPT, phase='basis-authoring',
+                           validator=BasisContract(out, TARGET), inputs=inputs/'inputs.json', library=True)
+        self.addCleanup(stage.release_resources, 'USER_CANCELLED')
+        return stage
+
+    def save_basis_route(self, stage, header, proof):
+        from basis_fixtures import artifact, dependency
+        full = artifact(dependency(category=2, proof=proof))
+        full['lean_header'] += header
+        route = deepcopy(full)
+        route['dependencies'][0]['lean']['proof'] = None
+        saved = stage.dispatch('save_basis_draft', {'artifact': route})
+        return full, saved['candidate']
+
+    def test_public_library_increment_preserves_old_consumer_and_rechecks_basis(self):
+        import basis_native
+        import public_lean
+        run = self.public_job()
+        stage = self.basis_stage(run)
+        source = self.git_source('increment',{
+            'lakefile.toml':'name = "fixture"\n[[lean_lib]]\nname = "Lib"\n',
+            'Lib/A.lean':'import Init\nnamespace Lib\ntheorem a (n : Nat) : n + 0 = n := rfl\nend Lib\n',
+            'Lib/B.lean':'import Lib.A\nnamespace Lib\ntheorem b : 0 + 0 = 0 := a 0\nend Lib\n',
+            'Lib/C.lean':'import Lib.B\nexample : False := Lib.b\n',
+            'other/Lib/A.lean':'import Init\nnamespace Lib\ntheorem a : True := trivial\nend Lib\n',
+            'other/Lib/D.lean':'import Lib.A\nexample : 0 + 0 = 0 := Lib.a 0\n',
+        })
+        registry = run/'imported-lean'
+        _, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(registry):
+            def bind_module(path, module):
+                evidence = self.read_pinned(source, path, path.replace('/', '-'))
+                return lean_imports.check(self.stage, evidence, bind_public=True,
+                                          allow_publish=True, module=module)
+
+            first = bind_module('Lib/A.lean', 'Lib.A')
+            self.assertEqual(first['public_library']['status'], 'PUBLIC_LEAN_READY', first)
+            old = lean_libraries.binding()[0]
+            old_manifest = json.loads(Path(old['manifest']['path']).read_bytes())
+            proof = 'import Lib.A\ntheorem beforeIncrement : 0 + 0 = 0 := Lib.a 0\n'
+            consumer = lean_imports.compile_unit(proof, self.current, run/'old-consumer',
+                                                  attachments=lean_libraries.binding())
+            consumer_lib = lean_imports.publish_checked(consumer, registry)
+            self.assertIn(old['manifest']['sha256'], {row['manifest_sha256'] for row in consumer['libraries']})
+            artifact, route = self.save_basis_route(stage, 'import Lib.A\n', 'exact Lib.a')
+            self.assertTrue(stage.dispatch('prepare_basis_graph', {'candidate': route, 'prove': False})['route_ready'])
+            with patch.object(basis_native, 'check', wraps=basis_native.check) as compile_basis:
+                checked = stage.dispatch('check_draft', {'artifact': artifact})
+                self.assertTrue(checked['accepted'], checked)
+                candidate = stage.validator.last_checked
+                with patch.object(public_lean, 'run_lean', wraps=public_lean.run_lean) as build:
+                    appended = bind_module('Lib/B.lean', 'Lib.B')
+                self.assertEqual(appended['public_library']['status'], 'PUBLIC_LEAN_READY', appended)
+                self.assertEqual([call.args[0].name for call in build.call_args_list], ['B.lean'])
+                selected = stage.dispatch('submit_draft', {'artifact': {'accept_candidate': candidate}})
+                self.assertTrue(selected['stage_complete'], selected)
+                self.assertEqual(compile_basis.call_count, 2)
+                self.assertEqual(stage.accepted, artifact)
+            active = lean_libraries.binding()
+            libraries = [row for row in active if row['name']=='Lib']
+            self.assertEqual(len(libraries), 1)
+            [latest] = libraries
+            self.assertNotEqual(old['manifest']['sha256'], latest['manifest']['sha256'])
+            lean_libraries.validate([old], full=True)
+            metadata = json.loads(Path(latest['manifest']['path']).read_bytes())
+            self.assertEqual(metadata['modules'][0], old_manifest['modules'][0])
+            self.assertIn(consumer_lib, active)
+            def import_all():
+                unit = lean_imports.compile_unit(
+                    f'import Lib.A\nimport Lib.B\nimport {consumer_lib["name"]}\n'
+                    'example : 0 + 0 = 0 := beforeIncrement.trans Lib.b\n',
+                    self.current, self.root/'verify-all', attachments=lean_libraries.binding())
+                self.assertTrue(pilot_common.native_succeeded(unit['native']), unit['diagnostic'])
+            import_all()
+            index = (registry/'index.json').read_bytes()
+            failed = bind_module('Lib/C.lean', 'Lib.C')
+            self.assertEqual(failed['public_library']['status'], 'PUBLIC_LEAN_BUILD_FAILED', failed)
+            conflict = bind_module('other/Lib/A.lean', 'Lib.A')
+            self.assertEqual(conflict['public_library']['status'], 'PUBLIC_LEAN_CONFLICT', conflict)
+            dependency_conflict = bind_module('other/Lib/D.lean', 'Lib.D')
+            self.assertEqual(dependency_conflict['public_library']['status'], 'PUBLIC_LEAN_CONFLICT', dependency_conflict)
+            self.assertEqual((registry/'index.json').read_bytes(), index)
+            lean_libraries.validate(lean_libraries.binding(), full=True)
+            import_all()
+
+    def test_selecting_pending_imports_leaves_both_lean_entries_strict(self):
+        run = self.public_job()
+        stage = self.basis_stage(run)
+        repository = self.git_source('pending',{
+            'Lib/Pending.lean':'import Init\nnamespace Lib\ntheorem pending (n : Nat) : n + 0 = n := rfl\nend Lib\n',
+        })
+        _, transport = self.local_git_transport(repository)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            full, number = self.save_basis_route(stage, 'import Lib.Pending\n', 'exact Lib.pending')
+            planned = stage.dispatch('prepare_basis_graph', {'candidate':number,'prove':False})
+            self.assertTrue(planned.get('route_ready'), planned)
+            self.assertEqual(json.loads(Path(planned['route']['path']).read_text())['pending_imports'], ['Lib.Pending'])
+            saved = stage.dispatch('save_basis_draft', {'artifact':full})
+            for tool,args in [('prepare_basis_graph',{'candidate':saved['candidate'],'prove':True}),
+                              ('submit_draft',{'artifact':full})]:
+                refused = stage.dispatch(tool,args)
+                self.assertIn('Lib.Pending',refused['error'],refused)
+                self.assertIsNone(stage.accepted)
+            evidence = self.read_pinned(repository, 'Lib/Pending.lean', 'pending')
+            bound = lean_imports.check(self.stage, evidence, bind_public=True, allow_publish=True)
+            self.assertEqual(bound['public_library']['status'],'PUBLIC_LEAN_READY',bound)
+            ready = stage.dispatch('prepare_basis_graph', {'candidate':saved['candidate'],'prove':True})
+            self.assertTrue(ready.get('route_ready'),ready)
+            checked = stage.dispatch('submit_draft', {'artifact':full})
+            self.assertTrue(checked['stage_complete'],checked)
+
+    def prepare_port_delivery(self):
+        import basis_review
+        import delivery
+        run = self.public_job(unconditional=True)
+        stage = self.basis_stage(run, name='port-probe')
+        (stage.logs/'external-sources').mkdir()
+        self.stage = stage
+        candidate = ('import Lean\nnamespace Lib\n'
+                     'theorem base (n : Nat) : n + 0 = n := rfl\nend Lib\n')
+        original = candidate.replace('import Lean\n',
+                    'import Lean\n#guard Lean.versionString == '+json.dumps(self.old['lean']['version_number'])+'\n')
+        source = self.git_source('port',{
+            'Lib/Base.lean': original,
+            'Lib/Consumer.lean': ('import Lib.Base\nnamespace Lib\n'
+                                 'theorem consumer (n : Nat) : n + 0 = n := base n\nend Lib\n'),
+        })
+        _, transport = self.local_git_transport(source)
+        # Supply only the two fixtures already verified against real installations.
+        # Version selection and every native build still run.
+        with (transport, patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])),
+              lean_libraries.generated(run/'imported-lean')):
+            _, number = self.save_basis_route(stage,'import Lib.Consumer\n','exact Lib.consumer')
+            selected = stage.dispatch('prepare_basis_graph',{'candidate':number,'prove':False})
+            self.assertTrue(selected.get('route_ready'),selected)
+            evidence = self.read_pinned(source,'Lib/Base.lean','base')
+            options = {'source':evidence,'module':'Lib.Base','bind_public':True,'upstream':self.upstream()}
+            original_check = stage.dispatch('check_imported_lean',options)
+            self.assertEqual(original_check.get('status'),'COMPATIBILITY_PORT_REQUIRED',original_check)
+            fragment = stage.dispatch('check_imported_lean',{
+                **options,'source':{**evidence,'start':1,'end':2},'candidate':candidate,'publish':True})
+            self.assertIn('complete pinned source',fragment['error'],fragment)
+            self.assertNotIn('Lib.Base',lean_libraries.permitted_imports())
+            port = stage.dispatch('check_imported_lean',{**options,'candidate':candidate,'publish':True})
+            self.assertEqual(port.get('status'),'PORTED_CHECKED',port)
+            self.assertEqual(port['import'],'import Lib.Base')
+            consumer = stage.dispatch('check_imported_lean',{
+                'source':self.read_pinned(source,'Lib/Consumer.lean','consumer'),
+                'bind_public':True,'module':'Lib.Consumer'})
+            self.assertEqual(consumer['public_library']['status'],'PUBLIC_LEAN_READY',consumer)
+            replacement = stage.dispatch('check_imported_lean',{
+                **options,'candidate':candidate+'\n-- another port\n','publish':True})
+            self.assertIn('already registered',replacement['error'],replacement)
+            [active] = lean_libraries.binding()
+            snapshot = Path(active['root'])
+            metadata = json.loads((snapshot/'manifest.json').read_text())
+            effective = next(row for row in metadata['modules'] if row['module']=='Lib.Base')
+            port_root = snapshot/'ports/Lib.Base'
+            receipt = json.loads((port_root/'receipt.json').read_text())
+            self.assertEqual(metadata['ports']['Lib.Base'],bind(port_root/'receipt.json')['sha256'])
+            self.assertEqual(receipt['original_sha256'],hashlib.sha256(original.encode()).hexdigest())
+            self.assertEqual(receipt['ported_sha256'],effective['source_sha256'])
+            self.assertEqual(receipt['origin']['revision'],source[2])
+            self.assertEqual((snapshot/'source/Lib/Base.lean').read_text(),candidate)
+
+        program=harness_support.TESTS/'tooling/basis_path_control.py'
+        process=subprocess.run([sys.executable,'-B',str(program),str(run/'job.json'),'planned-closed+port'],
+                               capture_output=True,text=True,timeout=900)
+        self.assertEqual(process.returncode,0,(process.stdout+process.stderr)[-5000:])
+        review_dir=run/'2basis/0001/review/inputs'
+        packet=json.loads((review_dir/basis_review.PACKET).read_text())
+        review_port=packet['ports']['Lib.Base']
+        self.assertEqual(review_port['receipt_sha256'],metadata['ports']['Lib.Base'])
+        self.assertEqual((review_dir/review_port['files']['original']['input']).read_text(),original)
+        self.assertEqual((review_dir/review_port['files']['ported']['input']).read_text(),candidate)
+        for key,code in {'upstream':0,'target_original':1,'target_ported':0}.items():
+            data=json.loads((review_dir/review_port['files'][key]['input']).read_text())
+            self.assertEqual(data['exit_code'],code)
+        changed=deepcopy(packet)
+        changed['ports']['Lib.Base']['files']['upstream']['sha256']='0'*64
+        self.assertNotEqual(basis_review.item_keys(packet),basis_review.item_keys(changed))
+        delivered=run/'delivery'
+        self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
+        return {'receipt':receipt,'original':original}
+
+    def test_pinned_original_name_port_reaches_consumer_review_and_retained_delivery(self):
+        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
+            self.skipTest('Supply a distinct --comparison-environment for the two native environments')
+        import cleanup
+        import delivery
+        fixture=self.root/'port-delivery';fixture.mkdir()
+        # The preparer itself takes part in real native executions. Let those
+        # owner identities exit before a separate process requests cleanup.
+        process=subprocess.run([sys.executable,'-B',str(Path(__file__).resolve()),'--prepare-port-fixture',str(fixture)],
+                               capture_output=True,text=True,timeout=1200)
+        self.assertEqual(process.returncode,0,(process.stdout+process.stderr)[-7000:])
+        expected=json.loads((fixture/'expected-port.json').read_text())
+        run=fixture/'case'
+        delivered=run/'delivery'
+        cleaned=cleanup.clean(outputs=[run],apply=True,grace=0)
+        self.assertEqual(cleaned['status'],'CLEANED',cleaned)
+        self.assertEqual({p.name for p in run.iterdir()},{'delivery'})
+        self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
+        directory=delivered/'formalization/lean-libraries/Lib/ports/Lib.Base'
+        endpoint=json.loads((delivered/'nl0/lean-endpoints.json').read_text())
+        self.assertEqual(json.loads((directory/'receipt.json').read_text()),expected['receipt'])
+        self.assertEqual((directory/'original.lean').read_text(),expected['original'])
+        for path in directory.iterdir():
+            with self.subTest(delivered_file=path.name):
+                saved=path.read_bytes()
+                path.unlink()
+                with self.assertRaises(ValueError):delivery.verify(delivered)
+                path.write_bytes(saved+b'changed')
+                with self.assertRaises(ValueError):
+                    lean_libraries.verify_export(delivered/'formalization',endpoint['lean_libraries'])
+                with self.assertRaises(ValueError):delivery.verify(delivered)
+                path.write_bytes(saved)
+        self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
 
     def test_vendored_hyphenated_source_path_builds_declared_library(self):
         run = self.public_job()
@@ -395,4 +631,14 @@ class ImportedLeanTests(unittest.TestCase):
         self.assertNotIn('GH_TOKEN',env)
 
 
-if __name__=='__main__':unittest.main()
+if __name__=='__main__':
+    if sys.argv[1:2]==['--prepare-port-fixture']:
+        fixture=ImportedLeanTests()
+        fixture.setUpClass()
+        fixture.use_fixture_root(sys.argv[2])
+        try:
+            write(fixture.root/'expected-port.json',fixture.prepare_port_delivery())
+        finally:
+            fixture.doCleanups()
+    else:
+        unittest.main()

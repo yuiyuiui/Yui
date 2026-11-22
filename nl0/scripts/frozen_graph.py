@@ -464,6 +464,10 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
             'A short final combination of previously proved inputs is one step. This is a provisional outline. '
             'The next author writes the proofs and resolves granularity before independent audit. '
             +RULE+' For a checked candidate, read_author_packet shows a proposed receiving scope. ')
+    if previous:
+        prompt+=(' In global-findings.json, use consecutive_blockers to inspect repeated reports for the same consumer and interface. '
+                 'When an interface receives successive objections or carries independent duties, submit a full revised graph that '
+                 'extracts separate intermediate claims, or use keep_together to explain the shared witness or derivation that requires one block.')
     if owner==BASIS:
         prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
                  'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
@@ -652,6 +656,8 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
             'Use the NL0 authoring and closure rules. Report genuine mathematical gaps via report_obstacle. '
             'Inspect the final candidate packets and record_author_checks before submitting accept_candidate. '
             +graph_repair.RULE+' Work on independent inferences while collecting actual blockers you encounter. '
+            'Before reporting a consumer, read its complete source dependencies and group missing conditions for that interface '
+            'in one batch where possible. Cite the original task-input line ranges using source_spans. '
             'Return them together with report_graph_issue and include any ready local_proofs in that call. '
             'Read global-findings.json when supplied, focusing on changed_inferences and the located remedies. '
             'Repair unresolved_reviews for still-matching rejected local packets before resubmitting those bodies. '

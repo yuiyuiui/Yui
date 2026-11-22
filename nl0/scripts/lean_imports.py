@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import tempfile
 import uuid
 
 from controller_common import bind,write,verify_bindings
@@ -243,32 +244,32 @@ def publish_library(specification,root,receipt):
         if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name):raise ValueError('Invalid generated library namespace')
         prior=lean_libraries.read_generated(root)
         existing=next((row for row in prior if row['name']==name),None)
-        if existing:
-            metadata=json.loads(Path(existing['manifest']['path']).read_bytes())
-            if any(metadata[key]!=spec[key] for key in ('imports','modules','lean_version','mathlib_commit')):
-                raise ValueError('An existing library name has different checked contents: '+name)
-            return existing
         check=json.loads(Path(receipt['path']).read_bytes())
-        if check.get('version')=='yui-public-lean-build-1':
-            from public_lean import qualify
-            qualify(check,spec)
+        value=lean_libraries.registry_index(root)
+        if existing and check.get('previous_manifest_sha256')!=existing['manifest']['sha256']:
+            metadata=json.loads(Path(existing['manifest']['path']).read_bytes())
+            entry=next(item for item in reversed(value['entries']) if item['library']==existing)
+            old=json.loads(Path(entry['check']['path']).read_bytes())
+            if (old['version']!=check['version'] or old['environment']!=check['environment']
+                    or old.get('origin')!=check.get('origin')
+                    or any(metadata.get(key)!=spec.get(key)
+                           for key in ('imports','modules','lean_version','mathlib_commit','ports'))):
+                raise ValueError('The active library changed during building; check the current pinned library: '+name)
+            return existing
         index=root/'index.json'
-        value=json.loads(index.read_text()) if index.is_file() else {
-            'version':'yui-imported-lean-registry-1','job':bind(root.parent/'job.json'),'entries':[]}
-        destination=root/'lean-libraries'/name
-        if destination.exists() or destination.is_symlink():
-            raise ValueError('An unregistered generated library is already present: '+name)
-        saved=index.is_file(); published=False
+        generations=root/'generations';generations.mkdir(exist_ok=True)
+        if generations.is_symlink():raise ValueError('Invalid owned Lean library generations directory')
+        destination=Path(tempfile.mkdtemp(dir=generations))
+        proposed=None
         try:
-            descriptor=lean_libraries.capture(specification,root)
-            write(index,{**value,'entries':[*value['entries'],{'library':descriptor,'check':receipt}]})
-            published=True
-            lean_libraries.read_generated(root)
+            descriptor=lean_libraries.capture(specification,destination)
+            proposed={**value,'entries':[*value['entries'],{'library':descriptor,'check':receipt}]}
+            lean_libraries.generated_inventory(root,proposed=proposed)
+            write(index,proposed)
         except BaseException:
-            if published:
-                if saved:write(index,value)
-                else:index.unlink()
-            if destination.is_dir() and not destination.is_symlink():shutil.rmtree(destination)
+            # Do not delete a generation the atomic index has already exposed.
+            if not index.is_file() or lean_libraries.registry_index(root)!=proposed:
+                shutil.rmtree(destination)
             raise
         return descriptor
 
@@ -289,12 +290,12 @@ def publish_checked(check,root):
     return publish_library(path,root,check['receipt'])
 
 
-def public_context(stage, request, origin, environment, attachments, *, publish):
+def public_context(stage, request, origin, environment, attachments, *, publish, port=None):
     """Acquire and compile a known dependency before escalating at the author boundary."""
     import public_lean
     from execution_state import current
     identity=environment_identity(environment)
-    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,attachments])
+    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,attachments,port])
     directory.parent.mkdir(parents=True,exist_ok=True)
     owned=lean_libraries.generated_root()
     root=Path(owned).resolve() if publish else None
@@ -303,6 +304,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish)
         if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
             return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
                     'diagnostic':'The current mathematical boundary is frozen. Revise the dependency binding before importing '+origin['source_path']}, []
+    existing=lean_libraries.registry_index(root)['entries'] if root is not None else []
     with (directory.parent/(directory.name+'.lock')).open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         with runtime_config.use_environment(environment),lean_libraries.use(attachments),lean_libraries.generated(None):
@@ -317,7 +319,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish)
                 recorder,_=current()
                 limit=recorder.remaining(1800) if recorder else 1800
                 result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit,
-                                         source_cache=source_cache)
+                                         source_cache=source_cache,previous_entries=existing,port=port)
                 if result['status']=='PUBLIC_LEAN_READY':
                     write(saved,{'result':result['receipt']})
             if result['status']!='PUBLIC_LEAN_READY':return result, []
@@ -334,11 +336,57 @@ def missing_import(check):
     return bool(re.search(r'unknown module prefix|object file.*\.olean.*does not exist',text,re.I))
 
 
+def public_port(stage, request, origin, target, declared, environment, attachments, candidate):
+    """Authorize an original-name port using actual builds of the pinned module."""
+    if not target or not target.get('original_source') or declared is None:
+        if candidate is not None:
+            if target and target.get('status') in {'PUBLIC_LEAN_ALREADY_BOUND','PUBLIC_LEAN_READY','PUBLIC_LEAN_CONFLICT'}:
+                raise ValueError('The original module is already registered or conflicts with a registered module')
+            raise ValueError('An original-name port requires a completed target compilation failure and a declared upstream pair')
+        return None
+    try:
+        old=original_environment(declared)
+    except lean_environment.SelectionRequired as error:
+        if candidate is None:return None
+        raise ValueError('The pinned upstream Lean/Mathlib pair must be available before original-name porting') from error
+    if environment_identity(old)==environment_identity(environment):
+        if candidate is None:return None
+        raise ValueError('The declared upstream pair must differ from the target for a compatibility port')
+    upstream,_=public_context(stage,request,origin,old,[],publish=False)
+    if upstream['status']!='PUBLIC_LEAN_READY':
+        if candidate is None:return None
+        raise ValueError('The complete pinned original did not compile upstream: '+upstream['diagnostic'])
+    import lean_ports
+    authority={'upstream':upstream['receipt'],'target_original':target['receipt']}
+    lean_ports.authorization(authority,origin,target['module'],environment_identity(environment))
+    result={'version':VERSION,'status':'COMPATIBILITY_PORT_REQUIRED','accepted_for_native_reuse':False,
+            'semantic_acceptance':False,'upstream_public_library':upstream,'upstream_check':upstream['receipt'],
+            'target_original_check':target['receipt'],'module':target['module'],
+            'diagnostics':{'current':target['diagnostic'],'upstream':upstream['diagnostic']}}
+    if candidate is not None:
+        if not isinstance(candidate,str) or not candidate.strip():raise ValueError('Supply the complete edited compilation unit')
+        built, descriptors=public_context(stage,request,origin,environment,attachments,publish=True,
+                                          port={'authority':authority,'candidate':candidate})
+        result.update(status='PORTED_CHECKED' if descriptors else 'PORT_CHECK_FAILED',
+                      original_route='COMPATIBILITY_PORT_REQUIRED',public_library=built,
+                      accepted_for_native_reuse=bool(descriptors))
+        if 'receipt' in built:result['candidate_check']=built['receipt']
+        if descriptors:
+            result.update(library=descriptors[0],**{'import':'import '+target['module']})
+    return result
+
+
 def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=False,module=None,allow_publish=False):
     if type(publish) is not bool:raise ValueError('publish must be an explicit boolean')
     if module is not None and (not isinstance(module,str) or not lean_libraries.MODULE.fullmatch(module)):
         raise ValueError('Use the exact Lean module name for module')
     raw,text,origin=source_bytes(stage,source)
+    full_pin=None
+    if bind_public and text.encode()==raw:
+        from public_lean import known_source
+        full_pin=known_source(stage.logs,source)
+    if bind_public and candidate is not None and not full_pin:
+        raise ValueError('Original-name porting requires complete pinned source, not a document excerpt')
     request=stage.logs/'imported-lean'/('request-'+uuid.uuid4().hex);request.mkdir(parents=True)
     (request/'original.lean').write_bytes(raw);(request/'selected.lean').write_text(text);write(request/'source.json',origin)
     selected=runtime_config.require_environment();attached=lean_libraries.current()
@@ -364,6 +412,15 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
             'selected_source':bind(request/'selected.lean'),'current_check':current['receipt'],
             'current_cache_reused':current['cache_reused']}
     if built:result['public_library']=built
+    if full_pin and (candidate is not None or upstream is not None):
+        comparison=public_port(stage,request,origin,built,upstream,selected,attached,candidate)
+        if comparison is not None:
+            result.update(comparison)
+            if not comparison['accepted_for_native_reuse']:
+                result['next_action']={'source':source,'upstream':upstream,
+                    'instruction':'Use this complete pinned source and module to repair the target build in this stage.'}
+            write(request/'result.json',result)
+            return {**result,'receipt':bind(request/'result.json'),'stage_complete':False}
     checked=current
     decision=rules.decide(current)
     if decision['status']=='UPSTREAM_ENVIRONMENT_REQUIRED' and upstream is not None:
@@ -429,4 +486,4 @@ def tools():
          'candidate':{'type':'string'},'publish':{'type':'boolean'},
          'module':{'type':'string','description':'Exact Lean import name when its source root cannot be discovered from static Lake metadata.'},
          'bind_public':{'type':'boolean',
-             'description':'Also register the checked original module name at its exact public Git commit, for use as a dependency.'}},['source'])]
+             'description':'Bind an original module at its exact public Git commit. For a compatibility port, give the complete retained source, upstream pins, exact module and complete candidate; only an unregistered original name may be filled.'}},['source'])]
