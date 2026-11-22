@@ -46,9 +46,10 @@ def known_source(logs, selection):
 
 
 class BuildFailure(ValueError):
-    def __init__(self, status, diagnostic):
+    def __init__(self, status, diagnostic, *, bound=None):
         super().__init__(diagnostic)
         self.status=status
+        self.bound=bound
 
 
 def git(work, cwd, arguments, deadline):
@@ -194,42 +195,63 @@ def source_layout(checkout_root, origin):
                        'Supply the exact Lean import name as module for '+origin['source_path'])
 
 
-def scope(source_root, entry, prepare, *, compiled=None, edited=None):
-    """Read the original closure in producer order. Other packages must be bound."""
-    from lean_imports import code_tokens, preamble
+def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=None):
+    """Resolve the package closure with a single native header parser."""
+    from lean_headers import parser
+    from lean_imports import code_tokens
     from runtime_config import load_lock
     namespace=entry.partition('.')[0]
     compiled=compiled or {}
-    done={};active=set();reused=set();available=[*lean_paths(()),Path(load_lock()['lean']['local_path'])/'lib/lean']
+    headers={};paths={};seen=set()
+    available=[*lean_paths(()),Path(load_lock()['lean']['local_path'])/'lib/lean']
+    pending=[entry]
+    with parser(deadline=deadline) as parse:
+        while pending:
+            batch=[]
+            files=[]
+            for module in dict.fromkeys(pending):
+                if module in seen:
+                    continue
+                seen.add(module)
+                if not lean_libraries.MODULE.fullmatch(module):
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Unsupported module name '+module)
+                relative=Path(*module.split('.')).with_suffix('.lean')
+                if module.partition('.')[0]!=namespace:
+                    if any((Path(root)/relative.with_suffix('.olean')).is_file() for root in available):
+                        continue
+                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Bind the pinned public source for import '+module)
+                path=edited if module==entry and edited is not None else source_root/relative
+                if module in compiled:
+                    if path.is_file() and (path.resolve()!=path or hashlib.sha256(path.read_bytes()).hexdigest()!=compiled[module]):
+                        raise BuildFailure('PUBLIC_LEAN_CONFLICT','Pinned import has different source bytes: '+module)
+                    continue
+                if path.resolve()!=path or not path.is_file():
+                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Missing source at the pinned revision for '+module)
+                text=path.read_bytes().decode()
+                if re.search(r'\b(sorry|admit|axiom)\b',code_tokens(text)):
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy failed for '+module)
+                paths[module]=path
+                batch.append(module)
+                files.append(text)
+            pending=[]
+            for module,header in zip(batch,parse(files) if files else []):
+                if 'error' in header:
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Malformed import header for '+module+': '+header['error'])
+                headers[module]=header['imports']
+                pending.extend(header['imports'])
+            prepare([source_root/Path(*name.split('.')).with_suffix('.lean') for name in dict.fromkeys(pending)
+                     if name not in seen and name.partition('.')[0]==namespace and lean_libraries.MODULE.fullmatch(name)])
+    done={};active=set()
     def visit(module):
-        if module in done or module in reused:return
-        if module in active:raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Cycle at import '+module)
-        if not lean_libraries.MODULE.fullmatch(module):
-            raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Unsupported module name '+module)
-        relative=Path(*module.split('.'))
-        if module.partition('.')[0]!=namespace:
-            if any((Path(root)/relative.with_suffix('.olean')).is_file() for root in available):return
-            raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Bind the pinned public source for import '+module)
-        path=edited if module==entry and edited is not None else source_root/relative.with_suffix('.lean')
-        if module in compiled:
-            if path.is_file() and (path.resolve()!=path or hashlib.sha256(path.read_bytes()).hexdigest()!=compiled[module]):
-                raise BuildFailure('PUBLIC_LEAN_CONFLICT','Pinned import has different source bytes: '+module)
-            reused.add(module)
+        if module in done or module not in paths:
             return
-        if path.resolve()!=path or not path.is_file():
-            raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Missing source at the pinned revision for '+module)
-        text=path.read_text(); header=preamble(text)
-        if header is None or re.search(r'\b(sorry|admit|axiom)\b',code_tokens(text)):
-            raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy or import header failed for '+module)
+        if module in active:
+            raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Cycle at import '+module)
         active.add(module)
-        imports=[]
-        for line in code_tokens(header).splitlines():
-            match=re.fullmatch(r'\s*(?:(?:public|private|meta)\s+)*import\s+(.+)',line)
-            if match:imports.extend(match[1].split())
-        prepare([source_root/Path(*name.split('.')).with_suffix('.lean') for name in imports
-                 if name.partition('.')[0]==namespace and lean_libraries.MODULE.fullmatch(name)])
-        for dependency in imports:visit(dependency)
-        active.remove(module);done[module]=path
+        for dependency in headers[module]:
+            visit(dependency)
+        active.remove(module)
+        done[module]=paths[module]
     visit(entry)
     return namespace,done
 
@@ -251,16 +273,17 @@ def prior_library(namespace, entry, origin, entries, environment, *, porting=Fal
                 or previous['environment']!=environment):
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','Namespace already belongs to a different pinned library: '+namespace)
         matched=next((row for row in metadata['modules'] if row['module']==entry),None)
+        bound={'library':descriptor,'registration':owner['check']} if owner else None
         if matched and porting:
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','The original module is already registered: '+entry)
         if matched and entry in metadata.get('ports',{}):
             receipt=lean_ports.inventory(Path(descriptor['root']),metadata)[1][entry]
             if receipt['origin']['source_sha256']==origin['source_sha256'] and entry in metadata['imports']:
-                raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The original module has a checked compatibility port: '+entry)
+                raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The original module has a checked compatibility port: '+entry,bound=bound)
         if matched and matched['source_sha256']!=origin['source_sha256']:
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','Source bytes conflict with the bound module: '+entry)
         if entry in metadata['imports']:
-            raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The pinned module is already bound: '+entry)
+            raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The pinned module is already bound: '+entry,bound=bound)
         return descriptor,metadata
     return None,None
 
@@ -271,7 +294,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
     import lean_environment
     directory.mkdir(parents=True)
     deadline=time.monotonic()+timeout
-    entry=None;checks={};bindings=[];previous=None;original_source=None
+    entry=None;checks={};bindings=[];previous=None;original_source=None;bound=None
     selected=lean_environment.identity(environment)
     try:
         with use_environment(environment),native_workspace.temporary('yui-public-lean-',logs=directory) as work:
@@ -297,7 +320,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                     _,receipts=lean_ports.inventory(Path(previous['root']),metadata)
                     original_hashes.update({module:receipt['original_sha256'] for module,receipt in receipts.items()})
                 namespace, sources=scope(source_dir,entry,prepare,edited=edited,
-                                         compiled=original_hashes)
+                                         compiled=original_hashes,deadline=deadline)
             output=work/'output'; output.mkdir(); (work/'input').mkdir()
             source_root=directory/'source';build_root=directory/'build'
             rows=list(old_modules)
@@ -330,7 +353,8 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                     if port is None and module==entry and lean_ports.failed_native(result):
                         copy_input(source,directory/'original.lean')
                         original_source=bind(directory/'original.lean')
-                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+(result.get('stdout','')+'\n'+result.get('stderr',''))[-5000:])
+                    from compiler_feedback import excerpt
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+excerpt(native_log,5000)[0])
                 dest=source_root/relative.with_suffix('.lean');dest.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(source,dest);source_ref=bind(dest);bindings.append(source_ref);artifacts={}
                 if port is not None and module==entry:
@@ -352,10 +376,12 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
             status='PUBLIC_LEAN_READY'; detail='Pinned public module compiled with the selected compiler.'
     except BuildFailure as error:
         status,detail=error.status,str(error)
+        bound=error.bound
     result={'version':VERSION,'status':status,'diagnostic':detail,'origin':origin,
             'environment':selected,'checks':checks,'bindings':bindings}
     if previous:result['previous_manifest_sha256']=previous['manifest']['sha256']
     if original_source:result['original_source']=original_source
+    if bound is not None:result['bound']=bound
     if port is not None:result['port_authority']=port['authority']
     if entry is not None:result['module']=entry
     if status=='PUBLIC_LEAN_READY':result['specification']=bind(directory/'library.json')

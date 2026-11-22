@@ -194,34 +194,37 @@ def native(directory, selected):
 def library_specification(source_root, build_root, name, imports, destination, *, allowed_external=()):
     """Derive an explicit public import closure; hashes are never typed by users."""
     import lean_libraries
-    import lean_imports
+    from lean_headers import parser
     from runtime_config import require_environment
     selected=require_environment()
     source,build=Path(source_root).resolve(strict=True),Path(build_root).resolve(strict=True)
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name) or not imports:
         raise ValueError('Specify the public library namespace and entry module(s)')
-    pending=list(imports);rows={};seen=set()
-    while pending:
-        module=pending.pop()
-        if module in seen:continue
-        seen.add(module)
-        relative=lean_libraries._module(module,name)
-        file=lean_libraries._input(source,Path(str(relative)+'.lean'))
-        compiled=lean_libraries._input(build,Path(str(relative)+'.olean'))
-        row={'module':module,'source_sha256':bind(file)['sha256'],'olean_sha256':bind(compiled)['sha256']}
-        companions={suffix:bind(lean_libraries._input(build,Path(str(relative)+suffix)))['sha256']
-                    for suffix in ('.olean.private','.olean.server','.ir','.ir.sig')
-                    if (build/(str(relative)+suffix)).exists()}
-        if companions:row['companions']=companions
-        rows[module]=row
-        preamble=lean_imports.preamble(file.read_text())
-        if preamble is None:raise ValueError('Cannot parse public import header: '+module)
-        for line in lean_imports.code_tokens(preamble).splitlines():
-            match=re.fullmatch(r'\s*(?:(?:public|private|meta)\s+)*import\s+(.+)',line)
-            if match:
-                for dependency in match[1].split():
-                    if dependency==name or dependency.startswith(name+'.'):pending.append(dependency)
-                    elif dependency.split('.')[0] not in {'Init','Lean','Std','Mathlib','Aesop','Batteries','Qq','Plausible','ProofWidgets','ImportGraph','LeanSearchClient',*allowed_external}:
+    pending=list(imports);rows={}
+    with parser() as parse:
+        while pending:
+            batch=[module for module in dict.fromkeys(pending) if module not in rows]
+            sources=[]
+            for module in batch:
+                relative=lean_libraries._module(module,name)
+                file=lean_libraries._input(source,Path(str(relative)+'.lean'))
+                compiled=lean_libraries._input(build,Path(str(relative)+'.olean'))
+                row={'module':module,'source_sha256':bind(file)['sha256'],'olean_sha256':bind(compiled)['sha256']}
+                companions={suffix:bind(lean_libraries._input(build,Path(str(relative)+suffix)))['sha256']
+                            for suffix in ('.olean.private','.olean.server','.ir','.ir.sig')
+                            if (build/(str(relative)+suffix)).exists()}
+                if companions:
+                    row['companions']=companions
+                rows[module]=row
+                sources.append(file.read_bytes().decode())
+            pending=[]
+            for module,header in zip(batch,parse(sources) if sources else []):
+                if 'error' in header:
+                    raise ValueError('Cannot parse public import header: '+module+': '+header['error'])
+                for dependency in header['imports']:
+                    if dependency.partition('.')[0]==name:
+                        pending.append(dependency)
+                    elif dependency.partition('.')[0] not in {'Init','Lean','Std','Mathlib','Aesop','Batteries','Qq','Plausible','ProofWidgets','ImportGraph','LeanSearchClient',*allowed_external}:
                         raise ValueError('Additional external import needs explicit attachment: '+dependency)
     value={'version':'yui-lean-library-1','name':name,'source_root':str(source),'build_root':str(build),
            'lean_version':selected['lean']['version_number'],'mathlib_commit':selected['mathlib']['rev'],
@@ -294,7 +297,9 @@ def _external_library(directory, specification, selected, profiles, *, attachmen
             '  unless found do throwError "No public declaration is accessible from the requested library"\n')
         compiled=run_lean(file,work,timeout=120)
         if not native_succeeded(compiled):
-            raise ValueError('External library failed the actual restricted native import: '+compiled['stdout'][-2000:])
+            from compiler_feedback import excerpt
+            raise ValueError('External library failed the actual restricted native import: '+
+                             excerpt(compiled.get('stdout','')+'\n'+compiled.get('stderr',''),2000)[0])
         if 'YUI_LIBRARY_DECLARATION:' not in compiled['stdout']:
             raise ValueError('No actual external declaration was inspected')
         exported=directory/'export';exported.mkdir()

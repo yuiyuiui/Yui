@@ -7,12 +7,14 @@ from controller_common import bind
 from runtime_config import require_environment
 
 
-def library(root, *, modern=False):
+def library(root, *, modern=False, multiline_import=False):
     root=Path(root).resolve();source=root/'source';build=root/'build'
     for folder in (source,build):(folder/'FixtureLib').mkdir(parents=True)
     path=source/'FixtureLib/Leaf.lean'
     text=('module\npublic import Init\n' if modern else '')+'namespace FixtureLib\n'
     text+=('public ' if modern else '')+'theorem witness : True := True.intro\nend FixtureLib\n'
+    if multiline_import:
+        text = 'module\npublic import\n  Init\nnamespace FixtureLib\npublic theorem witness : True := True.intro\nend FixtureLib\n'
     path.write_text(text)
     selected=require_environment();binary=Path(selected['lean']['local_path'])/'bin/lean'
     compiled=build/'FixtureLib/Leaf.olean'

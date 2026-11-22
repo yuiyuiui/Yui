@@ -27,7 +27,7 @@ class ActualSetupConsumers(unittest.TestCase):
         self.assertTrue(all(row['passed'] and row['execution']=='actual' for row in checks.values()))
 
     def test_generated_library_spec_works_through_real_job_tools_sandbox_and_export(self):
-        original=library(self.root/'external')
+        original=library(self.root/'external',multiline_import=True)
         data=json.loads(original.read_text())
         specification=setup_checks.library_specification(data['source_root'],data['build_root'],
             data['name'],data['imports'],self.root/'generated.json')

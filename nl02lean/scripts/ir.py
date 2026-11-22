@@ -64,11 +64,17 @@ def compact(text):
     return re.sub(r'\s+', '', text)
 
 
+def policy_text(value):
+    from lean_imports import code_tokens
+    return code_tokens(value, preserve_interpolation=True)
+
+
 def type_text(value):
     need(isinstance(value, str) and bool(value.strip()), 'empty proposition/type')
     # Named arguments are ordinary Lean terms, not declaration assignments.
-    assignments = re.sub(r"\(\s*[\w']+\s*:=", '(', value)
-    need(not FORBIDDEN.search(value) and ':=' not in assignments,
+    code = policy_text(value)
+    assignments = re.sub(r"\(\s*[\w']+\s*:=", '(', code)
+    need(not FORBIDDEN.search(code) and ':=' not in assignments,
          'command/placeholder in proposition/type')
 
 
@@ -312,7 +318,7 @@ def local_packet(cpath, plan, sid):
 
 def proof_text(body):
     need(isinstance(body, str) and body.strip(), 'missing proof')
-    need(not FORBIDDEN.search(body), 'forbidden proof command or placeholder')
+    need(not FORBIDDEN.search(policy_text(body)), 'forbidden proof command or placeholder')
     need(not re.match(r'^\s*by(?:\s|$)', body), 'supply tactic body after by')
     # Remove the common outer margin before embedding. Stripping only the
     # first line changes Lean's layout semantics for indented multiline code.
@@ -502,7 +508,7 @@ def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=Fals
     """Render the exact local helper wrapper without running Lean."""
     c,nodes,_=validate(cpath,plan)
     need(step in nodes,'unknown auxiliary context port')
-    need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
+    need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(policy_text(statement)),
          'forbidden command or placeholder in auxiliary statement')
     body=proof_text(proof)
     import local_helpers
@@ -525,7 +531,7 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
     rows = local_helpers.validate(cpath,plan,step,list(helpers))
     options = helper_modules.context(cpath,plan,step)
     if options is not None:
-        need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(statement),
+        need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(policy_text(statement)),
              'forbidden command or placeholder in auxiliary statement')
         proof_text(proof)
         fast=helper_modules.check(options,cpath,plan,step,statement,proof,rows,out,timeout,cache=cache)

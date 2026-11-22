@@ -95,6 +95,20 @@ class SourceAccessTests(unittest.TestCase):
             Path(first['text']['path']).write_text('tampered')
             with self.assertRaisesRegex(ValueError,'changed'):access.read(tmp,'https://example.org')
 
+    def test_external_source_end_clears_the_cursor_for_exact_and_excess_offsets(self):
+        from controller_common import bind, write
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            text=root/'text.txt';text.write_text('abcdef')
+            url='https://example.org/source'
+            write(root/'access-test.json', {'url':url,'status':'READABLE','text':bind(text)})
+            for offset,limit,expected in ((1,5,'bcdef'),(6,5,''),(90,5,'')):
+                with self.subTest(offset=offset,limit=limit):
+                    result=access.read(root,url,offset=offset,limit=limit)
+                    self.assertEqual(result['content'],expected)
+                    self.assertFalse(result['has_more'])
+                    self.assertIsNone(result['next_offset'])
+
     def test_search_retains_google_failure_and_other_engine_locators(self):
         with tempfile.TemporaryDirectory() as tmp:
             html=Path(tmp)/'search.html'

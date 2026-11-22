@@ -446,15 +446,17 @@ def signature_probe(case, identifier, declaration, module, sequence, *, timeout=
     started = datetime.now(timezone.utc).isoformat()
     if on_native:on_native()
     result = run_lean(lean, work, timeout=timeout)
-    (out / 'library-probe.log').write_text(result['stdout'] + result['stderr'])
+    from compiler_feedback import excerpt
+    output=result['stdout']+'\n'+result['stderr']
+    (out / 'library-probe.log').write_text(output)
     if result['exit_code'] and ('sandbox-exec:' in result['stderr'] or result['exit_code'] in {126,127}):
-        raise OSError('Native Lean probe execution failed: '+result['stderr'][:6000])
+        raise OSError('Native Lean probe execution failed: '+excerpt(result['stderr'],6000)[0])
     if result['exit_code']:
-        detail=(result['stdout'] + result['stderr'])[:6000]
-        if 'Unknown source declaration' in detail or 'Unknown constant' in detail or 'Unknown identifier' in detail:
+        detail=excerpt(output,6000)[0]
+        if 'Unknown source declaration' in output or 'Unknown constant' in output or 'Unknown identifier' in output:
             raise ValueError('SOURCE_NOT_FOUND: this exact declaration name does not exist in the pinned environment. '
                              'Search and inspect the real namespace/name; do not register a guessed name as a D definition. '+detail)
-        if 'not a proved theorem declaration' in detail:
+        if 'not a proved theorem declaration' in output:
             raise ValueError('SOURCE_KIND_MISMATCH: the declaration is available but is not a proved theorem. '
                              'Register a definition in D; source any mathematical properties separately. '+detail)
         raise ValueError('Library probe failed: ' + detail)

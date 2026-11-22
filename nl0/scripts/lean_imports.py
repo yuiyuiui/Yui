@@ -95,7 +95,7 @@ def wait_for_dependency(stage, receipt):
 
 environment_identity=lean_environment.identity
 
-def code_tokens(text):
+def code_tokens(text, *, preserve_interpolation=False):
     """Remove nested comments and string contents without moving line numbers."""
     result=[];index=0;depth=0;string=False
     while index<len(text):
@@ -124,23 +124,22 @@ def code_tokens(text):
             end=text.find('\n',index)
             if end<0:end=len(text)
             result.extend(' '*(end-index));index=end;continue
-        if char=='"':string=True;result.append(' ');index+=1;continue
+        if char=='"':
+            # Interpolated strings can contain executable term syntax. Keep
+            # the rest of the unit visible to declaration/proof guards.
+            if preserve_interpolation and index and text[index-1]=='!':
+                return ''.join(result)+text[index:]
+            string=True;result.append(' ');index+=1;continue
         result.append(char);index+=1
     if depth or string:raise ValueError('A complete imported unit must close its comments and strings')
     return ''.join(result)
 
 
 def preamble(text):
-    clean=code_tokens(text).splitlines();original=text.splitlines(keepends=True);count=0
-    for line in clean:
-        value=line.strip()
-        if not value or value in {'module','prelude'}:count+=1;continue
-        if re.match(r'^(?:(?:public|private|meta)\s+)*import\b',value):
-            if not re.fullmatch(r'(?:(?:public|private|meta)\s+)*import\s+[A-Za-z][A-Za-z0-9_.]*(?:\s+[A-Za-z][A-Za-z0-9_.]*)*',value):
-                return None
-            count+=1;continue
-        break
-    return ''.join(original[:count])
+    from lean_headers import parser
+    with parser() as parse:
+        [header]=parse([text])
+    return None if 'error' in header else text.encode()[:header['endBytes']].decode()
 
 
 def source_bytes(stage,selection):
@@ -203,15 +202,15 @@ def compile_unit(source,environment,directory,*,attachments=(),timeout=None):
                     if path.is_file():
                         shutil.copyfile(path,build/path.name);artifacts.append(bind(build/path.name))
                 if not (build/(module+'.olean')).is_file():raise ValueError('A checked imported module must retain its actual compiler output')
-        def view(text,limit):
-            return text if len(text)<=limit else text[:limit//2]+'\n[... retained output omitted ...]\n'+text[-limit//2:]
+        from compiler_feedback import excerpt
         stdout=native.get('stdout','');stderr=native.get('stderr','')
-        display={'stdout':view(stdout,12000),'stderr':view(stderr,4000),
+        display={'stdout':excerpt(stdout,12000)[0],'stderr':excerpt(stderr,4000)[0],
                  'truncated':len(stdout)>12000 or len(stderr)>4000,'complete':bind(attempt/'native.json')}
         result={'version':VERSION,'key':key,'module':module,'source':bind(original),
                 'environment':identity,'lean_environment':environment,'libraries':libraries,
                 'native':{k:v for k,v in native.items() if k not in {'stdout','stderr'}},
                 'native_evidence':bind(attempt/'native.json'),'diagnostic':display,
+                'missing_import':native_missing_import(native),
                 'source_policy_passed':bool(policy),'artifacts':artifacts,
                 'bindings':[bind(original),bind(attempt/'native.json'),*artifacts]}
         write(attempt/'result.json',result);receipt=bind(attempt/'result.json')
@@ -322,6 +321,8 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
                                          source_cache=source_cache,previous_entries=existing,port=port)
                 if result['status']=='PUBLIC_LEAN_READY':
                     write(saved,{'result':result['receipt']})
+            if result['status']=='PUBLIC_LEAN_ALREADY_BOUND':
+                return result,[result['bound']['library']]
             if result['status']!='PUBLIC_LEAN_READY':return result, []
             specification=result['specification'];verify_bindings([specification])
             if root is None:
@@ -330,10 +331,21 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
         return result,[descriptor]
 
 
-def missing_import(check):
-    if not check or 'diagnostic' not in check:return False
-    native=check['diagnostic'];text=native.get('stdout','')+'\n'+native.get('stderr','')
+def native_missing_import(native):
+    text=native.get('stdout','')+'\n'+native.get('stderr','')
     return bool(re.search(r'unknown module prefix|object file.*\.olean.*does not exist',text,re.I))
+
+
+def missing_import(check):
+    if not check:
+        return False
+    if 'missing_import' in check:
+        return check['missing_import']
+    receipt=check.get('native_evidence')
+    if not receipt:
+        return False
+    verify_bindings([receipt])
+    return native_missing_import(json.loads(Path(receipt['path']).read_bytes()))
 
 
 def public_port(stage, request, origin, target, declared, environment, attachments, candidate):
@@ -376,6 +388,39 @@ def public_port(stage, request, origin, target, declared, environment, attachmen
     return result
 
 
+def check_public(stage, request, source, pin, selected, attached, upstream, candidate):
+    result={'version':VERSION,'source':bind(request/'source.json'),
+            'original_source':bind(request/'original.lean'),'selected_source':bind(request/'selected.lean'),
+            'semantic_acceptance':False,'accepted_for_native_reuse':False}
+    if pin is None:
+        result.update(status='PUBLIC_SOURCE_EVIDENCE_REQUIRED',
+                      diagnostics={'current':'Read the complete public Lean module at its fixed Git commit.'})
+        return result
+    built,descriptors=public_context(stage,request,pin,selected,attached,publish=True)
+    result.update(status=built['status'],public_library=built,diagnostics={'current':built['diagnostic']},
+                  current_check=built.get('receipt'),
+                  current_cache_reused=built['status']=='PUBLIC_LEAN_ALREADY_BOUND')
+    if candidate is not None or upstream is not None:
+        comparison=public_port(stage,request,pin,built,upstream,selected,attached,candidate)
+        if comparison is not None:
+            result.update(comparison)
+            if not result['accepted_for_native_reuse']:
+                result['next_action']={'source':source,'upstream':upstream,
+                    'instruction':'Use this complete pinned source and module to repair the target build in this stage.'}
+            return result
+    if descriptors:
+        [descriptor]=descriptors
+        module=built['module']
+        relative=Path(*module.split('.')).with_suffix('.lean')
+        result.update(status='LOCAL_REUSED',accepted_for_native_reuse=True,
+                      checked_source=bind(Path(descriptor['root'])/'source'/relative),
+                      module=module,library=descriptor,**{'import':'import '+module})
+    else:
+        result['next_action']={'source':source,'upstream':upstream,
+            'instruction':'Continue using the retained public-library diagnostic.'}
+    return result
+
+
 def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=False,module=None,allow_publish=False):
     if type(publish) is not bool:raise ValueError('publish must be an explicit boolean')
     if module is not None and (not isinstance(module,str) or not lean_libraries.MODULE.fullmatch(module)):
@@ -390,18 +435,21 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
     request=stage.logs/'imported-lean'/('request-'+uuid.uuid4().hex);request.mkdir(parents=True)
     (request/'original.lean').write_bytes(raw);(request/'selected.lean').write_text(text);write(request/'source.json',origin)
     selected=runtime_config.require_environment();attached=lean_libraries.current()
+    can_bind=allow_publish and lean_libraries.generated_root() is not None
+    if bind_public:
+        if not can_bind:
+            raise ValueError('This role cannot add a public library to its bound context')
+        if full_pin and module is not None:
+            full_pin['expected_module']=module
+        result=check_public(stage,request,source,full_pin,selected,attached,upstream,candidate)
+        write(request/'result.json',result)
+        return {**result,'receipt':bind(request/'result.json'),'stage_complete':False}
     timeout=stage.lean_timeout() if hasattr(stage,'lean_timeout') else None
     current=compile_unit(text,selected,stage.logs/'imported-lean/checks',attachments=attached,timeout=timeout)
     origin=None; built=None
-    can_bind=allow_publish and lean_libraries.generated_root() is not None
-    if bind_public and not can_bind:
-        raise ValueError('This role cannot add a public library to its bound context')
-    if can_bind and (bind_public or missing_import(current)):
+    if can_bind and missing_import(current):
         from public_lean import known_source
         origin=known_source(stage.logs,source)
-        if bind_public and not origin:
-            built={'status':'PUBLIC_SOURCE_EVIDENCE_REQUIRED',
-                   'diagnostic':'Read the original public Lean file at its full Git commit before binding its library.'}
         if origin:
             if module is not None:origin['expected_module']=module
             built,descriptors=public_context(stage,request,origin,selected,attached,publish=True)
@@ -412,15 +460,6 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
             'selected_source':bind(request/'selected.lean'),'current_check':current['receipt'],
             'current_cache_reused':current['cache_reused']}
     if built:result['public_library']=built
-    if full_pin and (candidate is not None or upstream is not None):
-        comparison=public_port(stage,request,origin,built,upstream,selected,attached,candidate)
-        if comparison is not None:
-            result.update(comparison)
-            if not comparison['accepted_for_native_reuse']:
-                result['next_action']={'source':source,'upstream':upstream,
-                    'instruction':'Use this complete pinned source and module to repair the target build in this stage.'}
-            write(request/'result.json',result)
-            return {**result,'receipt':bind(request/'result.json'),'stage_complete':False}
     checked=current
     decision=rules.decide(current)
     if decision['status']=='UPSTREAM_ENVIRONMENT_REQUIRED' and upstream is not None:
@@ -428,8 +467,9 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
         except lean_environment.SelectionRequired as error:
             result['selection_request']=error.request
         else:
-            header=preamble(text)
             compatible=(environment_identity(old)==environment_identity(selected))
+            with runtime_config.use_environment(old):
+                header=preamble(text)
             old_libraries=attached if compatible else []
             context=(compile_unit(header,old,stage.logs/'imported-lean/checks',attachments=old_libraries,timeout=timeout)
                      if header is not None else None)

@@ -282,7 +282,7 @@ class InterfaceContract:
         header=value['header']
         if not isinstance(header,str) or not header.startswith('import Mathlib\n'):
             raise ValueError('Header must start with import Mathlib followed by a newline')
-        if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',header):
+        if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',ir.policy_text(header)):
             raise ValueError('Candidate header may define mathematical objects, not proof/result declarations or executable commands')
         correspondence.validate_notes(value['endpoint_correspondence'],
             [p['id'] for p in self.source['roots'] if p['kind']=='external']+['P'])
@@ -433,7 +433,7 @@ class InterfaceStage(ArtifactStage):
             protocol.validate(args,type_probe_schema())
             header=args['header'];parameters=args['parameters'];types=args['types']
             if not isinstance(header,str) or not header.startswith('import Mathlib\n'):raise ValueError('Start the header with import Mathlib and newline')
-            if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',header):
+            if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',ir.policy_text(header)):
                 raise ValueError('Type probes allow mathematical definitions, not proof/result declarations or executable commands')
             if not isinstance(parameters,list) or not isinstance(types,list) or not types:raise ValueError('Supply parameters and at least one type')
             names=[]
@@ -454,10 +454,11 @@ class InterfaceStage(ArtifactStage):
                 destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
                 write(destination/'input.json',args)
                 shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)
+            from compiler_feedback import excerpt
             result={'stage_complete':False,'scope':'STRICT_EXPRESSION_DECLARATION_ONLY_NO_PROOF_OR_INTERFACE_ACCEPTANCE',
                 'type_check_policy':'strict-declaration-1',
                 'types_checked':ir.native_succeeded(native),'exit_code':native['exit_code'],
-                'stdout':native['stdout'][:16000],'stderr':native['stderr'][:1500]}
+                'stdout':excerpt(native['stdout'],16000)[0],'stderr':excerpt(native['stderr'],1500)[0]}
             advice=timeout_advice(native,self.native_timeout_snapshot)
             if advice is not None:
                 result['repair_advice']=advice

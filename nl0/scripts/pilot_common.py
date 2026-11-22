@@ -16,30 +16,31 @@ from execution_state import current, Cancelled, terminate_owned, capture_process
 
 
 
-def lean_paths(extra: list[Path] = ()) -> list[str]:
+def lean_paths(extra: list[Path] = (), *, library_paths=None) -> list[str]:
     import lean_libraries
     __import__('runtime_config').require_environment()
     lock = load_lock()
     ml = Path(lock['mathlib']['local_path'])
-    paths = [str(p) for p in extra] + lean_libraries.paths() + [str(ml / '.lake/build/lib/lean')]
+    libraries = lean_libraries.paths() if library_paths is None else library_paths
+    paths = [str(p) for p in extra] + libraries + [str(ml / '.lake/build/lib/lean')]
     paths += [str((ml / '.lake/packages' / p['name']).resolve() / '.lake/build/lib/lean')
               for p in lock['dependencies']]
     return paths
 
 
-def lean_env(work: Path, extra: list[Path] = ()) -> dict[str, str]:
+def lean_env(work: Path, extra: list[Path] = (), *, library_paths=None) -> dict[str, str]:
     lock = load_lock()
     return {'PATH': str(Path(lock['lean']['local_path']) / 'bin') + ':/usr/bin:/bin',
             'HOME': str(work / 'home'), 'TMPDIR': str(work / 'tmp'),
-            'LEAN_PATH': ':'.join(lean_paths(extra)), 'LANG': 'en_US.UTF-8'}
+            'LEAN_PATH': ':'.join(lean_paths(extra,library_paths=library_paths)), 'LANG': 'en_US.UTF-8'}
 
 
-def sandbox_profile(work: Path) -> str:
+def sandbox_profile(work: Path, *, library_paths=None) -> str:
     import lean_libraries
     lock = load_lock()
     ml = Path(lock['mathlib']['local_path'])
     roots = [Path(lock['lean']['local_path']), ml]
-    roots += [Path(p) for p in lean_libraries.paths()]
+    roots += [Path(p) for p in (lean_libraries.paths() if library_paths is None else library_paths)]
     roots += [(ml / '.lake/packages' / p['name']).resolve() for p in lock['dependencies']]
     roots += [work / 'input', work / 'output', work / 'tmp', work / 'home']
     read = ' '.join('(subpath ' + json.dumps(str(p.resolve())) + ')' for p in roots)
@@ -106,6 +107,7 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
 
 
 def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False, module_root=None):
+    import lean_libraries
     import native_workspace
     native_workspace.record(work, confirmed=True, phase='not-started')
     config = __import__('runtime_config')
@@ -113,6 +115,8 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
     timeout = config.time_limit(timeout) if reviewed_policy else config.native_timeout(timeout)
     heartbeats = config.native_heartbeats()
     lock = load_lock()
+    libraries=lean_libraries.compiler_snapshot()
+    library_paths=[str(Path(row['root'])/'lib') for row in libraries]
     for name in ['home', 'tmp', 'output']:
         (work / name).mkdir(parents=True, exist_ok=True)
     cmd = [str(Path(lock['lean']['local_path']) / 'bin/lean'), '-R', str(module_root or file.parent), '-j', '1',
@@ -121,7 +125,7 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
     cmd += [str(file)]
     if sandbox:
         profile = work / 'sandbox.sb'
-        profile.write_text(sandbox_profile(work))
+        profile.write_text(sandbox_profile(work,library_paths=library_paths))
         cmd = ['/usr/bin/sandbox-exec', '-f', str(profile)] + cmd
     started = time.monotonic()
     recorder, task = current()
@@ -154,7 +158,7 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         return stopped
     try:
         native_workspace.record(work, confirmed=False, phase='launching')
-        process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra),
+        process = subprocess.Popen(cmd, cwd=work/'output', env=lean_env(work,extra,library_paths=library_paths),
             stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=True)
         launched={'pid':process.pid,'pgid':process.pid,'started':None,
                   'cleanup_uncertainty':'Native child launched; OS start identity not yet confirmed'}
@@ -207,8 +211,9 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
         result['selected_environment'] = {'lean_version':lock['lean']['version_number'],
             'lean_binary_sha256':lock['lean']['binary_sha256'],'mathlib_commit':lock['mathlib']['rev'],
             'dependency_manifest_sha256':lock['mathlib']['manifest_sha256']}
-        import lean_libraries
-        if lean_libraries.current():result['selected_environment']['lean_libraries']=lean_libraries.identity()
+        if libraries:
+            result['selected_environment']['lean_libraries']=[
+                {'name':row['name'],'manifest_sha256':row['manifest']['sha256']} for row in libraries]
         if recorder: recorder.lean_finished(task,check,result)
         if result.get('cancelled'): raise Cancelled('Native Lean check cancelled externally')
         if recorder:recorder.check(task)

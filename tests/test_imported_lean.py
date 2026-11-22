@@ -155,7 +155,7 @@ class ImportedLeanTests(unittest.TestCase):
         self.stage.task_inputs['original.lean']=GOOD.replace('by trivial','by sorry')
         with patch.object(lean_imports,'original_environment',return_value=self.old):result=self.check(upstream=self.upstream())
         self.assertEqual(result['status'],'CORRECTION_AND_PORT_REQUIRED');self.assertFalse(result['accepted_for_native_reuse'])
-        self.assertIsNone(lean_imports.preamble('import\n Missing.Entry\ntheorem witness : True := by trivial\n'))
+        self.assertIsNone(lean_imports.preamble('import\n 93\ntheorem witness : True := by trivial\n'))
         self.assertEqual(lean_imports.preamble('/- import Hidden -/\nimport Mathlib\ntheorem witness : True := by trivial\n'),
                          '/- import Hidden -/\nimport Mathlib\n')
 
@@ -571,12 +571,12 @@ class ImportedLeanTests(unittest.TestCase):
         dependency_path = 'lean/OAI/Menu.lean'
         child = self.git_source('upstream',{
             'lean/lakefile.lean':'import Lake\nopen Lake DSL\npackage OAI\n@[default_target] lean_lib OAI\n',
-            dependency_path:'import Init\nnamespace OAI\ntheorem menu : True := trivial\nend OAI\n',
+            dependency_path:'module\npublic import Init\nnamespace OAI\npublic theorem menu : True := trivial\nend OAI\n',
         })
         parent_path = 'Hindman/Main.lean'
         parent = self.git_source('consumer',{
             'lakefile.toml':'name = "hindman"\n[[lean_lib]]\nname = "Hindman"\n',
-            parent_path:'import OAI.Menu\nnamespace Hindman\ntheorem witness : True := OAI.menu\nend Hindman\n',
+            parent_path:'module\npublic import\n  OAI.Menu\nnamespace Hindman\npublic theorem witness : True := OAI.menu\nend Hindman\n',
         })
         calls, transport = self.local_git_transport(child,parent)
         with transport, lean_libraries.generated(run/'imported-lean'):
@@ -593,6 +593,93 @@ class ImportedLeanTests(unittest.TestCase):
             proof = lean_imports.compile_unit('import Hindman.Main\nexample : True := Hindman.witness\n',
                        self.current,self.root/'verify-cross-repo',attachments=lean_libraries.current())
             self.assertTrue(pilot_common.native_succeeded(proof['native']),proof['diagnostic'])
+
+    def test_fixed_public_module_first_compile_and_bound_hit_have_one_and_zero_calls(self):
+        import public_lean
+        run = self.public_job()
+        repo = self.git_source('canonical', {'Canonical/Main.lean':
+            'import Init\nnamespace Canonical\ntheorem witness : True := True.intro\nend Canonical\n'})
+        source = self.read_pinned(repo, 'Canonical/Main.lean', 'canonical')
+        _, transport = self.local_git_transport(repo)
+        with transport, lean_libraries.generated(run/'imported-lean'), \
+                patch.object(public_lean,'run_lean',wraps=public_lean.run_lean) as named, \
+                patch.object(lean_imports,'run_lean',wraps=lean_imports.run_lean) as alias:
+            first = lean_imports.check(self.stage,source,bind_public=True,publish=True,allow_publish=True)
+            self.assertEqual((named.call_count,alias.call_count),(1,0))
+            again = lean_imports.check(self.stage,source,bind_public=True,publish=True,allow_publish=True)
+            self.assertEqual((named.call_count,alias.call_count),(1,0))
+            self.assertEqual(first['import'],'import Canonical.Main')
+            self.assertEqual(again['import'],first['import'])
+            self.assertEqual(again['library'],first['library'])
+            self.assertEqual(again['public_library']['status'],'PUBLIC_LEAN_ALREADY_BOUND')
+            self.assertEqual([row['name'] for row in lean_libraries.current()],['Canonical'])
+        with lean_libraries.generated(run/'imported-lean'):
+            proof=lean_imports.compile_unit('import Canonical.Main\nexample : True := Canonical.witness\n',
+                      self.current,self.root/'canonical-use',attachments=lean_libraries.current())
+            self.assertTrue(pilot_common.native_succeeded(proof['native']),proof['diagnostic'])
+
+    def test_missing_import_between_large_warning_blocks_is_still_classified(self):
+        warnings = 'Fixture.lean:5:0: warning: Unrelated verbose warning in the fixture.\n' * 140
+        error = "Fixture.lean:1:0: error: unknown module prefix 'MissingPinnedLib'\n"
+        native = {'exit_code':1, 'stdout':warnings+error+warnings, 'stderr':'', 'wall_seconds':.01}
+        with patch.object(lean_imports, 'run_lean', return_value=native):
+            checked=lean_imports.compile_unit('import MissingPinnedLib\n',self.current,self.root/'warning-result')
+        self.assertTrue(lean_imports.missing_import(checked))
+        self.assertIn(error.strip(),checked['diagnostic']['stdout'])
+        full=json.loads(Path(checked['native_evidence']['path']).read_text())
+        self.assertEqual(full['stdout'],native['stdout'])
+
+    def test_ordinary_comment_and_string_pass_source_policy_but_real_sorry_does_not(self):
+        import basis
+        import ir
+        from basis_fixtures import TARGET, artifact, dependency
+        term = '("sorry" : String) = "sorry"'
+        body = '-- sorry is a string in the statement\nrfl'
+        ir.type_text(term)
+        checked = lean_imports.compile_unit('import Init\nexample : '+term+' := by\n'+ir.proof_text(body),
+                                           self.current,self.root/'checked-policy')
+        self.assertTrue(pilot_common.native_succeeded(checked['native']),checked['diagnostic'])
+        candidate=artifact(dependency(category=2,proof='exact Nat.add_zero'))
+        candidate['lean_header'] += '-- The following policy disallows sorry and axiom.\n'
+        basis.validate(candidate,TARGET)
+        with self.assertRaisesRegex(ValueError,'forbidden'):
+            ir.proof_text('exact (by sorry)')
+        candidate['lean_header'] = candidate['lean_header'].replace('import Mathlib\n',
+            'import Mathlib\nimport UnregisteredFixture.Entry\n',1)
+        with self.assertRaisesRegex(ValueError,'attached'):
+            basis.validate(candidate,TARGET)
+
+    def test_native_call_keeps_the_exact_library_generation_it_started_with(self):
+        import public_lean
+        run=self.public_job()
+        repo=self.git_source('compile-snapshot', {
+            'Snapshot/A.lean':'import Init\nnamespace Snapshot\ntheorem a : True := True.intro\nend Snapshot\n',
+            'Snapshot/B.lean':'import Snapshot.A\nnamespace Snapshot\ntheorem b : True := a\nend Snapshot\n'})
+        _,transport=self.local_git_transport(repo)
+        registry=run/'imported-lean'
+        with transport,lean_libraries.generated(registry):
+            first=self.read_pinned(repo,'Snapshot/A.lean','start-snapshot')
+            lean_imports.check(self.stage,first,bind_public=True,allow_publish=True)
+            before=lean_libraries.identity()
+            second=self.read_pinned(repo,'Snapshot/B.lean','next-snapshot')
+            work=self.root/'compile';(work/'input').mkdir(parents=True);(work/'output').mkdir()
+            file=work/'output/ObserveGeneration.lean'
+            file.write_text('import Snapshot.A\n#eval IO.sleep 2500\nexample : True := Snapshot.a\n')
+            popen=subprocess.Popen
+            seen=[]
+            def start(command, *args, **kwargs):
+                proc=popen(command,*args,**kwargs)
+                if str(file) in command:
+                    self.assertIsNone(proc.poll())
+                    result=lean_imports.check(self.stage,second,bind_public=True,allow_publish=True)
+                    seen.append(result['public_library']['status'])
+                return proc
+            with patch.object(pilot_common.subprocess,'Popen',side_effect=start):
+                checked=pilot_common.run_lean(file,work,timeout=60)
+            self.assertTrue(pilot_common.native_succeeded(checked),checked)
+            self.assertEqual(seen,['PUBLIC_LEAN_READY'])
+            self.assertNotEqual(lean_libraries.identity(),before)
+            self.assertEqual(checked['selected_environment']['lean_libraries'],before)
 
     def test_pinned_git_fetch_retries_without_refetching_a_verified_commit(self):
         run = self.public_job()

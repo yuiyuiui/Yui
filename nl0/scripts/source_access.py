@@ -178,8 +178,9 @@ def read(directory,url,*,offset=0,limit=24000,browser=False):
     if result is None:result=fetch(directory,url,browser=True) if browser else fetch(directory,url)
     if result['status']=='READABLE':
         value=Path(result['text']['path']).read_text();offset=max(0,int(offset));limit=max(1,min(int(limit),24000))
-        result.update(content=value[offset:offset+limit],next_offset=offset+limit,
-                      has_more=offset+limit<len(value))
+        end=offset+limit
+        result.update(content=value[offset:end],next_offset=end if end<len(value) else None,
+                      has_more=end<len(value))
     return result
 
 

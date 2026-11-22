@@ -156,6 +156,14 @@ def current():
     return [*chosen,*read_generated(root,base=chosen)] if root is not None else chosen
 
 
+def compiler_snapshot():
+    """Validate the base and consume the generated registry once per invocation."""
+    base=_static()
+    validate(base)
+    root=generated_root()
+    return [*base,*read_generated(root,base=base)] if root is not None else base
+
+
 def binding():
     return [row for row, _ in validate(current())]
 

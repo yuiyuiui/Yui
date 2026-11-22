@@ -139,8 +139,9 @@ def _checked(serialized):
     value['compatibility'] = {**result, 'accepted': native_succeeded(result),
                               'source_sha256': hashlib.sha256(PROBE.encode()).hexdigest()}
     if not value['compatibility']['accepted']:
+        from compiler_feedback import excerpt
         raise SelectionRequired([value], 'The selected pair failed its actual import-Mathlib compatibility check: '
-                                + (result.get('stdout', '') + '\n' + result.get('stderr', ''))[-3000:])
+                                + excerpt(result.get('stdout', '') + '\n' + result.get('stderr', ''),3000)[0])
     rules.validate(value)
     return value
 

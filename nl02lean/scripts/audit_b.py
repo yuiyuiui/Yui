@@ -374,7 +374,7 @@ def build(out, *, frozen_contract=None):
     formal = ir.render(cpath,plan,proofs)
     # Header commands are reviewed input, but missing proofs or executable
     # metaprogramming cannot serve as administrative project definitions.
-    forbidden_header = re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|initialize|elab|macro)\b',c['header'])
+    forbidden_header = re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|initialize|elab|macro)\b',ir.policy_text(c['header']))
     local = {sid:ir.check(cpath,plan,{sid:proofs[sid]},only=sid) for sid in ir.validate(cpath,plan)[2]}
     from native_workspace import temporary
     with temporary('audit-b-build-',logs=out/'native-workspaces') as work:
