@@ -54,6 +54,18 @@ to the author. Bind additional namespaces using their checked public sources or
 the explicit library attachment. The original/version branch can diagnose a
 port with its own compiled context, whose artifacts stay with that environment.
 
+For a dependency pinned with patches, pass `recipe` to `read_external_source` with
+the raw GitHub URL of the module at the base commit. Use a frozen user input ID
+for a `yui-lean-patch-recipe-1` JSON file with `repository`, `revision`, and
+ordered `patches` entries (`path`, `sha256`). Freeze the actual `.patch` files as
+inputs as well. A fixed raw GitHub build recipe may reference patches in its
+own checkout. The reader also supports a pinned `lakefile.lean` with an explicit
+`post_update` patch list and matching `lake-manifest.json` lock. It reads the
+configuration as data. Use an explicitly frozen recipe for other build layouts.
+Read and bind the patched sources before publishing that library for the first
+time. Submit author-written compatibility edits through the two-environment
+port procedure below.
+
 Follow compiler, import and fetch diagnostics through `check_imported_lean`.
 Where available, `wait_for_lean_dependency` accepts the outstanding check's
 `receipt` if operator intervention is required. After correcting the external

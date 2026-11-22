@@ -166,16 +166,18 @@ def _fetch(directory,url,*,browser):
     return {**record,'record':bind(path)}
 
 
-def read(directory,url,*,offset=0,limit=24000,browser=False):
+def read(directory,url,*,offset=0,limit=24000,browser=False,recipe=None):
     result=None
     for path in sorted(Path(directory).glob('access-*.json')):
         previous=json.loads(path.read_text())
-        if (previous.get('url')==url and previous.get('status')=='READABLE' and
+        if (previous.get('url')==url and previous.get('status')=='READABLE' and previous.get('recipe')==recipe and
                 (not browser or previous.get('origin')=='controller_browser' or previous.get('document_kind')=='PDF')):
             if any(bind(previous[key]['path'])!=previous[key] for key in ('document','text','screenshot') if key in previous):
                 raise ValueError('Cached source bytes changed')
             result={**previous,'record':bind(path)};break
-    if result is None:result=fetch(directory,url,browser=True) if browser else fetch(directory,url)
+    if result is None:
+        if recipe is not None:raise ValueError('No retained patched source for this recipe')
+        result=fetch(directory,url,browser=True) if browser else fetch(directory,url)
     if result['status']=='READABLE':
         value=Path(result['text']['path']).read_text();offset=max(0,int(offset));limit=max(1,min(int(limit),24000))
         end=offset+limit

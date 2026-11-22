@@ -73,9 +73,11 @@ def material(artifact, native, originals, evidence, revision_report=None):
     items = {}
     source_docs = {Path(r['path']).name:r['sha256'] for r in originals}
     import lean_ports
+    import lean_patches
     ports,_=lean_ports.review_inputs()
-    for port in ports.values():
-        source_docs.update({ref['input']:ref['sha256'] for ref in port['files'].values()})
+    patches,_=lean_patches.review_inputs()
+    for record in [*ports.values(),*patches.values()]:
+        source_docs.update({ref['input']:ref['sha256'] for ref in [*record['files'].values(),*record.get('modules',{}).values()]})
     external = {r['sha256']:'basis-source-'+r['sha256']+'.txt' for r in evidence}
     import basis_sources
     handoff=basis_sources.material(artifact,native)
@@ -96,6 +98,7 @@ def material(artifact, native, originals, evidence, revision_report=None):
         objection=ir.load(revision_report['path'])['finding']
     return {'revision_objection':objection,'target':artifact['full_target'], 'proof':artifact['proof'], 'header':artifact['lean_header'],
             **({'ports':ports} if ports else {}),
+            **({'patches':patches} if patches else {}),
             **({'global_graph':artifact['global_graph']} if 'global_graph' in artifact else {}),
             'replacements':artifact['replacements'], 'documents':source_docs, 'items':items}
 
@@ -355,6 +358,9 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
                    'pinned original with the edited Lean file and its native receipts. Check source fidelity '
                    'and applicability wherever a reviewed basis item uses the port, including transitively. '
                    'A successful port build only checks availability.')
+    if packet.get('patches'):
+        prompt += ('\nCheck the fixed build recipe or frozen user authorization at /patches and its ordered '
+                   'patch files. Verify that the effective source supports each basis item that uses it.')
     if round_number > 1:
         previous=out.parent/f'{round_number-1:04d}'/'review/inputs'/PACKET
         changes, removed = revision_changes(ir.load(previous),packet)
@@ -376,13 +382,15 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
     if required:
         for row in context['original_inputs']:
             stage_document(Path(row['path']),inputs/Path(row['path']).name)
-        if packet.get('ports'):
-            from lean_ports import review_inputs
+        for key in ('ports','patches'):
+            if not packet.get(key):continue
+            import lean_ports
+            import lean_patches
             from staging_storage import copy_input
-            _,documents=review_inputs()
+            _,documents=(lean_ports if key=='ports' else lean_patches).review_inputs()
             for name,path in documents.items():
                 if (inputs/name).exists() or bind(path)['sha256']!=packet['documents'][name]:
-                    raise ValueError('Changed or conflicting Lean port review document')
+                    raise ValueError('Changed or conflicting Lean library review document')
                 copy_input(path,inputs/name)
         external={name for row in packet['items'].values() for name in row['documents'] if name not in packet['documents']}
         for row in context['evidence']:

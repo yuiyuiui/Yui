@@ -18,7 +18,7 @@ def module(name,prefix):
 
 def validate(value,environment):
     required={'version','name','lean_version','mathlib_commit','imports','modules'}
-    if (not isinstance(value,dict) or set(value)-{'ports'}!=required or value['version']!=SNAPSHOT):
+    if (not isinstance(value,dict) or set(value)-{'ports','patches'}!=required or value['version']!=SNAPSHOT):
         raise ValueError('Invalid Lean library snapshot metadata')
     name=value['name']
     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name) or name in RESERVED:
@@ -47,4 +47,6 @@ def validate(value,environment):
     if not isinstance(ports,dict) or any(module not in seen or not isinstance(sha,str) or not SHA.fullmatch(sha)
                                         for module,sha in ports.items()):
         raise ValueError('Lean port receipts must bind actual library modules')
+    if 'patches' in value and (not isinstance(value['patches'],str) or not SHA.fullmatch(value['patches'])):
+        raise ValueError('Lean library patches must bind an authorized recipe receipt')
     return value

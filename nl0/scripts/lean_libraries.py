@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from controller_common import bind, write
+import lean_patches
 from runtime_config import load_lock
 from staging_storage import copy_input
 
@@ -57,7 +58,7 @@ def capture(specification, run):
     """Copy only explicitly enumerated public modules; never scan sibling files."""
     specification = Path(specification).resolve(strict=True)
     value = json.loads(specification.read_text())
-    if set(value)-{'ports'} != {'version', 'name', 'lean_version', 'mathlib_commit',
+    if set(value)-{'ports','patches'} != {'version', 'name', 'lean_version', 'mathlib_commit',
                       'source_root', 'build_root', 'imports', 'modules'} or value['version'] != VERSION:
         raise ValueError('Invalid explicit Lean library specification')
     metadata = _metadata({k: v for k, v in value.items() if k not in {'source_root', 'build_root', 'version'}}
@@ -77,7 +78,8 @@ def capture(specification, run):
             target.parent.mkdir(parents=True,exist_ok=True);copy_input(source,target)
             if bind(target)['sha256']!=expected:raise ValueError('Lean library copy changed')
     import lean_ports
-    lean_ports.copy_evidence(roots['source_root'].parent,destination,metadata)
+    for evidence in (lean_ports,lean_patches):
+        evidence.copy_evidence(roots['source_root'].parent,destination,metadata)
     write(destination / 'manifest.json', metadata)
     descriptor = {'name': value['name'], 'root': str(destination),
                   'manifest': bind(destination / 'manifest.json')}
@@ -126,7 +128,8 @@ def validate(descriptors, *, full=False):
                 _input(root,path)
                 _verify_file(root/path,expected_sha,full)
         import lean_ports
-        expected.update(str(path) for path in lean_ports.inventory(root,data,full=full)[0])
+        for evidence in (lean_ports,lean_patches):
+            expected.update(str(path) for path in evidence.inventory(root,data,full=full)[0])
         for path in root.rglob('*'):
             if path.is_symlink():raise ValueError('Nonportable Lean library snapshot member')
         actual = {str(p.relative_to(root)) for p in root.rglob('*') if p.is_file()}
@@ -268,7 +271,8 @@ def export_sources(directory):
         root=Path(row['root']);target=directory/row['name'];target.mkdir()
         copy_input(root/'manifest.json',target/'manifest.json')
         import lean_ports
-        lean_ports.copy_evidence(root,target,data)
+        for evidence in (lean_ports,lean_patches):
+            evidence.copy_evidence(root,target,data)
         for item in data['modules']:
             relative=_module(item['module'],row['name']).with_suffix('.lean')
             source=target/'source'/relative;source.parent.mkdir(parents=True,exist_ok=True)
@@ -302,7 +306,8 @@ def verify_export(directory, expected):
             raise ValueError('Delivered Lean library source identity changed')
         wanted.add(str(Path(name)/'manifest.json'))
         import lean_ports
-        wanted.update(str(Path(name)/path) for path in lean_ports.inventory(directory/name,data,full=True)[0])
+        for evidence in (lean_ports,lean_patches):
+            wanted.update(str(Path(name)/path) for path in evidence.inventory(directory/name,data,full=True)[0])
         for item in data['modules']:
             relative=Path(name)/'source'/_module(item['module'],name).with_suffix('.lean')
             wanted.add(str(relative))

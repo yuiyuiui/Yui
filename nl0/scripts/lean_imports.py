@@ -252,7 +252,7 @@ def publish_library(specification,root,receipt):
             if (old['version']!=check['version'] or old['environment']!=check['environment']
                     or old.get('origin')!=check.get('origin')
                     or any(metadata.get(key)!=spec.get(key)
-                           for key in ('imports','modules','lean_version','mathlib_commit','ports'))):
+                           for key in ('imports','modules','lean_version','mathlib_commit','ports','patches'))):
                 raise ValueError('The active library changed during building; check the current pinned library: '+name)
             return existing
         index=root/'index.json'

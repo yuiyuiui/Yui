@@ -15,6 +15,7 @@ import urllib.request
 from controller_common import bind, write
 from execution_state import current, capture_process, terminate_owned
 import lean_libraries
+import lean_patches
 import lean_ports
 import native_workspace
 from pilot_common import lean_paths, native_succeeded, run_lean
@@ -22,26 +23,40 @@ from staging_storage import copy_input
 
 VERSION = 'yui-public-lean-build-1'
 COMPANIONS = ('.olean.private','.olean.server','.ir','.ir.sig')
-SOURCE = re.compile(r'https://raw\.githubusercontent\.com/([\w.-]+)/([\w.-]+)/([0-9a-f]{40})/([A-Za-z0-9_./-]+\.lean)')
+SOURCE = re.compile(r'https://raw\.githubusercontent\.com/([\w.-]+)/([\w.-]+)/([0-9a-f]{40})/([A-Za-z0-9_./-]+)')
+
+
+def raw_pin(url, suffix='.lean'):
+    match=SOURCE.fullmatch(url)
+    if not match:return None
+    owner,project,commit,path=match.groups()
+    if not path.endswith(suffix) or any(part in {'','.','..'} for part in (owner,project,*path.split('/'))):
+        return None
+    return {'repository':f'https://github.com/{owner}/{project}.git','revision':commit,'source_path':path}
 
 
 def known_source(logs, selection):
     """Anchor a checkout to the verified public-source tool result, not prose."""
     evidence = selection.get('evidence')
     if evidence is None:return None
-    for path in sorted((logs/'external-sources').glob('access-*.json')):
+    external=logs/'external-sources'
+    for path in sorted(external.glob('access-*.json')):
         row=json.loads(path.read_bytes())
         document = row.get('document')
         if (not isinstance(document,dict) or document.get('sha256') != evidence['sha256']
                 or Path(document.get('path','')).name != Path(evidence['path']).name):
             continue
-        match=SOURCE.fullmatch(row.get('final_url') or row.get('url',''))
-        if row.get('status')=='READABLE' and match:
-            owner, project, commit, source_path=match.groups()
-            if any(part in {'', '.', '..'} for part in (owner, project, *source_path.split('/'))):
-                continue
-            return {'repository':f'https://github.com/{owner}/{project}.git', 'revision':commit,
-                    'source_path':source_path, 'source_sha256':evidence['sha256']}
+        origin=raw_pin(row.get('final_url') or row.get('url',''))
+        if row.get('status')!='READABLE' or origin is None:continue
+        origin['source_sha256']=evidence['sha256']
+        if 'patched_origin' in row:
+            patched=row['patched_origin']
+            authority=Path(patched['patch_authority']['path'])
+            if (any(patched.get(k)!=v for k,v in origin.items()) or not authority.resolve().is_relative_to(external.resolve())):
+                raise ValueError('Patched public source does not bind this pinned source and recipe')
+            lean_patches.verify_origin(patched)
+            origin=patched
+        return origin
     return None
 
 
@@ -257,7 +272,8 @@ def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=N
 
 
 def same_pin(first, second):
-    return all(first[key]==second[key] for key in ('repository','revision'))
+    return (all(first[key]==second[key] for key in ('repository','revision'))
+            and first.get('patch_order',[])==second.get('patch_order',[]))
 
 
 def prior_library(namespace, entry, origin, entries, environment, *, porting=False):
@@ -299,7 +315,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
     try:
         with use_environment(environment),native_workspace.temporary('yui-public-lean-',logs=directory) as work:
             native_workspace.record(work,confirmed=True,phase='public-source-prepare')
-            with cached_checkout(work,origin,source_cache,deadline) as root:
+            with lean_patches.worktree(work,origin,source_cache,deadline) as root:
                 def prepare(paths):
                     materialize(work,root,paths,deadline)
 
@@ -372,6 +388,16 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                 'mathlib_commit':selected['mathlib_commit'],'source_root':str(source_root),'build_root':str(build_root),
                 'imports':[*metadata['imports'],entry] if metadata else [entry],'modules':rows}
             if ports:spec['ports']=ports
+            if 'patch_authority' in origin:
+                if previous:
+                    # A generation retains the reviewed authorization of its first build.
+                    patch_root=Path(previous['root'])
+                    spec['patches']=metadata['patches']
+                else:
+                    patch_root,_=lean_patches.verify_origin(origin)
+                    spec['patches']=origin['patch_authority']['sha256']
+                lean_patches.copy_evidence(patch_root,directory,spec)
+                bindings.extend(bind(directory/path) for path in lean_patches.inventory(directory,spec)[0])
             write(directory/'library.json',spec)
             status='PUBLIC_LEAN_READY'; detail='Pinned public module compiled with the selected compiler.'
     except BuildFailure as error:
@@ -398,8 +424,17 @@ def qualify(check, metadata, *, previous=None, full=False):
     for ref in [check['specification'],*check['bindings'],*check['checks'].values()]:
         lean_libraries._verify_file(Path(ref['path']),ref['sha256'],full)
     spec=json.loads(Path(check['specification']['path']).read_text())
-    if any(spec.get(key)!=metadata.get(key) for key in ('name','imports','modules','lean_version','mathlib_commit','ports')):
+    if any(spec.get(key)!=metadata.get(key) for key in ('name','imports','modules','lean_version','mathlib_commit','ports','patches')):
         raise ValueError('Public Lean library manifest differs from the checked source/olean inventory')
+    if 'patch_authority' in check['origin']:
+        lean_patches.verify_origin(check['origin'],full=full)
+        root=Path(spec['source_root']).parent
+        _,patches=lean_patches.inventory(root,metadata,full=full)
+        expected=previous[1].get('patches') if previous else check['origin']['patch_authority']['sha256']
+        if patches is None or patches['order']!=check['origin']['patch_order'] or metadata['patches']!=expected:
+            raise ValueError('Public Lean library does not retain its authorized patch order')
+    elif 'patches' in metadata:
+        raise ValueError('Public Lean library has unauthorized patches')
     module=check['module']
     modules={row['module']:row for row in metadata['modules']}
     old_ports=previous[1].get('ports',{}) if previous else {}

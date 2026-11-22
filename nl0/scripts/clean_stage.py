@@ -127,9 +127,9 @@ class ArtifactStage(pilot.Stage):
                 {'query':{'type':'string'},'engine':{'type':'string','enum':['arxiv','google','scihub']},
                  'browser':{'type':'boolean'}},['query']),
                 pilot.carrier.tool('read_external_source',
-                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue cached text. Retry with browser:true for a normal isolated local Chrome session if HTTPS needs JavaScript or verification. The optional browser uses ordinary site controls; unsupported challenges remain explicit failures. Verify full PDF identity, version, theorem and context yourself.',
+                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue cached text. For a patched fixed Lean source, provide recipe as a frozen input ID or a fixed upstream build recipe URL. Verify full source identity, theorem and context yourself. Use browser:true for an isolated browser on ordinary sources.',
                 {'url':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'},
-                 'browser':{'type':'boolean'}},['url'])]
+                 'browser':{'type':'boolean'},'recipe':{'type':'string'}},['url'])]
         if kind=='nl0':
             self.tools.append(pilot.carrier.tool('defer_primary_source',
                 'After actual unavailable primary-source access, preserve a complete exact secondary quotation as an explicitly unverified external assumption. The statement must match the quote in a supplied input. Returns the verification record for E.source.verification; this never grants ordinary Audit A PASS.',
@@ -566,7 +566,11 @@ class ArtifactStage(pilot.Stage):
                     result['access_records']=[{'path':str(Path(row['record']['path']).resolve().relative_to(base.resolve())),
                                                'sha256':row['record']['sha256']} for row in result['attempts']]
                 elif name=='read_external_source':
-                    result=source_access.read(base/'external-sources',**args)
+                    if 'recipe' in args:
+                        import lean_patches
+                        result=lean_patches.read_source(base,**args)
+                    else:
+                        result=source_access.read(base/'external-sources',**args)
                     result.update(source_access.evidence_references(result,base))
                 else:
                     reference=source_access.defer(base,inputs=self.task_inputs,**args)
