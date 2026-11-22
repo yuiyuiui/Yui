@@ -219,7 +219,9 @@ def compile_unit(source,environment,directory,*,attachments=(),timeout=None):
 
 
 def original_environment(declared):
-    if not isinstance(declared,dict) or set(declared)!={'lean_version','mathlib_ref'} or not all(isinstance(v,str) and v for v in declared.values()):
+    pins={'lean_version','mathlib_ref'}
+    if (not isinstance(declared,dict) or set(declared)-{'dependencies'}!=pins
+            or not all(isinstance(declared[k],str) and declared[k] for k in pins)):
         raise ValueError('Declare exact source-project lean_version and mathlib_ref before upstream checking')
     candidates,errors=lean_environment.discover()
     try:return lean_environment.rules.select(candidates,lean_version=declared['lean_version'],mathlib_ref=declared['mathlib_ref'])
@@ -289,12 +291,13 @@ def publish_checked(check,root):
     return publish_library(path,root,check['receipt'])
 
 
-def public_context(stage, request, origin, environment, attachments, *, publish, port=None):
+def public_context(stage, request, origin, environment, attachments, *, publish, port=None, prior=()):
     """Acquire and compile a known dependency before escalating at the author boundary."""
     import public_lean
     from execution_state import current
     identity=environment_identity(environment)
-    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,attachments,port])
+    libraries=[{'name':row['name'],'manifest_sha256':row['manifest']['sha256']} for row in attachments]
+    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,libraries,port])
     directory.parent.mkdir(parents=True,exist_ok=True)
     owned=lean_libraries.generated_root()
     root=Path(owned).resolve() if publish else None
@@ -303,7 +306,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
         if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
             return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
                     'diagnostic':'The current mathematical boundary is frozen. Revise the dependency binding before importing '+origin['source_path']}, []
-    existing=lean_libraries.registry_index(root)['entries'] if root is not None else []
+    existing=lean_libraries.registry_index(root)['entries'] if root is not None else prior
     with (directory.parent/(directory.name+'.lock')).open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         with runtime_config.use_environment(environment),lean_libraries.use(attachments),lean_libraries.generated(None):
@@ -326,7 +329,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
             if result['status']!='PUBLIC_LEAN_READY':return result, []
             specification=result['specification'];verify_bindings([specification])
             if root is None:
-                return result,[lean_libraries.capture(specification['path'],request)]
+                return result,[lean_libraries.capture(specification['path'],request/result['receipt']['sha256'])]
         descriptor=publish_library(specification['path'],root,result['receipt'])
         return result,[descriptor]
 
@@ -348,6 +351,48 @@ def missing_import(check):
     return native_missing_import(json.loads(Path(receipt['path']).read_bytes()))
 
 
+def build_upstream(stage, request, origin, declared, environment):
+    """Resolve the cross-library closure using only this upstream compiler."""
+    import public_lean
+    explicit=declared.get('dependencies',{})
+    if not isinstance(explicit,dict) or not all(lean_libraries.MODULE.fullmatch(module) for module in explicit):
+        raise ValueError('Name each upstream dependency by its exact Lean module')
+    entries={};active=set()
+
+    def build(pin):
+        key=(pin['repository'],pin['revision'],pin['source_path'],tuple(pin.get('patch_order',[])))
+        if key in active:raise ValueError('Cycle in pinned upstream Lean sources: '+pin['source_path'])
+        active.add(key)
+        try:
+            while True:
+                prior=list(entries.values())
+                result,installed=public_context(stage,request,pin,environment,
+                    [row['library'] for row in prior],publish=False,prior=prior)
+                if installed:
+                    library=installed[0]
+                    if result['status']=='PUBLIC_LEAN_READY':
+                        entries[library['name']]={'library':library,'check':result['receipt']}
+                    return result
+                missing=result.get('missing_module')
+                if not missing or (result.get('module') and missing.split('.')[0]==result['module'].split('.')[0]):
+                    return result
+                if missing in explicit:
+                    selection=explicit[missing]
+                    raw,text,_=source_bytes(stage,selection)
+                    dependency=public_lean.known_source(stage.logs,selection) if raw==text.encode() else None
+                    if dependency is None:raise ValueError('Upstream dependency needs its full retained fixed source: '+missing)
+                else:
+                    dependency=public_lean.known_dependency(stage.logs,missing)
+                    if dependency is None:return result
+                completed=build({**dependency,'expected_module':missing})
+                if completed['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}:
+                    return completed
+        finally:
+            active.remove(key)
+
+    return build(origin)
+
+
 def public_port(stage, request, origin, target, declared, environment, attachments, candidate):
     """Authorize an original-name port using actual builds of the pinned module."""
     if not target or not target.get('original_source') or declared is None:
@@ -364,10 +409,11 @@ def public_port(stage, request, origin, target, declared, environment, attachmen
     if environment_identity(old)==environment_identity(environment):
         if candidate is None:return None
         raise ValueError('The declared upstream pair must differ from the target for a compatibility port')
-    upstream,_=public_context(stage,request,origin,old,[],publish=False)
+    upstream=build_upstream(stage,request,origin,declared,old)
     if upstream['status']!='PUBLIC_LEAN_READY':
-        if candidate is None:return None
-        raise ValueError('The complete pinned original did not compile upstream: '+upstream['diagnostic'])
+        return {'status':upstream['status'],'upstream_public_library':upstream,
+                'upstream_check':upstream.get('receipt'),
+                'diagnostics':{'current':target['diagnostic'],'upstream':upstream['diagnostic']}}
     import lean_ports
     authority={'upstream':upstream['receipt'],'target_original':target['receipt']}
     lean_ports.authorization(authority,origin,target['module'],environment_identity(environment))
@@ -522,7 +568,9 @@ def tools():
     return [native_carrier.tool('check_imported_lean',
         'Check a complete, source-bound imported Lean unit in the current environment first. On failure, check declared source-project versions and imports before requesting compatibility porting or correction. A candidate must pass current checking. publish is allowed only before basis/interface freeze; no source or semantic approval is granted.',
         {'source':{'type':'object','additionalProperties':True},'upstream':{'type':'object','additionalProperties':False,
-            'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'}},'required':['lean_version','mathlib_ref']},
+            'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'},
+                          'dependencies':{'type':'object','additionalProperties':{'type':'object','additionalProperties':True}}},
+            'required':['lean_version','mathlib_ref']},
          'candidate':{'type':'string'},'publish':{'type':'boolean'},
          'module':{'type':'string','description':'Exact Lean import name when its source root cannot be discovered from static Lake metadata.'},
          'bind_public':{'type':'boolean',

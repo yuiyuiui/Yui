@@ -14,9 +14,10 @@ FILES = {'original':'original.lean', 'upstream':'upstream.json',
 
 
 def failed_native(result):
+    from compiler_feedback import HEADER
     output = result.get('stdout','')+'\n'+result.get('stderr','')
     return (result.get('exit_code')==1 and not result.get('timed_out') and not result.get('cancelled')
-            and not result.get('error_kind') and 'error:' in output
+            and not result.get('error_kind') and any(m['level'].startswith('error') for m in HEADER.finditer(output))
             and not re.search(r'unknown module prefix|object file.*\.olean.*does not exist|heartbeat',output,re.I))
 
 
@@ -33,8 +34,11 @@ def authorization(refs, origin, module, environment):
     files = {'original':target['original_source'], 'upstream':upstream['checks'][module],
              'target_original':target['checks'][module]}
     verify_bindings(files.values())
+    upstream_native=json.loads(Path(files['upstream']['path']).read_bytes())
     if (files['original']['sha256']!=origin['source_sha256']
-            or not native_succeeded(json.loads(Path(files['upstream']['path']).read_bytes()))
+            or not native_succeeded(upstream_native)
+            or ('input_libraries' in upstream and upstream['input_libraries']!=
+                upstream_native['selected_environment'].get('lean_libraries',[]))
             or not failed_native(json.loads(Path(files['target_original']['path']).read_bytes()))):
         raise ValueError('Original-name port has no completed native comparison on the full pinned source')
     return files, upstream['environment']

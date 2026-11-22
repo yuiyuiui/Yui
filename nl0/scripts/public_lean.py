@@ -35,6 +35,24 @@ def raw_pin(url, suffix='.lean'):
     return {'repository':f'https://github.com/{owner}/{project}.git','revision':commit,'source_path':path}
 
 
+def source_origin(row, external):
+    origin=raw_pin(row.get('final_url') or row.get('url',''))
+    if row.get('status')!='READABLE' or origin is None:return None
+    document=row['document'];path=Path(document['path'])
+    if path.resolve()!=path or not path.is_relative_to(external.resolve()):
+        raise ValueError('Retained public source escapes this stage')
+    lean_libraries._verify_file(path,document['sha256'],False)
+    origin['source_sha256']=document['sha256']
+    if 'patched_origin' in row:
+        patched=row['patched_origin']
+        authority=Path(patched['patch_authority']['path'])
+        if (any(patched.get(k)!=v for k,v in origin.items()) or not authority.resolve().is_relative_to(external.resolve())):
+            raise ValueError('Patched public source does not bind this pinned source and recipe')
+        lean_patches.verify_origin(patched)
+        origin=patched
+    return origin
+
+
 def known_source(logs, selection):
     """Anchor a checkout to the verified public-source tool result, not prose."""
     evidence = selection.get('evidence')
@@ -46,25 +64,34 @@ def known_source(logs, selection):
         if (not isinstance(document,dict) or document.get('sha256') != evidence['sha256']
                 or Path(document.get('path','')).name != Path(evidence['path']).name):
             continue
-        origin=raw_pin(row.get('final_url') or row.get('url',''))
-        if row.get('status')!='READABLE' or origin is None:continue
-        origin['source_sha256']=evidence['sha256']
-        if 'patched_origin' in row:
-            patched=row['patched_origin']
-            authority=Path(patched['patch_authority']['path'])
-            if (any(patched.get(k)!=v for k,v in origin.items()) or not authority.resolve().is_relative_to(external.resolve())):
-                raise ValueError('Patched public source does not bind this pinned source and recipe')
-            lean_patches.verify_origin(patched)
-            origin=patched
-        return origin
+        origin=source_origin(row,external)
+        if origin is not None:return origin
     return None
 
 
+def known_dependency(logs, module):
+    """Use an unambiguous fixed source retained by this author's own source tool."""
+    external=logs/'external-sources'
+    suffix=Path(*module.split('.')).with_suffix('.lean').parts
+    origins={}
+    for path in sorted(external.glob('access-*.json')):
+        row=json.loads(path.read_bytes())
+        pin=raw_pin(row.get('final_url') or row.get('url',''))
+        if pin is None or Path(pin['source_path']).parts[-len(suffix):]!=suffix:continue
+        origin=source_origin(row,external)
+        if origin is None:continue
+        key=(origin['repository'],origin['revision'],origin['source_path'],origin['source_sha256'],
+             tuple(origin.get('patch_order',[])))
+        origins[key]=origin
+    return next(iter(origins.values())) if len(origins)==1 else None
+
+
 class BuildFailure(ValueError):
-    def __init__(self, status, diagnostic, *, bound=None):
+    def __init__(self, status, diagnostic, *, bound=None, missing_module=None):
         super().__init__(diagnostic)
         self.status=status
         self.bound=bound
+        self.missing_module=missing_module
 
 
 def git(work, cwd, arguments, deadline):
@@ -234,14 +261,16 @@ def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=N
                 if module.partition('.')[0]!=namespace:
                     if any((Path(root)/relative.with_suffix('.olean')).is_file() for root in available):
                         continue
-                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Bind the pinned public source for import '+module)
+                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Bind the pinned public source for import '+module,
+                                       missing_module=module)
                 path=edited if module==entry and edited is not None else source_root/relative
                 if module in compiled:
                     if path.is_file() and (path.resolve()!=path or hashlib.sha256(path.read_bytes()).hexdigest()!=compiled[module]):
                         raise BuildFailure('PUBLIC_LEAN_CONFLICT','Pinned import has different source bytes: '+module)
                     continue
                 if path.resolve()!=path or not path.is_file():
-                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Missing source at the pinned revision for '+module)
+                    raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Missing source at the pinned revision for '+module,
+                                       missing_module=module)
                 text=path.read_bytes().decode()
                 if re.search(r'\b(sorry|admit|axiom)\b',code_tokens(text)):
                     raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy failed for '+module)
@@ -310,10 +339,11 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
     import lean_environment
     directory.mkdir(parents=True)
     deadline=time.monotonic()+timeout
-    entry=None;checks={};bindings=[];previous=None;original_source=None;bound=None
+    entry=None;checks={};bindings=[];previous=None;original_source=None;bound=None;missing_module=None
     selected=lean_environment.identity(environment)
     try:
         with use_environment(environment),native_workspace.temporary('yui-public-lean-',logs=directory) as work:
+            input_libraries=lean_libraries.identity()
             native_workspace.record(work,confirmed=True,phase='public-source-prepare')
             with lean_patches.worktree(work,origin,source_cache,deadline) as root:
                 def prepare(paths):
@@ -403,11 +433,13 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
     except BuildFailure as error:
         status,detail=error.status,str(error)
         bound=error.bound
+        missing_module=error.missing_module
     result={'version':VERSION,'status':status,'diagnostic':detail,'origin':origin,
-            'environment':selected,'checks':checks,'bindings':bindings}
+            'environment':selected,'checks':checks,'bindings':bindings,'input_libraries':input_libraries}
     if previous:result['previous_manifest_sha256']=previous['manifest']['sha256']
     if original_source:result['original_source']=original_source
     if bound is not None:result['bound']=bound
+    if missing_module:result['missing_module']=missing_module
     if port is not None:result['port_authority']=port['authority']
     if entry is not None:result['module']=entry
     if status=='PUBLIC_LEAN_READY':result['specification']=bind(directory/'library.json')

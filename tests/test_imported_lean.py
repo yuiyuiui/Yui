@@ -415,6 +415,72 @@ class ImportedLeanTests(unittest.TestCase):
             lean_libraries.validate(lean_libraries.binding(), full=True)
             import_all()
 
+    def test_public_upstream_dependency_chain_is_checked_in_its_own_environment(self):
+        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
+            self.skipTest('Supply a distinct --comparison-environment')
+        run=self.public_job()
+        dependency=self.git_source('port-dep',{'Dep/Base.lean':'import Init\nnamespace Dep\ntheorem base : True := trivial\nend Dep\n'})
+        candidate='import Lean\nimport Dep.Base\nnamespace Lib\ntheorem witness : True := Dep.base\nend Lib\n'
+        version=json.dumps(self.old['lean']['version_number'])
+        source=self.git_source('cross-env-port',{'Lib/Port.lean':candidate.replace('namespace Lib',f'#guard Lean.versionString == {version}\nnamespace Lib')})
+        _,transport=self.local_git_transport(source,dependency)
+        with transport,lean_libraries.generated(run/'imported-lean'), \
+                patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])):
+            dep=self.read_pinned(dependency,'Dep/Base.lean','known-dependency')
+            bound=lean_imports.check(self.stage,dep,bind_public=True,module='Dep.Base',allow_publish=True)
+            self.assertEqual(bound['import'],'import Dep.Base',bound)
+            evidence=self.read_pinned(source,'Lib/Port.lean','port')
+            args={'bind_public':True,'module':'Lib.Port','allow_publish':True,'upstream':self.upstream()}
+            diagnosis=lean_imports.check(self.stage,evidence,**args)
+            self.assertEqual(diagnosis['status'],'COMPATIBILITY_PORT_REQUIRED',diagnosis)
+            upstream=diagnosis['upstream_public_library']
+            native=json.loads(Path(upstream['checks']['Lib.Port']['path']).read_bytes())
+            identities=native['selected_environment']['lean_libraries']
+            self.assertEqual(identities,upstream['input_libraries'])
+            self.assertEqual([row['name'] for row in identities],['Dep'])
+            self.assertNotEqual(identities[0]['manifest_sha256'],bound['library']['manifest']['sha256'])
+            self.assertEqual(native['selected_environment']['lean_version'],self.old['lean']['version_number'])
+            edited=lean_imports.check(self.stage,evidence,candidate=candidate,**args)
+            self.assertEqual(edited.get('import'),'import Lib.Port',edited)
+            reused=lean_imports.check(self.stage,evidence,bind_public=True,module='Lib.Port',allow_publish=True)
+            self.assertEqual(reused['public_library']['status'],'PUBLIC_LEAN_ALREADY_BOUND',reused)
+            self.assertEqual(Path(reused['checked_source']['path']).read_text(),candidate)
+            use=lean_imports.compile_unit('import Lib.Port\nexample : True := Lib.witness\n',self.current,
+                                         run/'check-cross-env-port',attachments=lean_libraries.current())
+            self.assertTrue(pilot_common.native_succeeded(use['native']),use['diagnostic'])
+
+    def test_public_upstream_failure_returns_missing_pin_or_native_error_without_candidate(self):
+        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
+            self.skipTest('Supply a distinct --comparison-environment')
+        run=self.public_job()
+        dep=self.git_source('unread-dep',{'Dep/Base.lean':'import Init\n'})
+        broken='import Dep.Base\nexample : True := proofMissingInBothPairs\n'
+        source=self.git_source('two-pair-failure',{'Lib/Port.lean':broken})
+        _,transport=self.local_git_transport(source,dep)
+        with transport,lean_libraries.generated(run/'imported-lean'), \
+                patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])):
+            old_stage=self.stage.logs
+            seed=SimpleNamespace(logs=old_stage,task_inputs={})
+            registered=lean_imports.check(seed,self.read_pinned(dep,'Dep/Base.lean','seed'),
+                                           bind_public=True,module='Dep.Base',allow_publish=True)
+            self.assertEqual(registered['import'],'import Dep.Base',registered)
+            self.stage.logs=run/'new-stage'; (self.stage.logs/'external-sources').mkdir(parents=True)
+            evidence=self.read_pinned(source,'Lib/Port.lean','port')
+            args={'bind_public':True,'module':'Lib.Port','allow_publish':True,'upstream':self.upstream()}
+            missing=lean_imports.check(self.stage,evidence,**args)
+            self.assertIn('upstream_public_library',missing,missing)
+            self.assertEqual(missing['upstream_public_library']['missing_module'],'Dep.Base',missing)
+            self.assertIn('Dep.Base',missing['diagnostics']['upstream'])
+            exact=self.read_pinned(dep,'Dep/Base.lean','exact')
+            args['upstream']={**args['upstream'],'dependencies':{'Dep.Base':exact}}
+            failed=lean_imports.check(self.stage,evidence,**args)
+            self.assertEqual(failed['upstream_public_library']['status'],'PUBLIC_LEAN_BUILD_FAILED',failed)
+            self.assertIn('proofMissingInBothPairs',failed['diagnostics']['upstream'])
+            self.assertEqual(failed['upstream_check'],failed['upstream_public_library']['receipt'])
+            self.assertFalse(failed['accepted_for_native_reuse'])
+            with_candidate=lean_imports.check(self.stage,evidence,candidate=broken.replace('proofMissingInBothPairs','trivial'),**args)
+            self.assertIn('proofMissingInBothPairs',with_candidate['diagnostics']['upstream'])
+
     def test_selecting_pending_imports_leaves_both_lean_entries_strict(self):
         run = self.public_job()
         stage = self.basis_stage(run)

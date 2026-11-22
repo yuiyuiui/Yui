@@ -53,6 +53,10 @@ the standalone code already compiles. A failed build returns actual diagnostics
 to the author. Bind additional namespaces using their checked public sources or
 the explicit library attachment. The original/version branch can diagnose a
 port with its own compiled context, whose artifacts stay with that environment.
+For a cross-library import the upstream check uses an unambiguous fixed source
+already read in this stage. You can also give `upstream.dependencies` as a map
+from exact import name to the complete retained source selection. Missing pins
+and native failures stay in the upstream diagnostic.
 
 For a dependency pinned with patches, pass `recipe` to `read_external_source` with
 the raw GitHub URL of the module at the base commit. Use a frozen user input ID
