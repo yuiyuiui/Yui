@@ -728,11 +728,6 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('Artifact must be a JSON object')
                 if self.background_review and not value.get('from_saved_review'):
                     value.setdefault('background_notes', deepcopy(self.background_notes))
-                if self.background_review and self.background_notes:
-                    supplied=(value.get('summary',{}).get('background_notes',self.background_notes)
-                              if value.get('from_saved_review') else value.get('background_notes'))
-                    if supplied != self.background_notes:
-                        raise ValueError('Preserve your recorded background notes; do not drop or replace them at submission')
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}
                 result = {'accepted': True, 'validation': checked, 'stage_complete': name in {'submit_artifact','submit_draft'}}
                 if checked.get('draft_pending'):

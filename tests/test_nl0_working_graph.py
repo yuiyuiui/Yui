@@ -9,7 +9,6 @@ import unittest
 import harness_support as support
 from basis_fixtures import active_artifact,add_external_applications,artifact,checked_context,dependency
 from controller_common import bind,manifest,write
-from execution_health import StageFailure
 import basis_graph
 import frozen_graph as fg
 import graph_repair
@@ -17,7 +16,7 @@ import nl0
 
 
 class RevisionBudgets(unittest.TestCase):
-    def test_eight_local_repairs_leave_an_audit_repair_and_ninth_visits_pause(self):
+    def test_ninth_local_and_audit_repairs_proceed_to_delivery(self):
         from types import SimpleNamespace
         from unittest.mock import patch
         import runtime_snapshot
@@ -28,8 +27,8 @@ class RevisionBudgets(unittest.TestCase):
             package=root/'workflow'
             shutil.copytree(support.CORE/'workflow',package)
             shutil.copyfile(package/'test_adapters.py',package/'adapters.py')
-            for label,phase in [('recurring-edge','revise-graph'),('eight-local-then-audit',None),
-                                ('recurring-audit-edge','revise-audit-graph')]:
+            cases=[('nine-local-repairs',9,0),('nine-audit-repairs',0,9),('eight-local-then-audit',8,1)]
+            for label,local,audit in cases:
                 with self.subTest(case=label):
                     run=root/label
                     run.mkdir()
@@ -39,20 +38,12 @@ class RevisionBudgets(unittest.TestCase):
                     with (patch.object(runtime_snapshot,'root_for',return_value=root),
                           patch.object(workflow_execution,'block_module',return_value=SimpleNamespace(Case=lambda *_:case)),
                           patch.object(workflow_execution,'bind',return_value=ref)):
-                        if phase:
-                            with self.assertRaises(StageFailure) as failure:
-                                workflow_execution.run(job,None,None,None)
-                            self.assertEqual(failure.exception.result['status'],graph_repair.LIMIT)
-                        else:
-                            self.assertEqual(workflow_execution.run(job,None,None,None),case.result)
-                    trace=nl0.load(run/'protocol/work/state.json')['trace']
-                    nodes=[step['node'] for step in trace]
-                    if phase:
-                        self.assertEqual(nodes.count('nl0-local/'+phase),8)
-                    else:
-                        self.assertEqual(nodes.count('nl0-local/revise-graph'),8)
-                        self.assertEqual(nodes.count('nl0-local/revise-audit-graph'),1)
-                        self.assertLess(nodes.index('nl0-local/audit'),nodes.index('nl0-local/revise-audit-graph'))
+                        self.assertEqual(workflow_execution.run(job,None,None,None),case.result)
+                    nodes=[step['node'] for step in nl0.load(run/'protocol/work/state.json')['trace']]
+                    self.assertEqual(nodes.count('nl0-local/revise-graph'),local)
+                    self.assertEqual(nodes.count('nl0-local/revise-audit-graph'),audit)
+
+
 class WorkingGraphTests(unittest.TestCase):
     def setUp(self):
         self.registry=active_artifact(artifact(dependency(category=4)))
@@ -330,8 +321,7 @@ class WorkingGraphTests(unittest.TestCase):
             stale=candidate(3,'The two numbers coincide.',first)
             with self.assertRaisesRegex(ValueError,'Stale'):fg.select(job,stale,previous=first)
             repeated=candidate(4,'b=a.',second)
-            with self.assertRaises(StageFailure) as err:fg.select(job,repeated,previous=second)
-            self.assertEqual(err.exception.result['status'],'NL0_GRAPH_REVISION_UNRESOLVED')
+            with self.assertRaisesRegex(ValueError,'unchanged NL0'):fg.select(job,repeated,previous=second)
             self.assertEqual(nl0.load(root/'global-selection.json'),second)
             self.assertFalse(Path(repeated['path']).with_name('working.json').exists())
             self.assertEqual(bind(first['path']),first)

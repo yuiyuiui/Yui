@@ -48,8 +48,8 @@ def manifest(directory):
 
 def runtime_bindings():
     paths = [CORE/'SKILL.md']
-    for folder in ('nl0/scripts', 'nl0/references', 'nl0/templates', 'nl0/basis-bank', 'nl02lean/scripts',
-                   'nl02lean/references', 'nl02lean/templates', 'nl02lean/bank'):
+    for folder in ('nl0/scripts', 'nl0/references', 'nl0/templates', 'nl02lean/scripts',
+                   'nl02lean/references', 'nl02lean/templates'):
         paths.extend(p for p in (CORE/folder).rglob('*')
                      if p.is_file() and p.suffix in {'.py', '.mjs', '.lean', '.json', '.md'})
     definition = CORE/'workflow'

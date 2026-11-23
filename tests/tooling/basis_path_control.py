@@ -114,7 +114,12 @@ def author_code(stage):
         last=graph['inferences'][-1]['argument'][-1]
         last['uses'].append('H001')
         last['text']+=' Compose the original equality, its symmetric equality and the original equality to obtain the last equality.'
-    if stage.mode==fg.BASIS and 'prior-global.json' in stage.task_inputs and mode!='stalled-graph':
+    if stage.mode==fg.BASIS and 'prior-global.json' in stage.task_inputs:
+        first=''
+        if mode=='stalled-graph':
+            previous=json.loads(stage.task_inputs['prior-global.json'])
+            outline=harness_support.elementary_outline(previous['graph']['inferences'])
+            first=call('submit_draft',artifact={'spec':spec,**fg.shape(previous['graph']),'proof_outline':outline})
         if mode=='local-edge':
             # The graph protocol accepts omitted H/P aliases copied from their original specification.
             for prop in graph['propositions']:
@@ -127,7 +132,7 @@ def author_code(stage):
             for entry in outline.values():
                 step = entry['steps'][0]
                 step['uses'] = [ports.get(pid,pid) for pid in step['uses']]
-        return call('submit_draft',artifact={'spec':spec,**fg.shape(graph),**renames,
+        return first+call('submit_draft',artifact={'spec':spec,**fg.shape(graph),**renames,
                     'proof_outline':outline})
     if stage.mode==fg.BASIS:
         seed = stage.validator.seed['inferences']
@@ -474,7 +479,7 @@ if __name__ == '__main__':
             else:
                 status=error.get('outcome',{}).get('status') if isinstance(error,dict) else None
                 expected={'late':'BASIS_REVISION_REQUIRED','late-proof':'BASIS_REVISION_REQUIRED','first-pass':'BASIS_SEMANTIC_NONPASS',
-                          'deadline-decision':'UNFINISHED','stalled-graph':'NL0_GRAPH_REVISION_UNRESOLVED','local-gap':'SUBSTANTIVE_GAP','first-pass-edge':'NL0_GRAPH_REVISION_REQUIRED'}
+                          'deadline-decision':'UNFINISHED','local-gap':'SUBSTANTIVE_GAP','first-pass-edge':'NL0_GRAPH_REVISION_REQUIRED'}
                 if status!=expected.get(mode) or mode not in expected:
                     unexpected.append((gate.stage,str(error)[:3000]))
                 def cancel(_):

@@ -41,7 +41,7 @@ def unchanged(item):
     return path
 
 
-def evidence_paths(value, base):
+def evidence_paths(value, base, *, advisory=True):
     """Parent-compatible case-relative evidence, not arbitrary path strings."""
     result = []
     if isinstance(value, dict):
@@ -50,13 +50,15 @@ def evidence_paths(value, base):
             ir.need(path.is_file() and ir.digest(path) == value['sha256'], 'stale evidence: ' + str(path))
             result.append(path)
         else:
-            for child in value.values(): result.extend(evidence_paths(child, base))
+            for key,child in value.items():
+                if advisory or key not in {'background_notes','library_evidence'}:
+                    result.extend(evidence_paths(child,base,advisory=advisory))
     elif isinstance(value, list):
-        for child in value: result.extend(evidence_paths(child, base))
+        for child in value: result.extend(evidence_paths(child,base,advisory=advisory))
     return list(dict.fromkeys(result))
 
 
-def read_source(graph, spec, audit_a=None, incremental=None, *, active=None):
+def read_source(graph, spec, audit_a=None, incremental=None, *, active=None, advisory=True):
     graph, spec = Path(graph).resolve(), Path(spec).resolve()
     import basis
     basis.source_context(graph,spec)
@@ -71,18 +73,23 @@ def read_source(graph, spec, audit_a=None, incremental=None, *, active=None):
         for row in receipt['bindings']: unchanged(row)
         manifest_path = unchanged(receipt['manifest'])
         verdict = check(manifest_path.parent, active=active, write=False)
-        ir.need(receipt['result'] == verdict['result'], 'incremental acceptance result changed')
+        advisory_fields={'background_policy','background_note_count','background_notes','background_supplement'}
+        recorded={k:v for k,v in receipt['result'].items() if k not in advisory_fields}
+        actual={k:v for k,v in verdict['result'].items() if k not in advisory_fields}
+        ir.need(recorded==actual, 'incremental acceptance result changed')
         ir.need(all(receipt[key] == verdict[key] for key in ('manifest','graph','spec','coverage','bindings')),
                 'incremental acceptance coverage/bindings changed')
         ir.need(verdict['graph'] == binding(graph) and verdict['spec'] == binding(spec), 'incremental record belongs to another source')
         data = nl0.validate(graph, spec)
         data[0].update(verdict['result'])
         paths = [receipt_path, manifest_path] + [Path(x['path']) for x in receipt['bindings']]
+        if advisory:paths += evidence_paths(data[0].get('background_notes',{}),graph.parent)
         return data, list(dict.fromkeys(paths))
     data = nl0.validate(graph, spec, audit_a, allow_unresolved=True)
     paths = [graph, spec] + evidence_paths(ir.load(spec), graph.parent) + evidence_paths(ir.load(graph), graph.parent)
     if audit_a:
-        paths += [Path(audit_a).resolve()] + evidence_paths(ir.load(audit_a), graph.parent)
+        paths += [Path(audit_a).resolve()] + evidence_paths(ir.load(audit_a), graph.parent, advisory=False)
+        if advisory:paths += evidence_paths(data[0].get('background_notes',{}),graph.parent)
     return data, list(dict.fromkeys(paths))
 
 
@@ -229,14 +236,11 @@ def cut_context(cuts, spec):
 def stage(graph, spec, patch_path, out, *, audit_a=None, incremental=None):
     started = time.monotonic()
     graph, spec, patch_path, out = [Path(x).resolve() for x in (graph, spec, patch_path, out)]
-    data, baseline_paths = read_source(graph, spec, audit_a, incremental)
+    data, baseline_paths = read_source(graph, spec, audit_a, incremental,advisory=False)
     ir.need(data[1]['format_version'] == 2, 'incremental acceptance requires the current source format')
     patch = ir.load(patch_path)
     ir.need(patch['baseline_graph_sha256'] == ir.digest(graph) and patch['spec_sha256'] == ir.digest(spec), 'patch binds a different baseline')
     revised, cuts = apply_patch(data[1], patch, inputs=data[2]['inputs'])
-    changed={p['consumer'] for p in cuts.values()}
-    ir.need(not any(data[0].get('background_notes',{}).get(rid) for rid in changed),
-            'changed consumer has accepted background notes: complete its scoped re-review before extraction; unchanged notes may be inherited')
     cut_context(cuts, data[2])
     out.mkdir(parents=True, exist_ok=False)
     case = out/'case'; case.mkdir()
@@ -299,7 +303,7 @@ def check(directory, *, active=None, write=True):
     ir.need(manifest['version'] == VERSION and manifest['kind'] == 'local_source_preparation', 'unsupported preparation manifest')
     paths = [unchanged(x) for x in manifest['bindings'] + manifest['tools']]
     authority = manifest['baseline']
-    baseline, baseline_paths = read_source(**authority, active=active)
+    baseline, baseline_paths = read_source(**authority, active=active,advisory=False)
     patch = ir.load(out/'patch.json')
     ir.need(patch['baseline_graph_sha256'] == ir.digest(authority['graph']) and patch['spec_sha256'] == ir.digest(authority['spec']), 'patch baseline binding changed')
     expected, cuts = apply_patch(baseline[1], patch, inputs=baseline[2]['inputs'])
@@ -308,8 +312,6 @@ def check(directory, *, active=None, write=True):
     data = nl0.validate(case/'nl0.json', case/'spec.json')
     new_ids = sorted(set(data[4]) - set(baseline[4]))
     changed = sorted({x['consumer'] for x in cuts.values()})
-    ir.need(not any(baseline[0].get('background_notes',{}).get(rid) for rid in changed),
-            'changed consumer background needs a fresh scoped review before incremental acceptance')
     inherited = sorted(set(baseline[4]) - set(changed))
     ir.need(manifest['new_producers'] == new_ids and manifest['cut_ids'] == sorted(cuts)
             and manifest['changed_consumers'] == changed and manifest['inherited_inferences'] == inherited, 'incorrect audit coverage partition')
@@ -352,15 +354,15 @@ def check(directory, *, active=None, write=True):
               'mathematics_automatically_verified': False,
               'reviewer': {'baseline': baseline[0].get('reviewer'), 'producer': producers['reviewer'], 'cuts': reviewed_cuts['reviewer']},
               'unresolved_reviews': baseline[0].get('unresolved_reviews', [])}
-    notes=copy.deepcopy(baseline[0].get('background_notes',{}))
+    notes={rid:rows for rid,rows in baseline[0].get('background_notes',{}).items() if rid not in changed}
     for rid in new_ids:notes[rid]=producers['reviews'][rid].get('background_notes',[])
     if any(notes.values()):
-        for rid, rows in notes.items():background.validate(rows,nl0.packet(data,rid),case)
+        notes={rid:background.available(rows,nl0.packet(data,rid),case) for rid,rows in notes.items()}
         result.update(background_policy=background.POLICY,background_notes=notes,
                       background_note_count=sum(len(x) for x in notes.values()),
                       background_supplement=background.supplement(data,notes))
     paths += baseline_paths + [producer_path, cut_path]
-    paths += evidence_paths(producers, case) + evidence_paths(reviewed_cuts, case)
+    paths += evidence_paths(producers, case,advisory=False) + evidence_paths(reviewed_cuts, case)
     output = {'version': VERSION, 'kind': 'incremental_acceptance', 'manifest': binding(manifest_path),
               'graph': binding(case/'nl0.json'), 'spec': binding(case/'spec.json'), 'result': result,
               'coverage': {'new_full_reviews': new_ids, 'substitution_reviews': changed, 'inherited_inferences': inherited,

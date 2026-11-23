@@ -91,25 +91,47 @@ class BackgroundTests(unittest.TestCase):
         self.assertEqual(packet['reviewed_packet_sha256'],self.packet['packet_sha256'])
         self.assertNotEqual(packet['packet_sha256'],self.packet['packet_sha256'])
 
-    def test_notes_require_declared_supported_policy(self):
+    def test_unsupported_background_policy_drops_only_the_notes(self):
         del self.audit['background_policy']
-        with self.assertRaisesRegex(ValueError,'BACKGROUND-POLICY'):self.accepted()
+        result=self.accepted()[0]
+        self.assertTrue(result['current_standard_receipt_valid'])
+        self.assertEqual(result['background_note_count'],0)
 
     def test_cannot_call_background_enabled_review_old_packet_only(self):
         self.audit['inference_reviews']['R001']['replay']['mode']='fresh_packet_only'
         with self.assertRaisesRegex(ValueError,'REPLAY-BOUNDARY'):self.accepted()
 
-    def test_unprobed_or_wrong_pin_is_rejected(self):
+    def test_unprobed_or_wrong_pin_is_ignored(self):
         self.note['source']['mathlib_commit']='0'*40
-        with self.assertRaisesRegex(ValueError,'wrong library pin'):self.accepted()
+        result=self.accepted()[0]
+        self.assertTrue(result['current_standard_receipt_valid'])
+        self.assertEqual(result['background_note_count'],0)
 
-    def test_changed_probe_bytes_are_rejected(self):
-        path=self.base/self.note['source']['evidence'][0]['path'];path.write_text('{}')
-        with self.assertRaisesRegex(ValueError,'changed source evidence'):self.accepted()
+    def test_missing_or_damaged_probe_does_not_block_translation_preparation(self):
+        import translation_author
+        import source_preparation
+        path=self.base/self.note['source']['evidence'][0]['path']
+        original=path.read_bytes()
+        for offset,changed in enumerate((None,b'{}')):
+            with self.subTest(changed=changed):
+                if changed is None:path.unlink()
+                else:path.write_bytes(changed)
+                result=self.accepted()[0]
+                self.assertTrue(result['current_standard_receipt_valid'])
+                self.assertEqual(result['background_note_count'],0)
+                out=self.base/f'advisory-{offset}'
+                authority={'graph':self.base/'nl0.json','spec':self.base/'spec.json',
+                           'audit_a':self.base/'audit-test-only.json'}
+                _,needed=source_preparation.read_source(**authority)
+                self.assertNotIn(path,needed)
+                translation_author.prepare(self.base,self.base,out,authority={key:str(val) for key,val in authority.items()})
+                self.assertFalse((out/'inputs/background-supplement.json').exists())
+                path.write_bytes(original)
 
     def test_new_h_and_output_cannot_become_ground(self):
         self.note['grounds']=[{'location':'/output/statement','reason':'Assume the conclusion.'}]
-        with self.assertRaisesRegex(ValueError,'not available local context') as failure:self.accepted()
+        with self.assertRaisesRegex(ValueError,'not available local context') as failure:
+            background.validate([self.note],self.packet,self.base)
         for part in ('/background_notes/0/grounds/0/location','BG001','/output/statement','/inputs'):
             self.assertIn(part,str(failure.exception))
 
@@ -161,7 +183,8 @@ class BackgroundTests(unittest.TestCase):
                 'background_notes':['R001.BG001'],'explanation':'Apply the permitted continuous addition input.'}],
             'terminal':'T001','source_outputs':{'P':'T001'},
             'endpoint_correspondence':{'P':{'mode':'direct','explanation':'For continuous real functions f and g the target is continuity of their pointwise sum.'}}}
-        checked=author.InterfaceContract(out)(artifact)
+        validator=author.InterfaceContract(out)
+        checked=validator(artifact)
         self.assertEqual(checked['status'],'IR-TYPES-CHECKED')
         contract=json.loads((out/'candidates/0001/contract.json').read_text())
         supplement=json.loads((out/'inputs/background-supplement.json').read_text())
@@ -189,6 +212,17 @@ class BackgroundTests(unittest.TestCase):
         self.assertNotIn('dependency_correspondence',mechanical)
         self.assertEqual(ir.load(audit/'source-inventory.json')['background_supplement']['notes']['R001'][0]['source']['declaration'],'Continuous.add')
         with self.assertRaises(ir.Invalid):audit_b.check(audit,audit/'review-template.json')
+        (out/'inputs/background-supplement.json').write_text('corrupted advisory payload')
+        reduced=validator(copy.deepcopy(artifact))
+        self.assertEqual(reduced['status'],'IR-TYPES-CHECKED',reduced)
+        frozen_contract=out/'candidates/0002/contract.json'
+        self.assertNotIn('background_supplement',ir.load(frozen_contract)['source'])
+        import workflow
+        result=workflow.freeze(self.base/'nl0.json',self.base/'spec.json',frozen_contract,
+            frozen_contract.with_name('plan.json'),None,out/'frozen',audit_a=self.base/'audit-a.json',
+            interface_binding=out/'accepted-interface-paths.json')
+        self.assertIsNone(result['background_supplement'])
+
 
     def test_clean_local_reviewer_can_save_notes_without_a_second_model(self):
         from clean_stage import ArtifactStage
@@ -215,9 +249,6 @@ class BackgroundTests(unittest.TestCase):
             stage.dispatch('record_background_note',args)
             progress=stage.dispatch('read_review_progress',{})
             self.assertEqual(progress['background_notes'],[args,second])
-            attempt=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,
-                'summary':{'verdict':'PASS','notes':'TEST ONLY','background_notes':[]}}})
-            self.assertFalse(attempt['accepted'])
             supplied={**args,'fact':'Updated synthetic observation.'}
             stage.dispatch('record_background_note',supplied)
             final=stage.dispatch('submit_draft',{'artifact':{'from_saved_review':True,'summary':{'verdict':'UNVERIFIED'}}})
@@ -239,6 +270,13 @@ class BackgroundTests(unittest.TestCase):
         data,_=source.read_source(out/'case/nl0.json',out/'case/spec.json',incremental=out/'source-acceptance.json')
         self.assertEqual(data[0]['background_notes']['R001'][0]['source']['declaration'],'Continuous.add')
         self.assertTrue(data[0]['current_standard_receipt_valid'])
+        probe=self.note['source']['evidence'][0]['path']
+        (out/'case'/probe).unlink()
+        data,_=source.read_source(out/'case/nl0.json',out/'case/spec.json',
+                                  incremental=out/'source-acceptance.json')
+        self.assertTrue(data[0]['current_standard_receipt_valid'])
+        self.assertFalse(data[0].get('background_note_count',0))
+
 
 
 if __name__=='__main__':unittest.main()

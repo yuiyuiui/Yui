@@ -124,6 +124,30 @@ def validate(notes, packet, base):
     return deepcopy(notes)
 
 
+def available(notes, packet, base):
+    """Return only readable advisory notes. They never qualify an Audit A verdict."""
+    result={}
+    if isinstance(notes,list):
+        for note in notes:
+            try:
+                [checked]=validate([note],packet,base)
+            except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError):
+                continue
+            result.setdefault(checked['id'],checked)
+    return list(result.values())
+
+
+def read_supplement(path, graph_sha256):
+    try:
+        value=json.loads(path.read_text())
+        if (isinstance(value.get('notes'),dict) and value['policy']==POLICY and value['graph_sha256']==graph_sha256
+                and digest({k:v for k,v in value.items() if k!='sha256'})==value['sha256']):
+            return value
+    except (OSError,ValueError,KeyError,TypeError,AttributeError):
+        pass
+    return None
+
+
 def supplement(data, by_inference):
     result = data[0]
     payload = {'policy': POLICY, 'graph_sha256': result['graph_sha256'],

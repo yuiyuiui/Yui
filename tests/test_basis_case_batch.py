@@ -278,14 +278,18 @@ class BasisCaseBatchTests(unittest.TestCase):
             self.assertEqual(closure['remaining_premises'],['H001'])
             self.assertEqual(ir.load(root/'delivery/run.json')['remaining_extra_premises'],[])
 
-    def test_unchanged_working_graph_stops_without_resampling_the_same_review(self):
+    def test_unchanged_working_graph_returns_to_the_same_author_before_review(self):
+        import json
         with tempfile.TemporaryDirectory() as raw:
             [(root,result)]=self.batch(Path(raw),['stalled-graph'])
-            self.assertEqual(result['retained_error']['status'],'NL0_GRAPH_REVISION_UNRESOLVED')
-            self.assertEqual(ir.load(root/'logs/controller-errors/error-state.json')['fault']['category'],'workflow_blocked')
-            self.assertEqual(len(list(root.glob('2basis/*/stage/result.json'))),1)
-            self.assertEqual(len(list(root.glob('audit-a/*/global/stage/result.json'))),1)
-            self.assertFalse((root/'delivery/formalization/Solution.lean').exists())
+            self.assertEqual(result['status'],'WORKFLOW-PASSED',result)
+            logs=root/'global-graphs/0002/stage/tools.jsonl'
+            rows=[json.loads(line) for line in logs.read_text().splitlines()]
+            submissions=[r['result'] for r in rows if r['tool']=='submit_draft']
+            self.assertIn('GRAPH_REPAIR_UNCHANGED',submissions[0]['error'])
+            self.assertIn('both numbers vanish',submissions[0]['error'].lower())
+            self.assertTrue(submissions[1]['stage_complete'])
+            self.assertEqual(len(list(root.glob('audit-a/*/global/stage/result.json'))),2)
 
     def test_preparation_decision_precedes_paid_proofs_and_is_reused(self):
         for mode in ('planned-stop','planned-continue'):

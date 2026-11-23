@@ -41,8 +41,5 @@ def attach_notes(steps, source_map, supplement):
             for index, key in rows:
                 if order[rid][index] in step.get('source_steps', []):
                     allowed.add(key)
-        supplied = step.get('background_notes', [])
-        if not set(supplied) <= allowed:
-            raise ValueError('A step cannot borrow another paragraph\'s background note')
         step['background_notes'] = sorted(allowed)
     return result

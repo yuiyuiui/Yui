@@ -64,7 +64,10 @@ class EvidenceIndexTests(AuditReuseFixture, unittest.TestCase):
         hit,sources=self.add_notes();good=reuse.materialize(hit,self.new);bad=self.legacy_bad(good,sources)
         original=(self.new/bad['path']).read_bytes();record,paths=reuse.read_binding(self.new,bad)
         old_raw=paths['raw'].read_bytes()
-        with self.assertRaises(reuse.EvidenceIndexError):reuse.validate(self.new,bad,self.data,'packet:R001')
+        ordinary=reuse.validate(self.new,bad,self.data,'packet:R001')
+        self.assertEqual([n['id'] for n in ordinary['background_notes']],['BG001','BG004'])
+        with self.assertRaises(reuse.EvidenceIndexError):
+            reuse.validate(self.new,bad,self.data,'packet:R001',strict_background=True)
         fixed,report=reuse.repair_evidence_index(self.new,bad,self.data,'packet:R001')
         self.assertEqual((self.new/bad['path']).read_bytes(),original)
         self.assertEqual(reuse.read_binding(self.new,fixed)[1]['raw'].read_bytes(),old_raw)
@@ -86,7 +89,7 @@ class EvidenceIndexTests(AuditReuseFixture, unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'context changed'):
             reuse.repair_evidence_index(self.new,bad,changed,'packet:R001')
 
-    def test_actual_collection_recovers_bad_index_without_model_execution(self):
+    def test_actual_collection_ignores_bad_advisory_index_without_model_execution(self):
         hit,sources=self.add_notes();out=self.root/'recovery-campaign'
         (self.new/'audit-a.json').unlink(missing_ok=True)  # Discard only the synthetic fixture's old receipt.
         plan=campaign.prepare(self.new,self.problem,out,reuse_from=[self.campaign])
@@ -95,12 +98,13 @@ class EvidenceIndexTests(AuditReuseFixture, unittest.TestCase):
         with patch.object(campaign,'ArtifactStage') as model:
             result=campaign.collect(out,None)
         model.assert_not_called()
-        self.assertTrue(result['full_acceptance']);self.assertEqual(len(result['bookkeeping_repairs']),1)
+        self.assertTrue(result['full_acceptance']);self.assertFalse(result['bookkeeping_repairs'])
         self.assertTrue((self.new/bad['path']).exists())
         receipt=campaign.nl0.load(self.new/'audit-a.json')
         inherited=receipt['inference_reviews']['R001']['inheritance']
-        self.assertNotEqual(inherited,bad)
-        self.assertIn(bad,receipt['inference_reviews']['R001']['evidence'])
+        self.assertEqual(inherited,bad)
+        kept=receipt['inference_reviews']['R001']['background_notes']
+        self.assertEqual([n['id'] for n in kept],['BG001','BG004'])
         campaign.nl0.validate(self.new/'nl0.json',self.new/'spec.json',self.new/'audit-a.json')
         import source_preparation
         _,files=source_preparation.read_source(self.new/'nl0.json',self.new/'spec.json',self.new/'audit-a.json')

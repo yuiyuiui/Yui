@@ -33,7 +33,7 @@ class PublicContractTests(unittest.TestCase):
 
     def test_graph_repairs_have_one_foundation_freeze_and_one_final_audit_seal(self):
         from wfcore import storage
-        from wfcore.engine import start
+        from wfcore.engine import Run, start
         for entry,label in [('unconditional','local-edge'),('audit','audit-edge')]:
             with self.subTest(entry=entry),tempfile.TemporaryDirectory() as raw:
                 temp=Path(raw)
@@ -44,6 +44,9 @@ class PublicContractTests(unittest.TestCase):
                 if twin.is_file():shutil.copyfile(twin,src/'adapters.py')
                 dest=temp/'run'
                 result=start(src,dest,entry,{'job':{**self.ref,'path':label}})
+                self.assertEqual(result['status'],'waiting')
+                run=Run(dest)
+                result=run.signal(run.letter('repair-ready',{},'owned-repair'))
                 self.assertEqual(result['status'],'completed')
                 trace=json.loads((dest/'work/state.json').read_text())['trace']
                 nodes=[r['node'] for r in trace]

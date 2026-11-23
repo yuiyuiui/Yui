@@ -113,6 +113,12 @@ def check_assignment(frozen, spec, graph):
     if before != after or shape(graph) != shape(frozen['graph']):
         raise ValueError('Assigned global specification or dependency changed; report a graph issue to its NL0 owner')
 
+def same_working_graph(before, after):
+    return ({k:v for k,v in before['spec'].items() if k!='inputs'} ==
+            {k:v for k,v in after['spec'].items() if k!='inputs'}
+            and shape(before['graph'])==shape(after['graph']))
+
+
 class AuthorContract(NL0Contract):
     def __init__(self, directory, documents, case_id, phase):
         import graph_repair
@@ -122,6 +128,7 @@ class AuthorContract(NL0Contract):
              'prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
         self.phase = phase
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
+        self.prior_graphs=[self.prior] if self.prior else []
         self.earlier=json.loads(documents.get('protected-roots.json','[]'))
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
         self.graph_feedback = json.loads(documents.get(graph_repair.FEEDBACK,'{}'))
@@ -341,6 +348,10 @@ class AuthorContract(NL0Contract):
             for prior in [self.prior,*self.earlier]:
                 preserve_originals(prior,current,basis=self.phase==BASIS)
         if self.global_only:
+            if any(same_working_graph(old,current) for old in self.prior_graphs):
+                findings=json.dumps(self.graph_feedback.get('issues',[]),ensure_ascii=False)
+                raise ValueError('GRAPH_REPAIR_UNCHANGED: revise the graph to address the original findings '
+                                 'in global-findings.json: '+findings[:4000])
             from nl0 import closure
             scopes = context(current)
             if self.prior and self.graph_feedback.get('blockers'):
@@ -428,14 +439,17 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
     inputs=attempt/'inputs'
     inputs.mkdir(parents=True)
     copy_problem_documents(basis.problem_inputs(job),inputs)
+    prior_graphs=[]
     if previous:
         versions=prior_versions(previous,Path(job['root']).resolve())
         latest,prior_record=next(versions)
+        prior_graphs.append(latest)
         write(inputs/'prior-global.json',latest)
         if 'outline' in prior_record:
             copy_input(Path(prior_record['outline']['path']),inputs/PRIOR_OUTLINE)
         roots=[]
         for old,_ in versions:
+            prior_graphs.append(old)
             spec={k:old['spec'][k] for k in (*ORIGINAL_FIELDS,'definitions')}
             props=[p for p in old['graph']['propositions'] if p['id']=='P' or p['id'].startswith(('H','E','M'))]
             saved={'spec':spec,'graph':{'propositions':props,**{k:v for k,v in old['graph'].items() if k=='foundation_ports'}}}
@@ -486,6 +500,7 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
                  'Reuse prior outline entries whose inference and source ranges still apply.')
     stage=ArtifactStage(attempt/'stage',prompt,phase=owner,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget))
+    stage.validator.prior_graphs=prior_graphs
     if previous:
         prior_record=nl0.load(previous['path'])
         prior_graph=read_working(previous)['graph']
@@ -547,13 +562,8 @@ def _select(job, checked, previous):
             if record_old.get('foundation')!=record.get('foundation') or record_old['owner']!=record['owner']:
                 raise ValueError('Cannot replace the selected foundation or entry during graph revision')
             preserve_originals(old,proposed,basis=record['owner']==BASIS)
-            if ({k:v for k,v in old['spec'].items() if k!='inputs'}==
-                    {k:v for k,v in proposed['spec'].items() if k!='inputs'}
-                    and shape(old['graph'])==shape(proposed['graph'])):
-                from execution_health import StageFailure
-                from graph_repair import UNRESOLVED
-                raise StageFailure(UNRESOLVED,'The graph owner returned an unchanged or previously rejected revision',
-                                   phase='nl0-global',evidence=source)
+            if same_working_graph(old,proposed):
+                raise ValueError('Cannot publish an unchanged NL0 working graph')
         try:
             os.link(candidate,revision)
         except FileExistsError:

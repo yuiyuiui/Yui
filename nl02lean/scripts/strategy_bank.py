@@ -100,11 +100,15 @@ def reference_bindings(names, destination):
                 job = json.loads(job_path.read_bytes())
                 pins = _case_digests(core, job['runtime_snapshot']['manifest']['sha256'])
                 rel = bank.relative_to(core)
-                bindings[name] = {'path':str(bank), 'source':pins[str(rel/'strategies.json')],
-                                  'index':pins[str(rel/'index.json')]}
+                if str(rel/'strategies.json') in pins:
+                    bindings[name] = {'path':str(bank), 'source':pins[str(rel/'strategies.json')],
+                                      'index':pins[str(rel/'index.json')]}
+                else:
+                    origin=json.loads((core.parent/'runtime-manifest.json').read_text())['original_core']
+                    bindings[name]=_standalone_binding(Path(origin)/rel,core.parent/'strategy-reference'/name)
             else:
                 bindings[name] = _standalone_binding(bank, Path(destination) / name)
-        except (OSError, ValueError, TypeError, KeyError):
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
             bindings[name] = {'error':'The optional bank could not be bound to this run.'}
     return bindings
 
@@ -133,7 +137,7 @@ def consult(stage, query):
     binding = stage.strategy_banks[name]
     try:
         result = _consult_bank(name, binding, query.get('ids'))
-    except (OSError, ValueError, TypeError, KeyError) as error:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
         result = {'bank':name, 'status':'unavailable',
                   'reason':error.strerror if isinstance(error, OSError) else str(error)}
     protocol.validate(result, policy.contracts()[policy.REPLY_CONTRACT])

@@ -169,7 +169,6 @@ class ReviewIndex:
                 if raw.get('packet_sha256')!=packet['packet_sha256'] or raw.get('inference')!=job['id']:continue
                 if any(f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'} for f in raw.get('findings',[])):continue
                 if set(raw.get('checks',{}))!=nl0.CHECKS|nl0.closure.CLOSURE_CHECKS:continue
-                background.validate(raw.get('background_notes', []), packet, stage)
                 items=[('packet:'+job['id'],'',raw)]
             for scope,selector,row in items:
                 passing = row.get('verdict') == 'PASS' and all_pass(row)
@@ -232,10 +231,10 @@ def materialize(hit,case):
                ('manifest','execution-manifest.json'),('exposure','exposure-audit.json')]}}
     if hit['scope'].startswith('packet:'):files['packet']=directory/'packet.json'
     background_sources={}
-    for note in hit['row'].get('background_notes', []):
+    notes=background.available(hit['row'].get('background_notes'),load(files['packet']),directory/'stage') if 'packet' in files else []
+    for note in notes:
         for ev in note.get('source',{}).get('evidence',[]):
             source=directory/'stage'/ev['path']
-            if sha(source)!=ev['sha256']:raise ValueError('Original background evidence changed')
             if ev['path'] in background_sources:
                 continue
             key='background_'+str(len(background_sources))
@@ -260,7 +259,7 @@ def materialize(hit,case):
     return {'path':str(path.relative_to(case)),'sha256':sha(path)}
 
 
-def read_binding(case,binding):
+def read_binding(case,binding,*,strict_background=False):
     case=Path(case).resolve()
     def checked(row):
         path=(case/row['path']).resolve()
@@ -269,7 +268,13 @@ def read_binding(case,binding):
         return path
     record=load(checked(binding))
     if record['version']!=VERSION:raise ValueError('Unsupported review inheritance')
-    paths={key:checked(row) for key,row in record['previous'].items()}
+    paths={}
+    for key,row in record['previous'].items():
+        try:
+            paths[key]=checked(row)
+        except (OSError,ValueError):
+            if not key.startswith('background_') or strict_background:
+                raise
     if 'index_repair' in record:
         original=load(checked(record['index_repair']['original']))
         fields=set(record)-{'background_sources','index_repair'}
@@ -285,9 +290,9 @@ def raw_from_binding(case,binding):
     return raw
 
 
-def validate(case,binding,data,scope,entry=None):
+def validate(case,binding,data,scope,entry=None,*,strict_background=False):
     import nl0
-    record,paths=read_binding(case,binding)
+    record,paths=read_binding(case,binding,strict_background=strict_background)
     if record['scope']!=scope:raise ValueError('Inherited review scope changed')
     kind,_,key=scope.partition(':')
     selector={'packet':'','target':'/target_review','structure':'/structure_review',
@@ -323,21 +328,34 @@ def validate(case,binding,data,scope,entry=None):
         if not record.get('conditional_source') or not conditional_source(data,scope,raw,Path(case)):
             raise ValueError('Only passing items or exact qualified source warnings can be inherited')
     if entry is not None:match_judgment(entry,raw)
-    notes=deepcopy(raw.get('background_notes', []))
-    for note in notes:
-        for ev in note.get('source',{}).get('evidence',[]):
-            key=record.get('background_sources',{}).get(ev['path'])
-            if key not in record['previous'] or record['previous'][key]['sha256']!=ev['sha256']:
-                raise EvidenceIndexError('Inherited background index does not match the original evidence hash')
-            ev.update(record['previous'][key])
-    if scope.startswith('packet:'):background.validate(notes, nl0.packet(data,scope.split(':')[1]), case)
+    advisory=raw.get('background_notes')
+    notes=[]
+    if scope.startswith('packet:') and isinstance(advisory,list):
+        for note in advisory:
+            if not isinstance(note,dict):
+                continue
+            note=deepcopy(note)
+            sources=note.get('source')
+            refs=sources.get('evidence',[]) if isinstance(sources,dict) else []
+            if not isinstance(refs,list):
+                continue
+            for ev in refs:
+                previous=record.get('background_sources',{}).get(ev.get('path')) if isinstance(ev,dict) else None
+                if previous not in paths or record['previous'][previous]['sha256']!=ev['sha256']:
+                    if strict_background:
+                        raise EvidenceIndexError('Inherited background index does not match the original evidence hash')
+                    break
+                ev.update(record['previous'][previous])
+            else:
+                notes.append(note)
+        notes=background.available(notes,nl0.packet(data,scope.split(':')[1]),case)
     return {'previous_packet_sha256':previous_packet,'record':record,'raw':raw,'background_notes':notes}
 
 
 def checked_reindex(case,binding,data,scope):
     """Reconstruct metadata from bound original hashes; no file or judgment edit."""
     import nl0
-    try:validate(case,binding,data,scope)
+    try:validate(case,binding,data,scope,strict_background=True)
     except EvidenceIndexError:pass
     else:raise ValueError('No verified inherited evidence-index mismatch to repair')
     record,paths=read_binding(case,binding);raw=raw_from_binding(case,binding)
@@ -381,13 +399,6 @@ def match_judgment(entry,raw):
     if entry['notes'] not in permitted:raise ValueError('Inherited judgment notes changed')
     if 'locations' in entry and entry['locations']!=list(dict.fromkeys(raw.get('locations',[]))):
         raise ValueError('Inherited judgment locations changed')
-    def note_content(notes):
-        out=deepcopy(notes)
-        for note in out:
-            for ev in note.get('source',{}).get('evidence',[]):ev.pop('path',None)
-        return out
-    if note_content(entry.get('background_notes',[]))!=note_content(raw.get('background_notes',[])):
-        raise ValueError('Inherited background judgment changed')
     for group in ['checks','citation_checks','external_applications']:
         if group in raw:
             if set(entry[group])!=set(raw[group]):raise ValueError('Inherited child review coverage changed')

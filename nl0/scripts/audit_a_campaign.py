@@ -136,7 +136,7 @@ def review_shape(directory, global_stage):
     return protocol.ReviewShape(groups=groups,summary={
         'verdict':protocol.VERDICT,'notes':protocol.TEXT,'findings':findings},
         identities={'inference':packet['inference']['id'],'packet_sha256':packet['packet_sha256']},
-        optional={'background_notes':protocol.array(background.note_schema())})
+        optional={'background_notes':{}})
 
 
 def validate_review(value, directory, global_stage):
@@ -161,7 +161,6 @@ def validate_review(value, directory, global_stage):
         packet=json.loads((directory/'packet.json').read_text())
         external={p['id']:p for p in packet['inputs'] if p['kind']=='external'}
         applications={app['id']:app for app in packet['inference']['applications'] if app['input'] in external}
-        background.validate(value.get('background_notes', []), packet, directory/'stage')
         if value['inference']!=packet['inference']['id'] or value['packet_sha256']!=packet['packet_sha256']:
             raise ValueError('Review the exact supplied packet identity/hash')
         if set(value['checks'])!=nl0.CHECKS|nl0.closure.CLOSURE_CHECKS:
@@ -602,7 +601,8 @@ def collect(out, controls):
         actual['checks']={k:judgment(v,evidence[rid],True) for k,v in row['checks'].items()}
         actual['external_applications']={}
         actual['background_notes']=json.loads(json.dumps(
-            audit_reuse.validate(case,inherited,data,'packet:'+rid)['background_notes'] if inherited else row.get('background_notes', [])))
+            audit_reuse.validate(case,inherited,data,'packet:'+rid)['background_notes'] if inherited
+            else background.available(row.get('background_notes'),packet,out/rid/'stage')))
         library_evidence=[]
         for note in actual['background_notes']:
             if note['kind']!='mathlib':continue

@@ -59,8 +59,7 @@ class MinimalTranslationTests(unittest.TestCase):
         self.assertEqual(attached[0]['background_notes'],['R001.BG001'])
         self.assertEqual(attached[1]['background_notes'],[])
         steps[1]['background_notes']=['R001.BG001']
-        with self.assertRaisesRegex(ValueError,'another paragraph'):
-            bg.attach_notes(steps,source,supplement)
+        self.assertEqual(bg.attach_notes(steps,source,supplement)[1]['background_notes'],[])
 
     def test_author_instructions_explain_free_mathlib_use(self):
         self.assertNotIn('calculation_links', author.PROMPT)

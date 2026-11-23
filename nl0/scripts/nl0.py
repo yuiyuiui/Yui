@@ -408,6 +408,8 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 unresolved.append({"review": where, "verdict": value})
                 require(allow_unresolved, "AUDIT-FAIL", f"{where} is {value}")
 
+        notes_by_inference={}
+
         def review(entry, where, inference=False, external=False, located_packet=None):
             fields = {"verdict", "notes", "evidence"} | ({"checks"} if inference else set())
             if external:
@@ -438,10 +440,6 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 record(entry["checks"], CHECKS | closure.CLOSURE_CHECKS, where + ".checks")
                 for name, value in entry["checks"].items():
                     review(value, f"{where}.checks.{name}", located_packet=packet(data, where))
-                notes = entry.get('background_notes', [])
-                require(not notes or audit.get('background_policy') == background.POLICY,
-                        'BACKGROUND-POLICY', 'notes require their declared acceptance policy')
-                closed_call(background.validate, notes, packet(data, where), base)
                 replay = entry["replay"]
                 record(replay, {"packet_sha256", "mode", "carrier", "prior_exposure", "read_materials"}, where + ".replay", optional={'library_evidence','review_trace'})
                 if 'review_trace' in replay:
@@ -453,22 +451,14 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
                 strings(replay["prior_exposure"], where + ".prior_exposure")
                 strings(replay["read_materials"], where + ".read_materials")
                 if entry["verdict"] == "PASS" or entry["checks"]["packet_replay"]["verdict"] == "PASS":
-                    refs = replay.get('library_evidence', [])
-                    if replay['mode'] == background.MODE:
-                        require(audit.get('background_policy') == background.POLICY, 'BACKGROUND-POLICY', where)
-                        if refs:evidence(base, refs)
-                        materials = list(dict.fromkeys(['packet:'+expected] + ['mathlib-evidence:'+x['sha256'] for x in refs]))
-                        require(all(e in refs for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']),
-                                'REPLAY-BOUNDARY', 'background source not in reviewed material list')
-                        native_refs=[e for note in notes if note['kind']=='mathlib' for e in note['source']['evidence']]
-                        require(all(e in native_refs for e in refs),'REPLAY-BOUNDARY',
-                                'Non-native tool traces are review_trace metadata, not library evidence')
-                    else:
-                        require(not notes and not refs, 'REPLAY-BOUNDARY', 'old packet-only replay cannot import background notes')
-                        materials = ['packet:'+expected]
+                    materials=replay["read_materials"]
                     require(replay["mode"] in {"fresh_packet_only", background.MODE} and not replay["prior_exposure"]
-                            and replay["read_materials"] == materials
-                            and replay["carrier"] != "UNASSIGNED", "REPLAY-BOUNDARY", where)
+                            and materials and materials[0]=="packet:"+expected
+                            and all(re.fullmatch(r"mathlib-evidence:[0-9a-f]{64}", item) for item in materials[1:])
+                            and (replay["mode"]==background.MODE or len(materials)==1)
+                            and replay["carrier"]!="UNASSIGNED", "REPLAY-BOUNDARY", where)
+                notes_by_inference[where]=background.available(entry.get('background_notes'),packet(data,where),base) if (
+                    audit.get('background_policy')==background.POLICY and replay['mode']==background.MODE) else []
             if external:
                 record(entry["citation_checks"], EXTERNAL_CHECKS, where + ".citation_checks")
                 for name, value in entry["citation_checks"].items():
@@ -522,12 +512,11 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         conditional,warnings=source_qualification.classify(unresolved,propositions,base)
         result.update(current_conditional_receipt_valid=independent and conditional,source_warnings=warnings)
         if conditional and independent:result['audit_status']='AUDIT-CONDITIONAL-PRIMARY-SOURCES-UNVERIFIED'
-        notes = {rid: deepcopy_entry.get('background_notes', []) for rid, deepcopy_entry in audit['inference_reviews'].items()}
+        notes = notes_by_inference
         result.update(background_policy=audit.get('background_policy'), background_notes=notes,
                       background_note_count=sum(len(x) for x in notes.values()),
                       audit_sha256=sha(audit_path),
                       background_supplement=background.supplement(data, notes))
-        if not unresolved and any(notes.values()):result['audit_status']='AUDIT-RECEIPT-VALID-WITH-BACKGROUND-NOTES'
     return result, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
 

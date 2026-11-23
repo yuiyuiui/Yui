@@ -7,8 +7,6 @@ import artifact_protocol as protocol
 from graph_outline import SOURCE_SPAN, source_sizes
 
 STATUS = 'NL0_GRAPH_REVISION_REQUIRED'
-UNRESOLVED = 'NL0_GRAPH_REVISION_UNRESOLVED'
-LIMIT = 'NL0_GRAPH_REVISION_LIMIT'
 TOOL = 'report_graph_issue'
 VERSION = 'yui-nl0-blockers-1'
 FEEDBACK = 'global-findings.json'

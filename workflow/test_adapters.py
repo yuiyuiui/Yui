@@ -24,29 +24,38 @@ def freeze_basis(ctx, data):
         data={**data,'basis':{**data['basis'],'sha256':'b'*64}}
     return outcome('frozen',data)
 
+def revision_number(data):
+    selected=data['global']['path']
+    return 0 if selected=='outline' else int(selected.rsplit('-',1)[-1])
+
+
 def detail(ctx, data):
-    if data['job']['path']=='eight-local-then-audit':
-        revision=data['global']['path']
-        if revision=='outline' or int(revision.rsplit('-',1)[-1])<8:
-            return outcome('repair',{**data,'repair':ref('missing input')})
-    if data['job']['path']=='recurring-edge' or (data['job']['path']=='local-edge' and data['global']['path']=='outline'):
+    local_rounds={'eight-local-then-audit':8,'nine-local-repairs':9}
+    job=data['job']['path']
+    if ((job in local_rounds and revision_number(data)<local_rounds[job])
+            or (job=='local-edge' and data['global']['path']=='outline')):
         return outcome('repair',{**data,'repair':ref('missing input')})
     return outcome('detailed',{**data,'local':ref('local')})
 
+
+def await_revision(ctx, data, event):
+    """Forward the bound repair when the owning case dispatches its next revision."""
+    return outcome('ready',data)
+
+
 def revise_graph(ctx, data):
-    if data['job']['path']=='eight-local-then-audit':
-        revision=data['global']['path']
-        number=0 if revision=='outline' else int(revision.rsplit('-',1)[-1])
-        return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(number+1))})
-    return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(ctx.activation))})
+    number=revision_number(data)+1
+    return outcome('selected',{k:data[k] for k in ('job','goal')} | {'global':ref('revised-'+str(number))})
+
 
 def audit(ctx, data):
     common={k:data[k] for k in ('job','goal','global')}
-    if ((data['job']['path']=='audit-edge' and data['global']['path']=='outline')
-            or (data['job']['path']=='eight-local-then-audit' and data['global']['path']=='revised-8')
-            or data['job']['path']=='recurring-audit-edge'):
+    job=data['job']['path']
+    rounds={'audit-edge':1,'eight-local-then-audit':9,'nine-audit-repairs':9}
+    if job in rounds and revision_number(data)<rounds[job]:
         return outcome('repair',{**common,'repair':ref('audit finding')})
     return outcome('reviewed',{**common,'authority':ref('reviewed source')})
+
 
 def seal_audit(ctx, data):
     if data['job']['path']=='modified-after-review':
@@ -88,7 +97,7 @@ def publish(ctx, data):
     status = {'stop':'STOPPED_BY_USER','different':'DIFFERENT_RESULT_DELIVERED'}.get(case)
     if not status:
         status = ('DRAFT-AUDIT-CONDITIONAL' if case=='qualified' else 'DRAFT-AUDIT-PASSED') if data['goal']=='audit' else 'WORKFLOW-CONDITIONAL' if case in ('qualified','residual') else 'WORKFLOW-PASSED'
-    closed = case in ('closed','qualified','local-edge','cleanup-recovered')
+    closed = case in ('closed','qualified','local-edge','cleanup-recovered','nine-local-repairs','nine-audit-repairs')
     extra = {'residual':['E004'],'external':['E001']}.get(case,[])
     port, scope = classify(data['goal'], status, closed=closed, qualified=case=='qualified')
     return outcome(port, {'scope':scope,'extra_premises':extra,'inventory':ctx.put_file(scope.encode())})

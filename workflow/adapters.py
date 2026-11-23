@@ -36,6 +36,11 @@ def freeze_basis(ctx, data):
     """Pin the exact reviewed classification, source, type, proof and handoff; honor the optional checkpoint."""
     return dispatch(ctx, data, 'freeze_basis')
 
+def await_revision(ctx, data, event):
+    """Forward the bound repair when the owning case dispatches its next revision."""
+    return routing.outcome('ready',data)
+
+
 def revise_graph(ctx, data):
     """Give the located finding to the global author. Validate revised labels and every consumer against the same frozen foundations."""
     return dispatch(ctx, data, 'revise_graph')

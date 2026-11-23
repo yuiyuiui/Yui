@@ -3,6 +3,10 @@
   "name": "yui-workflow",
   "description": "Turn an existing mathematical proof into an independently audited NL0 graph or a verified Lean proof.",
   "contracts": {
+    "RepairReady@1": {
+      "type": "object",
+      "additionalProperties": false
+    },
     "Binding@1": {
       "type": "object",
       "properties": {
@@ -1055,6 +1059,20 @@
       "executor": "python",
       "effect": "idempotent"
     },
+    "await-revision": {
+      "kind": "wait",
+      "input": "GraphRepair@1",
+      "events": {
+        "repair-ready": {
+          "contract": "RepairReady@1",
+          "source": "case-controller"
+        }
+      },
+      "outputs": {
+        "ready": "GraphRepair@1"
+      },
+      "handler": "await_revision"
+    },
     "revise-graph": {
       "kind": "task",
       "input": "GraphRepair@1",
@@ -1202,29 +1220,39 @@
           "block": "detail",
           "on": {
             "detailed": "audit",
-            "repair": "revise-graph"
+            "repair": "await-local-revision"
           }
         },
         "audit": {
           "block": "audit",
           "on": {
             "reviewed": "seal-audit",
-            "repair": "revise-audit-graph"
+            "repair": "await-audit-revision"
+          }
+        },
+        "await-local-revision": {
+          "block": "await-revision",
+          "on": {
+            "ready": "revise-graph"
+          }
+        },
+        "await-audit-revision": {
+          "block": "await-revision",
+          "on": {
+            "ready": "revise-audit-graph"
           }
         },
         "revise-graph": {
           "block": "revise-graph",
           "on": {
             "selected": "detail"
-          },
-          "max_visits": 8
+          }
         },
         "revise-audit-graph": {
           "block": "revise-graph",
           "on": {
             "selected": "detail"
-          },
-          "max_visits": 8
+          }
         },
         "seal-audit": {
           "block": "seal-audit",

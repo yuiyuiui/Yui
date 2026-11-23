@@ -46,7 +46,8 @@ def export_nl0(authority, directory):
                 review_results.add(previous['result'])
                 if 'index_repair' in index:
                     selected.add(nl0.local_path(source,index['index_repair']['original']['path']))
-            for child in value.values(): inherited(child)
+            for key,child in value.items():
+                if key not in {'background_notes','library_evidence'}:inherited(child)
         elif isinstance(value,list):
             for child in value: inherited(child)
     inherited(audit)
@@ -334,7 +335,10 @@ def verify(directory, *, anchor=None):
             if frozen['graph']!=shape(nl0.load(base/'nl0.json')) or frozen['spec_sha256']!=nl0.sha(base/'spec.json'):
                 raise ValueError('Delivered NL0 differs from its frozen global declarations')
         actual=nl0.validate(base/'nl0.json',base/'spec.json',base/'audit-a.json',allow_unresolved=True)[0]
-        if (actual['audit_status']!=record['audit_a'] or not (actual['current_standard_receipt_valid']
+        recorded=record['audit_a']
+        if recorded=='AUDIT-RECEIPT-VALID-WITH-BACKGROUND-NOTES':
+            recorded='AUDIT-RECEIPT-VALID'
+        if (actual['audit_status']!=recorded or not (actual['current_standard_receipt_valid']
                 or actual.get('current_conditional_receipt_valid'))):
             raise ValueError('Actual Audit A receipt differs from published result')
         qualified=not actual['current_standard_receipt_valid']

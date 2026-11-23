@@ -36,11 +36,6 @@ def check_source_boundary(data, c, plan, mapping, exported):
     """Mechanical source/port/paragraph checks; never a semantic review verdict."""
     nodes = {step['id']:step for step in plan['steps']}
     props, effective_steps = background_inputs.effective(data, background_inputs.mode(c))
-    supplement=data[0].get('background_supplement')
-    if data[0].get('background_note_count',0):
-        ir.need(c['source'].get('background_supplement_sha256') == supplement['sha256']
-                and c['source'].get('background_supplement') == supplement,
-                'interface omitted or changed accepted background supplement')
     roots = {p['id'] for p in c['premises']}
     ir.need({p['id'] for p in c['premises'] if p['kind']!='mathlib'} <=
             {p for p,v in props.items() if v['kind'] in {'hypothesis','external'}},
@@ -59,14 +54,6 @@ def check_source_boundary(data, c, plan, mapping, exported):
         ir.need(pair in paragraphs and row['text'] == paragraphs[pair], 'source argument text differs from canonical NL0')
         actual.add(pair)
     ir.need(actual == set(paragraphs), 'whole workflow omits source argument paragraphs')
-    for step in nodes.values():
-        pairs={(mapping[s]['inference'],mapping[s]['paragraph']) for s in step['source_steps']}
-        needed=set()
-        for rid,notes in data[0].get('background_notes',{}).items():
-            for note in notes:
-                index=int(note['at'].split('/')[3]);sid=data[4][rid]['argument'][index]['id']
-                if (rid,sid) in pairs:needed.add(rid+'.'+note['id'])
-        ir.need(set(step.get('background_notes',[]))==needed,'local plan omitted or imported background notes at '+step['id'])
     expected = {r['output'] for r in data[4].values()}
     ir.need(set(exported) == expected and exported['P'] == plan['terminal'], 'missing/extra source output mapping')
     ir.need(len(set(exported.values())) == len(exported), 'distinct source outputs need distinct primary realizations')
@@ -91,7 +78,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
            incremental=None, max_concurrency='auto', interface_binding=None):
     started = time.monotonic()
     graph, spec, contract, plan, out = [Path(x).resolve() for x in (graph, spec, contract, plan, out)]
-    data, authority_paths = source.read_source(graph, spec, audit_a, incremental)
+    data, authority_paths = source.read_source(graph, spec, audit_a, incremental,advisory=False)
     ir.need(usable(data[0]), 'source is not accepted under current Audit A; complete missing baseline/local reviews first')
     proposed=ir.load(plan)
     c, nodes, _ = ir.validate(contract, proposed)
@@ -99,11 +86,6 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
     basis_context=basis.source_context(graph,spec)
     basis.check_interface(basis_context,c,data[1])
     ir.need(c['source']['sha256'] == ir.digest(graph), 'whole workflow contract must bind the selected canonical NL0, not a separate summary')
-    if data[0].get('background_note_count',0):
-        supplement=data[0]['background_supplement']
-        ir.need(c['source'].get('background_supplement_sha256')==supplement['sha256']
-                and c['source'].get('background_supplement')==supplement,
-                'interface omitted or changed accepted background supplement')
     if interface_review is not None:
         import interface_review as semantic_review
         interface_review = Path(interface_review).resolve()
@@ -161,7 +143,7 @@ def freeze(graph, spec, contract, plan, interface_review, out, *, audit_a=None,
                 'interface_binding':str(interface_binding) if interface_binding else None,
                 'interface_semantic_status':semantic_status,'concurrency':configuration,
                 'source_outputs':review['source_outputs'], 'created_at_unix':time.time(),
-                'background_supplement':data[0].get('background_supplement'),
+                'background_supplement':c['source'].get('background_supplement'),
                 'background_mode':background_inputs.mode(c),
                 'freeze_seconds':time.monotonic()-started, 'types_check':typed,
                 'preparation_cost':review.get('preparation_cost', {'status':'UNMEASURED'}),

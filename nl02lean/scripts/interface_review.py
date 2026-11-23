@@ -112,6 +112,10 @@ def copy_review_inputs(author,inputs):
     """Disclose canonical task data, not the author's repair history/verdicts."""
     permitted={'spec.json','nl0.json','source-map.json','background-supplement.json','problem.md','source-context.md','frozen-target.md'}
     for src in (Path(author)/'inputs').iterdir():
+        if src.name=='background-supplement.json':
+            import background
+            if background.read_supplement(src,ir.digest(Path(author)/'inputs/nl0.json')) is None:
+                continue
         if src.is_file() and src.name in permitted:copy_input(src,Path(inputs)/src.name)
 
 

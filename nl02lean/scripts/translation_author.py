@@ -135,7 +135,7 @@ faithfulness and the assembled proof. A type check is never a semantic PASS.
 def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=None):
     case,problem,out=[Path(p).resolve() for p in (case,problem,out)]
     authority=authority or {'graph':str(case/'nl0.json'),'spec':str(case/'spec.json'),'audit_a':str(case/'audit-a.json')}
-    data,source_files=source_preparation.read_source(**authority)
+    data,source_files=source_preparation.read_source(**authority,advisory=False)
     from source_qualification import usable
     if not usable(data[0]):raise ValueError('Accepted current Audit A is required before interface authoring')
     out.mkdir(parents=True,exist_ok=False)
@@ -143,7 +143,7 @@ def prepare(case,problem,out,*,authority=None,prior_interface=None,diagnostics=N
     inputs=out/'inputs';inputs.mkdir()
     props,inferences=background_inputs.effective(data)
     supplement=data[0].get('background_supplement')
-    if supplement:write(inputs/'background-supplement.json',supplement)
+    if data[0].get('background_note_count'):write(inputs/'background-supplement.json',supplement)
     for f in ['spec.json','nl0.json']:shutil.copyfile(case/f,inputs/f)
     from controller_common import copy_problem_documents
     copy_problem_documents(problem,inputs)
@@ -297,18 +297,19 @@ class InterfaceContract:
             'conclusion':{'statement':self.graph['propositions'][next(i for i,p in enumerate(self.graph['propositions']) if p['id']=='P')]['statement'],'type':value['conclusion_type']},
             'representation':value['representation'],'objects':value['objects'],'shared_obligations':value.get('shared_obligations',[]),
             'review':{'mode':'deferred_semantic_review','status':'PENDING_AUDIT_B','disclosure':'Unreviewed candidate: only syntax/types and source boundaries are checked here. Normal entry requires actual independent pre-freeze semantic acceptance; the pending field grants none.'}}
-        supplement_file=self.out/'inputs/background-supplement.json'
-        if supplement_file.is_file():
-            supplement=json.loads(supplement_file.read_text())
+        supplement=background.read_supplement(self.out/'inputs/background-supplement.json',
+                                              contract['source']['sha256'])
+        if supplement==self.source_data[0].get('background_supplement') and supplement:
             contract['source'].update(background_supplement=supplement,
                 background_supplement_sha256=supplement['sha256'])
+        else:
+            supplement=None
         import basis
         basis.check_interface(self.basis_context,contract,self.graph,
             step_instances={key for step in value['steps'] for key in specialized_inputs(step)})
         write(directory/'contract.json',contract)
         plan={'version':2,'contract_sha256':ir.digest(directory/'contract.json'),
-              'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,
-                  json.loads(supplement_file.read_text()) if supplement_file.is_file() else None),
+              'representation_notes':value['representation'],'steps':background_inputs.attach_notes(value['steps'],self.source,supplement),
               'terminal':value['terminal']}
         write(directory/'plan.json',plan)
         ir.validate(directory/'contract.json',plan)

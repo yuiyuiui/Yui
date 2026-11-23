@@ -28,7 +28,7 @@ def run(job,recorder,budgets,progress,*,snapshot=None):
     project=runtime/'workflow'
     sys.path.insert(0,str(project/'scripts'))
     try:
-        from wfcore.engine import start
+        from wfcore.engine import Run, start
     except ModuleNotFoundError as error:
         if error.name not in ('jsonschema','referencing','yaml'): raise
         # Prepared cases can outlive an update of the skill. Only interpreter
@@ -36,7 +36,7 @@ def run(job,recorder,budgets,progress,*,snapshot=None):
         import site
         original=Path(json.loads((Path(job['root'])/'runtime-manifest.json').read_text())['original_core'])
         site.addsitedir(str(original/'.venv/lib'/f'python{sys.version_info.major}.{sys.version_info.minor}'/'site-packages'))
-        try: from wfcore.engine import start
+        try: from wfcore.engine import Run, start
         except ModuleNotFoundError as missing:
             raise RuntimeError('Install workflow/requirements.txt for this interpreter or in Yui/.venv') from missing
     session=block_module(project,'native_case').Case(job,recorder,budgets,progress)
@@ -45,13 +45,13 @@ def run(job,recorder,budgets,progress,*,snapshot=None):
         root=Path(job['root'])
         entry='audit' if job['track']=='nl0' else basis.mode(job)
         view=start(project,root/'protocol',entry,{'job':bind(root/'job.json')})
+        if view['status']=='waiting' and 'repair-ready' in view['events']:
+            protocol=Run(root/'protocol')
+            while view['status']=='waiting' and 'repair-ready' in view['events']:
+                if recorder:recorder.check()
+                event=protocol.letter('repair-ready',{},f"repair-{view['activation']}")
+                view=protocol.signal(event)
         if session.failure: raise session.failure
-        if (view['status']=='paused' and view['node'] in {'nl0-local/revise-graph','nl0-local/revise-audit-graph'}
-                and 'visit budget' in str(view.get('error'))):
-            from execution_health import StageFailure
-            from graph_repair import LIMIT
-            raise StageFailure(LIMIT,str(view['error']),phase='nl0-global',
-                               evidence=root/'protocol/work/state.json')
         if view['status']!='completed' or session.result is None:
             raise ValueError('Public workflow stopped at '+str(view))
         return session.result

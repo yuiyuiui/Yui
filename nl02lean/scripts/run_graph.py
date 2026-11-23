@@ -106,9 +106,9 @@ def _run_frozen(cpath,plan,out,shared_store,configuration,*,worker_budget,timeou
     snapshot = out/'harness-snapshot'
     snapshot.mkdir()
     for path in files: shutil.copyfile(path,snapshot/path.name)
-    timeout_policy=pilot.strategy_bank.freeze_native_timeout_policy(
-        snapshot/'nl02lean/bank') if arm=='yui' else None
     strategy_banks=pilot.strategy_bank.reference_bindings(('lean',),snapshot/'strategy-reference') if arm=='yui' else {}
+    timeout_policy=pilot.strategy_bank.freeze_native_timeout_policy(
+        snapshot/'nl02lean/bank',binding=strategy_banks['lean']) if arm=='yui' else None
     ir.write(out/'decomposition.json',ir.decomposition(cpath,plan,configuration['effective']))
     ir.write(out/'configuration.json',{'harness':pilot.HARNESS,'model':pilot.carrier.model_profile('proof')['id'],'model_selection':pilot.carrier.model_profile('proof'),
              'reasoning':pilot.carrier.model_profile('proof')['reasoning_effort'],'speed':pilot.carrier.model_profile('proof')['speed'],'arm':arm,'lock':lock,'workers':configuration['effective'],'concurrency':configuration,'timeout_seconds':timeout_seconds,

@@ -122,7 +122,7 @@ class AuthorReference(unittest.TestCase):
                 bank.bound_bank_data(later['basis'])
         self.assertFalse((self.root/'unused').exists())
 
-    def test_snapshot_includes_every_card_and_all_evidence(self):
+    def test_advisory_cards_stay_outside_the_required_runtime(self):
         bound = {Path(r['path']):r['sha256'] for r in controller_common.runtime_bindings()}
         ids = set()
         for root in (bank.BASIS_BANK, bank.BANK):
@@ -136,7 +136,7 @@ class AuthorReference(unittest.TestCase):
                 for relative in ('strategies.json','index.json',f"cards/{row['id']}.json",
                                  *(e['path'] for e in row['evidence'])):
                     path = root/relative
-                    self.assertEqual(bound[path], hashlib.sha256(path.read_bytes()).hexdigest())
+                    self.assertNotIn(path,bound)
         self.assertTrue({'ST012','ST015','ST020',*(f'ST0{i}' for i in range(21,27))} <= ids)
 
     def test_invalid_reference_does_not_displace_the_compiler_diagnostic(self):
