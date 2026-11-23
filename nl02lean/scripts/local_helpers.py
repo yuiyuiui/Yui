@@ -117,7 +117,7 @@ def check_edit(stage, args, number):
 
     def check(statement, proof, destination):
         import lean_timeout_policy
-        with lean_timeout_policy.stage_scope(stage, f'yui_aux_{len(prefix)+1:04d}'):
+        with lean_timeout_policy.stage_scope(stage):
             result = ir.check_auxiliary(stage.cpath, stage.plan, stage.step, statement, proof,
                                         out=destination, timeout=stage.lean_timeout(), helpers=prefix,
                                         cache=stage.work/'output/compiled-helpers')

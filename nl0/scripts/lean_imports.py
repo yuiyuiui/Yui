@@ -339,7 +339,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
     directory.parent.mkdir(parents=True,exist_ok=True)
     owned=lean_libraries.generated_root()
     root=Path(owned).resolve() if publish else None
-    source_cache=(Path(owned).resolve() if owned is not None else directory.parent.parent)/'public-sources'
+    source_cache=public_lean.source_cache(stage.logs)
     if root is not None:
         if (root.parent/'basis-selection.json').exists() or any((root.parent/'nl0-to-lean').glob('*/workflow/freeze-seal.json')):
             return {'status':'PUBLIC_LEAN_DEPENDENCY_REQUIRED',
@@ -503,6 +503,8 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
         if not can_bind:
             raise ValueError('This role cannot add a public library to its bound context')
         if full_pin and module is not None:
+            if full_pin.get('expected_module',module)!=module:
+                raise ValueError('The requested module differs from the retained Git source')
             full_pin['expected_module']=module
         result=check_public(stage,request,source,full_pin,selected,attached,candidate)
         write(request/'result.json',result)

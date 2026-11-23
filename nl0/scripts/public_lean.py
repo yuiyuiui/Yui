@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 import tomllib
+from urllib.parse import quote, unquote, urlsplit
 import urllib.request
 
 from controller_common import bind, write
@@ -23,34 +24,110 @@ from staging_storage import copy_input
 
 VERSION = 'yui-public-lean-build-1'
 COMPANIONS = ('.olean.private','.olean.server','.ir','.ir.sig')
-SOURCE = re.compile(r'https://raw\.githubusercontent\.com/([\w.-]+)/([\w.-]+)/([0-9a-f]{40})/([A-Za-z0-9_./-]+)')
+REPOSITORY = re.compile(r'https://github\.com/([\w.-]+)/([\w.-]+)', re.ASCII)
 
 
-def raw_pin(url, suffix='.lean'):
-    match=SOURCE.fullmatch(url)
-    if not match:return None
-    owner,project,commit,path=match.groups()
-    if not path.endswith(suffix) or any(part in {'','.','..'} for part in (owner,project,*path.split('/'))):
-        return None
-    return {'repository':f'https://github.com/{owner}/{project}.git','revision':commit,'source_path':path}
+def relative_source(value):
+    if (not isinstance(value,str) or any(ord(c)<32 or ord(c)==127 for c in value)
+            or any(part.lower() in {'','.','..','.git'} for part in value.split('/'))):
+        raise ValueError('Expected an exact relative path in the fixed Git checkout')
+    return Path(value)
+
+
+def git_pin(value):
+    if not isinstance(value,dict) or set(value)-{'repository','revision','source_path','module'}:
+        raise ValueError('Expected a repository, full commit and relative source path')
+    repository=value.get('repository')
+    match=REPOSITORY.fullmatch(repository) if isinstance(repository,str) else None
+    revision=value.get('revision')
+    if (not match or any(p in {'.','..',''} for p in (match[1],match[2].removesuffix('.git')))
+            or not isinstance(revision,str) or not re.fullmatch('[0-9a-fA-F]{40}',revision)):
+        raise ValueError('Use a public GitHub repository and its full 40-character commit')
+    name=match[2].removesuffix('.git')
+    pin={'repository':f'https://github.com/{match[1]}/{name}.git','revision':revision.lower(),
+         'source_path':relative_source(value.get('source_path')).as_posix()}
+    module=value.get('module')
+    if module is not None:
+        if not isinstance(module,str) or not lean_libraries.MODULE.fullmatch(module):
+            raise ValueError('Use the exact Lean module name')
+        pin['expected_module']=module
+    return pin
+
+
+def raw_pin(url):
+    parts=urlsplit(url)
+    segments=parts.path.split('/')
+    if parts.scheme!='https' or parts.query or not segments or segments[0]!='':return None
+    if parts.netloc=='github.com' and len(segments)>=6 and segments[3]=='blob':
+        segments.pop(3)
+    elif parts.netloc!='raw.githubusercontent.com':return None
+    if len(segments)<5 or not re.fullmatch('[0-9a-fA-F]{40}',segments[3]):return None
+    return git_pin({'repository':f'https://github.com/{segments[1]}/{segments[2]}','revision':segments[3],
+                    'source_path':unquote('/'.join(segments[4:]),errors='strict')})
+
+
+def source_cache(logs):
+    generated=lean_libraries.generated_root()
+    return (Path(generated).resolve() if generated is not None else Path(logs))/'public-sources'
+
+
+def read_source(logs, pin, patches=()):
+    """Retain a pinned Git file, or that file after applying the supplied text diffs."""
+    from execution_state import current
+    from staging_storage import write_bytes
+    from lean_imports import hashed
+    from source_access import LIMIT
+    logs=Path(logs).resolve()
+    external=logs/'external-sources'
+    key=hashed([pin,patches]); record=external/f'access-git-{key}.json'
+    if not record.is_file():
+        # Record only bytes produced in a temporary checkout. Git receives no model-supplied options.
+        external.mkdir(parents=True,exist_ok=True)
+        patch_dir=external/f'git-patches-{key}'
+        if patches:patch_dir.mkdir(exist_ok=True)
+        refs=[]
+        for index,patch in enumerate(patches):
+            file=patch_dir/f'{index:03d}.patch'
+            write_bytes(file,patch.encode()); refs.append(bind(file))
+        origin={**pin,**({'local_patches':refs} if refs else {})}
+        recorder,_=current()
+        deadline=time.monotonic()+(recorder.remaining(1800) if recorder else 1800)
+        with native_workspace.temporary('yui-pinned-source-') as work:
+            native_workspace.record(work,confirmed=True,phase='public-source-prepare')
+            with lean_patches.worktree(work,origin,source_cache(logs),deadline) as (root,_):
+                file=root/pin['source_path']
+                materialize(work,root,[file],deadline)
+                if file.resolve()!=file or not file.is_file():
+                    raise ValueError('The fixed Git revision has no ordinary file at '+pin['source_path'])
+                if file.stat().st_size>LIMIT:raise ValueError('Source exceeds the 32 MiB retrieval limit')
+                with file.open('rb') as stream:pdf=stream.read(5)==b'%PDF-'
+                destination=external/f"git-{key}{'.pdf' if pdf else '.txt'}"
+                copy_input(file,destination)
+        document=bind(destination)
+        view=document
+        if pdf:
+            from target_selection import text as document_text
+            extracted=destination.with_suffix('.txt')
+            write_bytes(extracted,document_text(destination).encode())
+            view=bind(extracted)
+        owner=pin['repository'].removeprefix('https://github.com/').removesuffix('.git')
+        url=f"https://github.com/{owner}/blob/{pin['revision']}/{quote(pin['source_path'])}"
+        write(record,{'status':'READABLE','origin':'controller_git','document_kind':'PDF' if pdf else 'TEXT',
+                      'url':url,'final_url':url,'document':document,'text':view,'git':origin})
+    result=json.loads(record.read_bytes()); source_origin(result,external)
+    if result['text']!=result['document'] and bind(result['text']['path'])!=result['text']:
+        raise ValueError('Cached source bytes changed')
+    return {**result,'record':bind(record)}
 
 
 def source_origin(row, external):
-    origin=raw_pin(row.get('final_url') or row.get('url',''))
+    origin=row.get('git') or raw_pin(row.get('final_url') or row.get('url',''))
     if row.get('status')!='READABLE' or origin is None:return None
     document=row['document'];path=Path(document['path'])
     if path.resolve()!=path or not path.is_relative_to(external.resolve()):
         raise ValueError('Retained public source escapes this stage')
     lean_libraries._verify_file(path,document['sha256'],False)
-    origin['source_sha256']=document['sha256']
-    if 'patched_origin' in row:
-        patched=row['patched_origin']
-        authority=Path(patched['patch_authority']['path'])
-        if (any(patched.get(k)!=v for k,v in origin.items()) or not authority.resolve().is_relative_to(external.resolve())):
-            raise ValueError('Patched public source does not bind this pinned source and recipe')
-        lean_patches.verify_origin(patched)
-        origin=patched
-    return origin
+    return {**origin,'source_sha256':document['sha256']}
 
 
 def known_source(logs, selection):
@@ -67,23 +144,6 @@ def known_source(logs, selection):
         origin=source_origin(row,external)
         if origin is not None:return origin
     return None
-
-
-def known_dependency(logs, module):
-    """Use an unambiguous fixed source retained by this author's own source tool."""
-    external=logs/'external-sources'
-    suffix=Path(*module.split('.')).with_suffix('.lean').parts
-    origins={}
-    for path in sorted(external.glob('access-*.json')):
-        row=json.loads(path.read_bytes())
-        pin=raw_pin(row.get('final_url') or row.get('url',''))
-        if pin is None or Path(pin['source_path']).parts[-len(suffix):]!=suffix:continue
-        origin=source_origin(row,external)
-        if origin is None:continue
-        key=(origin['repository'],origin['revision'],origin['source_path'],origin['source_sha256'],
-             tuple(origin.get('patch_order',[])))
-        origins[key]=origin
-    return next(iter(origins.values())) if len(origins)==1 else None
 
 
 class BuildFailure(ValueError):
@@ -185,7 +245,8 @@ def cached_checkout(work, origin, cache, deadline):
 
 def materialize(work, root, paths, deadline):
     """Hydrate only these exact paths from the shallow checkout's pinned tree."""
-    missing=['/'+str(path.relative_to(root)) for path in paths if not path.is_file()]
+    missing=['/'+re.sub(r'([\\\[\]*?#! ])',r'\\\1',path.relative_to(root).as_posix())
+             for path in paths if not path.is_file()]
     if missing:
         git(work,root,['sparse-checkout','add','--',*missing],min(deadline,time.monotonic()+120))
 
@@ -313,9 +374,13 @@ def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=N
     return namespace,done
 
 
+def patch_order(origin):
+    return tuple(row['sha256'] for row in origin.get('local_patches',())) or tuple(origin.get('patch_order',()))
+
+
 def same_pin(first, second):
     return (all(first[key]==second[key] for key in ('repository','revision'))
-            and first.get('patch_order',[])==second.get('patch_order',[]))
+            and patch_order(first)==patch_order(second))
 
 
 def prior_library(namespace, entry, origin, entries, environment, *, adapting=False):
@@ -369,12 +434,14 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
         with use_environment(environment),native_workspace.temporary('yui-public-lean-',logs=directory) as work:
             input_libraries=lean_libraries.identity()
             native_workspace.record(work,confirmed=True,phase='public-source-prepare')
-            with lean_patches.worktree(work,origin,source_cache,deadline) as root:
+            with lean_patches.worktree(work,origin,source_cache,deadline) as (root,patched):
                 def prepare(paths):
                     materialize(work,root,paths,deadline)
 
-                entry_path=root/origin['source_path']
+                entry_path=root/relative_source(origin['source_path'])
                 prepare([entry_path])
+                if entry_path.resolve()!=entry_path or not entry_path.is_file():
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Pinned module is absent or is a redirected path.')
                 source_dir,entry=source_layout(root,origin)
                 if hashlib.sha256(entry_path.read_bytes()).hexdigest()!=origin['source_sha256']:
                     raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Pinned module bytes differ from the retained source.')
@@ -414,6 +481,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
             if previous:
                 old_root=Path(previous['root'])
                 lean_ports.copy_evidence(old_root,directory,metadata)
+                lean_patches.copy_evidence(old_root,directory,metadata)
                 for row in old_modules:
                     relative=Path(*row['module'].split('.'))
                     for folder, suffix in [('source','.lean'),*[('lib',s) for s,_ in lean_libraries._artifacts(row)]]:
@@ -437,24 +505,27 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                 result=run_lean(source,work,extra=[output],output=compiled,timeout=remaining,module_root=output)
                 log=directory/(module+'.json');write(log,result);checks[module]=bind(log)
                 native_log=result.get('stdout','')+'\n'+result.get('stderr','')
+                if result.get('timed_out'):
+                    native_log=f"Lean timed out after {result['timeout_seconds']:g} seconds.\n"+native_log
                 if not native_succeeded(result) or not compiled.is_file() or re.search(r"declaration uses ['‘]sorry['’]",native_log):
                     retain_failure(module)
                     from compiler_feedback import excerpt
                     raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+excerpt(native_log,5000)[0])
-                if candidate is not None and module==entry:
+                adapted=candidate is not None and module==entry
+                if adapted or path in patched:
                     from compiler_feedback import excerpt
                     proof_check=output/'YuiPublicTrust.lean'
                     probe=Path(__file__).with_name('LeanModuleTrust.lean').read_text()
-                    proof_check.write_text(probe.replace('YuiAdaptedModule',entry))
+                    proof_check.write_text(probe.replace('YuiAdaptedModule',module))
                     trust=run_lean(proof_check,work,extra=[output],timeout=max(.001,deadline-time.monotonic()))
-                    report=directory/'candidate-trust.json'
+                    report=directory/(module+'.trust.json')
                     write(report,trust)
                     bindings.append(bind(report))
                     if not native_succeeded(trust):
                         failure.update(failed_module=module,trust_diagnostic=bind(report))
                         raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+excerpt(
                             trust.get('stdout','')+'\n'+trust.get('stderr',''),5000)[0])
-                    adaptations[entry]=adaptation_origin(origin)
+                    if adapted:adaptations[entry]=adaptation_origin(origin)
                 dest=source_root/relative.with_suffix('.lean');dest.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(source,dest);source_ref=bind(dest);bindings.append(source_ref);artifacts={}
                 for suffix in ('.olean',*COMPANIONS):
@@ -469,16 +540,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                 'imports':[*metadata['imports'],entry] if metadata else [entry],'modules':rows}
             if adaptations:spec['adaptations']=adaptations
             if metadata and metadata.get('ports'):spec['ports']=metadata['ports']
-            if 'patch_authority' in origin:
-                if previous:
-                    # A generation retains the reviewed authorization of its first build.
-                    patch_root=Path(previous['root'])
-                    spec['patches']=metadata['patches']
-                else:
-                    patch_root,_=lean_patches.verify_origin(origin)
-                    spec['patches']=origin['patch_authority']['sha256']
-                lean_patches.copy_evidence(patch_root,directory,spec)
-                bindings.extend(bind(directory/path) for path in lean_patches.inventory(directory,spec)[0])
+            if metadata and metadata.get('patches'):spec['patches']=metadata['patches']
             write(directory/'library.json',spec)
             status='PUBLIC_LEAN_READY'; detail='Pinned public module compiled with the selected compiler.'
     except BuildFailure as error:
@@ -509,15 +571,6 @@ def qualify(check, metadata, *, previous=None, full=False):
     spec=json.loads(Path(check['specification']['path']).read_text())
     if any(spec.get(key)!=metadata.get(key) for key in ('name','imports','modules','lean_version','mathlib_commit','ports','patches','adaptations')):
         raise ValueError('Public Lean library manifest differs from the checked source/olean inventory')
-    if 'patch_authority' in check['origin']:
-        lean_patches.verify_origin(check['origin'],full=full)
-        root=Path(spec['source_root']).parent
-        _,patches=lean_patches.inventory(root,metadata,full=full)
-        expected=previous[1].get('patches') if previous else check['origin']['patch_authority']['sha256']
-        if patches is None or patches['order']!=check['origin']['patch_order'] or metadata['patches']!=expected:
-            raise ValueError('Public Lean library does not retain its authorized patch order')
-    elif 'patches' in metadata:
-        raise ValueError('Public Lean library has unauthorized patches')
     module=check['module']
     modules={row['module']:row for row in metadata['modules']}
     inherited=previous[1] if previous else {}

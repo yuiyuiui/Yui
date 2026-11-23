@@ -391,7 +391,7 @@ def build(out, *, frozen_contract=None):
             source = 'import '+module['name']+'\n'+probe
             file = work/'output/Audit.lean';file.write_text(source)
             import lean_timeout_policy
-            with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='audit-inspection'):
+            with lean_timeout_policy.whole_file_scope():
                 result = ir.run_lean(file,work,extra=[work/'output'])
             inspected = {'status':'KERNEL_INSPECTION_PASSED' if ir.native_succeeded(result) else 'KERNEL_INSPECTION_FAILED',
                          'compiler_exit_code':result['exit_code'],'wall_seconds':result['wall_seconds']}

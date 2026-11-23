@@ -128,7 +128,7 @@ def check(source, checks, roots, out, *, compiled_prefix=None):
         try:sources=basis_sources.native_sources(evidence,checks,environment)
         except ValueError as error:problems.append('NATIVE_SOURCE: '+str(error))
     result = {'version':'yui-basis-native-3', 'passed':not problems, 'errors':problems,
-        'timeout_diagnostic_model_called':bool(native.get('timeout_reviews')),
+        'timeout_diagnostic_model_called':False,
         'checks':checks, 'roots':roots, 'environment':environment,
         'native_sources':sources,
         'compiled_prefix':compiled_prefix,

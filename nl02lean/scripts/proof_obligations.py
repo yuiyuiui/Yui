@@ -95,7 +95,7 @@ def finish_checked(req, attempt, number, stage):
     proof=handoff.read_proof(req,number,proof_path)
     check=attempt/'check.json'
     if not check.exists():
-        with lean_timeout_policy.stage_scope(stage,'transition') if stage is not None else nullcontext():
+        with lean_timeout_policy.stage_scope(stage) if stage is not None else nullcontext():
             native=ir.check(req.contract,req.plan,{'T001':proof},only='T001')
         if not ir.native_succeeded(native):
             write(attempt/'native-error.json',native)
@@ -511,10 +511,8 @@ class HelperWork:
 
     def run(self, key, request):
         from role_sessions import independent
-        import lean_timeout_policy
         try:
-            with independent(),execution_state.activate(self.recorder,key),lean_timeout_policy.scope(
-                    request.parent/'lean-timeouts',self.budget):
+            with independent(),execution_state.activate(self.recorder,key):
                 self.recorder.check(key)
                 self.recorder.task(key,state='RUNNING',activity='PREPARING_PRIVATE_PROOF')
                 previous=getattr(self.stage,'previous_private_stage',None)

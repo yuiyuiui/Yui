@@ -29,6 +29,16 @@ def pdf_bytes(sentence):
 
 
 class SourceAccessTests(unittest.TestCase):
+    def test_hostname_fake_ip_is_usable_without_allowing_a_private_literal(self):
+        fake=[(access.socket.AF_INET,access.socket.SOCK_STREAM,0,'',('198.18.2.3',443))]
+        with patch.object(access.socket,'getaddrinfo',return_value=fake), \
+                patch.object(access.socket,'create_connection') as connect:
+            self.assertEqual(access.public_url('https://example.org',use_proxy=False),'https://example.org')
+            access.public_connection(('example.org',443))
+            connect.assert_called_once_with(('198.18.2.3',443),30,None)
+            with self.assertRaisesRegex(ValueError,'Private'):
+                access.public_url('https://198.18.2.3',use_proxy=False)
+
     def test_private_addresses_and_embedded_credentials_are_rejected(self):
         for url in ['http://example.org','https://user:pass@example.org','https://example.org:8000']:
             with self.assertRaises(ValueError):access.public_url(url)

@@ -342,12 +342,9 @@ class ReviewControllerTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, author.work, ignore_errors=True)
         timed_out=dict(exit_code=124, stdout='', stderr='Synthetic native wall timeout.',
             timed_out=True, error_kind='LEAN_TIMEOUT', timeout_scope='native_call')
-        diagnosis=dict(category='code_issue', line=1, quote='import Mathlib',
-            reason='Synthetic located diagnosis.', next_action='Repair the saved candidate.')
-        with patch('pilot_common._run_lean', return_value=timed_out) as native, \
-                patch('lean_timeout_policy.inspect_source', return_value=diagnosis):
+        with patch('pilot_common._run_lean', return_value=timed_out) as native:
             failed=author.dispatch('submit_draft', {'artifact':draft})
-        self.assertEqual(native.call_args.kwargs['timeout'],60)
+        self.assertEqual(native.call_args.kwargs['timeout'],1200)
         self.assertFalse(failed['accepted'])
         self.assertIsNone(author.accepted)
         self.assertIn('Candidate 1 saved',failed['error'])
@@ -462,7 +459,7 @@ class ReviewControllerTests(unittest.TestCase):
             failed=stage.dispatch('check_lean_types',probe)
             with patch.dict(stage.native_timeout_snapshot, status='UNAVAILABLE'):
                 unavailable=stage.dispatch('check_lean_types',probe)
-        self.assertEqual(native.call_args.kwargs['timeout'],60)
+        self.assertEqual(native.call_args.kwargs['timeout'],1200)
         self.assertFalse(failed['types_checked'])
         self.assertEqual(failed['repair_advice']['trigger'],'NATIVE_HEARTBEAT_EXHAUSTED')
         self.assertEqual(failed['repair_advice']['strategy']['id'],'ST020')

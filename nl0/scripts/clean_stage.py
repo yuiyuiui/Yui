@@ -34,9 +34,7 @@ class ArtifactStage(pilot.Stage):
                  kind='json', case_id=None, check_handoff=None):
         logs=Path(logs).resolve()
         local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
-        local_diagnosis=(budget is not None and
-                         (phase=='interface-lean-timeout-diagnosis' or
-                          (phase=='interface-proof-diagnosis' and budget.role=='proof')))
+        local_diagnosis=phase=='interface-proof-diagnosis' and budget is not None and budget.role=='proof'
         frontier = phase=='basis-frontier' and budget is not None and budget.role=='foundation'
         if not (local_review or local_diagnosis or frontier):
             budget = pilot.concurrency.serial_budget(budget)
@@ -127,9 +125,12 @@ class ArtifactStage(pilot.Stage):
                 {'query':{'type':'string'},'engine':{'type':'string','enum':['arxiv','google','scihub']},
                  'browser':{'type':'boolean'}},['query']),
                 pilot.carrier.tool('read_external_source',
-                'Read and retain a public HTTPS source and its hash-bound access record. Use offset to continue cached text. For a patched fixed Lean source, provide recipe as a frozen input ID or a fixed upstream build recipe URL. Verify full source identity, theorem and context yourself. Use browser:true for an isolated browser on ordinary sources.',
+                'Read a fixed GitHub file with git: {repository, revision, source_path, module?}, or read an ordinary HTTPS url. Fixed Git files use the controlled checkout. You may supply ordered textual patches directly, including work you wrote yourself. Use offset to continue and browser:true for browser retrieval of ordinary HTTPS sources.',
                 {'url':{'type':'string'},'offset':{'type':'integer'},'limit':{'type':'integer'},
-                 'browser':{'type':'boolean'},'recipe':{'type':'string'}},['url'])]
+                 'browser':{'type':'boolean'},'git':{'type':'object','additionalProperties':False,
+                     'properties':{key:{'type':'string'} for key in ('repository','revision','source_path','module')},
+                     'required':['repository','revision','source_path']},
+                 'patches':{'type':'array','items':{'type':'string'}}},[])]
         if kind=='nl0':
             self.tools.append(pilot.carrier.tool('defer_primary_source',
                 'After actual unavailable primary-source access, preserve a complete exact secondary quotation as an explicitly unverified external assumption. The statement must match the quote in a supplied input. Returns the verification record for E.source.verification; this never grants ordinary Audit A PASS.',
@@ -569,11 +570,7 @@ class ArtifactStage(pilot.Stage):
                     result['access_records']=[{'path':str(Path(row['record']['path']).resolve().relative_to(base.resolve())),
                                                'sha256':row['record']['sha256']} for row in result['attempts']]
                 elif name=='read_external_source':
-                    if 'recipe' in args:
-                        import lean_patches
-                        result=lean_patches.read_source(base,**args)
-                    else:
-                        result=source_access.read(base/'external-sources',**args)
+                    result=source_access.read(base/'external-sources',**args)
                     result.update(source_access.evidence_references(result,base))
                 else:
                     reference=source_access.defer(base,inputs=self.task_inputs,**args)

@@ -93,7 +93,10 @@ def checked_expression(name, expression, binders='', *, proposition=False):
 def compiler_feedback(native, limit=14000):
     """Keep the actual errors in model feedback even when earlier warnings are long."""
     from compiler_feedback import excerpt
-    return excerpt(native.get('stdout','')+'\n'+native.get('stderr',''),limit)[0]
+    output=excerpt(native.get('stdout','')+'\n'+native.get('stderr',''),limit)[0]
+    if native.get('timed_out') and native.get('timeout_seconds') is not None:
+        return f"Lean timed out after {native['timeout_seconds']:g} seconds.\n"+output
+    return output
 
 
 def contract(path):
@@ -452,8 +455,7 @@ def check(cpath, plan, proofs=None, only=None, types_only=False, out=None, timeo
         file.parent.mkdir()
         file.write_text(lean)
         import lean_timeout_policy
-        whole = lean_timeout_policy.whole_file_scope(
-            (Path(out).parent if out else Path(cpath).parent)/'lean-timeouts', key='fragment')
+        whole = lean_timeout_policy.whole_file_scope()
         with whole if not only and not types_only else nullcontext():
             result = run_lean(file, work, timeout=timeout)
         result.update({'status': 'IR-TYPES-CHECKED' if types_only else

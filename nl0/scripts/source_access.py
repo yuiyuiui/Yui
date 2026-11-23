@@ -18,6 +18,7 @@ from controller_common import bind,write
 
 VERSION='yui-source-access-1'
 LIMIT=32*1024*1024
+FAKE_IP=ipaddress.ip_network('198.18.0.0/15')
 UNAVAILABLE_STATUSES={'HTTP_ERROR','HUMAN_ACCESS_REQUIRED','BROWSER_REQUIRED','UNAVAILABLE',
                       'NO_EXTRACTABLE_TEXT','BROWSER_UNAVAILABLE','BROWSER_ERROR'}
 
@@ -43,21 +44,45 @@ class Text(HTMLParser):
         if not self.hidden:self.parts.append(data)
 
 
-def public_url(url):
+def source_addresses(host, port, *, all_addresses=False):
+    try:literal=ipaddress.ip_address(host)
+    except ValueError:literal=None
+    addresses=socket.getaddrinfo(host,port,type=socket.SOCK_STREAM)
+    hosts=list(dict.fromkeys(row[4][0] for row in addresses))
+    allowed=[ip for ip in hosts if public_address(ipaddress.ip_address(ip), fake_ip=literal is None)]
+    return [] if all_addresses and allowed!=hosts else allowed
+
+
+def public_address(address, *, fake_ip=False):
+    return (address.is_global and not address.is_multicast) or (fake_ip and address in FAKE_IP)
+
+
+def public_url(url, *, use_proxy=True, all_addresses=False):
     parts=urllib.parse.urlsplit(url)
     if parts.scheme!='https' or not parts.hostname or parts.username or parts.password:
         raise ValueError('Only public HTTPS source URLs without embedded credentials are allowed')
     if parts.port not in {None,443}:raise ValueError('Nonstandard source ports are not supported')
-    addresses=socket.getaddrinfo(parts.hostname,443,type=socket.SOCK_STREAM)
-    if not addresses or not any(ipaddress.ip_address(row[4][0]).is_global for row in addresses):
+    try:literal=ipaddress.ip_address(parts.hostname)
+    except ValueError:literal=None
+    proxy=use_proxy and urllib.request.getproxies().get('https') and not urllib.request.proxy_bypass(parts.hostname)
+    try:allowed=bool(source_addresses(parts.hostname,443,all_addresses=all_addresses))
+    except socket.gaierror:allowed=bool(proxy)
+    if (literal is not None and not public_address(literal)) or not allowed:
         raise ValueError('Private/local source addresses are not allowed')
     return url
 
 
+if __name__=='__main__':
+    import sys
+    if len(sys.argv)!=3 or sys.argv[1]!='--check-url':raise SystemExit(2)
+    try:public_url(sys.argv[2],use_proxy=False,all_addresses=True)
+    except (OSError,ValueError):raise SystemExit(1)
+    raise SystemExit(0)
+
+
 def public_connection(address,timeout=30,source_address=None):
     host,port=address
-    candidates=list(dict.fromkeys(row[4][0] for row in socket.getaddrinfo(host,port,type=socket.SOCK_STREAM)
-                                  if ipaddress.ip_address(row[4][0]).is_global))
+    candidates=source_addresses(host,port)
     if not candidates:raise ValueError('No public source address')
     last=None
     for ip in candidates:
@@ -166,18 +191,32 @@ def _fetch(directory,url,*,browser):
     return {**record,'record':bind(path)}
 
 
-def read(directory,url,*,offset=0,limit=24000,browser=False,recipe=None):
+def read(directory,url=None,*,offset=0,limit=24000,browser=False,git=None,patches=()):
+    import public_lean
+    directory=Path(directory)
+    if (url is None)==(git is None):
+        raise ValueError('Select one structured Git file or public URL')
+    pin=public_lean.git_pin(git) if git is not None else public_lean.raw_pin(url)
+    if pin:
+        if not isinstance(patches,(list,tuple)) or any(not isinstance(patch,str) or not patch.strip() for patch in patches):
+            raise ValueError('Use an ordered list of textual patches')
+        return read_view(public_lean.read_source(directory.parent,pin,patches),offset,limit)
+    if patches:
+        raise ValueError('Supply textual patches with a fixed Git source')
     result=None
     for path in sorted(Path(directory).glob('access-*.json')):
         previous=json.loads(path.read_text())
-        if (previous.get('url')==url and previous.get('status')=='READABLE' and previous.get('recipe')==recipe and
+        if (previous.get('url')==url and previous.get('status')=='READABLE' and previous.get('origin')!='controller_git' and
                 (not browser or previous.get('origin')=='controller_browser' or previous.get('document_kind')=='PDF')):
             if any(bind(previous[key]['path'])!=previous[key] for key in ('document','text','screenshot') if key in previous):
                 raise ValueError('Cached source bytes changed')
             result={**previous,'record':bind(path)};break
     if result is None:
-        if recipe is not None:raise ValueError('No retained patched source for this recipe')
         result=fetch(directory,url,browser=True) if browser else fetch(directory,url)
+    return read_view(result,offset,limit)
+
+
+def read_view(result,offset,limit):
     if result['status']=='READABLE':
         value=Path(result['text']['path']).read_text();offset=max(0,int(offset));limit=max(1,min(int(limit),24000))
         end=offset+limit

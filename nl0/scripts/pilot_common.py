@@ -96,23 +96,18 @@ def run_lean(file: Path, work: Path, *, extra: list[Path] = (), sandbox: bool = 
              output: Path | None = None, timeout: float | None = None, module_root: Path | None = None) -> dict:
     import lean_timeout_policy
     from staging_storage import reserve, NATIVE_RESERVE
-    adaptive = lean_timeout_policy.active.get() is not None
-    def invoke(limit):
-        with reserve(work, NATIVE_RESERVE):
-            return _run_lean(file, work, extra=extra, sandbox=sandbox, output=output,
-                             timeout=limit, reviewed_policy=adaptive, module_root=module_root)
-    if adaptive:
-        return lean_timeout_policy.run(file, timeout, invoke)
-    return invoke(timeout)
+    with reserve(work, NATIVE_RESERVE):
+        limit, stage_limited = lean_timeout_policy.allowance(timeout)
+        return _run_lean(file, work, extra=extra, sandbox=sandbox, output=output,
+                         timeout=limit, stage_limited=stage_limited, module_root=module_root)
 
 
-def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=False, module_root=None):
+def _run_lean(file, work, *, extra, sandbox, output, timeout, stage_limited, module_root=None):
     import lean_libraries
     import native_workspace
     native_workspace.record(work, confirmed=True, phase='not-started')
     config = __import__('runtime_config')
     config.require_environment()
-    timeout = config.time_limit(timeout) if reviewed_policy else config.native_timeout(timeout)
     heartbeats = config.native_heartbeats()
     lock = load_lock()
     libraries=lean_libraries.compiler_snapshot()
@@ -194,18 +189,13 @@ def _run_lean(file, work, *, extra, sandbox, output, timeout, reviewed_policy=Fa
                     if not stopped: raise native_workspace.unconfirmed('Native process cleanup could not be confirmed',work)
                     stdout,stderr=process.communicate()
                     observed_stdout,observed_stderr=stdout,stderr
-                    diagnostic = ('\nExternal cancellation' if cancelled else
-                        '\nThe explicit whole-case budget expired; preserve this interrupted native check.' if case_limited else
-                        f'\nLean timeout: this native check exceeded {timeout:g} seconds. '
-                        'The candidate was not accepted. Isolate a smaller typed application or proof '
-                        'fragment, repair it and recheck the unchanged target. '
-                        'A timeout does not establish a mathematical failure.')
                     result={'exit_code':130 if cancelled else 124,'stdout':stdout,
-                        'stderr':stderr+diagnostic,
+                        'stderr':stderr,
                         'wall_seconds':time.monotonic()-started,'cancelled':cancelled}
                     if not cancelled:
-                        result.update(timed_out=True,error_kind='CASE_DEADLINE' if case_limited else 'LEAN_TIMEOUT',
-                                      timeout_seconds=timeout,timeout_scope='whole_case' if case_limited else 'native_call')
+                        scope = ('whole_case' if case_limited else 'stage' if stage_limited else 'native_call')
+                        kind = {'whole_case':'CASE_DEADLINE','stage':'STAGE_DEADLINE','native_call':'LEAN_TIMEOUT'}[scope]
+                        result.update(timed_out=True,error_kind=kind,timeout_seconds=timeout,timeout_scope=scope)
                     break
         result['native_limits'] = {'timeout_seconds': timeout, 'max_heartbeats': heartbeats}
         result['selected_environment'] = {'lean_version':lock['lean']['version_number'],

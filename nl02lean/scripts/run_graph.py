@@ -65,10 +65,8 @@ def run(cpath, ppath, out, *, shared_store=None, max_concurrency='auto', timeout
     recorder.update(phase='proof',proof_round=recorder.state.get('stage_artifacts',{}).get('repair_round',1),
         proof_total=None,proof_group_sizes={},
         bindings={'contract_sha256':ir.digest(cpath),'plan_sha256':ir.digest(out/'inputs/plan.json')})
-    import lean_timeout_policy
-    checks = lean_timeout_policy.scope(out/'lean-timeouts' if arm=='yui' else None, budget)
     try:
-        with checks, execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():
+        with execution_state.activate(recorder),recorder.signals() if owns_recorder else contextlib.nullcontext():
             return _run_frozen(cpath,plan,out,shared_store,configuration,worker_budget=budget,
                 timeout_seconds=timeout_seconds,bank=bank,arm=arm,lock=lock,started=started,recorder=recorder,prior_run=prior_run,
                 repair_guidance=repair_guidance,reviewed_interface=reviewed_interface,sessions=sessions,

@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
+import sys
 
 from controller_common import bind
 
@@ -29,10 +30,11 @@ def installation():
 
 def capture(directory,url,stem):
     from source_access import public_url,LIMIT
-    public_url(url)
+    public_url(url,use_proxy=False)
     directory=Path(directory).resolve();runtime=installation()
     driver=Path(__file__).with_suffix('.mjs')
-    request={'url':url,'directory':str(directory),'stem':stem,'limit':LIMIT,**runtime}
+    request={'url':url,'directory':str(directory),'stem':stem,'limit':LIMIT,
+             'python':sys.executable,'source_access':str(driver.with_name('source_access.py')),**runtime}
     # No shell or model-provided code. Own a separate process group so timeout
     # or cancellation also closes this call's Chrome children.
     process=subprocess.Popen([runtime['node'],str(driver)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,

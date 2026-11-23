@@ -152,12 +152,6 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_sour
 
 
 def translation_work(job, authority, budgets, progress):
-    import lean_timeout_policy
-    with lean_timeout_policy.scope(Path(job['root'])/'nl0-to-lean'/'lean-timeouts', budgets.serial):
-        return translation_work_scoped(job, authority, budgets, progress)
-
-
-def translation_work_scoped(job, authority, budgets, progress):
     root=Path(job['root']);original=dict(authority)
     before_native={p.name for p in (root/'native-checks').glob('*')}
     while True:

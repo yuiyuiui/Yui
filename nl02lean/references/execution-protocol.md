@@ -53,21 +53,13 @@ output ownership. User cancellation remains an explicit terminal outcome. No ada
 Omitted or null `time_budget_seconds` means unlimited whole-case execution.
 Configuration also leaves stage time limits and the total token budget null. The
 runtime does not cap model-call count or stop a healthy task because tool-result
-idle time exceeded a threshold. Local proof/helper checks start at 360 seconds.
-After each wall timeout, a source-located workload-only diagnosis permits one
-six-minute increase up to thirty minutes. Complete-file fragment, assembly,
-export, Audit B inspection and final b2lean checks start at 1,800 seconds;
-each workload-only diagnosis permits one fifteen-minute increase, up to 3,600.
-No obvious code defect after an actual whole-file examination can support that
-workload diagnosis; incomplete examination cannot. An identified code problem
-returns for repair at the current allowance. A shorter configured check limit or a
-case/stage deadline bounds the check. Each call uses the configured 20,000,000
-heartbeat budget and has no artificial per-process heap quota. A shorter
-explicit caller or remaining case/stage deadline takes precedence. A native
-timeout terminates and reaps the owned process, retains the candidate and actual
-diagnostic, and returns exit code 124 with `error_kind: LEAN_TIMEOUT` to the same
-worker. It does not cancel that worker or the case, accept the candidate, or
-establish a mathematical failure. In Yui proof workers, that result and actual
+idle time exceeded a threshold. Ordinary single-file and public-library checks allow up to twenty minutes by
+default. Partial interface probes allow one minute. Whole-file assembly,
+inspection and final b2lean use their separate configured limit. A shorter
+explicit caller, stage or case limit takes precedence. A wall timeout stops
+and reaps the owned process and returns its original output with the limit to
+the author. A new request can retry; a timed-out check never accepts a proof.
+In Yui proof workers, that result and actual
 heartbeat-exhaustion results automatically include frozen ST020 `repair_advice`.
 The original worker can consult the suggestion or use its own repair method,
 then checks the unchanged target again.

@@ -79,7 +79,7 @@ def finish(directory, out, *, context, intermediate, before_publish=None):
     source,expected,retained=render(contract,context,conditional.read_text(),
         ir.load(directory/'audit-b/assembly.json')['universe_parameters'],graph=ir.load(frozen['authority']['graph']))
     import lean_timeout_policy
-    with lean_timeout_policy.whole_file_scope(out.parent/'lean-timeouts', key='basis-closure'):
+    with lean_timeout_policy.whole_file_scope():
         checked=basis_native.check(source,[('P','YuiClosed.P',expected)],['YuiClosed.P'],out,
                                   compiled_prefix=compiled_prefix(frozen,conditional))
     if not checked['passed']:

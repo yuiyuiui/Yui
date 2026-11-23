@@ -392,7 +392,7 @@ class InterfaceStage(ArtifactStage):
         if self.mode=='interface-authoring' and self.instruction_arm=='yui' and name in {
                 'check_lean_types','check_draft','submit_draft','check_artifact','submit_artifact'}:
             from lean_timeout_policy import stage_scope
-            with stage_scope(self,kind='interface'):
+            with stage_scope(self):
                 return self._dispatch_interface(name,args)
         return self._dispatch_interface(name,args)
 
@@ -454,7 +454,8 @@ class InterfaceStage(ArtifactStage):
             from native_workspace import temporary
             with temporary('yui-interface-types-',logs=self.logs) as work:
                 (work/'input').mkdir();(work/'output').mkdir();file=work/'output/Types.lean';file.write_text(source)
-                native=ir.run_lean(file,work,timeout=self.lean_timeout());self.lean_calls+=1
+                from lean_timeout_policy import probe_seconds
+                native=ir.run_lean(file,work,timeout=probe_seconds());self.lean_calls+=1
                 destination=self.logs/'type-probes'/str(self.type_probes).zfill(4);destination.mkdir(parents=True)
                 write(destination/'input.json',args)
                 shutil.copyfile(file,destination/'Types.lean');write(destination/'compiler.json',native)

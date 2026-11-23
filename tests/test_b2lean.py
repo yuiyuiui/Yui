@@ -14,7 +14,6 @@ import basis_native
 import b2lean
 import final_acceptance
 import ir
-import lean_timeout_policy
 import pilot_common
 import workflow
 from controller_common import bind,write
@@ -118,17 +117,10 @@ class BasisDischargeTests(unittest.TestCase):
     def test_partial_valid_closure_output_after_timeout_cannot_publish_success(self):
         from execution_health import StageFailure
         partial=ir.load(self.out/'compiler.json')
-        def located(directory,source,native,budget,remaining,**kwargs):
-            line,quote=next((i,s) for i,s in enumerate(source.splitlines(),1) if s.strip())
-            return {'category':'code_issue','line':line,'quote':quote,
-                    'reason':'Synthetic located expensive elaboration in this source.',
-                    'next_action':'Repair the code and recheck at the same allowance.'}
         for code in (0,124):
             out=self.root/f'partial-timeout-{code}'
             native={**partial,'exit_code':code,'timed_out':True,'error_kind':'LEAN_TIMEOUT','timeout_scope':'native_call'}
-            with lean_timeout_policy.scope(self.root/f'timeout-evidence-{code}',None), \
-                    patch.object(pilot_common,'_run_lean',return_value=native) as run, \
-                    patch.object(lean_timeout_policy,'inspect_source',side_effect=located), \
+            with patch.object(pilot_common,'_run_lean',return_value=native) as run, \
                     self.assertRaises(StageFailure) as caught:
                 b2lean.finish(self.workflow,out,context=self.context,intermediate=self.intermediate)
             self.assertEqual(caught.exception.result['status'],'BASIS_FINAL_CLOSURE_FAILED')

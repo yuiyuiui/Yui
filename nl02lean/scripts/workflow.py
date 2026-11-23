@@ -291,10 +291,8 @@ def main():
         elif args.command=='run':result=run(args.directory,shared_store=args.shared_store,timeout_seconds=args.timeout_seconds,bank=args.bank)
         elif args.command=='audit-prepare':result=prepare_audit(args.directory)
         elif args.command=='audit-build':
-            import lean_timeout_policy
             frozen=bound(args.directory)
-            with lean_timeout_policy.scope(args.directory/'audit-b'/'lean-timeouts', None):
-                result=audit_b.build(args.directory/'audit-b',frozen_contract=frozen['contract'] if frozen.get('interface_review') else None)
+            result=audit_b.build(args.directory/'audit-b',frozen_contract=frozen['contract'] if frozen.get('interface_review') else None)
         elif args.command=='audit-check':result=finish(args.directory,args.review,machine=args.machine)
         else:result={'status':bound(args.directory)['status'],'completed_report_present':(args.directory/'report.json').exists()}
         print(json.dumps(result,ensure_ascii=False,indent=2));return 0

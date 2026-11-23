@@ -92,10 +92,8 @@ class NativeCarrier:
 
 
     def lean_timeout(self) -> float | None:
-        import lean_timeout_policy
         recorder = getattr(self,'execution',None)
-        limit = (lean_timeout_policy.ceiling() if lean_timeout_policy.active.get() is not None
-                 else __import__('runtime_config').configured_timeout('native'))
+        limit = __import__('runtime_config').configured_timeout('native')
         case_left = recorder.remaining(limit) if recorder else limit
         if self.started is not None and self.timeout is not None:
             remaining = self.started + self.timeout - time.monotonic()

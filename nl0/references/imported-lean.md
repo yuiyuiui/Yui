@@ -61,16 +61,13 @@ registers it under its original module name, and retains its source origin. Ther
 is no prerequisite build in the source project's environment. Recheck the consumer
 after registering the fixed module.
 
-For a dependency pinned with patches, pass `recipe` to `read_external_source` with
-the raw GitHub URL of the module at the base commit. Use a frozen user input ID
-for a `yui-lean-patch-recipe-1` JSON file with `repository`, `revision`, and
-ordered `patches` entries (`path`, `sha256`). Freeze the actual `.patch` files as
-inputs as well. A fixed raw GitHub build recipe may reference patches in its
-own checkout. The reader also supports a pinned `lakefile.lean` with an explicit
-`post_update` patch list and matching `lake-manifest.json` lock. It reads the
-configuration as data. Use an explicitly frozen recipe for other build layouts.
-Read and bind the patched sources before publishing that library for the first
-time. Submit author-written compatibility edits using the failed public build receipt.
+Use `read_external_source` with `git` containing the GitHub `repository`,
+full `revision`, exact `source_path`, and optional Lean `module`. Fixed GitHub
+blob and raw links also select this controlled checkout. To apply an existing
+or newly written diff, supply its complete text in the ordered `patches` list.
+Use the same patch list for files from that checkout. Lake configuration is
+read as data. The submitted source and its compiled files are used in review
+and delivery.
 
 Follow compiler, import and fetch diagnostics through `check_imported_lean`.
 A failed dependency leaves the author working. An unchanged candidate that

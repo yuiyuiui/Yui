@@ -35,15 +35,12 @@ model, new premise or mandatory lookup of every familiar declaration is needed.
    the small check succeeds, integrate the result and recheck the complete
    obligation; success of a helper alone does not accept the target.
 
-5. **Diagnose a bounded check.** Translation starts a native check with six
-   minutes and the controller-owned 20,000,000 heartbeat budget. After an actual
-   native wall timeout a reviewer inspects the exact source and compiler output.
-   A located implementation problem returns to the author for a targeted edit at
-   the current allowance. A workload-only diagnosis authorizes the same source
-   for six more minutes on its next attempt, up to thirty minutes per call.
-   Uncertain diagnoses retain the allowance and request a smaller diagnostic.
-   A heartbeat error goes straight to local repair. Explicit shorter deadlines
-   continue to apply. Only a successful native check can accept the candidate.
+5. **Diagnose a bounded check.** Ordinary single-file checks allow twenty
+   minutes by default. The partial type probe has a one-minute cap. On a wall
+   timeout or heartbeat failure, use the original compiler output to isolate
+   the expensive declaration or application. Retry the same candidate when a
+   transient interruption warrants it. Shorter stage and case deadlines apply.
+   Only a successful native check can accept the candidate.
 
 A proof worker first checks a draft of the whole transition. Use
 `dispatch_helpers` with the failed candidate number, each missing statement,

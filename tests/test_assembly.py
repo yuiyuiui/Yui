@@ -11,7 +11,6 @@ import assembly
 import audit_b
 import ir
 import lean_names
-import lean_timeout_policy
 import pilot_common
 from audit_b_fixtures import fixture
 
@@ -36,7 +35,7 @@ class AssemblyTests(unittest.TestCase):
         with patch.object(pilot_common,'_run_lean',side_effect=controlled):
             result=audit_b.build(out)
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-PASSED')
-        self.assertIn(('Check.lean',360),calls)
+        self.assertIn(('Check.lean',1200),calls)
         compiled = [row for row in calls if row[0].startswith('YuiProof')]
         self.assertEqual(len(compiled),1)
         self.assertEqual(compiled[0][1],1800)
@@ -57,20 +56,14 @@ class AssemblyTests(unittest.TestCase):
             if Path(file).name=='Audit.lean':
                 return {**partial,'exit_code':124,'timed_out':True,'error_kind':'LEAN_TIMEOUT','timeout_scope':'native_call'}
             return actual(file,work,**kwargs)
-        def located(directory,source,native,budget,remaining,**kwargs):
-            line,quote=next((i,s) for i,s in enumerate(source.splitlines(),1) if s.strip())
-            return {'category':'code_issue','line':line,'quote':quote,
-                    'reason':'Synthetic located timeout in the retained source.',
-                    'next_action':'Return to the connection author at the same allowance.'}
-        with patch.object(pilot_common,'_run_lean',side_effect=controlled), \
-                patch.object(lean_timeout_policy,'inspect_source',side_effect=located):
+        with patch.object(pilot_common,'_run_lean',side_effect=controlled):
             result=audit_b.build(out)
         self.assertEqual(result['assembly'],'ASSEMBLY-PASSED')
         self.assertEqual(result['inspection'],'KERNEL_INSPECTION_FAILED')
         self.assertEqual(result['status'],'AUDIT-B-MECHANICAL-FAILED')
         self.assertFalse(ir.load(out/'mechanical.json')['passed'])
         self.assertTrue(ir.load(out/'compiler.json')['timed_out'])
-        self.assertEqual(ir.load(out/'compiler.json')['timeout_reviews'][-1]['next_seconds'],1800)
+        self.assertEqual(ir.load(out/'compiler.json')['stdout'],partial['stdout'])
         import final_acceptance
         with self.assertRaisesRegex(ValueError,'Proof integrity failed'):
             final_acceptance.proof_integrity(out)

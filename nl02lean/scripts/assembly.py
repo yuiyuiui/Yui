@@ -71,7 +71,7 @@ def build(c, mapping, formal, out, work, *, checks=()):
     out, work = Path(out), Path(work)
     source = formal + export_source(c, mapping)
     (out/'Proof.lean').write_text(source)
-    with lean_timeout_policy.whole_file_scope(out/'lean-timeouts', key='assembly-export'):
+    with lean_timeout_policy.whole_file_scope():
         native, module = helper_modules.compile_proof_module(source, checks, out, work)
     found = re.findall(r'YUI_ASSEMBLY_LEVELS_JSON:(\{[^\n]*\})', native['stdout'])
     levels = json.loads(found[-1]) if found else None

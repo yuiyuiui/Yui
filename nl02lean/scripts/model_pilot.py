@@ -250,7 +250,7 @@ class Stage(carrier.NativeCarrier):
                'submit_interface':'interface', 'check_interface':'interface'}.get(name, name)
         if name == 'check_auxiliary' and self.mode == 'proof':
             key = args.get('replace') or f'yui_aux_{len(self.local_helpers)+1:04d}'
-        with lean_timeout_policy.stage_scope(self, key):
+        with lean_timeout_policy.stage_scope(self):
             return self.dispatch_tool(name, args)
 
     def dispatch_tool(self, name, args):

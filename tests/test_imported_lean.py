@@ -613,57 +613,41 @@ class ImportedLeanTests(unittest.TestCase):
              '+theorem consumer (n : Nat) : n + 0 = n := base n\n end Lib\n'
              'diff --git a/lean-toolchain b/lean-toolchain\n--- a/lean-toolchain\n+++ b/lean-toolchain\n'
              '@@ -1 +1 @@\n-old-pin\n+upstream-pin\n')
-        recipe={'version':'yui-lean-patch-recipe-1','repository':repo[0],'revision':repo[2],
-                'patches':[{'path':name,'sha256':hashlib.sha256(text.encode()).hexdigest()}
-                           for name,text in [('create.patch',create),('fix.patch',fix)]]}
-        return repo,recipe,create,fix
+        return repo,create,fix
 
     def prepare_patch_delivery(self):
-        import basis_review
         import delivery
-        repo,recipe,create,fix=self.patch_fixture()
-        recipe_file=self.root/'recipe.json';write(recipe_file,recipe)
-        source_paths=[self.root/'create.patch',self.root/'fix.patch']
-        for path,data in zip(source_paths,[create,fix]):
-            path.write_text(data)
-        bad=deepcopy(recipe);bad['patches'][0]['sha256']='0'*64
-        bad_file=self.root/'bad.json';write(bad_file,bad)
-        run=self.public_job(unconditional=True,materials=[recipe_file,*source_paths,bad_file])
+        repo,create,fix=self.patch_fixture()
+        run=self.public_job(unconditional=True)
         stage=self.basis_stage(run,name='patch-probe')
-        _,transport=self.local_git_transport(repo)
-        url=f'https://raw.githubusercontent.com/example/{repo[1].name}/{repo[2]}/Lib/'
-        with transport,lean_libraries.generated(run/'imported-lean'):
-            for candidate,message in [('author-created.json','frozen'),('material-004.json','digest')]:
-                write(stage.logs/'author-created.json',recipe)
-                refused=stage.dispatch('read_external_source',{'url':url+'Base.lean','recipe':candidate})
-                self.assertIn(message,refused.get('error','').lower(),refused)
-                self.assertEqual(lean_libraries.current(),[])
-            for name in ['Base','Consumer']:
-                raw=stage.dispatch('read_external_source',{'url':url+name+'.lean','recipe':'material-001.json'})
+        calls,transport=self.local_git_transport(repo)
+        locator={'repository':repo[0],'revision':repo[2]}
+        with transport,lean_libraries.generated(run/'imported-lean'), \
+                patch('source_access.public_url',side_effect=AssertionError('Fixed Git should not use web validation')):
+            for name in ('Base','Consumer'):
+                module='Lib.'+name
+                git={**locator,'source_path':f'Lib/{name}.lean','module':module}
+                raw=stage.dispatch('read_external_source',{'git':git,'patches':[create,fix]})
                 self.assertEqual(raw.get('status'),'READABLE',raw)
+                self.assertEqual(raw['origin'],'controller_git')
                 self.assertNotIn('unknownOriginal',raw['content'])
                 compiled=stage.dispatch('check_imported_lean',{'source':{'evidence':raw['primary_evidence_candidates'][0]},
-                    'bind_public':True,'module':'Lib.'+name})
-                self.assertEqual(compiled.get('import'),'import Lib.'+name,compiled)
-            registered=lean_libraries.binding()[0]
-            self.assertTrue(json.loads(Path(registered['manifest']['path']).read_text())['patches'])
+                    'bind_public':True})
+                self.assertEqual(compiled.get('import'),'import '+module,compiled)
+                receipt=compiled['public_library']
+                native=json.loads(Path(receipt['checks'][module]['path']).read_text())
+                self.assertEqual(native['native_limits']['timeout_seconds'],1200)
+            self.assertEqual(calls,[(repo[0],repo[2])])
         program=harness_support.TESTS/'tooling/basis_path_control.py'
         out=subprocess.run([sys.executable,'-B',str(program),str(run/'job.json'),'planned-closed+port'],
                            capture_output=True,text=True,timeout=900)
         self.assertEqual(out.returncode,0,(out.stdout+out.stderr)[-5000:])
-        review=run/'2basis/0001/review/inputs'
-        packet=json.loads((review/basis_review.PACKET).read_text())
-        evidence=packet['patches']['Lib']
-        self.assertEqual(evidence['authority']['kind'],'USER_FROZEN')
-        self.assertEqual(evidence['revision'],repo[2])
-        for ref in evidence['files'].values():
-            self.assertEqual(bind(review/ref['input'])['sha256'],ref['sha256'])
-        for ref in evidence['modules'].values():
-            self.assertEqual(bind(review/ref['input'])['sha256'],ref['sha256'])
-        self.assertIn(':= base n',(review/evidence['modules']['Lib.Consumer']['input']).read_text())
+        import b2lean
+        with lean_libraries.generated(run/'imported-lean'):
+            self.assertTrue(b2lean.validate_receipt(run/'b2lean')['closure']['unconditional'])
         self.assertEqual(delivery.verify(run/'delivery')['scope'],'UNCONDITIONAL_LEAN')
 
-    def test_pinned_patch_source_reaches_review_and_durable_delivery(self):
+    def test_author_text_patches_reach_review_and_durable_delivery(self):
         import cleanup
         import delivery
         fixture=self.root/'patch-delivery';fixture.mkdir()
@@ -675,63 +659,37 @@ class ImportedLeanTests(unittest.TestCase):
         delivered=run/'delivery'
         self.assertEqual({p.name for p in run.iterdir()},{'delivery'})
         library=delivered/'formalization/lean-libraries/Lib'
-        changes=list((library/'patches').glob('*.patch'))
-        self.assertEqual(len(changes),2)
-        for path in [*changes,library/'source/Lib/Consumer.lean']:
-            original=path.read_bytes()
-            path.unlink()
-            with self.assertRaises((OSError,ValueError)):
-                delivery.verify(delivered)
-            path.write_bytes(original+b'changed\n')
-            with self.assertRaises(ValueError):
-                delivery.verify(delivered)
-            path.write_bytes(original)
+        source=library/'source/Lib/Consumer.lean'
+        original=source.read_text()
+        self.assertIn(':= base n',original)
+        self.assertFalse((library/'patches').exists())
+        source.write_text(original+'-- changed\n')
+        with self.assertRaises(ValueError):delivery.verify(delivered)
+        source.write_text(original)
         self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
 
-    def test_upstream_fixed_build_recipe_can_authorize_but_a_bare_patch_cannot(self):
-        repo,recipe,create,fix=self.patch_fixture()
-        upstream=self.git_source('build-recipe',{'build/recipe.json':json.dumps(recipe),
-                                                   'build/create.patch':create,'build/fix.patch':fix})
+    def test_git_reads_unusual_fixed_paths_and_never_executes_lake(self):
+        import source_access
         run=self.public_job()
-        stage=self.basis_stage(run,name='upstream-patch-probe')
-        _,transport=self.local_git_transport(repo,upstream)
-        url=f'https://raw.githubusercontent.com/example/{repo[1].name}/{repo[2]}/Lib/Base.lean'
-        pinned=f'https://raw.githubusercontent.com/example/{upstream[1].name}/{upstream[2]}/build/'
-        with transport,lean_libraries.generated(run/'imported-lean'):
-            wrong=stage.dispatch('read_external_source',{'url':url,'recipe':pinned+'create.patch'})
-            self.assertIn('recipe',wrong.get('error','').lower(),wrong)
-            accepted=stage.dispatch('read_external_source',{'url':url,'recipe':pinned+'recipe.json'})
-            self.assertEqual(accepted.get('status'),'READABLE',accepted)
-            result=stage.dispatch('check_imported_lean',{'source':{'evidence':accepted['primary_evidence_candidates'][0]},
-                'bind_public':True,'module':'Lib.Base'})
-            self.assertTrue(result.get('accepted_for_native_reuse'),result)
-            self.assertEqual(result['public_library']['origin']['patch_authority']['kind'],'UPSTREAM_BUILD')
-
-    def test_upstream_lake_patch_lock_is_read_without_executing_its_script(self):
-        repo,_,create,fix=self.patch_fixture()
-        config=('post_update pkg do\n'
-                '  for name in #[`Other, `«base-to-patch»] do\n'
-                '    let patchNames := #[s!"{label}-compat.patch"]\n'
-                '    for patchName in patchNames do\n'
-                '      let patch := pkg.dir / "patches" / FilePath.mk patchName\n'
-                '      this deliberately cannot elaborate\n')
-        lock={'packages':[{'type':'git','name':'base-to-patch','url':repo[0],'rev':repo[2]}]}
-        upstream=self.git_source('lake-patch',{'lean/lakefile.lean':config,'lean/lake-manifest.json':json.dumps(lock),
-                                              'lean/patches/base-to-patch-compat.patch':create+fix})
-        run=self.public_job()
-        stage=self.basis_stage(run,name='lake-patch-probe')
-        _,transport=self.local_git_transport(repo,upstream)
-        url=f'https://raw.githubusercontent.com/example/{repo[1].name}/{repo[2]}/Lib/Consumer.lean'
-        pinned=f'https://raw.githubusercontent.com/example/{upstream[1].name}/{upstream[2]}/lean/lakefile.lean'
-        with transport,lean_libraries.generated(run/'imported-lean'):
-            accepted=stage.dispatch('read_external_source',{'url':url,'recipe':pinned})
-            self.assertEqual(accepted.get('status'),'READABLE',accepted)
-            result=stage.dispatch('check_imported_lean',{'source':{'evidence':accepted['primary_evidence_candidates'][0]},
-                'bind_public':True,'module':'Lib.Consumer'})
-            self.assertEqual(result.get('import'),'import Lib.Consumer',result)
-            root=Path(result['library']['root'])
-            self.assertEqual((root/'patches/lakefile.lean').read_text(),config)
-            self.assertEqual(json.loads((root/'patches/lake-manifest.json').read_text()),lock)
+        stage=self.basis_stage(run,name='lake-as-data')
+        path='notes 日本語/[data] #1.patch'
+        raw='The exact fixed source.\n'
+        script='This deliberately cannot execute as a Lake script.\n'
+        repo=self.git_source('fixed-source',{
+            path:raw,'lakefile.lean':script,
+            'Lib/Base.lean':'import Init\ntheorem fixedGitExample : True := trivial\n',
+        })
+        _,transport=self.local_git_transport(repo)
+        git={'repository':repo[0],'revision':repo[2],'source_path':path}
+        with transport,lean_libraries.generated(run/'imported-lean'), \
+                patch.object(source_access,'public_url',side_effect=AssertionError):
+            self.assertEqual(stage.dispatch('read_external_source',{'git':git})['content'],raw)
+            for escape in ('../secret','/etc/passwd','.git/config'):
+                failed=stage.dispatch('read_external_source',{'git':{**git,'source_path':escape}})
+                self.assertIn('relative path',failed['error'])
+            base=stage.dispatch('read_external_source',{'git':{**git,'source_path':'Lib/Base.lean','module':'Lib.Base'}})
+            checked=stage.dispatch('check_imported_lean',{'source':{'evidence':base['primary_evidence_candidates'][0]},'bind_public':True})
+            self.assertEqual(checked.get('import'),'import Lib.Base',checked)
 
     def test_vendored_hyphenated_source_path_builds_declared_library(self):
         run = self.public_job()

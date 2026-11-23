@@ -3,8 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import dns from 'node:dns/promises';
-import net from 'node:net';
+import {execFile} from 'node:child_process';
 
 let input='';
 for await(const chunk of process.stdin){input+=chunk;if(input.length>16384)throw Error('Oversized browser request');}
@@ -12,21 +11,14 @@ const request=JSON.parse(input);
 const {chromium}=await import(pathToFileURL(request.module).href);
 const prefix=path.join(request.directory,request.stem);
 const hosts=new Map();
-function globalAddress(ip){
-  if(net.isIP(ip)===4){
-    const [a,b,c]=ip.split('.').map(Number);
-    return !(a===0||a===10||a===127||a>=224||(a===100&&b>=64&&b<=127)||
-      (a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===168||b===0||b===2))||
-      (a===198&&(b===18||b===19||(b===51&&c===100)))||(a===203&&b===0&&c===113));
-  }
-  return net.isIP(ip)===6 && /^[23]/.test(ip) && !/^2001:(?:db8|0):/i.test(ip);
-}
 async function publicRequest(url){
   const u=new URL(url);
-  if(u.protocol!=='https:'||u.username||u.password||(u.port&&u.port!=='443'))return false;
-  const host=u.hostname.replace(/^\[|\]$/g,'');
-  if(!hosts.has(host))hosts.set(host,dns.lookup(host,{all:true}).then(rows=>rows.length>0&&rows.every(r=>globalAddress(r.address))).catch(()=>false));
-  return await hosts.get(host);
+  if(u.protocol!=='https:'||u.username||u.password)return false;
+  const origin=u.origin;
+  if(!hosts.has(origin))hosts.set(origin,new Promise(resolve=>{
+    execFile(request.python,['-B',request.source_access,'--check-url',origin],{timeout:5000},error=>resolve(!error));
+  }));
+  return await hosts.get(origin);
 }
 let browser;
 for(const name of ['SIGTERM','SIGINT'])process.once(name,async()=>{

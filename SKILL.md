@@ -95,19 +95,13 @@ replaces independent source/interface review or final dependency discharge.
 For substantial imported code, use the executable [local-first check and port
 workflow](nl0/references/imported-lean.md) before rewriting it.
 Only current-format jobs with their own runtime snapshots are supported.
-Interface authoring checks start at one minute. A workload-only diagnosis
-permits the next allowance of three minutes, then six, then six-minute
-increases up to thirty minutes. Local proof and helper checks start at six
-minutes and use six-minute increases up to thirty. Complete-file nl02lean
-assembly/export/inspection and final b2lean checks start at thirty minutes;
-a workload-only diagnosis raises that allowance by fifteen minutes, up to sixty.
-Each native wall timeout receives a source-located diagnosis. A code defect
-returns for repair at the current allowance; an incomplete diagnosis grants no
-increase. Timed-out checks remain unaccepted even if partial output looks valid.
-Whole-case and stage deadlines remain binding. Workers check helpers
-individually and submit the complete composition to Lean. Failed wall/heartbeat
-checks in interface authoring, local proofs and helpers also receive the
-locally stored ST020 repair advice.
+The default single-file and public-library module check allows twenty minutes.
+Partial interface probes keep a one-minute cap. Complete-file assembly,
+Audit B inspection and final b2lean closure use the separate whole-file setting.
+A wall timeout returns the original compiler output and limit to the same author.
+The author can retry after reviewing that diagnostic. Case and stage deadlines
+continue to apply, and partial output cannot accept a timed-out check. Failed
+wall or heartbeat checks can include the locally stored ST020 repair advice.
 Foundation and Lean authors can browse their respective strategy banks on demand
 or proceed directly to submission. See [strategy lookup](nl02lean/references/obstacle-routing.md).
 Follow [fault treatment and authorized exit](nl0/references/error-lifecycle.md).
@@ -153,8 +147,6 @@ It requires an unlimited normal unconditional job, explicit cancellation and
 verified process exits, and unchanged bound evidence. It writes a fresh owned
 run, repeats no proof authoring or semantic audit, and preserves all residual assumptions and source
 qualifications. See [final closure recovery](README.md#final-closure-and-recovery).
-An actual native wall timeout can invoke the source-located diagnostic role
-before a bounded retry; its model usage is recorded separately from semantic review.
 
 Normal translation requires a separate independent semantic interface review
 before freezing and proof dispatch. Normal final Audit B is machine-only: verify

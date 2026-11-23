@@ -27,22 +27,11 @@ machine acceptance only when the actual final artifact still matches it.
 
 ## Local proof work
 
-Each node has its own retained author. Ordinary compiler/API/tactic feedback stays
-with that author. A native wall timeout retains the candidate and receives a
-source-located diagnosis. Only a workload-only finding increases the next
-allowance by six minutes (maximum thirty). Code defects and uncertain causes
-return to the author at the current allowance. Native wall or heartbeat exhaustion
-can attach ST020 as an optional reference. The author chooses how to repair the
-proof and rechecks the original target. There is no total
-case, token, call, repair-round or turn allowance by default.
-
-Complete-file fragment/assembly/export, Audit B inspection and final b2lean
-checks use a separate 30/45/60-minute ladder. Every wall timeout retains the
-exact source and compiler output for a located diagnosis. A workload-only
-finding permits the next fifteen-minute increase; a located code defect returns
-for repair and retains the current allowance. An incomplete diagnosis does not
-permit an increase. Sixty minutes is final. Partial successful-looking compiler
-or inspector output never makes a timed-out check pass.
+Each node has its own retained author. Native errors and wall timeouts return
+the original compiler output to that author. Each request runs one native
+check. Read the output, consult ST020 if useful, and retry the unchanged target
+with the same or revised candidate. Whole-file closure uses its own configured
+limit. A timeout preserves the candidate for repair.
 
 `report_proof_obstruction` requests a diagnosis; it does not itself finish the
 node. The original author waits for this tool result, releases its active model
