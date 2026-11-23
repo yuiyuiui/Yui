@@ -64,35 +64,9 @@ def verify_basis_decision(root, receipt, action):
     return event
 
 
-def verify_dependency_exhaustion(root, receipt):
-    from lean_imports import DEPENDENCY_LIMIT,UNFINISHED,dependency_key
-    root=Path(root).resolve();path=Path(receipt['path'])
-    if (path.resolve()!=path or not path.is_relative_to(root)
-            or not re.fullmatch(r'2basis/[0-9]{4,}/stage/lean-dependency-exhausted\.json',path.relative_to(root).as_posix())
-            or bind(path)!=receipt):
-        raise ValueError('Changed or foreign Lean dependency outcome')
-    result=json.loads(path.read_bytes()); attempts=result['attempts']
-    if (result['version']!=UNFINISHED or result['job']!=bind(root/'job.json') or len(attempts)!=DEPENDENCY_LIMIT
-            or len({item['path'] for item in attempts})!=DEPENDENCY_LIMIT):
-        raise ValueError('Incomplete Lean dependency attempt record')
-    for item in attempts:
-        attempt=Path(item['path'])
-        if (attempt.resolve()!=attempt or attempt.parent.parent!=path.parent/'imported-lean' or attempt.name!='result.json'
-                or not re.fullmatch(r'request-[0-9a-f]{32}',attempt.parent.name) or bind(attempt)!=item):
-            raise ValueError('Changed or foreign Lean dependency attempt')
-        last=json.loads(attempt.read_bytes())
-        if dependency_key(last)!=result['dependency']:raise ValueError('Changed Lean dependency identity')
-    if last['diagnostics']!=result['diagnostics']:raise ValueError('Changed Lean dependency diagnostic')
-    return result
-
-
 def terminal(root, outcome):
     if not isinstance(outcome,dict) or not isinstance(outcome.get('status'),str):return False
     status = outcome['status']
-    if status=='UNFINISHED_LEAN_DEPENDENCY':
-        try:verify_dependency_exhaustion(root,outcome['dependency_exhaustion'])
-        except (KeyError,TypeError,ValueError,OSError):return False
-        return True
     if status == 'STOPPED_BY_USER':
         try:
             verify_basis_decision(root, outcome['user_decision'], 'stop')

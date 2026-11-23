@@ -105,41 +105,47 @@ class BasisCaseBatchTests(unittest.TestCase):
             write(control,{**ir.load(control),'action':'continue'})
             self.assertFalse(case_outcomes.terminal(first,outcome))
 
-    def test_external_dependency_exhaustion_preserves_work_and_releases_the_real_batch_slot(self):
+    def test_external_dependency_repair_continues_past_three_failures(self):
         import case_outcomes
         from controller_common import write
+        import json
         import test_imported_lean
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw).resolve()
             fixture=test_imported_lean.ImportedLeanTests();fixture.root=root
-            source='import MissingDep.Base\nexample : True := trivial\n'
-            remote,repository,revision=fixture.git_source('budget-source',{'Budget/Blocked.lean':source})
+            remote,repository,revision=fixture.git_source('budget-source',{
+                'Budget/Blocked.lean':'import Dep.Base\nexample : True := by exact missingOriginal\n',
+                'Dep/Base.lean':'import Init\ntheorem externalSupport : True := trivial\n',
+            })
             write(root/'dependency-fixture.json',{'remote':remote,'checkout':str(repository),'revision':revision})
             healthy=root/'healthy.lean';healthy.write_text('import Init\ntheorem independentFoundation : True := trivial\n')
             selected=[]
             for label in ('affected','independent'):
                 problem=root/(label+'.md');problem.write_text(TARGET)
                 selected.append(jobs.prepare(problem,track='full',formalization='unconditional',output=root/label,
-                    profiles=harness_support.PROFILES,max_concurrency=1,time_budget_seconds=240,
+                    profiles=harness_support.PROFILES,max_concurrency=1,time_budget_seconds=420,
                     target=target_selection.resolve(problem,requested=TARGET),materials=[healthy]))
-            (run,result),(other,independent)=self.batch(root,['dependency-exhaustion','stop'],selected)
-            self.assertEqual(result['status'],'UNFINISHED_LEAN_DEPENDENCY',result)
-            self.assertFalse(result['completion']['acceptance_target_satisfied'])
+            (run,result),(other,independent)=self.batch(root,['dependency-repair','stop'],selected)
+            self.assertEqual(result['status'],'WORKFLOW-PASSED',result)
             self.assertTrue(case_outcomes.terminal(run,result),result)
             self.assertFalse(case_outcomes.terminal(other,result))
-            replay=ir.load(result['dependency_exhaustion']['path'])
-            self.assertEqual(replay['dependency']['module'],'Budget.Blocked')
-            self.assertEqual(len(replay['attempts']),3)
-            self.assertIn('MissingDep.Base',replay['diagnostics']['current'])
-            self.assertTrue(ir.load(run/'imported-lean/index.json')['entries'])
-            self.assertTrue((run/'2basis/0001/candidates/0001/basis.json').is_file())
-            self.assertEqual(independent['status'],'STOPPED_BY_USER',independent)
+            stage=run/'2basis/0001/stage'
+            calls=[row['result'] for row in map(json.loads,(stage/'tools.jsonl').read_text().splitlines())
+                   if row['tool']=='check_imported_lean']
+            self.assertEqual(calls[1]['public_library']['missing_module'],'Dep.Base')
+            self.assertEqual(calls[3]['status'],'PUBLIC_LEAN_BUILD_FAILED')
+            self.assertIn('missingOriginal',calls[3]['diagnostics']['current'])
+            failures=[row for row in calls[4:] if row['status']=='PUBLIC_LEAN_BUILD_FAILED']
+            self.assertEqual(len(failures),5)
+            self.assertEqual(failures[0]['public_library']['receipt'],failures[1]['public_library']['receipt'])
+            self.assertTrue(failures[1]['current_cache_reused'])
+            self.assertEqual(sum(row['current_cache_reused'] for row in failures),1)
+            self.assertEqual(calls[-1]['import'],'import Budget.Blocked')
+            self.assertTrue(any(entry['library']['name'].startswith('YuiImported')
+                                for entry in ir.load(run/'imported-lean/index.json')['entries']))
+            self.assertEqual(independent['status'],'STOPPED_BY_USER')
             self.assertTrue(ir.load(run/'batch-result.json')['children_exited'])
             self.assertFalse(fault_control.pending(run))
-            self.assertFalse((run/'logs/batch-errors/error-state.json').exists())
-            stage=run/'2basis/0001/stage'
-            self.assertEqual(ir.load(stage/'resources/release.json')['authorization'],'DEPENDENCY_EXHAUSTED')
-            self.assertEqual(ir.load(run/'execution-status.json')['controller']['state'],'FINALIZED')
 
     def test_review_repair_and_all_positive_routes_reach_the_final_export(self):
         for mode in ('continue','accept-conditional','mismatch'):

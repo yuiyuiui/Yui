@@ -73,10 +73,9 @@ Read and bind the patched sources before publishing that library for the first
 time. Submit author-written compatibility edits using the failed public build receipt.
 
 Follow compiler, import and fetch diagnostics through `check_imported_lean`.
-Three unsuccessful checks of the same fixed public module in the same selected
-environment end that case with its diagnostics and independent work preserved.
-Continue another foundation or select a checked alternative before exhausting
-these checks. `wait_for_lean_dependency` accepts an outstanding receipt that
+A failed dependency leaves the author working. An unchanged candidate that
+failed deterministically returns its previous diagnostic. Continue another
+foundation or select a checked alternative. `wait_for_lean_dependency` accepts an outstanding receipt that
 requests access authorization or approval of a genuinely unavailable declared
 upstream pair. After addressing that action, the operator uses `resume-error`
 for the incident and the author rechecks the dependency. Use

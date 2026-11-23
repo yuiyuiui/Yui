@@ -550,9 +550,6 @@ class ArtifactStage(pilot.Stage):
                 if self.mode=='basis-frontier' and args.get('candidate') is not None:
                     raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
                 result=lean_imports.check(self,allow_publish=self.imported_lean_publication,**args)
-                import lean_libraries
-                if self.mode=='basis-authoring' and lean_libraries.generated_root() is not None:
-                    result=lean_imports.record_dependency_attempt(self,result)
             elif name=='read_imported_lean_failure':
                 import lean_imports
                 result=lean_imports.read_public_failure(self,**args)

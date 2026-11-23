@@ -19,8 +19,6 @@ import runtime_config
 _SPEC=spec_from_file_location('yui_imported_lean_rules',Path(__file__).resolve().parents[2]/'workflow/blocks/imported_lean.py')
 rules=module_from_spec(_SPEC);_SPEC.loader.exec_module(rules)
 VERSION=rules.VERSION
-DEPENDENCY_LIMIT=3
-UNFINISHED='UNFINISHED_LEAN_DEPENDENCY'
 
 FOLLOW_UP = {
     'LOCAL_CHECK_INCOMPLETE': 'Inspect the native diagnostic and retry the same local check after addressing the failure.',
@@ -78,43 +76,6 @@ def dependency_followup(log):
             pending[label]={**{key:result[key] for key in ('status','diagnostics','next_action','public_library',
                                                          'upstream_public_library','operator_action') if key in result},'receipt':receipt}
     return pending
-
-
-def dependency_key(result):
-    public=result.get('public_library')
-    if not public or 'origin' not in public or result.get('accepted_for_native_reuse') or result.get('operator_action'):return None
-    if result['status'] not in {'PUBLIC_SOURCE_FETCH_FAILED','PUBLIC_LEAN_BUILD_FAILED',
-                               'PUBLIC_LEAN_DEPENDENCY_REQUIRED','COMPATIBILITY_PORT_REQUIRED','PORT_CHECK_FAILED'}:
-        return None
-    origin=public['origin'];module=public.get('module') or origin.get('expected_module')
-    if not module:return None
-    return {'module':module,'repository':origin['repository'],'revision':origin['revision'],
-            'patch_order':origin.get('patch_order',[]),'environment':public['environment']}
-
-
-def record_dependency_attempt(stage,result):
-    key=dependency_key(result)
-    if key is None:return result
-    log=stage.logs/'tools.jsonl';receipt=result['receipt'];previous={}
-    if log.is_file():
-        for call in map(json.loads,log.read_text().splitlines()):
-            if call['tool']!='check_imported_lean':continue
-            reply=call['result']
-            if reply.get('dependency_attempt',{}).get('dependency')!=key:continue
-            old=reply['receipt'];verify_bindings([old])
-            if dependency_key(json.loads(Path(old['path']).read_bytes()))!=key:
-                raise ValueError('Changed Lean dependency attempt')
-            previous[old['path']]=old
-    previous[receipt['path']]=receipt
-    result['dependency_attempt']={'dependency':key,'used':len(previous),'limit':DEPENDENCY_LIMIT}
-    if len(previous)>=DEPENDENCY_LIMIT:
-        from fault_control import run_root
-        path=stage.logs/'lean-dependency-exhausted.json'
-        write(path,{'version':UNFINISHED,'job':bind(run_root(stage.logs)/'job.json'),'dependency':key,
-                    'attempts':list(previous.values()),'diagnostics':result['diagnostics']})
-        stage.accepted={'status':UNFINISHED,'dependency_exhaustion':bind(path)}
-        result.update(status=UNFINISHED,stage_complete=True,dependency_exhaustion=bind(path))
-    return result
 
 
 def access_request(log,receipt):
@@ -354,13 +315,27 @@ def publish_checked(check,root):
     return publish_library(path,root,check['receipt'])
 
 
+def deterministic_candidate_error(result):
+    if result['status']!='PUBLIC_LEAN_BUILD_FAILED':
+        return False
+    ref=result.get('trust_diagnostic') or result['checks'].get(result.get('failed_module'))
+    if ref is None:
+        return result['diagnostic'].startswith(('Source policy failed','Malformed import header'))
+    native=json.loads(Path(ref['path']).read_bytes())
+    return (native.get('exit_code')==1 and not native.get('timed_out') and not native.get('cancelled')
+            and not native.get('error_kind'))
+
+
 def public_context(stage, request, origin, environment, attachments, *, publish, candidate=None, prior=()):
     """Acquire and compile a known dependency before escalating at the author boundary."""
     import public_lean
     from execution_state import current
     identity=environment_identity(environment)
     libraries=[{'name':row['name'],'manifest_sha256':row['manifest']['sha256']} for row in attachments]
-    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,libraries,candidate])
+    key=[origin,identity,libraries,candidate]
+    if candidate is not None:
+        key += [runtime_config.configured_timeout('native'),runtime_config.native_heartbeats()]
+    directory=stage.logs/'imported-lean'/'public-builds'/hashed(key)
     directory.parent.mkdir(parents=True,exist_ok=True)
     owned=lean_libraries.generated_root()
     root=Path(owned).resolve() if publish else None
@@ -374,18 +349,20 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
         fcntl.flock(lock,fcntl.LOCK_EX)
         with runtime_config.use_environment(environment),lean_libraries.use(attachments),lean_libraries.generated(None):
             directory.mkdir(exist_ok=True)
+            recorder,task=current()
+            if recorder:recorder.check(task)
             saved=directory/'result.json'
             if saved.is_file():
                 ref=json.loads(saved.read_bytes())['result'];verify_bindings([ref])
-                result={**json.loads(Path(ref['path']).read_bytes()),'receipt':ref}
+                result={**json.loads(Path(ref['path']).read_bytes()),'receipt':ref,'cache_reused':True}
                 if result['origin']!=origin or result['environment']!=identity:
                     raise ValueError('Changed public Lean build provenance')
             else:
-                recorder,_=current()
                 limit=recorder.remaining(1800) if recorder else 1800
                 result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit,
                                          source_cache=source_cache,previous_entries=existing,candidate=candidate)
-                if result['status']=='PUBLIC_LEAN_READY':
+                if (result['status']=='PUBLIC_LEAN_READY'
+                        or (candidate is not None and deterministic_candidate_error(result))):
                     write(saved,{'result':result['receipt']})
             if result['status']=='PUBLIC_LEAN_ALREADY_BOUND':
                 return result,[result['bound']['library']]
@@ -474,7 +451,7 @@ def check_public(stage, request, source, pin, selected, attached, candidate):
     built,descriptors=public_context(stage,request,pin,selected,attached,publish=True,candidate=candidate)
     result.update(status=built['status'],public_library=built,diagnostics={'current':built['diagnostic']},
                   current_check=built.get('receipt'),
-                  current_cache_reused=built['status']=='PUBLIC_LEAN_ALREADY_BOUND')
+                  current_cache_reused=built.get('cache_reused',False) or built['status']=='PUBLIC_LEAN_ALREADY_BOUND')
     if descriptors:
         [descriptor]=descriptors
         module=built['module']
@@ -486,8 +463,10 @@ def check_public(stage, request, source, pin, selected, attached, candidate):
     else:
         if 'failure_origin' in built:
             source={'failure':built['receipt']}
-        result['next_action']={'source':source,
-            'instruction':'Use the actual dependency diagnostic or revise the retained module and check it here.'}
+        action='Use the actual dependency diagnostic or revise the retained module and check it here.'
+        if candidate is not None and built.get('cache_reused'):
+            action='Unchanged candidate and compiler inputs. Returning the previous diagnostic. Revise the module or continue another dependency.'
+        result['next_action']={'source':source,'instruction':action}
     return result
 
 

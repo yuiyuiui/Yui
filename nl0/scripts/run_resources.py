@@ -17,8 +17,7 @@ from execution_state import atomic, identity, capture_process
 MARKER = '.yui-workspace-owner.json'
 SCHEMA = 'yui-workspace-owner-1'
 CORE = Path(__file__).resolve().parents[2]
-RELEASE_AUTHORIZATIONS = {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED','CASE_PAUSED',
-                          'DEPENDENCY_EXHAUSTED'}
+RELEASE_AUTHORIZATIONS = {'AUDIT_A_FINALIZED','WORKFLOW_FINALIZED','USER_CANCELLED','ROLE_COMPLETED','CASE_PAUSED'}
 
 
 def check_cleanup_lock(output):

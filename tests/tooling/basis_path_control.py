@@ -216,21 +216,39 @@ def review_value(stage):
 def scripted(stage):
     if stage.mode=='basis-authoring':
         revision=stage.logs.parent.name
-        if mode=='dependency-exhaustion':
-            if requests[stage.logs]>1:
-                raise AssertionError('The same failed dependency did not reach its recorded terminal outcome')
+        if mode=='dependency-repair':
             spec=ir.load(run.parent/'dependency-fixture.json')
-            original=Path(spec['checkout'])/'Budget/Blocked.lean'
-            sha=hashlib.sha256(original.read_bytes()).hexdigest()
-            repo=Path(spec['checkout']).name
-            url=f'https://raw.githubusercontent.com/example/{repo}/{spec["revision"]}/Budget/Blocked.lean'
-            lookup={'evidence':{'path':'external-sources/fixture-module.lean','sha256':sha}}
-            route=active_artifact(artifact(dependency(category=2)))
-            for row in route['dependencies']:row['lean']['proof']=None
-            return (call('save_basis_draft',artifact=route)
-                    +call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
-                    +call('read_external_source',url=url)
-                    +3*call('check_imported_lean',source=lookup,bind_public=True,module='Budget.Blocked'))
+            repo=Path(spec['checkout'])
+            def source_call(module, name):
+                relative=module.replace('.','/')+'.lean'
+                url=f'https://raw.githubusercontent.com/example/{repo.name}/{spec["revision"]}/{relative}'
+                digest=hashlib.sha256((repo/relative).read_bytes()).hexdigest()
+                options={'source':{'evidence':{'path':f'external-sources/{name}.lean','sha256':digest}},
+                         'bind_public':True,'module':module}
+                return call('read_external_source',url=url),options
+            value=active_artifact(artifact(dependency(category=2)))
+            if requests[stage.logs]==1:
+                read_main,main=source_call('Budget.Blocked','Blocked')
+                read_dep,dep=source_call('Dep.Base','Base')
+                route=deepcopy(value)
+                for row in route['dependencies']:row['lean']['proof']=None
+                return (call('save_basis_draft',artifact=route)
+                        +call('prepare_basis_graph',candidate=stage.validator.attempt+1,prove=False)
+                        +call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
+                        +read_main+call('check_imported_lean',**main)
+                        +read_dep+call('check_imported_lean',**dep)+call('check_imported_lean',**main))
+            if requests[stage.logs]==4:
+                return call('submit_draft',artifact=value)
+            calls=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()]
+            failed=next(row['result']['public_library'] for row in reversed(calls)
+                        if row['result'].get('public_library',{}).get('failure_origin'))
+            assert failed['failed_module']=='Budget.Blocked',failed
+            edit={'source':{'failure':failed['receipt']},'bind_public':True}
+            if requests[stage.logs]==3:
+                return call('check_imported_lean',**edit,candidate='import Dep.Base\nexample : True := True.intro')
+            repeated='import Dep.Base\nexample : True := by exact missingCandidate'
+            return ''.join(call('check_imported_lean',**edit,candidate=code)
+                        for code in [repeated,repeated,repeated+'Two',repeated+'Three',repeated+'Four'])
         wants_residual=mode in {'stop','accept-conditional','continue','deadline-decision','relabel-residual'} and revision=='0001'
         cat=4 if wants_residual else 2
         row=dependency(category=cat)
@@ -389,9 +407,12 @@ def respond(f,handler,number,payload):
     try:
         helper_turns=(mode=='planned-closed' and not ported_code
                       and getattr(stage,'helper_work',None) is not None and stage.step=='T001')
-        if requests[stage.logs]>(10 if helper_turns else 2):
+        dependency_turns=mode=='dependency-repair' and stage.mode=='basis-authoring'
+        if requests[stage.logs]>(10 if helper_turns else 5 if dependency_turns else 2):
             rows=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()] if (stage.logs/'tools.jsonl').exists() else []
-            detail=json.dumps([{'tool':r['tool'],'result':r['result']} for r in rows if r.get('result',{}).get('error')][-4:])
+            detail=json.dumps([{'tool':r['tool'],**{key:r['result'][key] for key in
+                        ('status','error','stage_complete','candidate','diagnostics') if key in r['result']}}
+                               for r in rows][-15:])[-5000:]
             raise AssertionError('Repeated fixture request: '+stage.mode+' '+detail)
         # The HTTP fixture is a separate server thread, not a Yui proof worker.
         # Read its oracle's contract under the declared job environment. Actual
@@ -466,7 +487,7 @@ if __name__ == '__main__':
         with ExitStack() as dependencies, patch.object(model_pilot.Stage,'_execute',dispatch),patch.object(fault_control.Gate,'pause',decide), \
              patch.object(execution_state.Recorder,'register_process',registered), \
              patch.object(workflow_checkpoint,'write',operator_checkpoint):
-            if mode=='dependency-exhaustion':
+            if mode=='dependency-repair':
                 import source_access
                 import test_imported_lean
                 from controller_common import bind,write
@@ -475,9 +496,11 @@ if __name__ == '__main__':
                 _,transport=test_imported_lean.ImportedLeanTests().local_git_transport(repository)
                 def retrieve(directory,url,**options):
                     directory.mkdir(exist_ok=True)
-                    source=directory/'fixture-module.lean'
-                    source.write_bytes((repository[1]/'Budget/Blocked.lean').read_bytes())
-                    receipt=directory/'access-fixture-module.json'
+                    name=Path(url).stem
+                    pinned={'Blocked':'Budget/Blocked.lean','Base':'Dep/Base.lean'}[name]
+                    source=directory/(name+'.lean')
+                    source.write_bytes((repository[1]/pinned).read_bytes())
+                    receipt=directory/('access-'+name+'.json')
                     result={'status':'READABLE','url':url,'final_url':url,'document':bind(source),'text':bind(source)}
                     write(receipt,result)
                     return {**result,'record':bind(receipt)}

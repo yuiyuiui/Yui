@@ -450,12 +450,6 @@ def run(job, budget, progress):
                 sessions.cancel_all()
                 raise StageFailure('STOPPED_BY_USER','User stopped before basis proof dispatch',phase='basis-decision',
                     evidence=validator.early_stop['path'],details={'user_decision':validator.early_stop})
-        if stage.accepted and 'dependency_exhaustion' in stage.accepted:
-            from case_outcomes import verify_dependency_exhaustion
-            ref=stage.accepted['dependency_exhaustion']
-            exhausted=verify_dependency_exhaustion(root,ref)
-            raise StageFailure(exhausted['version'],'Lean dependency repair budget exhausted for '+exhausted['dependency']['module'],
-                               phase='basis-authoring',evidence=ref['path'],details={'dependency_exhaustion':ref})
         require_review_execution(ir.load(out/'stage/result.json'),out/'stage/result.json',phase='basis-authoring')
         if validator.selected is None:raise StageFailure('BASIS_INCOMPLETE','No machine-checked basis selected',phase='basis-authoring')
         artifact = ir.load(out/'stage/accepted.json')
