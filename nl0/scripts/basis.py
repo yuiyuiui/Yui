@@ -75,12 +75,9 @@ def validate(value, target, *, pending_imports=None):
     text(value['proof'], 'basis proof')
     header = value['lean_header'];text(header, 'basis Lean header')
     import lean_libraries
-    checked_header = lean_libraries.strip_attached_imports(header,pending=pending_imports)
-    header_code=ir.policy_text(checked_header)
-    if (not checked_header.startswith('import Mathlib\n') or re.search(
-            r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#', header_code)
-            or re.search(r'\n\s*import\b', header_code)):
-        raise ValueError('Basis header may contain pinned Mathlib import and object definitions only')
+    import lean_source_policy
+    lean_source_policy.check_proof(header)
+    lean_libraries.validate_header_imports(header,pending=pending_imports)
     if not isinstance(value['dependencies'], list):raise ValueError('Basis dependencies must be a list')
     rows = {};ports = set()
     for row in value['dependencies']:

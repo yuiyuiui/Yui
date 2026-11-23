@@ -311,10 +311,10 @@ def source_layout(checkout_root, origin):
                        'Supply the exact Lean import name as module for '+origin['source_path'])
 
 
-def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=None):
+def scope(source_root, entry, prepare, *, compiled=None, edited=None, patched=(), deadline=None):
     """Resolve the package closure with a single native header parser."""
     from lean_headers import parser
-    from lean_imports import code_tokens
+    from lean_source_policy import check_proof
     from runtime_config import load_lock
     namespace=entry.partition('.')[0]
     compiled=compiled or {}
@@ -346,8 +346,10 @@ def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=N
                     raise BuildFailure('PUBLIC_LEAN_DEPENDENCY_REQUIRED','Missing source at the pinned revision for '+module,
                                        missing_module=module)
                 text=path.read_bytes().decode()
-                if re.search(r'\b(sorry|admit|axiom)\b',code_tokens(text)):
-                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy failed for '+module, failed_module=module)
+                try:check_proof(text,authored=path==edited or path in patched)
+                except ValueError as error:
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',f'Source policy failed for {module}: {error}',
+                                       failed_module=module) from error
                 paths[module]=path
                 batch.append(module)
                 files.append(text)
@@ -468,7 +470,7 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                         'source_sha256':failure['original_source']['sha256'],'expected_module':module}
 
                 try:
-                    namespace,sources=scope(source_dir,entry,prepare,edited=edited,
+                    namespace,sources=scope(source_dir,entry,prepare,edited=edited,patched=patched,
                         compiled=original_hashes(previous,metadata) if metadata else {},deadline=deadline)
                 except BuildFailure as error:
                     if error.failed_module:

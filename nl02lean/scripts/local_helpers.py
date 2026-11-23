@@ -49,8 +49,7 @@ def validate(cpath, plan, step, rows):
         ir.need(isinstance(name, str) and NAME.fullmatch(name) and name not in available,
                 'Invalid or duplicate local helper name')
         ir.need(row['context_sha256'] == expected_context, 'Stale or foreign helper context')
-        ir.need(isinstance(row['statement'], str) and row['statement'].strip()
-                and not ir.FORBIDDEN.search(row['statement']), 'Invalid helper statement')
+        ir.type_text(row['statement'])
         ir.proof_text(row['proof'])
         deps = references(row['statement']+'\n'+row['proof'], available)
         ir.need(row['dependencies'] == deps, 'Changed local helper dependencies')

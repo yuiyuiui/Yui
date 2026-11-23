@@ -76,12 +76,15 @@ class LeanLibraryTests(unittest.TestCase):
         self.assertEqual(libraries.binding(), [])
 
     def test_header_import_is_allowed_only_in_bound_scope(self):
-        descriptor = self.capture();header='import Mathlib\nimport FixtureLib.Leaf\ndef x := 1\n'
-        with self.assertRaises(ValueError):libraries.strip_attached_imports(header)
+        descriptor=self.capture()
+        header='-- Leading note\nimport Lean\nimport Mathlib\nimport FixtureLib.Leaf\nset_option maxHeartbeats 400000\n'
+        with self.assertRaisesRegex(ValueError,'explicitly attached'):libraries.validate_header_imports(header)
+        pending=[]
+        libraries.validate_header_imports(header,pending=pending)
+        self.assertEqual(pending,['FixtureLib.Leaf'])
         with libraries.use([descriptor]):
-            self.assertEqual(libraries.strip_attached_imports(header),'import Mathlib\ndef x := 1\n')
-            with self.assertRaises(ValueError):libraries.strip_attached_imports(header.replace('Leaf','Other'))
-            with self.assertRaises(ValueError):libraries.strip_attached_imports(header.replace('def x', 'import FixtureLib.Leaf\ndef x'))
+            libraries.validate_header_imports(header)
+            with self.assertRaises(ValueError):libraries.validate_header_imports(header.replace('Leaf','Other'))
 
     def test_original_missing_changed_and_wrong_version_inputs_fail(self):
         for field in ('lean_version','mathlib_commit'):

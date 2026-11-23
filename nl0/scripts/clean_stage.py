@@ -477,38 +477,15 @@ class ArtifactStage(pilot.Stage):
 
     def prepare_role_revision(self, previous):
         """Bind a reused conversation to the newly delivered documents."""
-        from review_contract import ReviewProgressGuard, changed_views
+        from review_contract import ReviewProgressGuard
         before, after = previous.document_hashes(), self.document_hashes()
         version = ReviewProgressGuard.digest([self.mode, after])
         changed = sorted(key for key in after if after[key] != before.get(key))
         revision = {'version_id':version, 'previous_version_id':ReviewProgressGuard.digest([previous.mode,before]),
                     'changed_documents':changed, 'removed_documents':sorted(before.keys()-after.keys())}
-        revision_inputs = {
-            'audit-a-global':('global-overview.json',), 'audit-a-packet-replay':('packet.json',),
-            'interface-semantic-review':('contract.json','plan.json','local-tasks.json'),
-            'nl0-local-repair':('findings.json','packet.json'),
-        }
-        envelope = {'graph_sha256','spec_sha256','packet_sha256'}
-        self.review_changes = {}
-        for name in revision_inputs.get(self.mode, ()):
-            if name not in changed or name not in before:continue
-            old=json.loads(previous.task_inputs[name]);new=json.loads(self.task_inputs[name])
-            changes=changed_views({k:v for k,v in old.items() if k not in envelope},
-                                  {k:v for k,v in new.items() if k not in envelope})
-            if changes:self.review_changes[name]=changes
-        self.input_prompt += '\nCurrent bound role revision: '+json.dumps(revision)+'. Use the current task documents.'
-        if self.review_changes:
-            preview=[{'document':name,**change} for name,changes in self.review_changes.items() for change in changes]
-            self.input_prompt += (' Read the changed mathematical contents in this assignment before submitting. '
-                'Use read_task_input or read_task_inputs with the exact pointers and continuation offsets. '
-                'First changes: '+json.dumps(preview[:12])+'.')
-            if 'read_review_progress' in self.tool_names:
-                self.input_prompt += ' read_review_progress shows unread changes.'
+        self.input_prompt += ('\nCurrent bound role revision: '+json.dumps(revision)
+            +'. Review the current supplied documents and reassess the affected items.')
         return revision
-
-    def unread_review_changes(self):
-        from review_contract import unread_views
-        return unread_views(self.logs/'tools.jsonl',self.review_changes) if getattr(self,'review_changes',{}) else []
 
     def dispatch(self, name, args):
         return self._dispatch(name,args)
@@ -541,12 +518,7 @@ class ArtifactStage(pilot.Stage):
                 raise PermissionError('Tool is not allowed')
             if self.accepted is not None:
                 raise ValueError('Stage is already complete')
-            unread = self.unread_review_changes() if name in {'submit_artifact','submit_draft','submit_review_blocker'} else []
-            if unread:
-                result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
-                        'error':'REVIEW_REVISION_UNREAD: read the current changes, then resubmit in this stage.',
-                        'unread_current_changes':unread[:12],'unread_current_change_count':len(unread)}
-            elif name=='check_imported_lean':
+            if name=='check_imported_lean':
                 import lean_imports
                 if self.mode=='basis-frontier' and args.get('candidate') is not None:
                     raise ValueError('Foundation discovery reads existing source; select the complete natural-language route with the owner before writing a port')
@@ -649,9 +621,6 @@ class ArtifactStage(pilot.Stage):
             elif name == 'read_review_progress':
                 result=self.validator.progress(**args)
                 if self.background_review:result['background_notes']=deepcopy(self.background_notes)
-                if getattr(self,'review_changes',{}):
-                    unread=self.unread_review_changes()
-                    result.update(unread_current_changes=unread[:12], unread_current_change_count=len(unread))
             elif name == 'submit_review_blocker':
                 self.accepted=self.validator.blocker(args['finding'])
                 result={'accepted':True,'stage_complete':True,'review_coverage':'INCOMPLETE','mathematical_acceptance':False}

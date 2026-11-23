@@ -223,33 +223,34 @@ def scripted(stage):
         revision=stage.logs.parent.name
         if mode=='dependency-repair':
             spec=ir.load(run.parent/'dependency-fixture.json')
-            repo=Path(spec['checkout'])
-            def source_call(module, name):
-                relative=module.replace('.','/')+'.lean'
-                url=f'https://raw.githubusercontent.com/example/{repo.name}/{spec["revision"]}/{relative}'
-                digest=hashlib.sha256((repo/relative).read_bytes()).hexdigest()
-                options={'source':{'evidence':{'path':f'external-sources/{name}.lean','sha256':digest}},
-                         'bind_public':True,'module':module}
-                return call('read_external_source',url=url),options
+            def source_call(module):
+                pin={'repository':spec['remote'],'revision':spec['revision'],
+                     'source_path':module.replace('.','/')+'.lean','module':module}
+                return call('read_external_source',git=pin)
             value=active_artifact(artifact(dependency(category=2)))
-            if requests[stage.logs]==1:
-                read_main,main=source_call('Budget.Blocked','Blocked')
-                read_dep,dep=source_call('Dep.Base','Base')
+            turn=requests[stage.logs]
+            if turn==1:
                 route=deepcopy(value)
                 for row in route['dependencies']:row['lean']['proof']=None
                 return (call('save_basis_draft',artifact=route)
                         +call('prepare_basis_graph',candidate=stage.validator.attempt+1,prove=False)
                         +call('check_imported_lean',source={'document':'material-001.lean'},publish=True)
-                        +read_main+call('check_imported_lean',**main)
-                        +read_dep+call('check_imported_lean',**dep)+call('check_imported_lean',**main))
-            if requests[stage.logs]==4:
+                        +source_call('Budget.Blocked')+source_call('Dep.Base'))
+            if turn==5:
                 return call('submit_draft',artifact=value)
             calls=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()]
-            failed=next(row['result']['public_library'] for row in reversed(calls)
-                        if row['result'].get('public_library',{}).get('failure_origin'))
+            if turn==2:
+                sources={row['arguments']['git']['module']:row['result']['primary_evidence_candidates'][0]
+                         for row in calls if row['tool']=='read_external_source'}
+                return ''.join(call('check_imported_lean',source={'evidence':sources[module]},bind_public=True)
+                               for module in ('Budget.Blocked','Dep.Base','Budget.Blocked'))
+            failed=next((row['result']['public_library'] for row in reversed(calls)
+                         if row['result'].get('public_library',{}).get('failure_origin')),None)
+            assert failed is not None, [(row['tool'], row['result'].get('status'), row['result'].get('error'),
+                                         row['result'].get('diagnostics')) for row in calls]
             assert failed['failed_module']=='Budget.Blocked',failed
             edit={'source':{'failure':failed['receipt']},'bind_public':True}
-            if requests[stage.logs]==3:
+            if turn==4:
                 return call('check_imported_lean',**edit,candidate='import Dep.Base\nexample : True := True.intro')
             repeated='import Dep.Base\nexample : True := by exact missingCandidate'
             return ''.join(call('check_imported_lean',**edit,candidate=code)
@@ -314,16 +315,11 @@ def scripted(stage):
         return call('submit_draft',artifact={'route':'derivation','statement':item['statement'],'argument':NOTE,
             'source':'Synthetic fixture only','consumer_uses':[{'id':'R002','application':NOTE}],'evidence':[]})
     if stage.mode=='basis-semantic-review':
-        from basis_review import PACKET
-        current=json.loads(stage.task_inputs[PACKET])
-        reads=''.join(call('read_task_input',id=PACKET,pointer=change['pointer'],offset=start)
-                      for change in current.get('revision',{}).get('changes',[])
-                      for start,_ in change.get('spans',[(0,0)]))
         reject=mode in {'mismatch','first-pass'} and stage.logs.parents[1].name=='0001'
         review=reviewed_value(stage,{'B001':'FAIL'} if reject else {})
         if mode=='evidence-repair':
-            return reads+call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
-        return reads+call('submit_draft',artifact=review)
+            return call('check_draft',artifact=review)+call('submit_draft',artifact={'from_saved_review':True,'summary':{}})
+        return call('submit_draft',artifact=review)
     if stage.mode in {'nl0-authoring','nl0-global','nl0-global-from-basis','nl0-local-authoring'}:return author_code(stage)
     if (stage.mode,mode) in {('interface-semantic-review','late'),('interface-proof-diagnosis','late-proof')}:
         row=json.loads(stage.task_inputs['basis-registry.json'])['dependencies'][0]
@@ -334,9 +330,7 @@ def scripted(stage):
             'correction':'Use the universal natural-number addition identity as the basis statement.'}
         return call('report_basis_defect',**{**finding,'basis_id':'B999'})+call('report_basis_defect',**finding)
     if stage.mode in {'interface-semantic-review','audit-a-global','audit-a-packet-replay'}:
-        commands=''.join(call('read_task_input',id=doc,pointer=change['pointer'])
-                         for doc,changes in getattr(stage,'review_changes',{}).items() for change in changes)
-        return commands+call('submit_draft',artifact=review_value(stage))
+        return call('submit_draft',artifact=review_value(stage))
     if stage.mode=='translation-source-preparation':
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
@@ -493,24 +487,12 @@ if __name__ == '__main__':
              patch.object(execution_state.Recorder,'register_process',registered), \
              patch.object(workflow_checkpoint,'write',operator_checkpoint):
             if mode=='dependency-repair':
-                import source_access
                 import test_imported_lean
-                from controller_common import bind,write
                 spec=ir.load(run.parent/'dependency-fixture.json')
                 repository=(spec['remote'],Path(spec['checkout']),spec['revision'])
                 _,transport=test_imported_lean.ImportedLeanTests().local_git_transport(repository)
-                def retrieve(directory,url,**options):
-                    directory.mkdir(exist_ok=True)
-                    name=Path(url).stem
-                    pinned={'Blocked':'Budget/Blocked.lean','Base':'Dep/Base.lean'}[name]
-                    source=directory/(name+'.lean')
-                    source.write_bytes((repository[1]/pinned).read_bytes())
-                    receipt=directory/('access-'+name+'.json')
-                    result={'status':'READABLE','url':url,'final_url':url,'document':bind(source),'text':bind(source)}
-                    write(receipt,result)
-                    return {**result,'record':bind(receipt)}
                 dependencies.enter_context(transport)
-                dependencies.enter_context(patch.object(source_access,'fetch',retrieve))
+                dependencies.enter_context(patch('source_access.public_url',side_effect=AssertionError('Fixed source used web access')))
             result=case_runner.execute(job)
             if result['status']=='PAUSED_ERROR' and not unexpected:
                 queue_controller.cancel_batch([run])

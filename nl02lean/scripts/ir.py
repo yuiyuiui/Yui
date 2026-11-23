@@ -20,7 +20,6 @@ from pilot_common import run_lean, load_lock, native_succeeded  # noqa: E402
 
 VERSION = 2
 IDENTIFIER = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
-FORBIDDEN = re.compile(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|set_option|initialize|elab|macro|syntax|import|namespace|section|end|theorem|lemma|instance|attribute)\b|(^|\n)\s*#')
 AUXILIARY_PARSER = '''
 open Lean Elab Term
 elab "yui_aux_type% " text:str : term => do
@@ -64,18 +63,15 @@ def compact(text):
     return re.sub(r'\s+', '', text)
 
 
-def policy_text(value):
-    from lean_imports import code_tokens
-    return code_tokens(value, preserve_interpolation=True)
+def checked_source(value):
+    from lean_source_policy import check_proof
+    try:return check_proof(value)
+    except ValueError as error:raise Invalid(str(error)) from error
 
 
 def type_text(value):
     need(isinstance(value, str) and bool(value.strip()), 'empty proposition/type')
-    # Named arguments are ordinary Lean terms, not declaration assignments.
-    code = policy_text(value)
-    assignments = re.sub(r"\(\s*[\w']+\s*:=", '(', code)
-    need(not FORBIDDEN.search(code) and ':=' not in assignments,
-         'command/placeholder in proposition/type')
+    checked_source(value)
 
 
 def checked_expression(name, expression, binders='', *, proposition=False):
@@ -137,7 +133,7 @@ def contract(path):
     need(steps and len({s['id'] for s in steps}) == len(steps), 'missing/duplicate source steps')
     need(all(s['text'].strip() for s in steps), 'missing NL argument')
     # The header is trusted reviewed input. It is never accepted from a worker.
-    need(isinstance(c['header'], str) and c['header'].startswith('import '), 'missing frozen header')
+    checked_source(c['header'])
     need(c['review']['mode'] in {'development_owner_review', 'upstream_audited_packet', 'deferred_semantic_review'}, 'missing review scope')
     if c['review']['mode']=='deferred_semantic_review':
         need(c['review'].get('status')=='PENDING_AUDIT_B', 'deferred semantics cannot claim a review pass')
@@ -321,7 +317,7 @@ def local_packet(cpath, plan, sid):
 
 def proof_text(body):
     need(isinstance(body, str) and body.strip(), 'missing proof')
-    need(not FORBIDDEN.search(policy_text(body)), 'forbidden proof command or placeholder')
+    checked_source(body)
     need(not re.match(r'^\s*by(?:\s|$)', body), 'supply tactic body after by')
     # Remove the common outer margin before embedding. Stripping only the
     # first line changes Lean's layout semantics for indented multiline code.
@@ -510,8 +506,7 @@ def render_auxiliary(cpath,plan,step,statement,proof,*,helpers=(),validated=Fals
     """Render the exact local helper wrapper without running Lean."""
     c,nodes,_=validate(cpath,plan)
     need(step in nodes,'unknown auxiliary context port')
-    need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(policy_text(statement)),
-         'forbidden command or placeholder in auxiliary statement')
+    type_text(statement)
     body=proof_text(proof)
     import local_helpers
     if not validated:local_helpers.validate(cpath,plan,step,list(helpers))
@@ -533,8 +528,7 @@ def check_auxiliary(cpath,plan,step,statement,proof,*,out,timeout=None,helpers=(
     rows = local_helpers.validate(cpath,plan,step,list(helpers))
     options = helper_modules.context(cpath,plan,step)
     if options is not None:
-        need(isinstance(statement,str) and statement.strip() and not FORBIDDEN.search(policy_text(statement)),
-             'forbidden command or placeholder in auxiliary statement')
+        type_text(statement)
         proof_text(proof)
         fast=helper_modules.check(options,cpath,plan,step,statement,proof,rows,out,timeout,cache=cache)
         # A name/instance may only be visible in its original file scope. Keep the

@@ -372,9 +372,6 @@ def build(out, *, frozen_contract=None):
     checks += [('__frozen__'+sid,selector,typ) for sid,(selector,typ) in frozen_endpoints(frozen,inventory).items()]
     rows = [(*row, lean_names.parts(row[1][5:]) if row[1].startswith('decl:') else []) for row in checks]
     formal = ir.render(cpath,plan,proofs)
-    # Header commands are reviewed input, but missing proofs or executable
-    # metaprogramming cannot serve as administrative project definitions.
-    forbidden_header = re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|initialize|elab|macro)\b',ir.policy_text(c['header']))
     local = {sid:ir.check(cpath,plan,{sid:proofs[sid]},only=sid) for sid in ir.validate(cpath,plan)[2]}
     from native_workspace import temporary
     with temporary('audit-b-build-',logs=out/'native-workspaces') as work:
@@ -408,7 +405,6 @@ def build(out, *, frozen_contract=None):
         ir.write(out/'inspection.json',inspected)
         ir.write(out/'compiler.json',result)
         errors=[]
-        if forbidden_header: errors.append('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION')
         if assembled['status']!='ASSEMBLY-PASSED': errors.append('SOURCE_FACING_ASSEMBLY_FAILED')
         if inspected['status']=='INSPECTION_HEARTBEAT_EXHAUSTED': errors.append('INSPECTION_HEARTBEAT_EXHAUSTED')
         if not ir.native_succeeded(result) or evidence is None: errors.append('FRESH_BUILD_OR_INSPECTION_FAILED')

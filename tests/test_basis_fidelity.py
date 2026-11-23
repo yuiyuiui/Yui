@@ -143,8 +143,7 @@ class BasisFidelityTests(unittest.TestCase):
         self.assertEqual(issues,{})
         self.assertEqual(basis_review.verify(receipt,context,self.value),{})
 
-    def test_revised_basis_is_returned_to_the_reviewer_until_changed_contents_are_read(self):
-        from basis_fixtures import reviewed_value
+    def test_revised_basis_delivers_complete_current_proof_without_page_receipts(self):
         out=self.revision.parent/'revision-handoff/0002'
         previous=out.parent/'0001/review/inputs'/basis_review.PACKET
         prior_packet=deepcopy(self.packet)
@@ -170,28 +169,12 @@ class BasisFidelityTests(unittest.TestCase):
             self.assertEqual(revision['round'],2)
             self.assertEqual(revision['previous_packet_sha256'],bind(previous)['sha256'])
             self.assertIn(context['basis']['sha256'],stage.input_prompt)
-            for name in ('R004','R006'):
-                self.assertIn(name,stage.input_prompt)
-            edges={c['item']:c for c in revision['changes'] if c['pointer'].endswith('/basis')}
-            self.assertEqual(edges['R004']['added'],['B002'])
-            self.assertEqual(edges['R006']['removed'],['B002'])
-            proof=next(c for c in revision['changes'] if c['pointer']=='/proof')
-            start,end=proof['spans'][0]
-            self.assertGreater(start,40000)
-            self.assertEqual(end,len(value['proof']))
-            draft=reviewed_value(stage,{'B002':'UNVERIFIED'})
-            first=stage.dispatch('submit_draft',{'artifact':draft})
-            self.assertIn('BASIS_REVISION_UNREAD',first['error'])
-            self.assertIsNone(stage.accepted)
-
-            doc=basis_review.PACKET
-            stage.dispatch('read_task_inputs',{'requests':[{'id':doc,'pointer':'/global_graph/inferences/0'},
-                {'id':doc,'pointer':'/proof','offset':start+10}]})
-            second=stage.dispatch('submit_draft',{'artifact':draft})
-            self.assertIn('/proof',second['error'])
-            self.assertIn('R006',second['error'])
-            self.assertNotIn('R004',second['error'])
-            return synthetic_review(stage,{'B002':'UNVERIFIED'},saved_via='record')
+            self.assertIn('B002',revision['affected_items'])
+            self.assertEqual(packet['proof'],value['proof'])
+            current={row['id']:row for row in packet['global_graph']['inferences']}
+            self.assertEqual(current['R004']['basis'],['B002'])
+            self.assertNotIn('B002',current['R006']['basis'])
+            return synthetic_review(stage,{'B002':'UNVERIFIED'})
 
         with patch.object(ArtifactStage,'_execute',review):
             receipt,findings=basis_review.assess(out,context,value,sessions,None,{},round_number=2)
@@ -199,17 +182,8 @@ class BasisFidelityTests(unittest.TestCase):
         self.assertEqual(findings['B002']['verdict'],'UNVERIFIED')
         self.assertEqual(basis_review.verify(receipt,context,value,require_pass=False),findings)
 
-        # A valid submission and rebound transcript without the recorded reads cannot be replayed.
-        review_dir=out/'review'
-        calls=review_dir/'stage/tools.jsonl'
-        calls.write_text(''.join(line for line in calls.read_text().splitlines(keepends=True)
-                                 if json.loads(line)['tool'] not in {'read_task_input','read_task_inputs'}))
-        assessment=review_dir/'assessment.json'
-        data=ir.load(assessment)
-        data['execution']=[bind(calls.parent/name) for name in basis_review.STAGE_FILES]
-        write(assessment,data)
-        with self.assertRaisesRegex(ValueError,'Missing current basis revision read evidence'):
-            basis_review.read_batch(bind(assessment))
+        calls=out/'review/stage/tools.jsonl'
+        self.assertEqual([json.loads(line)['tool'] for line in calls.read_text().splitlines()],['submit_draft'])
 
     def test_complete_saved_submissions_from_checks_or_individual_judgments_verify(self):
         for mode in ('check','record'):

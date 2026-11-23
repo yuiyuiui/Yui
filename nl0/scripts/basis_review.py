@@ -1,7 +1,5 @@
 """Author-separated, batch comparison of prepared basis statements to native propositions."""
 from copy import deepcopy
-from difflib import SequenceMatcher
-from itertools import accumulate
 import json
 from pathlib import Path
 
@@ -134,69 +132,6 @@ def item_keys(packet, rule=None):
             seen.add(current);pending.extend(links[current]-seen)
         result[key]=hashed([rule_for(packet,rule or RULE),common,{k:items[k] for k in sorted(seen)}])
     return result
-
-
-def revision_changes(previous, packet):
-    """Identify current text spans and fields that changed since the previous packet."""
-    from read_views import MAX_TOOL_BYTES, encoded_size
-    changes, removed = [], []
-    absent = object()
-
-    def compare(old, new, pointer, item=None):
-        if old == new:
-            return
-        if isinstance(new, dict) and new:
-            before = old if isinstance(old, dict) else {}
-            for key, value in new.items():
-                part = key.replace('~', '~0').replace('/', '~1')
-                compare(before.get(key, absent), value, f'{pointer}/{part}', key if pointer == '/items' else item)
-            for key in sorted(before.keys() - new.keys()):
-                part = key.replace('~', '~0').replace('/', '~1')
-                removed.append(f'{pointer}/{part}')
-            return
-        if pointer in {'/global_graph/propositions', '/global_graph/inferences'}:
-            before = {row['id']:row for row in old} if isinstance(old, list) else {}
-            for index, row in enumerate(new):
-                identity = row['id']
-                compare(before.pop(identity, absent), row, f'{pointer}/{index}', identity)
-            removed.extend(f'{pointer} ({identity})' for identity in sorted(before))
-            return
-        if isinstance(new, list) and new and encoded_size(new) > MAX_TOOL_BYTES // 2:
-            before = old if isinstance(old, list) else []
-            for index, value in enumerate(new):
-                compare(before[index] if index < len(before) else absent, value, f'{pointer}/{index}', item)
-            removed.extend(f'{pointer}/{index}' for index in range(len(new), len(before)))
-            return
-        change = {'pointer':pointer}
-        if item is not None:
-            change['item'] = item
-        if pointer.startswith('/global_graph/inferences/') and pointer.endswith('/basis'):
-            before = set(old) if isinstance(old, list) else set()
-            change.update(added=sorted(set(new)-before), removed=sorted(before-set(new)))
-        if isinstance(new, str):
-            spans = [[0, len(new)]]
-            if isinstance(old, str) and encoded_size(new) > MAX_TOOL_BYTES // 2:
-                lines = new.splitlines(keepends=True)
-                offsets = list(accumulate(map(len, lines), initial=0))
-                edits = SequenceMatcher(None, old.splitlines(keepends=True), lines).get_opcodes()
-                spans = [[offsets[start], offsets[end]] if start < end else
-                         [offsets[max(0, start-1)], offsets[min(len(lines), end+1)]]
-                         for kind, _, _, start, end in edits if kind != 'equal']
-            change['spans'] = spans
-        changes.append(change)
-
-    current = {key:value for key,value in packet.items() if key not in {'required','revision'}}
-    before = {key:value for key,value in previous.items() if key not in {'required','revision'}}
-    compare(before, current, '')
-    changes.extend({'pointer':f'/revision/removed/{i}'} for i in range(len(removed)))
-    return changes or [{'pointer':'/revision/round'}], removed
-
-
-def unread_revision(log, revision):
-    """Use the shared current-stage read receipt check for the basis packet."""
-    from review_contract import unread_views
-    return [{key:value for key,value in item.items() if key!='document'}
-            for item in unread_views(log, {PACKET: revision['changes']})]
 
 
 JUDGMENT_FIELDS = {
@@ -340,8 +275,6 @@ def read_batch(binding):
     if (batch['progress']!=bind(progress) or ir.load(progress)['items']!=expected or
             not complete_submission(stage,raw)):
         raise ValueError('Missing complete basis reviewer submission evidence')
-    if 'revision' in packet and unread_revision(stage/'tools.jsonl',packet['revision']):
-        raise ValueError('Missing current basis revision read evidence')
     return keys,raw['items']
 
 
@@ -358,24 +291,18 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
         prompt += ('\nRead /adaptations and its exact compiled Lean sources. Check source fidelity and '
                    'applicability wherever a basis item uses an adaptation, including transitively.')
     if packet.get('patches'):
-        prompt += ('\nCheck the fixed build recipe or frozen user authorization at /patches and its ordered '
+        prompt += ('\nRead the historical patch record at /patches and its ordered '
                    'patch files. Verify that the effective source supports each basis item that uses it.')
     if round_number > 1:
         previous=out.parent/f'{round_number-1:04d}'/'review/inputs'/PACKET
-        changes, removed = revision_changes(ir.load(previous),packet)
+        old=ir.load(previous)
         revision={'round':round_number,'candidate_sha256':context['basis']['sha256'],
-                  'previous_packet_sha256':ir.digest(previous),'changes':changes,'removed':removed}
+                  'previous_packet_sha256':ir.digest(previous),'affected_items':required,
+                  'removed_items':sorted(old['items'].keys()-packet['items'].keys())}
         packet['revision']=revision
-        prompt += (f'\nThis is basis review round {round_number}, for revised candidate SHA-256 '
-                   f"{revision['candidate_sha256']}. Previous packet SHA-256 {revision['previous_packet_sha256']}. "
-                   'Reassess every assigned item against this revision. '
-                   'Read the changed contents in basis-comparison.json and check earlier findings again '
-                   'before submitting the complete review. Use JSON pointers and the indicated starting '
-                   'offsets with read_task_input or read_task_inputs. Follow continuation offsets until '
-                   'the changed spans have been returned. The complete list is at /revision/changes. '
-                   'Changes include: '+json.dumps(changes[:12])+'.')
-        if removed:
-            prompt += ' See /revision/removed for the removed locations.'
+        prompt += ('\nReassess the affected items using the complete current basis-comparison.json. '
+                   'Use the exact target, proof, interfaces and original materials from this assignment. '
+                   'Current basis revision: '+json.dumps(revision)+'.')
     inputs.mkdir(parents=True)
     views={}
     if required:
@@ -402,11 +329,6 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
         manifest(inputs)
 
         def validate_submission(value):
-            if 'revision' in packet:
-                unread=unread_revision(directory/'stage/tools.jsonl',packet['revision'])
-                if unread:
-                    raise ValueError('BASIS_REVISION_UNREAD: read these current changes with JSON pointers '
-                                     'and offsets, then complete the review in this same stage: '+json.dumps(unread[:12]))
             return validate_rows(value,required,packet['revision_objection'],packet)
 
         contract=ReviewContract.structured(directory/'review-work',review_shape(required,packet['revision_objection']),

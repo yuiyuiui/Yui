@@ -497,7 +497,8 @@ class ImportedLeanTests(unittest.TestCase):
         stage = self.basis_stage(run, name='port-probe')
         (stage.logs/'external-sources').mkdir()
         self.stage = stage
-        candidate = ('import Lean\nnamespace Lib\n'
+        candidate = ('-- Local compatibility adjustment\nimport Lean\n'
+                     'set_option maxHeartbeats 800000\nnamespace Lib\n'
                      'theorem base (n : Nat) : n + 0 = n := rfl\nend Lib\n')
         original = candidate.replace(':= rfl', ':= by exact missingOriginalProof')
         source = self.git_source('port',{
@@ -506,11 +507,15 @@ class ImportedLeanTests(unittest.TestCase):
                                  'theorem consumer (n : Nat) : n + 0 = n := base n\nend Lib\n'),
         })
         calls, transport = self.local_git_transport(source)
-        with transport, lean_libraries.generated(run/'imported-lean'):
+        with transport, lean_libraries.generated(run/'imported-lean'), \
+                patch('source_access.public_url',side_effect=AssertionError('Fixed Git should not use web access')):
             _, number = self.save_basis_route(stage,'import Lib.Consumer\n','exact Lib.consumer')
             selected = stage.dispatch('prepare_basis_graph',{'candidate':number,'prove':False})
             self.assertTrue(selected.get('route_ready'),selected)
-            consumer = {'source':self.read_pinned(source,'Lib/Consumer.lean','consumer'),
+            fetched=stage.dispatch('read_external_source',{'git':{'repository':source[0],'revision':source[2],
+                                          'source_path':'Lib/Consumer.lean','module':'Lib.Consumer'}})
+            self.assertEqual(fetched['origin'],'controller_git',fetched)
+            consumer = {'source':{'evidence':fetched['primary_evidence_candidates'][0]},
                         'bind_public':True,'module':'Lib.Consumer'}
             diagnosis = stage.dispatch('check_imported_lean',consumer)
             failed = diagnosis['public_library']
@@ -523,6 +528,10 @@ class ImportedLeanTests(unittest.TestCase):
             self.assertIn('missingOriginalProof',shown['text'])
             options = {'source':selection,'bind_public':True,'module':'Lib.Base'}
             with patch.object(lean_imports,'original_environment',side_effect=AssertionError('No upstream check')):
+                untrusted=candidate.replace('namespace Lib','set_option debug.skipKernelTC true\nnamespace Lib',1)
+                refused=stage.dispatch('check_imported_lean',{**options,'candidate':untrusted})
+                self.assertFalse(refused['accepted_for_native_reuse'])
+                self.assertIn('kernel checking must remain enabled',refused['diagnostics']['current'])
                 for rejected in ('sorry','unproved'):
                     bad = candidate.replace(':= rfl', f':= {rejected}')
                     if rejected=='unproved':
@@ -783,8 +792,12 @@ class ImportedLeanTests(unittest.TestCase):
                                            self.current,self.root/'checked-policy')
         self.assertTrue(pilot_common.native_succeeded(checked['native']),checked['diagnostic'])
         candidate=artifact(dependency(category=2,proof='exact Nat.add_zero'))
-        candidate['lean_header'] += '-- The following policy disallows sorry and axiom.\n'
+        candidate['lean_header'] = ('-- The following policy disallows sorry and axiom.\nimport Lean\n'
+                                    +candidate['lean_header']+'set_option maxHeartbeats 800000\n')
         basis.validate(candidate,TARGET)
+        unsafe={**candidate,'lean_header':candidate['lean_header']+'set_option debug.skipKernelTC true\n'}
+        with self.assertRaisesRegex(ValueError,'Lean kernel checking must remain enabled'):
+            basis.validate(unsafe,TARGET)
         with self.assertRaisesRegex(ValueError,'forbidden'):
             ir.proof_text('exact (by sorry)')
         candidate['lean_header'] = candidate['lean_header'].replace('import Mathlib\n',

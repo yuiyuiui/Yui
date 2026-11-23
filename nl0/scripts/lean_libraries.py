@@ -186,25 +186,28 @@ def summary():
             for row, data in validate(current())]
 
 
-def strip_attached_imports(header, *, pending=None):
-    """Retain the old header check after validating each explicit extra import."""
-    if not isinstance(header, str) or not header.startswith('import Mathlib\n'):
-        return header
-    lines = header.splitlines(keepends=True)
-    offset = 1
-    allowed = permitted_imports()
-    seen = set()
-    while offset < len(lines) and lines[offset].startswith('import '):
-        module = lines[offset][7:].strip()
-        if not MODULE.fullmatch(module) or module.partition('.')[0] in rules.RESERVED or module in seen:
-            raise ValueError('Invalid or duplicate external Lean module: '+module)
-        if module not in allowed:
-            if pending is None:
-                raise ValueError('Basis import is not an explicitly attached Lean library module: '+module)
-            pending.append(module)
-        seen.add(module)
-        offset += 1
-    return lines[0] + ''.join(lines[offset:])
+def validate_header_imports(header, *, pending=None):
+    """Resolve parsed imports against the installed pins or the bound library index."""
+    from lean_headers import describe
+    from pilot_common import lean_paths
+    from runtime_config import load_lock
+    parsed=describe(header)
+    if 'error' in parsed:
+        raise ValueError(parsed['error'])
+    installed=[*(Path(path) for path in lean_paths((),library_paths=[])),
+               Path(load_lock()['lean']['local_path'])/'lib/lean']
+    allowed=permitted_imports()
+    for module in dict.fromkeys(parsed['imports']):
+        if module in allowed:
+            continue
+        if not MODULE.fullmatch(module):
+            raise ValueError('Invalid Lean module name: '+module)
+        relative=Path(*module.split('.')).with_suffix('.olean')
+        if any((root/relative).is_file() for root in installed):
+            continue
+        if pending is None:
+            raise ValueError('Basis import is not an explicitly attached Lean library module: '+module)
+        pending.append(module)
 
 
 def read_source(module, start=1, end=160, *, retained_at=None):

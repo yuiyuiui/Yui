@@ -1,5 +1,6 @@
 """Parse Lean headers with the selected compiler without loading their imports."""
 from contextlib import contextmanager, suppress
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,18 @@ import time
 from execution_state import capture_process, current, terminate_owned
 import native_workspace
 import pilot_common
+
+
+def describe(source):
+    from runtime_config import load_lock
+    return _description(load_lock()['lean']['binary_sha256'],source)
+
+
+@lru_cache(maxsize=64)
+def _description(_binary_sha256,source):
+    with parser() as parse:
+        [result]=parse([source])
+    return result
 
 
 @contextmanager

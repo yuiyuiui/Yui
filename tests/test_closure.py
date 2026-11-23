@@ -134,12 +134,12 @@ class ClosureChecks(unittest.TestCase):
             definition='d is as defined in the problem.',depends_on=[],requires=[],binders=[],objects=['a'])]
         self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
 
-    def test_scope_owner_label_must_name_actual_inference(self):
+    def test_scope_description_can_mention_other_inference_numbers(self):
         local=self.graph['inferences'][1]['locals'][0]
-        local['scope']='R001/argument'
-        with self.assertRaisesRegex(nl0.Invalid,'LOCAL-SCOPE-OWNER'):self.data()
-        local['scope']='Within this inference'
+        local['scope']='Within this inference, using the notation introduced near R001.'
         self.assertEqual(self.data()[0]['status'],'STRUCTURE-PASSED')
+        local['end']='S999'
+        with self.assertRaisesRegex(nl0.Invalid,'LOCAL-SCOPE'):self.data()
 
     def test_global_overview_reports_unused_original_h_without_inventing_a_use(self):
         self.spec['hypotheses'].append(dict(id='H002',statement='a≠0.',origin='Synthetic original given.'))
@@ -166,11 +166,6 @@ class ClosureChecks(unittest.TestCase):
         self.assertEqual(self.data()[0]['status'], 'STRUCTURE-PASSED')
         self.assertEqual(self.graph['inferences'][1]['inputs'], ['N001'])
 
-    def test_paper_notation_cannot_supply_an_object(self):
-        self.graph["inferences"][1]["argument"][1]["text"] = "Use the notation as defined in the original manuscript."
-        with self.assertRaisesRegex(nl0.Invalid, "OPAQUE-REFERENCE"):
-            self.data()
-
     def test_explicitly_used_object_must_be_declared(self):
         self.graph["inferences"][1]["argument"][1]["objects"].append("source_only_vector")
         with self.assertRaisesRegex(nl0.Invalid, "UNDECLARED-OBJECT"):
@@ -190,11 +185,6 @@ class ClosureChecks(unittest.TestCase):
     def test_witness_requires_an_existence_basis(self):
         self.graph["inferences"][1]["locals"][0]["kind"] = "witness"
         with self.assertRaisesRegex(nl0.Invalid, "WITNESS-EXISTENCE"):
-            self.data()
-
-    def test_local_introduction_cannot_cite_an_unlisted_fact(self):
-        self.graph["inferences"][1]["locals"][0]["declaration"] += " Use H001."
-        with self.assertRaisesRegex(nl0.Invalid, "UNDECLARED-FACT"):
             self.data()
 
     def test_local_fact_must_precede_its_use(self):
@@ -226,10 +216,14 @@ class ClosureChecks(unittest.TestCase):
         f.update(statement="For every natural number z, c=a and z=z.", binders=[dict(symbol="z", type="natural number")], objects=["a", "c", "z"])
         self.assertEqual(self.data()[0]["status"], "STRUCTURE-PASSED")
 
-    def test_using_an_unlisted_ancestor_in_prose_fails(self):
-        self.graph["inferences"][1]["argument"][1]["text"] += " Also invoke H001."
-        with self.assertRaisesRegex(nl0.Invalid, "UNDECLARED-FACT"):
-            self.data()
+    def test_numbered_prose_does_not_add_or_require_dependency_edges(self):
+        row=self.graph['inferences'][1]
+        row['argument'][1]['text'] += ' Compare R001, S003, F999 and equation (2.1) in the source.'
+        row['locals'][0]['declaration'] += ' Compare H001.'
+        row['argument'][0]['produces'][0]['statement'] += ' This is the identity mentioned near F999.'
+        self.assertEqual(self.data()[0]['status'],'STRUCTURE-PASSED')
+        row['argument'][1]['uses'].append('H001')
+        with self.assertRaisesRegex(nl0.Invalid,'CITATION'):self.data()
 
     def test_definition_guard_cannot_smuggle_an_ancestor(self):
         self.spec["definitions"] = [dict(id="D001", symbol="d", type="natural number", definition="d=a.",

@@ -280,10 +280,6 @@ class InterfaceContract:
             from internal_interface_repair import protect_candidate
             protect_candidate(value, json.loads(self.documents['prior-interface.json']))
         header=value['header']
-        if not isinstance(header,str) or not header.startswith('import Mathlib\n'):
-            raise ValueError('Header must start with import Mathlib followed by a newline')
-        if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',ir.policy_text(header)):
-            raise ValueError('Candidate header may define mathematical objects, not proof/result declarations or executable commands')
         correspondence.validate_notes(value['endpoint_correspondence'],
             [p['id'] for p in self.source['roots'] if p['kind']=='external']+['P'])
         shutil.copyfile(self.out/'inputs/nl0.json',directory/'nl0.json')
@@ -436,9 +432,8 @@ class InterfaceStage(ArtifactStage):
             import artifact_protocol as protocol
             protocol.validate(args,type_probe_schema())
             header=args['header'];parameters=args['parameters'];types=args['types']
-            if not isinstance(header,str) or not header.startswith('import Mathlib\n'):raise ValueError('Start the header with import Mathlib and newline')
-            if re.search(r'\b(sorry|admit|axiom|opaque|unsafe|run_meta|run_elab|run_tac|native_decide|initialize|elab|macro|syntax|theorem|lemma|set_option)\b|(^|\n)\s*#',ir.policy_text(header)):
-                raise ValueError('Type probes allow mathematical definitions, not proof/result declarations or executable commands')
+            import lean_source_policy
+            lean_source_policy.check_proof(header)
             if not isinstance(parameters,list) or not isinstance(types,list) or not types:raise ValueError('Supply parameters and at least one type')
             names=[]
             for p in parameters:

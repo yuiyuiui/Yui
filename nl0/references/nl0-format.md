@@ -453,9 +453,8 @@ that two spellings have the same mathematical meaning, that a hidden theorem
 was not used, that a local witness did not escape the prose, or that an argument
 is valid. Those are explicit Audit A obligations. Neither a JSON PASS nor a
 fabricated complete audit receipt is a mathematical certificate.
-Global handoff accepts numbered references in prose. Audit A checks whether each
-claim states the mathematical content needed by its consumer. The local proof-body
-checks still diagnose common opaque references. Behavioral tests must actually ask an
+Numbered references in prose do not declare proof edges. Audit A checks whether
+each claim states the mathematical content needed by its consumer. Behavioral tests must ask an
 auditor to review unseen controls; manually prefilled FAIL records only test
 receipt rejection and must be reported as such.
 

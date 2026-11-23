@@ -108,15 +108,6 @@ def reviewed_value(stage, verdicts=None):
 
 def synthetic_review(stage, verdicts=None, saved_via=None):
     from run_resources import retention
-    packet=ir.load(stage.logs.parent/'inputs'/basis_review.PACKET)
-    for change in packet.get('revision',{}).get('changes',[]):
-        for start,end in change.get('spans',[(0,None)]):
-            while True:
-                view=stage.dispatch('read_task_input',{'id':basis_review.PACKET,
-                    'pointer':change['pointer'],'offset':start})
-                if end is None or view['end_offset']>=end:
-                    break
-                start=view['next_offset']
     value=reviewed_value(stage,verdicts)
     if saved_via=='check':
         assert stage.dispatch('check_draft',{'artifact':value})['accepted']

@@ -111,7 +111,7 @@ def wait_for_dependency(stage, receipt):
 
 environment_identity=lean_environment.identity
 
-def code_tokens(text, *, preserve_interpolation=False):
+def code_tokens(text, *, preserve_interpolation=False, preserve_quoted_names=False):
     """Remove nested comments and string contents without moving line numbers."""
     result=[];index=0;depth=0;string=False
     while index<len(text):
@@ -134,7 +134,9 @@ def code_tokens(text, *, preserve_interpolation=False):
         if literal:result.extend(' '*len(literal[0]));index+=len(literal[0]);continue
         if char=='«':
             end=text.find('»',index+1)
-            if end>=0:result.extend(' '*(end-index+1));index=end+1;continue
+            if end>=0:
+                result.extend(text[index:end+1] if preserve_quoted_names else ' '*(end-index+1))
+                index=end+1;continue
         if pair=='/-':depth=1;result.extend('  ');index+=2;continue
         if pair=='--':
             end=text.find('\n',index)
@@ -204,12 +206,16 @@ def compile_unit(source,environment,directory,*,attachments=(),timeout=None):
         attempt=directory/uuid.uuid4().hex;attempt.mkdir()
         source_root=attempt/'source';source_root.mkdir();original=source_root/(module+'.lean');original.write_text(source)
         build=attempt/'build';build.mkdir()
-        policy=not re.search(r'\b(sorry|admit|axiom)\b',code_tokens(source))
+        from lean_source_policy import check_proof
+        refusal=None
+        try:check_proof(source)
+        except ValueError as error:refusal=str(error)
         with native_workspace.temporary('yui-imported-lean-',logs=attempt) as work:
             (work/'input').mkdir();(work/'output').mkdir()
             file=work/'output'/(module+'.lean');file.write_text(source)
-            native=run_lean(file,work,output=work/'output'/(module+'.olean'),timeout=timeout)
-            policy=policy and not re.search(r"declaration uses ['‘]sorry['’]",native.get('stdout','')+'\n'+native.get('stderr',''))
+            native=(run_lean(file,work,output=work/'output'/(module+'.olean'),timeout=timeout) if refusal is None else
+                    {'exit_code':1,'stdout':'','stderr':refusal,'wall_seconds':0})
+            policy=refusal is None and not re.search(r"declaration uses ['‘]sorry['’]",native.get('stdout','')+'\n'+native.get('stderr',''))
             write(attempt/'native.json',native)
             artifacts=[]
             if rules.passed({'native':native,'source_policy_passed':policy}):

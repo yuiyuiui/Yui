@@ -20,15 +20,6 @@ acceptance=importlib.util.module_from_spec(_ACCEPTANCE_SPEC)
 _ACCEPTANCE_SPEC.loader.exec_module(acceptance)
 
 CLOSURE_CHECKS = acceptance.current().check_ids('closure')
-_IDS = re.compile(r"\b(?:[HEMN]\d{3,}|F\d{3,})\b")
-_NUMBERED = re.compile(
-    r"\b(?:formula|equation|identity|estimate|bound|theorem|lemma|proposition|corollary|section)"
-    r"\s*\(?\d+(?:\.\d+)+[a-z]?\)?|"
-    r"\b(?:by|from|using)\s+\(\d+(?:\.\d+)+[a-z]?\)|"
-    r"\\(?:eqref|ref)\{(?!F\d{3,}\})[^}]+\}", re.I)
-_OUTSIDE = re.compile(
-    r"\b(?:as in|as defined in|as proved in|as shown in|notation from|defined in)"
-    r"\s+(?:the\s+)?(?:original|paper|manuscript|source|previous section)\b", re.I)
 
 
 def need(condition, code, message):
@@ -44,11 +35,6 @@ def names(items, where):
     need(isinstance(items, list) and all(isinstance(x, str) and x.strip() for x in items),
          "CLOSURE-TYPE", where)
     need(len(items) == len(set(items)), "CLOSURE-DUPLICATE", where)
-
-
-def opaque(text, where):
-    need(not _NUMBERED.search(text) and not _OUTSIDE.search(text), "OPAQUE-REFERENCE",
-         f"{where}: expand the mathematical content; use input IDs or previously proved local F IDs")
 
 
 def binders(items, reserved, where):
@@ -160,9 +146,6 @@ def validate(graph, spec, props, steps, defs, definition_closure):
         base |= {row['symbol'] for row in scope}
         locals_ = []
         for local in r["locals"]:
-            owners=set(re.findall(r'\bR\d{3,}\b',local['scope']))
-            need(not (owners-{rid}), 'LOCAL-SCOPE-OWNER',
-                 f"{rid}/{local['symbol']}: scope={local['scope']!r}; actual inference={rid}; other named owners={sorted(owners-{rid})}")
             need(local["start"] in position and local["end"] in position, "LOCAL-SCOPE", f"{rid}/{local['symbol']}: start={local['start']}, end={local['end']}; argument IDs={ids}")
             lo, hi = position[local["start"]], position[local["end"]]
             need(lo <= hi, "LOCAL-SCOPE", f"{rid}/{local['symbol']}: end precedes start")
@@ -175,10 +158,9 @@ def validate(graph, spec, props, steps, defs, definition_closure):
             need(set(local["from_inputs"]) <= set(r["inputs"]), "LOCAL-INTRODUCTION", rid)
             need(local["kind"] != "witness" or local["from_inputs"] or local["from_local"],
                  "WITNESS-EXISTENCE", f"{rid}/{local['symbol']}: a chosen witness needs an actual direct input or earlier local existence fact; do not remove the basis merely to pass the format check")
-            opaque(local["declaration"], rid + ".local.declaration")
             locals_.append((local, lo, hi))
 
-        facts, active, visible_facts = {}, set(), {}
+        facts, active = {}, set()
         for i, s in enumerate(r["argument"]):
             where = rid + "/" + s["id"]
             available = base | {local["symbol"] for local, lo, hi in locals_ if lo <= i <= hi}
@@ -195,46 +177,30 @@ def validate(graph, spec, props, steps, defs, definition_closure):
                          f"{declaration_where}: missing prior facts={sorted(set(local['from_local'])-facts.keys())}; known earlier facts={sorted(facts)}. from_local lists earlier F proof IDs, not object names: put ordinary object dependencies in objects. A witness still needs a real existence premise. A fact produced in this same paragraph is not yet available; establish it in a preceding S.")
                     need(all(facts[x]["assumptions"] <= active and facts[x]["objects"] <= earlier
                              for x in local["from_local"]), "LOCAL-FACT-SCOPE", declaration_where+": "+scope_details(local['from_local'],facts,active,earlier,locals_))
-                    need(set(_IDS.findall(local["declaration"])) <= set(local["from_inputs"]) | set(local["from_local"]),
-                         "UNDECLARED-FACT", declaration_where+f": undeclared factual IDs={sorted(set(_IDS.findall(local['declaration']))-set(local['from_inputs'])-set(local['from_local']))}; from_inputs={local['from_inputs']}; from_local={local['from_local']}")
             objects(s, available, where)
-            opaque(s["text"], where)
             names(s["uses_local"], where + ".uses_local")
             need(set(s["uses_local"]) <= facts.keys(), "LOCAL-FACT-ORDER",
                  f"{where}: missing earlier facts={sorted(set(s['uses_local'])-facts.keys())}; known={sorted(facts)}")
             need(all(facts[x]["assumptions"] <= active and facts[x]["objects"] <= available
                      for x in s["uses_local"]), "LOCAL-FACT-SCOPE", f"{where}: "+scope_details(s['uses_local'],facts,active,available,locals_))
-            visible_facts[s["id"]] = {fid for fid, fact in facts.items()
-                                      if fact["assumptions"] <= active and fact["objects"] <= available}
             need(isinstance(s["produces"], list), "LOCAL-FACT", where)
-            produced = set()
             remaining = active - set(s["discharges"])
             for f in s["produces"]:
                 fields(f, {"id", "statement", "binders", "objects", "assumptions"}, where + ".produces")
                 need(isinstance(f["id"], str) and re.fullmatch(r"F\d{3,}", f["id"])
                      and f["id"] not in facts, "LOCAL-FACT", where)
                 need(isinstance(f["statement"], str) and f["statement"].strip(), "LOCAL-FACT", where)
-                opaque(f["statement"], where)
-                need(not _IDS.search(f["statement"]), "OPAQUE-STATEMENT", where)
                 bound = binders(f["binders"], global_names | available, where + "/" + f["id"])
                 objects(f, available | bound, where + "/" + f["id"])
                 names(f["assumptions"], where + ".assumptions")
                 need(set(f["assumptions"]) <= remaining, "LOCAL-FACT-SCOPE", where)
                 facts[f["id"]] = {"assumptions": set(f["assumptions"]), "objects": set(f["objects"]) - bound,
                                   "produced_at":s['id']}
-                produced.add(f["id"])
-            mentioned = set(_IDS.findall(s["text"]))
-            need(mentioned <= set(s["uses"]) | set(s["uses_local"]) | produced,
-                 "UNDECLARED-FACT", f"{where}: {mentioned - set(s['uses']) - set(s['uses_local']) - produced}")
             active = remaining
         for app in r["applications"]:
             need(isinstance(app["at"], str) and app["at"] in position, "APPLICATION-STEP", rid)
             step = r["argument"][position[app["at"]]]
             need(app["input"] in step["uses"], "APPLICATION-STEP", rid)
-            for text in [app["bindings"], *app["hypothesis_checks"]]:
-                opaque(text, rid + ".application")
-                need(set(_IDS.findall(text)) <= set(r["inputs"]) | visible_facts[app["at"]],
-                     "UNDECLARED-FACT", rid + ".application")
 
 
 def digest(payload):

@@ -47,7 +47,7 @@ class ReviewCompletionTests(unittest.TestCase):
         self.assertEqual(complete['checks']['b']['verdict'],'UNVERIFIED')
         self.assertNotIn('coverage',complete)
 
-    def test_revised_packet_rejects_a_replayed_verdict_until_current_content_is_read(self):
+    def test_revised_packet_delivers_current_material_without_a_page_read_gate(self):
         from controller_common import write, manifest
 
         def stage(name, conclusion):
@@ -61,14 +61,12 @@ class ReviewCompletionTests(unittest.TestCase):
         previous=stage('previous','The claim omits its domain.')
         revised=stage('revised','The claim is restricted to the nonzero domain.')
         try:
-            previous.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference/text'})
             revision=revised.prepare_role_revision(previous)
             self.assertNotEqual(revision['version_id'],revision['previous_version_id'])
+            self.assertEqual(revision['changed_documents'],['packet.json'])
+            self.assertIn(revision['version_id'],revised.input_prompt)
+            self.assertIn('restricted to the nonzero domain',revised.task_inputs['packet.json'])
             artifact={'checks':{'a':self.row()},'coverage':{'/checks/a':'assessed'},'findings':[]}
-            failed=revised.dispatch('submit_draft',{'artifact':artifact})
-            self.assertFalse(failed['accepted']); self.assertIsNone(revised.accepted)
-            self.assertIn('REVIEW_REVISION_UNREAD',failed['error'])
-            revised.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference/text'})
             passed=revised.dispatch('submit_draft',{'artifact':artifact})
             self.assertTrue(passed['stage_complete'],passed)
         finally:

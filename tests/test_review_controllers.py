@@ -385,7 +385,7 @@ class ReviewControllerTests(unittest.TestCase):
         bad=copy.deepcopy(draft);bad['conclusion_type']=bad['steps'][-1]['statement']='unboundTarget'
         with self.assertRaisesRegex(ValueError,'Actual Lean type check failed'):validator(bad)
         bad=copy.deepcopy(draft);bad['header']='import Mathlib\naxiom forged : False\n'
-        with self.assertRaisesRegex(ValueError,'not proof/result declarations'):validator(bad)
+        with self.assertRaisesRegex(ValueError,'unchecked axiom'):validator(bad)
 
     def test_interface_reviews_require_resolving_source_and_formal_locations(self):
         out=self.root/'interface-review';inputs=out/'inputs';inputs.mkdir(parents=True)
@@ -442,7 +442,8 @@ class ReviewControllerTests(unittest.TestCase):
         stage=t.InterfaceStage(self.root/'type-stage','Neutral controller test only.',phase='interface-authoring',library=False)
         self.addCleanup(shutil.rmtree, stage.work, ignore_errors=True)
         stage.started=time.monotonic()
-        result=stage.dispatch('check_lean_types',{'header':'import Mathlib\n',
+        result=stage.dispatch('check_lean_types',{'header':('-- Type probe\nimport Lean\nimport Mathlib\nset_option maxHeartbeats 400000\n'
+                        'set_option maxRecDepth 2000\nset_option autoImplicit false\nset_option linter.unusedVariables false\n'),
             'parameters':[{'name':'K','type':'Type','binder_kind':'implicit'},
                           {'name':'fieldK','type':'Field K','binder_kind':'instance'}],
             'types':['∀ x : K, x = x']})
@@ -454,12 +455,17 @@ class ReviewControllerTests(unittest.TestCase):
         self.assertFalse(bad['types_checked']);self.assertIsNone(stage.accepted)
 
         probe={'header':'import Mathlib\n','parameters':[],'types':['True']}
+        for option in ('debug.skipKernelTC','debug.«skipKernelTC»'):
+            with patch('pilot_common._run_lean',side_effect=AssertionError('Forbidden option reached compiler')):
+                forbidden=stage.dispatch('check_lean_types',{**probe,'header':probe['header']+f'set_option {option} true\n'})
+            self.assertFalse(forbidden['types_checked'])
+            self.assertIn('Lean kernel checking must remain enabled',forbidden['error'])
         heartbeat=dict(exit_code=1, stdout='Types.lean:4:4: error: (deterministic) timeout at `isDefEq`, maximum number of heartbeats (200000) has been reached\n', stderr='')
         with patch('pilot_common._run_lean', return_value=heartbeat) as native:
             failed=stage.dispatch('check_lean_types',probe)
             with patch.dict(stage.native_timeout_snapshot, status='UNAVAILABLE'):
                 unavailable=stage.dispatch('check_lean_types',probe)
-        self.assertEqual(native.call_args.kwargs['timeout'],1200)
+        self.assertEqual(native.call_args.kwargs['timeout'],60)
         self.assertFalse(failed['types_checked'])
         self.assertEqual(failed['repair_advice']['trigger'],'NATIVE_HEARTBEAT_EXHAUSTED')
         self.assertEqual(failed['repair_advice']['strategy']['id'],'ST020')
