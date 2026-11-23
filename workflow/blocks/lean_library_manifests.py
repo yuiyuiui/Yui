@@ -18,7 +18,7 @@ def module(name,prefix):
 
 def validate(value,environment):
     required={'version','name','lean_version','mathlib_commit','imports','modules'}
-    if (not isinstance(value,dict) or set(value)-{'ports','patches'}!=required or value['version']!=SNAPSHOT):
+    if (not isinstance(value,dict) or set(value)-{'ports','patches','adaptations'}!=required or value['version']!=SNAPSHOT):
         raise ValueError('Invalid Lean library snapshot metadata')
     name=value['name']
     if not isinstance(name,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*',name) or name in RESERVED:
@@ -47,6 +47,19 @@ def validate(value,environment):
     if not isinstance(ports,dict) or any(module not in seen or not isinstance(sha,str) or not SHA.fullmatch(sha)
                                         for module,sha in ports.items()):
         raise ValueError('Lean port receipts must bind actual library modules')
+    adaptations=value.get('adaptations',{})
+    if not isinstance(adaptations,dict) or set(adaptations)-seen or set(adaptations)&ports.keys():
+        raise ValueError('Lean adaptations must identify actual library modules')
+    for origin in adaptations.values():
+        if (not isinstance(origin,dict) or set(origin)!={'repository','revision','source_path','original_sha256'}
+                or not all(isinstance(field,str) for field in origin.values())
+                or not re.fullmatch(r'https://github\.com/[\w.-]+/[\w.-]+\.git',origin['repository'])
+                or not re.fullmatch(r'[0-9a-f]{40}',origin['revision'])
+                or not SHA.fullmatch(origin['original_sha256'])):
+            raise ValueError('Invalid adapted Lean source origin')
+        path=origin['source_path']
+        if any(part in {'','.','..'} for part in path.split('/')) or not path.endswith('.lean'):
+            raise ValueError('Expected a repository-relative Lean adaptation path')
     if 'patches' in value and (not isinstance(value['patches'],str) or not SHA.fullmatch(value['patches'])):
         raise ValueError('Lean library patches must bind an authorized recipe receipt')
     return value

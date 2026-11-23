@@ -1,9 +1,8 @@
-"""Evidence for compiling a whole pinned module under its original name."""
+"""Read old portable deliveries which declared dual-environment evidence."""
 import json
 from pathlib import Path
 import re
 
-from controller_common import bind, verify_bindings, write
 from pilot_common import native_succeeded
 from staging_storage import copy_input
 
@@ -13,49 +12,12 @@ FILES = {'original':'original.lean', 'upstream':'upstream.json',
          'target_original':'target-original.json', 'target_ported':'target-ported.json'}
 
 
-def failed_native(result):
+def _failed_native(result):
     from compiler_feedback import HEADER
     output = result.get('stdout','')+'\n'+result.get('stderr','')
     return (result.get('exit_code')==1 and not result.get('timed_out') and not result.get('cancelled')
             and not result.get('error_kind') and any(m['level'].startswith('error') for m in HEADER.finditer(output))
             and not re.search(r'unknown module prefix|object file.*\.olean.*does not exist|heartbeat',output,re.I))
-
-
-def authorization(refs, origin, module, environment):
-    """Read actual native results for the same fixed module in two environments."""
-    verify_bindings(refs.values())
-    target = json.loads(Path(refs['target_original']['path']).read_bytes())
-    upstream = json.loads(Path(refs['upstream']['path']).read_bytes())
-    if (target['origin']!=origin or upstream['origin']!=origin or target['module']!=module
-            or upstream['module']!=module or target['environment']!=environment
-            or upstream['environment']==environment or target['status']!='PUBLIC_LEAN_BUILD_FAILED'
-            or upstream['status']!='PUBLIC_LEAN_READY'):
-        raise ValueError('Original-name port requires the same pinned module to pass upstream and fail in the target environment')
-    files = {'original':target['original_source'], 'upstream':upstream['checks'][module],
-             'target_original':target['checks'][module]}
-    verify_bindings(files.values())
-    upstream_native=json.loads(Path(files['upstream']['path']).read_bytes())
-    if (files['original']['sha256']!=origin['source_sha256']
-            or not native_succeeded(upstream_native)
-            or ('input_libraries' in upstream and upstream['input_libraries']!=
-                upstream_native['selected_environment'].get('lean_libraries',[]))
-            or not failed_native(json.loads(Path(files['target_original']['path']).read_bytes()))):
-        raise ValueError('Original-name port has no completed native comparison on the full pinned source')
-    return files, upstream['environment']
-
-
-def create(directory, module, origin, environment, inputs, upstream, native, ported_sha256):
-    directory.mkdir(parents=True)
-    refs = {}
-    for role, ref in {**inputs,'target_ported':native}.items():
-        path=directory/FILES[role]
-        copy_input(ref['path'],path)
-        refs[role]={'path':path.name,'sha256':ref['sha256']}
-    path=directory/'receipt.json'
-    write(path,{'version':VERSION,'module':module,'origin':origin,'original_sha256':origin['source_sha256'],
-                'ported_sha256':ported_sha256,'upstream_environment':upstream,'target_environment':environment,
-                'files':refs})
-    return bind(path)
 
 
 def inventory(root, metadata, *, full=False):
@@ -88,7 +50,7 @@ def inventory(root, metadata, *, full=False):
             raise ValueError('Changed original Lean port source: '+module)
         statuses={key:json.loads((root/prefix/FILES[key]).read_bytes())
                   for key in ('upstream','target_original','target_ported')}
-        if (not native_succeeded(statuses['upstream']) or not failed_native(statuses['target_original'])
+        if (not native_succeeded(statuses['upstream']) or not _failed_native(statuses['target_original'])
                 or not native_succeeded(statuses['target_ported'])):
             raise ValueError('Invalid native evidence for original-name Lean port: '+module)
         receipts[module]=receipt
@@ -100,26 +62,3 @@ def copy_evidence(source, destination, metadata):
         target=destination/path
         target.parent.mkdir(parents=True,exist_ok=True)
         copy_input(source/path,target)
-
-
-def review_inputs():
-    """Expose the same manifest-bound files used for portable delivery."""
-    import lean_libraries
-    ports={};documents={}
-    for descriptor,metadata in lean_libraries.validate(lean_libraries.current()):
-        root=Path(descriptor['root'])
-        _,receipts=inventory(root,metadata)
-        modules={row['module']:row for row in metadata['modules']}
-        for module,receipt in receipts.items():
-            prefix=root/'ports'/module
-            source=root/'source'/Path(*module.split('.')).with_suffix('.lean')
-            files={role:(prefix/ref['path'],ref['sha256']) for role,ref in receipt['files'].items()}
-            files.update(receipt=(prefix/'receipt.json',metadata['ports'][module]),
-                         ported=(source,modules[module]['source_sha256']))
-            disclosed={}
-            for role,(path,sha) in files.items():
-                name=f'basis-port-{module}-{role}{path.suffix}'
-                documents[name]=path
-                disclosed[role]={'input':name,'sha256':sha}
-            ports[module]={'receipt_sha256':metadata['ports'][module],'files':disclosed}
-    return ports,documents

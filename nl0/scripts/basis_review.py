@@ -72,11 +72,12 @@ def material(artifact, native, originals, evidence, revision_report=None):
     basis_names={'YuiBasis.'+r['id']:r['id'] for r in artifact['dependencies'] if r['category']!=4 and r['lean'] is not None}
     items = {}
     source_docs = {Path(r['path']).name:r['sha256'] for r in originals}
-    import lean_ports
+    import lean_libraries
     import lean_patches
-    ports,_=lean_ports.review_inputs()
+    adaptations,_=lean_libraries.adaptation_inputs()
     patches,_=lean_patches.review_inputs()
-    for record in [*ports.values(),*patches.values()]:
+    source_docs.update({row['source']['input']:row['source']['sha256'] for row in adaptations.values()})
+    for record in patches.values():
         source_docs.update({ref['input']:ref['sha256'] for ref in [*record['files'].values(),*record.get('modules',{}).values()]})
     external = {r['sha256']:'basis-source-'+r['sha256']+'.txt' for r in evidence}
     import basis_sources
@@ -97,7 +98,7 @@ def material(artifact, native, originals, evidence, revision_report=None):
         verify_bindings([revision_report])
         objection=ir.load(revision_report['path'])['finding']
     return {'revision_objection':objection,'target':artifact['full_target'], 'proof':artifact['proof'], 'header':artifact['lean_header'],
-            **({'ports':ports} if ports else {}),
+            **({'adaptations':adaptations} if adaptations else {}),
             **({'patches':patches} if patches else {}),
             **({'global_graph':artifact['global_graph']} if 'global_graph' in artifact else {}),
             'replacements':artifact['replacements'], 'documents':source_docs, 'items':items}
@@ -353,11 +354,9 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
     keys=item_keys(packet);required=sorted(k for k,v in keys.items() if v not in history)
     sources={k:history[v] for k,v in keys.items() if v in history}
     prompt=PROMPT
-    if packet.get('ports'):
-        prompt += ('\nRead the original-name compatibility evidence listed at /ports. Compare the whole '
-                   'pinned original with the edited Lean file and its native receipts. Check source fidelity '
-                   'and applicability wherever a reviewed basis item uses the port, including transitively. '
-                   'A successful port build only checks availability.')
+    if packet.get('adaptations'):
+        prompt += ('\nRead /adaptations and its exact compiled Lean sources. Check source fidelity and '
+                   'applicability wherever a basis item uses an adaptation, including transitively.')
     if packet.get('patches'):
         prompt += ('\nCheck the fixed build recipe or frozen user authorization at /patches and its ordered '
                    'patch files. Verify that the effective source supports each basis item that uses it.')
@@ -382,12 +381,12 @@ def assess(out, context, artifact, sessions, budget, history, *, round_number=1)
     if required:
         for row in context['original_inputs']:
             stage_document(Path(row['path']),inputs/Path(row['path']).name)
-        for key in ('ports','patches'):
+        import lean_libraries
+        import lean_patches
+        from staging_storage import copy_input
+        for key,read in [('adaptations',lean_libraries.adaptation_inputs),('patches',lean_patches.review_inputs)]:
             if not packet.get(key):continue
-            import lean_ports
-            import lean_patches
-            from staging_storage import copy_input
-            _,documents=(lean_ports if key=='ports' else lean_patches).review_inputs()
+            _,documents=read()
             for name,path in documents.items():
                 if (inputs/name).exists() or bind(path)['sha256']!=packet['documents'][name]:
                     raise ValueError('Changed or conflicting Lean library review document')

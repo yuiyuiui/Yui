@@ -433,71 +433,36 @@ class ImportedLeanTests(unittest.TestCase):
             lean_libraries.validate(lean_libraries.binding(), full=True)
             import_all()
 
-    def test_public_upstream_dependency_chain_is_checked_in_its_own_environment(self):
-        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
-            self.skipTest('Supply a distinct --comparison-environment')
-        run=self.public_job()
-        dependency=self.git_source('port-dep',{'Dep/Base.lean':'import Init\nnamespace Dep\ntheorem base : True := trivial\nend Dep\n'})
-        candidate='import Lean\nimport Dep.Base\nnamespace Lib\ntheorem witness : True := Dep.base\nend Lib\n'
-        version=json.dumps(self.old['lean']['version_number'])
-        source=self.git_source('cross-env-port',{'Lib/Port.lean':candidate.replace('namespace Lib',f'#guard Lean.versionString == {version}\nnamespace Lib')})
-        _,transport=self.local_git_transport(source,dependency)
-        with transport,lean_libraries.generated(run/'imported-lean'), \
-                patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])):
-            dep=self.read_pinned(dependency,'Dep/Base.lean','known-dependency')
-            bound=lean_imports.check(self.stage,dep,bind_public=True,module='Dep.Base',allow_publish=True)
-            self.assertEqual(bound['import'],'import Dep.Base',bound)
-            evidence=self.read_pinned(source,'Lib/Port.lean','port')
-            args={'bind_public':True,'module':'Lib.Port','allow_publish':True,'upstream':self.upstream()}
-            diagnosis=lean_imports.check(self.stage,evidence,**args)
-            self.assertEqual(diagnosis['status'],'COMPATIBILITY_PORT_REQUIRED',diagnosis)
-            upstream=diagnosis['upstream_public_library']
-            native=json.loads(Path(upstream['checks']['Lib.Port']['path']).read_bytes())
-            identities=native['selected_environment']['lean_libraries']
-            self.assertEqual(identities,upstream['input_libraries'])
-            self.assertEqual([row['name'] for row in identities],['Dep'])
-            self.assertNotEqual(identities[0]['manifest_sha256'],bound['library']['manifest']['sha256'])
-            self.assertEqual(native['selected_environment']['lean_version'],self.old['lean']['version_number'])
-            edited=lean_imports.check(self.stage,evidence,candidate=candidate,**args)
-            self.assertEqual(edited.get('import'),'import Lib.Port',edited)
-            reused=lean_imports.check(self.stage,evidence,bind_public=True,module='Lib.Port',allow_publish=True)
-            self.assertEqual(reused['public_library']['status'],'PUBLIC_LEAN_ALREADY_BOUND',reused)
-            self.assertEqual(Path(reused['checked_source']['path']).read_text(),candidate)
-            use=lean_imports.compile_unit('import Lib.Port\nexample : True := Lib.witness\n',self.current,
-                                         run/'check-cross-env-port',attachments=lean_libraries.current())
-            self.assertTrue(pilot_common.native_succeeded(use['native']),use['diagnostic'])
+    def test_public_heartbeat_failure_exposes_its_source_and_can_be_adapted(self):
+        run = self.public_job()
+        candidate = 'import Lean\ntheorem witness : True := True.intro\n'
+        expensive = ('import Lean\nset_option maxHeartbeats 1 in\n'
+                     'theorem witness : True := by\n' +
+                     ''.join(f'  have h{n} : True := True.intro\n' for n in range(400)) +
+                     '  exact True.intro\n')
+        source = self.git_source('heartbeat',{'Lib/Base.lean':expensive})
+        _, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            evidence = self.read_pinned(source,'Lib/Base.lean','base')
+            diagnosis = lean_imports.check(self.stage,evidence,bind_public=True,allow_publish=True)
+            failed = diagnosis['public_library']
+            self.assertEqual(failed.get('failed_module'),'Lib.Base',failed)
+            diagnostic = lean_imports.read_public_failure(self.stage,failed['receipt'],kind='diagnostic')
+            self.assertIn('heartbeats',diagnostic['text'])
+            repaired = lean_imports.check(self.stage,{'failure':failed['receipt']},
+                                         bind_public=True,candidate=candidate,allow_publish=True)
+            self.assertEqual(repaired.get('import'),'import Lib.Base',repaired)
 
-    def test_public_upstream_failure_returns_missing_pin_or_native_error_without_candidate(self):
-        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
-            self.skipTest('Supply a distinct --comparison-environment')
-        run=self.public_job()
-        dep=self.git_source('unread-dep',{'Dep/Base.lean':'import Init\n'})
-        broken='import Dep.Base\nexample : True := proofMissingInBothPairs\n'
-        source=self.git_source('two-pair-failure',{'Lib/Port.lean':broken})
-        _,transport=self.local_git_transport(source,dep)
-        with transport,lean_libraries.generated(run/'imported-lean'), \
-                patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])):
-            old_stage=self.stage.logs
-            seed=SimpleNamespace(logs=old_stage,task_inputs={})
-            registered=lean_imports.check(seed,self.read_pinned(dep,'Dep/Base.lean','seed'),
-                                           bind_public=True,module='Dep.Base',allow_publish=True)
-            self.assertEqual(registered['import'],'import Dep.Base',registered)
-            self.stage.logs=run/'new-stage'; (self.stage.logs/'external-sources').mkdir(parents=True)
-            evidence=self.read_pinned(source,'Lib/Port.lean','port')
-            args={'bind_public':True,'module':'Lib.Port','allow_publish':True,'upstream':self.upstream()}
-            missing=lean_imports.check(self.stage,evidence,**args)
-            self.assertIn('upstream_public_library',missing,missing)
-            self.assertEqual(missing['upstream_public_library']['missing_module'],'Dep.Base',missing)
-            self.assertIn('Dep.Base',missing['diagnostics']['upstream'])
-            exact=self.read_pinned(dep,'Dep/Base.lean','exact')
-            args['upstream']={**args['upstream'],'dependencies':{'Dep.Base':exact}}
-            failed=lean_imports.check(self.stage,evidence,**args)
-            self.assertEqual(failed['upstream_public_library']['status'],'PUBLIC_LEAN_BUILD_FAILED',failed)
-            self.assertIn('proofMissingInBothPairs',failed['diagnostics']['upstream'])
-            self.assertEqual(failed['upstream_check'],failed['upstream_public_library']['receipt'])
-            self.assertFalse(failed['accepted_for_native_reuse'])
-            with_candidate=lean_imports.check(self.stage,evidence,candidate=broken.replace('proofMissingInBothPairs','trivial'),**args)
-            self.assertIn('proofMissingInBothPairs',with_candidate['diagnostics']['upstream'])
+    def test_public_missing_namespace_reports_actual_import_before_compiling(self):
+        run = self.public_job()
+        source = self.git_source('missing',{'Lib/Base.lean':'import MissingDep.Base\n'})
+        _, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(run/'imported-lean'):
+            evidence = self.read_pinned(source,'Lib/Base.lean','base')
+            result = lean_imports.check(self.stage,evidence,bind_public=True,allow_publish=True)
+        self.assertEqual(result['status'],'PUBLIC_LEAN_DEPENDENCY_REQUIRED')
+        self.assertEqual(result['public_library']['missing_module'],'MissingDep.Base')
+        self.assertEqual(result['public_library']['checks'],{})
 
     def test_selecting_pending_imports_leaves_both_lean_entries_strict(self):
         run = self.public_job()
@@ -534,49 +499,63 @@ class ImportedLeanTests(unittest.TestCase):
         self.stage = stage
         candidate = ('import Lean\nnamespace Lib\n'
                      'theorem base (n : Nat) : n + 0 = n := rfl\nend Lib\n')
-        original = candidate.replace('import Lean\n',
-                    'import Lean\n#guard Lean.versionString == '+json.dumps(self.old['lean']['version_number'])+'\n')
+        original = candidate.replace(':= rfl', ':= by exact missingOriginalProof')
         source = self.git_source('port',{
             'Lib/Base.lean': original,
             'Lib/Consumer.lean': ('import Lib.Base\nnamespace Lib\n'
                                  'theorem consumer (n : Nat) : n + 0 = n := base n\nend Lib\n'),
         })
-        _, transport = self.local_git_transport(source)
-        # Supply only the two fixtures already verified against real installations.
-        # Version selection and every native build still run.
-        with (transport, patch.object(lean_environment,'discover',return_value=([self.old,self.current],[])),
-              lean_libraries.generated(run/'imported-lean')):
+        calls, transport = self.local_git_transport(source)
+        with transport, lean_libraries.generated(run/'imported-lean'):
             _, number = self.save_basis_route(stage,'import Lib.Consumer\n','exact Lib.consumer')
             selected = stage.dispatch('prepare_basis_graph',{'candidate':number,'prove':False})
             self.assertTrue(selected.get('route_ready'),selected)
-            evidence = self.read_pinned(source,'Lib/Base.lean','base')
-            options = {'source':evidence,'module':'Lib.Base','bind_public':True,'upstream':self.upstream()}
-            original_check = stage.dispatch('check_imported_lean',options)
-            self.assertEqual(original_check.get('status'),'COMPATIBILITY_PORT_REQUIRED',original_check)
-            fragment = stage.dispatch('check_imported_lean',{
-                **options,'source':{**evidence,'start':1,'end':2},'candidate':candidate,'publish':True})
-            self.assertIn('complete pinned source',fragment['error'],fragment)
-            self.assertNotIn('Lib.Base',lean_libraries.permitted_imports())
-            port = stage.dispatch('check_imported_lean',{**options,'candidate':candidate,'publish':True})
-            self.assertEqual(port.get('status'),'PORTED_CHECKED',port)
-            self.assertEqual(port['import'],'import Lib.Base')
-            consumer = stage.dispatch('check_imported_lean',{
-                'source':self.read_pinned(source,'Lib/Consumer.lean','consumer'),
-                'bind_public':True,'module':'Lib.Consumer'})
-            self.assertEqual(consumer['public_library']['status'],'PUBLIC_LEAN_READY',consumer)
-            replacement = stage.dispatch('check_imported_lean',{
-                **options,'candidate':candidate+'\n-- another port\n','publish':True})
-            self.assertIn('already registered',replacement['error'],replacement)
+            consumer = {'source':self.read_pinned(source,'Lib/Consumer.lean','consumer'),
+                        'bind_public':True,'module':'Lib.Consumer'}
+            diagnosis = stage.dispatch('check_imported_lean',consumer)
+            failed = diagnosis['public_library']
+            self.assertEqual(failed['failed_module'],'Lib.Base',diagnosis)
+            self.assertEqual(Path(failed['original_source']['path']).read_text(),original)
+            native = json.loads(Path(failed['checks']['Lib.Base']['path']).read_text())
+            self.assertIn('missingOriginalProof',native['stdout']+native['stderr'])
+            selection = {'failure':failed['receipt']}
+            shown = stage.dispatch('read_imported_lean_failure',{'receipt':failed['receipt']})
+            self.assertIn('missingOriginalProof',shown['text'])
+            options = {'source':selection,'bind_public':True,'module':'Lib.Base'}
+            with patch.object(lean_imports,'original_environment',side_effect=AssertionError('No upstream check')):
+                for rejected in ('sorry','unproved'):
+                    bad = candidate.replace(':= rfl', f':= {rejected}')
+                    if rejected=='unproved':
+                        bad = bad.replace('namespace Lib', 'namespace Lib\naxiom unproved (n : Nat) : n + 0 = n')
+                        bad = bad.replace(':= unproved', ':= unproved n')
+                    trial = stage.dispatch('check_imported_lean',{**options,'candidate':bad})
+                    self.assertFalse(trial['accepted_for_native_reuse'],trial)
+                    self.assertNotIn('Lib.Base',lean_libraries.permitted_imports())
+                native_candidate = candidate + 'theorem computed : (2 : Nat) + 3 = 5 := by native_decide\n'
+                trial = stage.dispatch('check_imported_lean',{**options,'candidate':native_candidate})
+                failed_trust = trial['public_library']
+                compiled = json.loads(Path(failed_trust['checks']['Lib.Base']['path']).read_text())
+                self.assertEqual(compiled['exit_code'],0,compiled)
+                self.assertIn('trust_diagnostic',failed_trust,trial)
+                self.assertIn('unpermitted axiom',trial['diagnostics']['current'])
+                self.assertFalse(trial['accepted_for_native_reuse'],trial)
+                self.assertNotIn('Lib.Base',lean_libraries.permitted_imports())
+                edited = stage.dispatch('check_imported_lean',{**options,'candidate':candidate})
+            self.assertEqual(edited.get('status'),'PORTED_CHECKED',edited)
+            self.assertEqual(edited['import'],'import Lib.Base')
+            self.assertEqual(set(edited['public_library']['checks']),{'Lib.Base'})
+            self.assertEqual(len(list((stage.logs/'imported-lean/public-builds').rglob('Lib.Base.json'))),3)
+            checked = stage.dispatch('check_imported_lean',consumer)
+            self.assertEqual(checked['public_library']['status'],'PUBLIC_LEAN_READY',checked)
+            self.assertEqual(set(checked['public_library']['checks']),{'Lib.Consumer'})
+            self.assertEqual(len(calls),1)
             [active] = lean_libraries.binding()
             snapshot = Path(active['root'])
             metadata = json.loads((snapshot/'manifest.json').read_text())
-            effective = next(row for row in metadata['modules'] if row['module']=='Lib.Base')
-            port_root = snapshot/'ports/Lib.Base'
-            receipt = json.loads((port_root/'receipt.json').read_text())
-            self.assertEqual(metadata['ports']['Lib.Base'],bind(port_root/'receipt.json')['sha256'])
-            self.assertEqual(receipt['original_sha256'],hashlib.sha256(original.encode()).hexdigest())
-            self.assertEqual(receipt['ported_sha256'],effective['source_sha256'])
-            self.assertEqual(receipt['origin']['revision'],source[2])
+            self.assertNotIn('ports',metadata)
+            record = metadata['adaptations']['Lib.Base']
+            self.assertEqual(record,{'repository':source[0],'revision':source[2],
+                'source_path':'Lib/Base.lean','original_sha256':hashlib.sha256(original.encode()).hexdigest()})
             self.assertEqual((snapshot/'source/Lib/Base.lean').read_text(),candidate)
 
         program=harness_support.TESTS/'tooling/basis_path_control.py'
@@ -585,28 +564,19 @@ class ImportedLeanTests(unittest.TestCase):
         self.assertEqual(process.returncode,0,(process.stdout+process.stderr)[-5000:])
         review_dir=run/'2basis/0001/review/inputs'
         packet=json.loads((review_dir/basis_review.PACKET).read_text())
-        review_port=packet['ports']['Lib.Base']
-        self.assertEqual(review_port['receipt_sha256'],metadata['ports']['Lib.Base'])
-        self.assertEqual((review_dir/review_port['files']['original']['input']).read_text(),original)
-        self.assertEqual((review_dir/review_port['files']['ported']['input']).read_text(),candidate)
-        for key,code in {'upstream':0,'target_original':1,'target_ported':0}.items():
-            data=json.loads((review_dir/review_port['files'][key]['input']).read_text())
-            self.assertEqual(data['exit_code'],code)
-        changed=deepcopy(packet)
-        changed['ports']['Lib.Base']['files']['upstream']['sha256']='0'*64
-        self.assertNotEqual(basis_review.item_keys(packet),basis_review.item_keys(changed))
-        delivered=run/'delivery'
-        self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
-        return {'receipt':receipt,'original':original}
+        adapted=packet['adaptations']['Lib.Base']
+        self.assertEqual(adapted['origin'],record)
+        self.assertEqual((review_dir/adapted['source']['input']).read_text(),candidate)
+        self.assertEqual(delivery.verify(run/'delivery')['scope'],'UNCONDITIONAL_LEAN')
+        import b2lean
+        with lean_libraries.generated(run/'imported-lean'):
+            self.assertTrue(b2lean.validate_receipt(run/'b2lean')['closure']['unconditional'])
+        return record
 
     def test_pinned_original_name_port_reaches_consumer_review_and_retained_delivery(self):
-        if not self.comparison or self.old['lean']['version_number']==self.current['lean']['version_number']:
-            self.skipTest('Supply a distinct --comparison-environment for the two native environments')
         import cleanup
         import delivery
         fixture=self.root/'port-delivery';fixture.mkdir()
-        # The preparer itself takes part in real native executions. Let those
-        # owner identities exit before a separate process requests cleanup.
         process=subprocess.run([sys.executable,'-B',str(Path(__file__).resolve()),'--prepare-port-fixture',str(fixture)],
                                capture_output=True,text=True,timeout=1200)
         self.assertEqual(process.returncode,0,(process.stdout+process.stderr)[-7000:])
@@ -616,21 +586,16 @@ class ImportedLeanTests(unittest.TestCase):
         cleaned=cleanup.clean(outputs=[run],apply=True,grace=0)
         self.assertEqual(cleaned['status'],'CLEANED',cleaned)
         self.assertEqual({p.name for p in run.iterdir()},{'delivery'})
-        self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
-        directory=delivered/'formalization/lean-libraries/Lib/ports/Lib.Base'
-        endpoint=json.loads((delivered/'nl0/lean-endpoints.json').read_text())
-        self.assertEqual(json.loads((directory/'receipt.json').read_text()),expected['receipt'])
-        self.assertEqual((directory/'original.lean').read_text(),expected['original'])
-        for path in directory.iterdir():
-            with self.subTest(delivered_file=path.name):
-                saved=path.read_bytes()
-                path.unlink()
-                with self.assertRaises(ValueError):delivery.verify(delivered)
-                path.write_bytes(saved+b'changed')
-                with self.assertRaises(ValueError):
-                    lean_libraries.verify_export(delivered/'formalization',endpoint['lean_libraries'])
-                with self.assertRaises(ValueError):delivery.verify(delivered)
-                path.write_bytes(saved)
+        result=subprocess.run([sys.executable,'-B',str(harness_support.CORE/'nl0/scripts/yui.py'),
+                               'verify-delivery',str(delivered)],capture_output=True,text=True,timeout=60)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(json.loads(result.stdout)['scope'],'UNCONDITIONAL_LEAN')
+        library=delivered/'formalization/lean-libraries/Lib'
+        self.assertEqual(json.loads((library/'manifest.json').read_text())['adaptations']['Lib.Base'],expected)
+        kept=library/'source/Lib/Base.lean';saved=kept.read_bytes()
+        kept.write_bytes(saved+b'-- changed')
+        with self.assertRaises(ValueError):delivery.verify(delivered)
+        kept.write_bytes(saved)
         self.assertEqual(delivery.verify(delivered)['scope'],'UNCONDITIONAL_LEAN')
 
     def patch_fixture(self):

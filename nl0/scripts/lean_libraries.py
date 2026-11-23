@@ -59,7 +59,7 @@ def capture(specification, run):
     """Copy only explicitly enumerated public modules; never scan sibling files."""
     specification = Path(specification).resolve(strict=True)
     value = json.loads(specification.read_text())
-    if set(value)-{'ports','patches'} != {'version', 'name', 'lean_version', 'mathlib_commit',
+    if set(value)-{'ports','patches','adaptations'} != {'version', 'name', 'lean_version', 'mathlib_commit',
                       'source_root', 'build_root', 'imports', 'modules'} or value['version'] != VERSION:
         raise ValueError('Invalid explicit Lean library specification')
     metadata = _metadata({k: v for k, v in value.items() if k not in {'source_root', 'build_root', 'version'}}
@@ -259,6 +259,20 @@ def dispatch(name,args,logs):
     if name=='read_lean_library':return read_source(**args,retained_at=logs)
     if name=='search_lean_library':return search_source(**args)
     raise ValueError('Unknown attached Lean library tool')
+
+
+def adaptation_inputs():
+    """Disclose actual adapted sources and their origin to the independent reviewer."""
+    records={};documents={}
+    for descriptor,metadata in validate(current()):
+        for row in metadata['modules']:
+            module=row['module']
+            origin=metadata.get('adaptations',{}).get(module)
+            if origin:
+                name='basis-adapted-'+module+'.lean'
+                documents[name]=Path(descriptor['root'])/'source'/_module(module,metadata['name']).with_suffix('.lean')
+                records[module]={'origin':origin,'source':{'input':name,'sha256':row['source_sha256']}}
+    return records,documents
 
 
 def export_sources(directory):

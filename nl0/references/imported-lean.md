@@ -49,14 +49,17 @@ corresponding file path must agree with the pinned source. The tool builds that
 module and its available same-namespace closure using restricted Lean
 invocations, then binds the checked artifacts in the owned registry. Use
 `bind_public:true` to request the original module name as a dependency even when
-the standalone code already compiles. A failed build returns actual diagnostics
-to the author. Bind additional namespaces using their checked public sources or
-the explicit library attachment. The original/version branch can diagnose a
-port with its own compiled context, whose artifacts stay with that environment.
-For a cross-library import the upstream check uses an unambiguous fixed source
-already read in this stage. You can also give `upstream.dependencies` as a map
-from exact import name to the complete retained source selection. Missing pins
-and native failures stay in the upstream diagnostic.
+the standalone code already compiles. A failed build identifies the actual failed module and returns a reference to its
+complete diagnostic and, when available, its original Git source. Call
+`read_imported_lean_failure` with that build receipt to read the source or
+diagnostic. For an unbound external import, the reply names the missing module.
+
+After selecting the complete natural-language basis route, submit the full edited
+module with `bind_public:true`, `source:{"failure": BUILD_RECEIPT}` and
+`candidate`. Yui compiles and inspects the edited unit in the current environment,
+registers it under its original module name, and retains its source origin. There
+is no prerequisite build in the source project's environment. Recheck the consumer
+after registering the fixed module.
 
 For a dependency pinned with patches, pass `recipe` to `read_external_source` with
 the raw GitHub URL of the module at the base commit. Use a frozen user input ID
@@ -67,8 +70,7 @@ own checkout. The reader also supports a pinned `lakefile.lean` with an explicit
 `post_update` patch list and matching `lake-manifest.json` lock. It reads the
 configuration as data. Use an explicitly frozen recipe for other build layouts.
 Read and bind the patched sources before publishing that library for the first
-time. Submit author-written compatibility edits through the two-environment
-port procedure below.
+time. Submit author-written compatibility edits using the failed public build receipt.
 
 Follow compiler, import and fetch diagnostics through `check_imported_lean`.
 Three unsuccessful checks of the same fixed public module in the same selected
@@ -80,11 +82,6 @@ upstream pair. After addressing that action, the operator uses `resume-error`
 for the incident and the author rechecks the dependency. Use
 `MISSING_SOURCE_STATEMENT` for missing readable material needed for a complete
 statement.
-
-Supply the complete edited unit as `candidate` with the same source selection
-and upstream pins. `PORTED_CHECKED` requires its completed current native check.
-A failed or incomplete recheck cannot be reused. Original and edited sources,
-environments and all checks remain distinct and content-bound.
 
 Before basis/interface freeze, `publish:true` can install the checked unit in
 this case's owned public-library registry. It returns the exact import name.

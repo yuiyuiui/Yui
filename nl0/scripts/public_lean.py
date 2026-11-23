@@ -87,11 +87,12 @@ def known_dependency(logs, module):
 
 
 class BuildFailure(ValueError):
-    def __init__(self, status, diagnostic, *, bound=None, missing_module=None):
+    def __init__(self, status, diagnostic, *, bound=None, missing_module=None, failed_module=None):
         super().__init__(diagnostic)
         self.status=status
         self.bound=bound
         self.missing_module=missing_module
+        self.failed_module=failed_module
 
 
 def git(work, cwd, arguments, deadline):
@@ -285,14 +286,14 @@ def scope(source_root, entry, prepare, *, compiled=None, edited=None, deadline=N
                                        missing_module=module)
                 text=path.read_bytes().decode()
                 if re.search(r'\b(sorry|admit|axiom)\b',code_tokens(text)):
-                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy failed for '+module)
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Source policy failed for '+module, failed_module=module)
                 paths[module]=path
                 batch.append(module)
                 files.append(text)
             pending=[]
             for module,header in zip(batch,parse(files) if files else []):
                 if 'error' in header:
-                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Malformed import header for '+module+': '+header['error'])
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Malformed import header for '+module+': '+header['error'], failed_module=module)
                 headers[module]=header['imports']
                 pending.extend(header['imports'])
             prepare([source_root/Path(*name.split('.')).with_suffix('.lean') for name in dict.fromkeys(pending)
@@ -317,7 +318,7 @@ def same_pin(first, second):
             and first.get('patch_order',[])==second.get('patch_order',[]))
 
 
-def prior_library(namespace, entry, origin, entries, environment, *, porting=False):
+def prior_library(namespace, entry, origin, entries, environment, *, adapting=False):
     """Find the active checked public predecessor in this build's inputs."""
     for descriptor, metadata in lean_libraries.validate(lean_libraries.current()):
         if descriptor['name']!=namespace:continue
@@ -331,13 +332,9 @@ def prior_library(namespace, entry, origin, entries, environment, *, porting=Fal
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','Namespace already belongs to a different pinned library: '+namespace)
         matched=next((row for row in metadata['modules'] if row['module']==entry),None)
         bound={'library':descriptor,'registration':owner['check']} if owner else None
-        if matched and porting:
+        if matched and adapting:
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','The original module is already registered: '+entry)
-        if matched and entry in metadata.get('ports',{}):
-            receipt=lean_ports.inventory(Path(descriptor['root']),metadata)[1][entry]
-            if receipt['origin']['source_sha256']==origin['source_sha256'] and entry in metadata['imports']:
-                raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The original module has a checked compatibility port: '+entry,bound=bound)
-        if matched and matched['source_sha256']!=origin['source_sha256']:
+        if matched and original_hashes(descriptor,metadata)[entry]!=origin['source_sha256']:
             raise BuildFailure('PUBLIC_LEAN_CONFLICT','Source bytes conflict with the bound module: '+entry)
         if entry in metadata['imports']:
             raise BuildFailure('PUBLIC_LEAN_ALREADY_BOUND','The pinned module is already bound: '+entry,bound=bound)
@@ -345,13 +342,28 @@ def prior_library(namespace, entry, origin, entries, environment, *, porting=Fal
     return None,None
 
 
-def build(origin, directory, environment, *, timeout, source_cache=None, previous_entries=(), port=None):
+def original_hashes(descriptor, metadata):
+    sources={row['module']:row['source_sha256'] for row in metadata['modules']}
+    if metadata.get('ports'):
+        _, receipts=lean_ports.inventory(Path(descriptor['root']),metadata)
+        sources.update({module:row['original_sha256'] for module,row in receipts.items()})
+    sources.update({module:row['original_sha256'] for module,row in metadata.get('adaptations',{}).items()})
+    return sources
+
+
+def adaptation_origin(origin):
+    return {key:origin[key] for key in ('repository','revision','source_path')} | {
+        'original_sha256':origin['source_sha256']}
+
+
+def build(origin, directory, environment, *, timeout, source_cache=None, previous_entries=(), candidate=None):
     """Use the installed sandboxed compiler. Keep enough evidence for replay and porting."""
     from runtime_config import use_environment
     import lean_environment
     directory.mkdir(parents=True)
     deadline=time.monotonic()+timeout
-    entry=None;checks={};bindings=[];previous=None;original_source=None;bound=None;missing_module=None
+    entry=None;checks={};bindings=[];previous=None;bound=None;missing_module=None
+    failure={}
     selected=lean_environment.identity(environment)
     try:
         with use_environment(environment),native_workspace.temporary('yui-public-lean-',logs=directory) as work:
@@ -367,22 +379,38 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                 if hashlib.sha256(entry_path.read_bytes()).hexdigest()!=origin['source_sha256']:
                     raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Pinned module bytes differ from the retained source.')
                 namespace=entry.split('.')[0]
-                previous,metadata=prior_library(namespace,entry,origin,previous_entries,selected,porting=port is not None)
+                previous,metadata=prior_library(namespace,entry,origin,previous_entries,selected,
+                                                adapting=candidate is not None)
                 edited=None
-                if port is not None:
-                    inputs,upstream=lean_ports.authorization(port['authority'],origin,entry,selected)
-                    edited=directory/'ported.lean';edited.write_text(port['candidate'])
+                if candidate is not None:
+                    edited=directory/'candidate.lean'
+                    edited.write_text(candidate)
                 old_modules=metadata['modules'] if metadata else []
-                original_hashes={row['module']:row['source_sha256'] for row in old_modules}
-                if metadata and metadata.get('ports'):
-                    _,receipts=lean_ports.inventory(Path(previous['root']),metadata)
-                    original_hashes.update({module:receipt['original_sha256'] for module,receipt in receipts.items()})
-                namespace, sources=scope(source_dir,entry,prepare,edited=edited,
-                                         compiled=original_hashes,deadline=deadline)
+
+                def retain_failure(module):
+                    failure['failed_module']=module
+                    if candidate is not None and module==entry:
+                        return
+                    path=source_dir/Path(*module.split('.')).with_suffix('.lean')
+                    if path.resolve()!=path or not path.is_file():
+                        return
+                    retained=directory/'original.lean'
+                    copy_input(path,retained)
+                    failure['original_source']=bind(retained)
+                    failure['failure_origin']={**origin,'source_path':path.relative_to(root).as_posix(),
+                        'source_sha256':failure['original_source']['sha256'],'expected_module':module}
+
+                try:
+                    namespace,sources=scope(source_dir,entry,prepare,edited=edited,
+                        compiled=original_hashes(previous,metadata) if metadata else {},deadline=deadline)
+                except BuildFailure as error:
+                    if error.failed_module:
+                        retain_failure(error.failed_module)
+                    raise
             output=work/'output'; output.mkdir(); (work/'input').mkdir()
             source_root=directory/'source';build_root=directory/'build'
             rows=list(old_modules)
-            ports=dict(metadata.get('ports',{})) if metadata else {}
+            adaptations=dict(metadata.get('adaptations',{})) if metadata else {}
             if previous:
                 old_root=Path(previous['root'])
                 lean_ports.copy_evidence(old_root,directory,metadata)
@@ -400,7 +428,9 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                             copy_input(destination,staged)
             for module, path in sources.items():
                 remaining=deadline-time.monotonic()
-                if remaining<=0:raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Build time elapsed before '+module)
+                if remaining<=0:
+                    retain_failure(module)
+                    raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED','Build time elapsed before '+module)
                 relative=Path(*module.split('.'));source=output/relative.with_suffix('.lean')
                 source.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(path,source)
                 compiled=source.with_suffix('.olean')
@@ -408,17 +438,25 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
                 log=directory/(module+'.json');write(log,result);checks[module]=bind(log)
                 native_log=result.get('stdout','')+'\n'+result.get('stderr','')
                 if not native_succeeded(result) or not compiled.is_file() or re.search(r"declaration uses ['‘]sorry['’]",native_log):
-                    if port is None and module==entry and lean_ports.failed_native(result):
-                        copy_input(source,directory/'original.lean')
-                        original_source=bind(directory/'original.lean')
+                    retain_failure(module)
                     from compiler_feedback import excerpt
                     raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+excerpt(native_log,5000)[0])
+                if candidate is not None and module==entry:
+                    from compiler_feedback import excerpt
+                    proof_check=output/'YuiPublicTrust.lean'
+                    probe=Path(__file__).with_name('LeanModuleTrust.lean').read_text()
+                    proof_check.write_text(probe.replace('YuiAdaptedModule',entry))
+                    trust=run_lean(proof_check,work,extra=[output],timeout=max(.001,deadline-time.monotonic()))
+                    report=directory/'candidate-trust.json'
+                    write(report,trust)
+                    bindings.append(bind(report))
+                    if not native_succeeded(trust):
+                        failure.update(failed_module=module,trust_diagnostic=bind(report))
+                        raise BuildFailure('PUBLIC_LEAN_BUILD_FAILED',module+': '+excerpt(
+                            trust.get('stdout','')+'\n'+trust.get('stderr',''),5000)[0])
+                    adaptations[entry]=adaptation_origin(origin)
                 dest=source_root/relative.with_suffix('.lean');dest.parent.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(source,dest);source_ref=bind(dest);bindings.append(source_ref);artifacts={}
-                if port is not None and module==entry:
-                    receipt=lean_ports.create(directory/'ports'/entry,entry,origin,selected,
-                                              inputs,upstream,checks[entry],source_ref['sha256'])
-                    ports[entry]=receipt['sha256']
                 for suffix in ('.olean',*COMPANIONS):
                     path=Path(str(compiled.with_suffix(''))+suffix)
                     if not path.is_file():continue
@@ -429,7 +467,8 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
             spec={'version':lean_libraries.VERSION,'name':namespace,'lean_version':selected['lean_version'],
                 'mathlib_commit':selected['mathlib_commit'],'source_root':str(source_root),'build_root':str(build_root),
                 'imports':[*metadata['imports'],entry] if metadata else [entry],'modules':rows}
-            if ports:spec['ports']=ports
+            if adaptations:spec['adaptations']=adaptations
+            if metadata and metadata.get('ports'):spec['ports']=metadata['ports']
             if 'patch_authority' in origin:
                 if previous:
                     # A generation retains the reviewed authorization of its first build.
@@ -449,10 +488,10 @@ def build(origin, directory, environment, *, timeout, source_cache=None, previou
     result={'version':VERSION,'status':status,'diagnostic':detail,'origin':origin,
             'environment':selected,'checks':checks,'bindings':bindings,'input_libraries':input_libraries}
     if previous:result['previous_manifest_sha256']=previous['manifest']['sha256']
-    if original_source:result['original_source']=original_source
+    result.update(failure)
     if bound is not None:result['bound']=bound
     if missing_module:result['missing_module']=missing_module
-    if port is not None:result['port_authority']=port['authority']
+    if candidate is not None and status=='PUBLIC_LEAN_READY':result['adapted_source']=source_ref
     if entry is not None:result['module']=entry
     if status=='PUBLIC_LEAN_READY':result['specification']=bind(directory/'library.json')
     path=directory/'result.json';write(path,result)
@@ -468,7 +507,7 @@ def qualify(check, metadata, *, previous=None, full=False):
     for ref in [check['specification'],*check['bindings'],*check['checks'].values()]:
         lean_libraries._verify_file(Path(ref['path']),ref['sha256'],full)
     spec=json.loads(Path(check['specification']['path']).read_text())
-    if any(spec.get(key)!=metadata.get(key) for key in ('name','imports','modules','lean_version','mathlib_commit','ports','patches')):
+    if any(spec.get(key)!=metadata.get(key) for key in ('name','imports','modules','lean_version','mathlib_commit','ports','patches','adaptations')):
         raise ValueError('Public Lean library manifest differs from the checked source/olean inventory')
     if 'patch_authority' in check['origin']:
         lean_patches.verify_origin(check['origin'],full=full)
@@ -481,23 +520,20 @@ def qualify(check, metadata, *, previous=None, full=False):
         raise ValueError('Public Lean library has unauthorized patches')
     module=check['module']
     modules={row['module']:row for row in metadata['modules']}
-    old_ports=previous[1].get('ports',{}) if previous else {}
-    ports=metadata.get('ports',{})
-    expected_ports=dict(old_ports)
+    inherited=previous[1] if previous else {}
+    expected_adaptations=dict(inherited.get('adaptations',{}))
     expected_source=check['origin']['source_sha256']
-    if 'port_authority' in check:
-        root=Path(spec['source_root']).parent
-        files,upstream=lean_ports.authorization(check['port_authority'],check['origin'],module,check['environment'])
-        receipts=lean_ports.inventory(root,metadata,full=full)[1]
-        receipt=receipts[module]
-        if (module in old_ports or receipt['origin']!=check['origin']
-                or receipt['target_environment']!=check['environment'] or receipt['upstream_environment']!=upstream
-                or any(receipt['files'][key]['sha256']!=ref['sha256'] for key,ref in files.items())
-                or receipt['files']['target_ported']['sha256']!=check['checks'][module]['sha256']):
-            raise ValueError('Public Lean port differs from the checked compatibility evidence')
-        expected_ports[module]=ports[module]
-        expected_source=receipt['ported_sha256']
-    if ports!=expected_ports or module not in modules or modules[module]['source_sha256']!=expected_source:
+    if 'adapted_source' in check:
+        if module in expected_adaptations or check['adapted_source'] not in check['bindings']:
+            raise ValueError('Invalid adapted public Lean source')
+        expected_adaptations[module]=adaptation_origin(check['origin'])
+        expected_source=check['adapted_source']['sha256']
+    elif module in metadata.get('ports',{}):
+        # Historical registrations already carry the portable evidence.
+        receipts=lean_ports.inventory(Path(spec['source_root']).parent,metadata,full=full)[1]
+        expected_source=receipts[module]['ported_sha256']
+    if (metadata.get('adaptations',{})!=expected_adaptations or module not in modules
+            or modules[module]['source_sha256']!=expected_source):
         raise ValueError('Public Lean entry source differs from the pinned check')
     old_modules=set()
     if previous:

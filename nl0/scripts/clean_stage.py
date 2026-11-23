@@ -116,8 +116,8 @@ class ArtifactStage(pilot.Stage):
                 import lean_imports
                 self.tools += lean_imports.tools()
                 self.system += (' Before rewriting a substantial imported Lean unit, use check_imported_lean '
-                    'on its complete retained source. Reuse a current pass directly; on failure check the declared '
-                    'source-project versions and imports before porting. A published checked import establishes '
+                    'on its complete retained source. For a failed public build, read and adapt the actual failed module in the pinned environment. '
+                    'A published checked import establishes '
                     'availability only; ordinary basis, interface, dependency and source review still apply.')
             if lean_libraries.current():
                 self.input_prompt += '\nExplicit bound Lean libraries (not semantic approval): '+json.dumps(lean_libraries.summary())
@@ -553,6 +553,9 @@ class ArtifactStage(pilot.Stage):
                 import lean_libraries
                 if self.mode=='basis-authoring' and lean_libraries.generated_root() is not None:
                     result=lean_imports.record_dependency_attempt(self,result)
+            elif name=='read_imported_lean_failure':
+                import lean_imports
+                result=lean_imports.read_public_failure(self,**args)
             elif name=='wait_for_lean_dependency':
                 import lean_imports
                 result=lean_imports.wait_for_dependency(self,args['receipt'])

@@ -63,7 +63,7 @@ def dependency_followup(log):
             reply=call['result']
             if 'receipt' not in reply:continue
             source=call['arguments']['source']
-            label=source.get('document') or source['evidence']['path']
+            label=source.get('document') or (source.get('failure') or source['evidence'])['path']
             latest[label]=reply['receipt']
     pending={}
     for label, receipt in latest.items():
@@ -317,7 +317,7 @@ def publish_library(specification,root,receipt):
             if (old['version']!=check['version'] or old['environment']!=check['environment']
                     or old.get('origin')!=check.get('origin')
                     or any(metadata.get(key)!=spec.get(key)
-                           for key in ('imports','modules','lean_version','mathlib_commit','ports','patches'))):
+                           for key in ('imports','modules','lean_version','mathlib_commit','ports','patches','adaptations'))):
                 raise ValueError('The active library changed during building; check the current pinned library: '+name)
             return existing
         index=root/'index.json'
@@ -354,13 +354,13 @@ def publish_checked(check,root):
     return publish_library(path,root,check['receipt'])
 
 
-def public_context(stage, request, origin, environment, attachments, *, publish, port=None, prior=()):
+def public_context(stage, request, origin, environment, attachments, *, publish, candidate=None, prior=()):
     """Acquire and compile a known dependency before escalating at the author boundary."""
     import public_lean
     from execution_state import current
     identity=environment_identity(environment)
     libraries=[{'name':row['name'],'manifest_sha256':row['manifest']['sha256']} for row in attachments]
-    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,libraries,port])
+    directory=stage.logs/'imported-lean'/'public-builds'/hashed([origin,identity,libraries,candidate])
     directory.parent.mkdir(parents=True,exist_ok=True)
     owned=lean_libraries.generated_root()
     root=Path(owned).resolve() if publish else None
@@ -384,7 +384,7 @@ def public_context(stage, request, origin, environment, attachments, *, publish,
                 recorder,_=current()
                 limit=recorder.remaining(1800) if recorder else 1800
                 result=public_lean.build(origin,directory/uuid.uuid4().hex,environment,timeout=limit,
-                                         source_cache=source_cache,previous_entries=existing,port=port)
+                                         source_cache=source_cache,previous_entries=existing,candidate=candidate)
                 if result['status']=='PUBLIC_LEAN_READY':
                     write(saved,{'result':result['receipt']})
             if result['status']=='PUBLIC_LEAN_ALREADY_BOUND':
@@ -414,89 +414,56 @@ def missing_import(check):
     return native_missing_import(json.loads(Path(receipt['path']).read_bytes()))
 
 
-def build_upstream(stage, request, origin, declared, environment):
-    """Resolve the cross-library closure using only this upstream compiler."""
+def public_build_result(stage, ref):
+    """Resolve only a build produced by this stage's owned Git builder."""
     import public_lean
-    explicit=declared.get('dependencies',{})
-    if not isinstance(explicit,dict) or not all(lean_libraries.MODULE.fullmatch(module) for module in explicit):
-        raise ValueError('Name each upstream dependency by its exact Lean module')
-    entries={};active=set()
-
-    def build(pin):
-        key=(pin['repository'],pin['revision'],pin['source_path'],tuple(pin.get('patch_order',[])))
-        if key in active:raise ValueError('Cycle in pinned upstream Lean sources: '+pin['source_path'])
-        active.add(key)
-        try:
-            while True:
-                prior=list(entries.values())
-                result,installed=public_context(stage,request,pin,environment,
-                    [row['library'] for row in prior],publish=False,prior=prior)
-                if installed:
-                    library=installed[0]
-                    if result['status']=='PUBLIC_LEAN_READY':
-                        entries[library['name']]={'library':library,'check':result['receipt']}
-                    return result
-                missing=result.get('missing_module')
-                if not missing or (result.get('module') and missing.split('.')[0]==result['module'].split('.')[0]):
-                    return result
-                if missing in explicit:
-                    selection=explicit[missing]
-                    raw,text,_=source_bytes(stage,selection)
-                    dependency=public_lean.known_source(stage.logs,selection) if raw==text.encode() else None
-                    if dependency is None:raise ValueError('Upstream dependency needs its full retained fixed source: '+missing)
-                else:
-                    dependency=public_lean.known_dependency(stage.logs,missing)
-                    if dependency is None:return result
-                completed=build({**dependency,'expected_module':missing})
-                if completed['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}:
-                    return completed
-        finally:
-            active.remove(key)
-
-    return build(origin)
+    file=Path(ref['path'])
+    root=(stage.logs/'imported-lean/public-builds').resolve()
+    if (file.name!='result.json' or file.resolve()!=file or file.parent.parent.parent!=root
+            or not re.fullmatch(r'[0-9a-f]{64}',file.parents[1].name)
+            or not re.fullmatch(r'[0-9a-f]{32}',file.parent.name)):
+        raise ValueError('Select a failed public build from this stage')
+    verify_bindings([ref])
+    check=json.loads(file.read_bytes())
+    if check['version']!=public_lean.VERSION:
+        raise ValueError('Unknown public Lean build receipt')
+    return file,check
 
 
-def public_port(stage, request, origin, target, declared, environment, attachments, candidate):
-    """Authorize an original-name port using actual builds of the pinned module."""
-    if not target or not target.get('original_source') or declared is None:
-        if candidate is not None:
-            if target and target.get('status') in {'PUBLIC_LEAN_ALREADY_BOUND','PUBLIC_LEAN_READY','PUBLIC_LEAN_CONFLICT'}:
-                raise ValueError('The original module is already registered or conflicts with a registered module')
-            raise ValueError('An original-name port requires a completed target compilation failure and a declared upstream pair')
-        return None
-    try:
-        old=original_environment(declared)
-    except lean_environment.SelectionRequired as error:
-        return {'status':'UPSTREAM_ENVIRONMENT_REQUIRED',**environment_request(error,declared)}
-    if environment_identity(old)==environment_identity(environment):
-        if candidate is None:return None
-        raise ValueError('The declared upstream pair must differ from the target for a compatibility port')
-    upstream=build_upstream(stage,request,origin,declared,old)
-    if upstream['status']!='PUBLIC_LEAN_READY':
-        return {'status':upstream['status'],'upstream_public_library':upstream,
-                'upstream_check':upstream.get('receipt'),
-                'diagnostics':{'current':target['diagnostic'],'upstream':upstream['diagnostic']}}
-    import lean_ports
-    authority={'upstream':upstream['receipt'],'target_original':target['receipt']}
-    lean_ports.authorization(authority,origin,target['module'],environment_identity(environment))
-    result={'version':VERSION,'status':'COMPATIBILITY_PORT_REQUIRED','accepted_for_native_reuse':False,
-            'semantic_acceptance':False,'upstream_public_library':upstream,'upstream_check':upstream['receipt'],
-            'target_original_check':target['receipt'],'module':target['module'],
-            'diagnostics':{'current':target['diagnostic'],'upstream':upstream['diagnostic']}}
-    if candidate is not None:
-        if not isinstance(candidate,str) or not candidate.strip():raise ValueError('Supply the complete edited compilation unit')
-        built, descriptors=public_context(stage,request,origin,environment,attachments,publish=True,
-                                          port={'authority':authority,'candidate':candidate})
-        result.update(status='PORTED_CHECKED' if descriptors else 'PORT_CHECK_FAILED',
-                      original_route='COMPATIBILITY_PORT_REQUIRED',public_library=built,
-                      accepted_for_native_reuse=bool(descriptors))
-        if 'receipt' in built:result['candidate_check']=built['receipt']
-        if descriptors:
-            result.update(library=descriptors[0],**{'import':'import '+target['module']})
-    return result
+def failed_public_source(stage, ref):
+    file,check=public_build_result(stage,ref)
+    if (check['status']!='PUBLIC_LEAN_BUILD_FAILED'
+            or 'failure_origin' not in check or 'original_source' not in check):
+        raise ValueError('This build does not retain an original failed public module')
+    original=check['original_source']
+    if (Path(original['path'])!=file.with_name('original.lean') or
+            original['sha256']!=check['failure_origin']['source_sha256']):
+        raise ValueError('Invalid retained source for this failed build')
+    verify_bindings([original])
+    return check
 
 
-def check_public(stage, request, source, pin, selected, attached, upstream, candidate):
+def read_public_failure(stage, receipt, *, kind='source', start=1, end=160, column=0):
+    from read_views import read_page
+    _,result=public_build_result(stage,receipt)
+    module=result.get('failed_module',result.get('missing_module'))
+    if kind=='source':
+        result=failed_public_source(stage,receipt)
+        text=Path(result['original_source']['path']).read_text()
+    elif kind=='diagnostic':
+        ref=result.get('trust_diagnostic') or result['checks'].get(module)
+        if ref:
+            verify_bindings([ref])
+            native=json.loads(Path(ref['path']).read_bytes())
+            text=native['stdout']+'\n'+native['stderr']
+        else:
+            text=result['diagnostic']
+    else:
+        raise ValueError('Read the retained source or diagnostic')
+    return read_page(text,start,end,column=column,metadata={'module':module,'receipt':receipt})
+
+
+def check_public(stage, request, source, pin, selected, attached, candidate):
     result={'version':VERSION,'source':bind(request/'source.json'),
             'original_source':bind(request/'original.lean'),'selected_source':bind(request/'selected.lean'),
             'semantic_acceptance':False,'accepted_for_native_reuse':False}
@@ -504,28 +471,23 @@ def check_public(stage, request, source, pin, selected, attached, upstream, cand
         result.update(status='PUBLIC_SOURCE_EVIDENCE_REQUIRED',
                       diagnostics={'current':'Read the complete public Lean module at its fixed Git commit.'})
         return result
-    built,descriptors=public_context(stage,request,pin,selected,attached,publish=True)
+    built,descriptors=public_context(stage,request,pin,selected,attached,publish=True,candidate=candidate)
     result.update(status=built['status'],public_library=built,diagnostics={'current':built['diagnostic']},
                   current_check=built.get('receipt'),
                   current_cache_reused=built['status']=='PUBLIC_LEAN_ALREADY_BOUND')
-    if candidate is not None or upstream is not None:
-        comparison=public_port(stage,request,pin,built,upstream,selected,attached,candidate)
-        if comparison is not None:
-            result.update(comparison)
-            if not result['accepted_for_native_reuse']:
-                result['next_action']={'source':source,'upstream':upstream,
-                    'instruction':'Use this complete pinned source and module to repair the target build in this stage.'}
-            return result
     if descriptors:
         [descriptor]=descriptors
         module=built['module']
         relative=Path(*module.split('.')).with_suffix('.lean')
-        result.update(status='LOCAL_REUSED',accepted_for_native_reuse=True,
+        result.update(status='LOCAL_REUSED' if candidate is None else 'PORTED_CHECKED',
+                      accepted_for_native_reuse=True,
                       checked_source=bind(Path(descriptor['root'])/'source'/relative),
                       module=module,library=descriptor,**{'import':'import '+module})
     else:
-        result['next_action']={'source':source,'upstream':upstream,
-            'instruction':'Continue using the retained public-library diagnostic.'}
+        if 'failure_origin' in built:
+            source={'failure':built['receipt']}
+        result['next_action']={'source':source,
+            'instruction':'Use the actual dependency diagnostic or revise the retained module and check it here.'}
     return result
 
 
@@ -533,13 +495,27 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
     if type(publish) is not bool:raise ValueError('publish must be an explicit boolean')
     if module is not None and (not isinstance(module,str) or not lean_libraries.MODULE.fullmatch(module)):
         raise ValueError('Use the exact Lean module name for module')
-    raw,text,origin=source_bytes(stage,source)
     full_pin=None
-    if bind_public and text.encode()==raw:
-        from public_lean import known_source
-        full_pin=known_source(stage.logs,source)
-    if bind_public and candidate is not None and not full_pin:
-        raise ValueError('Original-name porting requires complete pinned source, not a document excerpt')
+    if bind_public and isinstance(source,dict) and set(source)=={'failure'}:
+        failed=failed_public_source(stage,source['failure'])
+        full_pin=failed['failure_origin']
+        if failed['environment']!=environment_identity(runtime_config.require_environment()):
+            raise ValueError('The failed module belongs to another Lean environment')
+        if module is not None and module!=failed['failed_module']:
+            raise ValueError('The candidate must use the retained failed module name')
+        raw=Path(failed['original_source']['path']).read_bytes()
+        text=raw.decode()
+        origin=source
+    else:
+        raw,text,origin=source_bytes(stage,source)
+        if bind_public and text.encode()==raw:
+            from public_lean import known_source
+            full_pin=known_source(stage.logs,source)
+    if bind_public and candidate is not None:
+        if 'failure' not in source or not full_pin:
+            raise ValueError('Use the complete pinned source of a retained failed public build')
+        if not isinstance(candidate,str) or not candidate.strip():
+            raise ValueError('Supply the complete edited compilation unit')
     request=stage.logs/'imported-lean'/('request-'+uuid.uuid4().hex);request.mkdir(parents=True)
     (request/'original.lean').write_bytes(raw);(request/'selected.lean').write_text(text);write(request/'source.json',origin)
     selected=runtime_config.require_environment();attached=lean_libraries.current()
@@ -549,7 +525,7 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
             raise ValueError('This role cannot add a public library to its bound context')
         if full_pin and module is not None:
             full_pin['expected_module']=module
-        result=check_public(stage,request,source,full_pin,selected,attached,upstream,candidate)
+        result=check_public(stage,request,source,full_pin,selected,attached,candidate)
         write(request/'result.json',result)
         return {**result,'receipt':bind(request/'result.json'),'stage_complete':False}
     timeout=stage.lean_timeout() if hasattr(stage,'lean_timeout') else None
@@ -627,7 +603,7 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
 def tools():
     import native_carrier
     return [native_carrier.tool('check_imported_lean',
-        'Check a complete, source-bound imported Lean unit in the current environment first. On failure, check declared source-project versions and imports before requesting compatibility porting or correction. A candidate must pass current checking. publish is allowed only before basis/interface freeze; no source or semantic approval is granted.',
+        'Check imported Lean in the current environment. For a public module adaptation, use the failed build reference and submit the whole edited module. Publication is available before basis/interface freeze.',
         {'source':{'type':'object','additionalProperties':True},'upstream':{'type':'object','additionalProperties':False,
             'properties':{'lean_version':{'type':'string'},'mathlib_ref':{'type':'string'},
                           'dependencies':{'type':'object','additionalProperties':{'type':'object','additionalProperties':True}}},
@@ -635,4 +611,9 @@ def tools():
          'candidate':{'type':'string'},'publish':{'type':'boolean'},
          'module':{'type':'string','description':'Exact Lean import name when its source root cannot be discovered from static Lake metadata.'},
          'bind_public':{'type':'boolean',
-             'description':'Bind an original module at its exact public Git commit. For a compatibility port, give the complete retained source, upstream pins, exact module and complete candidate; only an unregistered original name may be filled.'}},['source'])]
+             'description':'Bind a module at its pinned Git commit. For an adaptation, use source.failure with the returned build receipt and supply the full edited candidate.'}},['source']),
+        native_carrier.tool('read_imported_lean_failure',
+            'Read the source or complete native diagnostic of a failed public build from this stage, using bounded line views.',
+            {'receipt':{'type':'object','additionalProperties':True},
+             'kind':{'type':'string','enum':['source','diagnostic']},
+             **{key:{'type':'integer'} for key in ('start','end','column')}},['receipt'])]
