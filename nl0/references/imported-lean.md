@@ -75,7 +75,10 @@ failed deterministically returns its previous diagnostic. Continue another
 foundation or select a checked alternative. `wait_for_lean_dependency` accepts an outstanding receipt that
 requests access authorization or approval of a genuinely unavailable declared
 upstream pair. After addressing that action, the operator uses `resume-error`
-for the incident and the author rechecks the dependency. Use
+for the incident and the author rechecks the dependency. A `SOURCE_UNAVAILABLE`
+report about a Lean dependency can reference the current `check_imported_lean`
+reply's `receipt`. A newer check of the same dependency supersedes that receipt.
+Use
 `MISSING_SOURCE_STATEMENT` for missing readable material needed for a complete
 statement.
 

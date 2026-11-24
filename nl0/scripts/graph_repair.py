@@ -122,7 +122,7 @@ def check_revision(previous, after, blockers):
                          +', '.join(sorted(unchanged))+'. Repair the affected premises, statement or definitions.')
 
 
-def revision_feedback(history, selected, current):
+def revision_feedback(history, selected, current, *, rejections=None):
     """Prepare the next local assignment from the actual previous repair handoff."""
     from controller_common import verify_bindings
     from frozen_graph import BODY_FIELDS, check_assignment
@@ -150,18 +150,17 @@ def revision_feedback(history, selected, current):
         drafts = {row['id']:{key:row[key] for key in ('id', *BODY_FIELDS)}
                   for row in detailed['graph']['inferences']}
         if campaigns:
-            from audit_rejections import RejectedReviews
-            from pathlib import Path
-
-            rejections=RejectedReviews(Path(row['path']).parent for row in campaigns)
+            if rejections is None:
+                from audit_rejections import RejectedReviews
+                rejections=RejectedReviews(Path(row['path']).parent for row in campaigns)
             matching=sorted(compatible & drafts.keys() & rejections.history.keys())
             if matching:
                 source=Path(baseline['nl0']['path']).parent
                 data=nl0.validate(source/'nl0.json',source/'spec.json')
                 for rid in matching:
-                    blocker=rejections.blocker(source,rid,data=data)
-                    if blocker:
-                        evidence=blocker.result['rejected_review']['review']
+                    rejected=rejections.match(source,rid,data=data)
+                    if rejected:
+                        evidence=rejected['review']
                         unresolved.append({'inference':rid,'review':nl0.load(evidence['path']),'evidence':evidence})
     if 'blockers' in report:
         accepted = nl0.load(history['evidence'][0]['path'])

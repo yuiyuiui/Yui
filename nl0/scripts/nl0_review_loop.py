@@ -4,6 +4,7 @@ from contextvars import copy_context
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import shutil
 import threading
 
@@ -48,8 +49,9 @@ def copy_source(source, destination):
 
 
 class NodePatch:
-    def __init__(self, source, rid, out):
+    def __init__(self, source, rid, out, *, rejections=None):
         self.source=Path(source);self.rid=rid;self.out=Path(out);self.selected=None;self.attempt=0
+        self.rejections=rejections
         self.graph=json.loads((self.source/'nl0.json').read_text())
         self.original=next(r for r in self.graph['inferences'] if r['id']==rid)
         import artifact_protocol as p
@@ -72,7 +74,11 @@ class NodePatch:
         graph['inferences']=[deepcopy(row) if r['id']==self.rid else r for r in graph['inferences']]
         self.attempt+=1;case=self.out/'candidates'/str(self.attempt).zfill(4)
         copy_source(self.source,case);write(case/'nl0.json',graph)
-        nl0.validate(case/'nl0.json',case/'spec.json')
+        data=nl0.validate(case/'nl0.json',case/'spec.json')
+        if self.rejections is not None:
+            feedback=self.rejections.check_submission(case,(self.rid,),data=data)
+            if not feedback['accepted']:
+                raise ValueError(feedback['error'])
         self.selected=case
         return {'scope':'Own R structural validation only; independent local review still required',
                 'candidate':self.attempt}
@@ -80,12 +86,23 @@ class NodePatch:
 
 def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None, sessions=None, route_graph=False):
     root=Path(job['root']);sessions=sessions or Sessions();source=restored;issues=initial_issues;prior=list(prior)
-    epoch=max((int(p.name.split('-')[1]) for p in (root/'nl0').glob('merged-[0-9]*')),default=0)
+    epochs=(re.match(r'^(?:(?:local|final|merged)-)?(\d{4,})(?:-|$)', path.name)
+            for parent in ('nl0','audit-a') for path in (root/parent).glob('*'))
+    epoch=max((int(match[1]) for match in epochs if match),default=0)
     from basis import problem_inputs
     rejected=RejectedReviews(prior)
     review_index=None
+
+    def global_feedback(source, directory):
+        feedback=repair_obligations(source,directory)
+        if not feedback['issues']:
+            raise StageFailure('REVIEW_INCOMPLETE','Global review has no complete located repair findings',
+                               evidence=directory/'global-acceptance.json')
+        return feedback
+
     while True:
         epoch+=1
+        author_number=len(prior)
         # A restored global role uses the saved accepted draft and actual local
         # findings; it does not restart the original proof from an empty prompt.
         while True:
@@ -94,16 +111,20 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 if any(issue_owner(item)=='global' for item in issues['issues']):
                     raise Request(issues,baseline=source,evidence=[Path(d)/'campaign.json' for d in prior],prior=prior)
             if source is None or issues is not None:
-                directory=root/'nl0'/f'{epoch:04d}-{len(prior)+1:04d}'
+                author_number+=1
+                directory=root/'nl0'/f'{epoch:04d}-{author_number:04d}'
                 with sessions.use('nl0-author'):
                     try:
-                        source=author_stage(job,directory,budget,baseline=source,obligations=issues)
+                        source=author_stage(job,directory,budget,baseline=source,obligations=issues,
+                                            check_handoff=rejected.check_submission)
                     except Request as request:
                         request.prior=list(prior)
                         raise
                 issues=None
-            blocker=rejected.blocker(source,'global')
-            if blocker:raise blocker
+            previous=rejected.match(source,'global')
+            if previous:
+                issues=global_feedback(source,Path(previous['review']['path']).parent)
+                continue
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
             problem=problem_inputs(job)
             if review_index is None:
@@ -114,44 +135,45 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             gate=campaign.global_acceptance(global_dir)
             if gate['accepted']:break
             rejected.record(global_dir,source,'global')
-            issues=repair_obligations(source,global_dir);prior.append(global_dir)
+            issues=global_feedback(source,global_dir);prior.append(global_dir)
             review_index.extend((global_dir,))
-            if not issues['issues']:raise StageFailure('REVIEW_INCOMPLETE','Global review has no complete located repair findings',evidence=global_dir/'global-acceptance.json')
         sessions.close(['nl0-author','audit-a-global'],'GLOBAL_REVIEW_PASSED',[global_dir/'global-acceptance.json'])
         prior.append(global_dir)
         global_gate=bind(global_dir/'global-acceptance.json')
         data=nl0.validate(source/'nl0.json',source/'spec.json');stop=threading.Event();outcomes={}
 
-        def local(rid):
+        def local(rid, history):
             own=source;own_data=data;revision=0
             while not stop.is_set():
-                blocker=rejected.blocker(own,rid,data=own_data)
-                if blocker:
-                    review=Path(blocker.result['rejected_review']['review']['path'])
-                    return {'blocked':blocker,'campaign':review.parents[2]}
-                if not revision and 'packet:'+rid in global_plan['inherited']:
+                previous=rejected.match(own,rid,data=own_data)
+                if not previous and not revision and 'packet:'+rid in global_plan['inherited']:
                     return {'case':own,'campaign':None,'rid':rid}
                 revision+=1
-                directory=root/'audit-a'/f'local-{epoch:04d}-{rid}-{revision:04d}'
-                prepared=campaign.prepare_packet(own,directory,rid,data=own_data,
-                    review_index=review_index,global_gate=global_gate)
-                if 'packet:'+rid in prepared['inherited']:
-                    return {'case':own,'campaign':directory,'rid':rid}
-                campaign.run(directory,budget=budget,audit_budget=audit_budget,only=rid,sessions=sessions)
-                stage=directory/rid/'stage';result=json.loads((stage/'result.json').read_text())
-                try:require_review_execution(result,stage/'result.json',phase='audit-a-local')
-                except StageFailure as error:
-                    if not error.result.get('record_context_qualified'):raise
-                review=json.loads((stage/'accepted.json').read_text())
-                if review.get('verdict')=='PASS' and audit_reuse.all_pass(review):
-                    return {'case':own,'campaign':directory,'rid':rid}
-                rejected.record(directory,own,rid,data=own_data)
+                if previous:
+                    path=Path(previous['review']['path']);directory=path.parents[2]
+                    review=nl0.load(path)
+                else:
+                    directory=root/'audit-a'/f'local-{epoch:04d}-{rid}-{revision:04d}'
+                    prepared=campaign.prepare_packet(own,directory,rid,data=own_data,
+                        review_index=review_index,global_gate=global_gate)
+                    if 'packet:'+rid in prepared['inherited']:
+                        return {'case':own,'campaign':directory,'rid':rid}
+                    campaign.run(directory,budget=budget,audit_budget=audit_budget,only=rid,sessions=sessions)
+                    stage=directory/rid/'stage';result=json.loads((stage/'result.json').read_text())
+                    try:require_review_execution(result,stage/'result.json',phase='audit-a-local')
+                    except StageFailure as error:
+                        if not error.result.get('record_context_qualified'):raise
+                    review=json.loads((stage/'accepted.json').read_text())
+                    if review.get('verdict')=='PASS' and audit_reuse.all_pass(review):
+                        return {'case':own,'campaign':directory,'rid':rid}
+                    rejected.record(directory,own,rid,data=own_data)
+                    history.append(directory)
                 if stop.is_set():return None
                 author=root/'nl0'/f'local-{epoch:04d}-{rid}-{revision:04d}'
                 inputs=author/'inputs';inputs.mkdir(parents=True)
                 write(inputs/'packet.json',nl0.packet(own_data,rid))
                 write(inputs/'findings.json',review);manifest(inputs)
-                validator=NodePatch(own,rid,author)
+                validator=NodePatch(own,rid,author,rejections=rejected)
                 prompt=('Repair only the supplied R proof under its unchanged public input/output and definitions. '
                     'Return {inference:<complete repaired own R>}. Read packet.json and findings.json. '
                     'If shared definitions, assumptions, public input/output or graph edges must change, submit '
@@ -171,7 +193,8 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             return None
 
         def run_local(rid):
-            try:return local(rid)
+            history=[]
+            try:return local(rid,history),history
             except BaseException:
                 stop.set()
                 raise
@@ -181,13 +204,11 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
         if data[4]:
             with ThreadPoolExecutor(max_workers=audit_budget.configuration['effective']) as pool:
                 pending={rid:pool.submit(copy_context().run,run_local,rid) for rid in sorted(data[4])}
-                for rid,future in pending.items():outcomes[rid]=future.result()
+                for rid,future in pending.items():
+                    outcomes[rid],history=future.result()
+                    prior.extend(history)
         # Collect independent outcomes on this version before changing the graph.
         global_issues=[v for v in outcomes.values() if v and 'global' in v]
-        if not global_issues:
-            for outcome in outcomes.values():
-                if outcome and 'blocked' in outcome:
-                    raise outcome['blocked']
         merged=root/'nl0'/f'merged-{epoch:04d}';copy_source(source,merged)
         graph=json.loads((source/'nl0.json').read_text())
         for rid,value in outcomes.items():
@@ -195,7 +216,8 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
                 patch=next(r for r in json.loads((value['case']/'nl0.json').read_text())['inferences'] if r['id']==rid)
                 graph['inferences']=[patch if r['id']==rid else r for r in graph['inferences']]
                 if value['campaign'] is not None:prior.append(value['campaign'])
-        write(merged/'nl0.json',graph);nl0.validate(merged/'nl0.json',merged/'spec.json')
+        write(merged/'nl0.json',graph);merged_data=nl0.validate(merged/'nl0.json',merged/'spec.json')
+        review_index.extend(prior)
         if global_issues:
             indices={row['id']:index for index,row in enumerate(graph['inferences'])}
             located=[]
@@ -208,15 +230,17 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             issues={'version':'yui-repair-obligations-1','baseline_input':'baseline.json',
                 'baseline_content_sha256':__import__('author_check').digest({'spec':nl0.load(merged/'spec.json'),'graph':graph}),
                 'issues':located}
-            for outcome in outcomes.values():
-                if outcome and ('global' in outcome or 'blocked' in outcome):
-                    prior.append(outcome['campaign'])
-            prior=list(dict.fromkeys(prior))
-            review_index.extend(prior)
+            source=merged
+            continue
+        previous=rejected.match(merged,'global',data=merged_data)
+        if previous:
+            source=merged
+            issues=global_feedback(merged,Path(previous['review']['path']).parent)
+            continue
+        if any(rejected.match(merged,rid,data=merged_data) for rid in merged_data[4]):
             source=merged
             continue
         final=root/'audit-a'/f'final-{epoch:04d}'
-        review_index.extend(prior)
         campaign.prepare(merged,problem,final,review_index=review_index)
         # Every scope must be inherited from an actual current reviewed version.
         campaign.run(final,budget=budget,audit_budget=audit_budget,sessions=sessions)

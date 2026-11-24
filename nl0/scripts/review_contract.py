@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from collections import deque
 import hashlib
 import json
 from pathlib import Path
-import re
 
 from execution_state import atomic
 import artifact_protocol as protocol
@@ -14,7 +12,7 @@ from read_views import resolve
 
 
 class ReviewProgressGuard:
-    """Track checked candidates, saved work and actual rejections separately."""
+    """Return current review work and wait only after an unanswered continuation."""
     checks = {'check_artifact', 'check_draft'}
     checkpoints = {'record_review_item', 'record_background_note'}
     submissions = checks | checkpoints | {'submit_artifact', 'submit_draft', 'submit_review_blocker'}
@@ -27,15 +25,12 @@ class ReviewProgressGuard:
 
     def reset(self):
         self.saved = self.saved_digest()
-        self.failures = deque(maxlen=12)
-        self.previews = deque(maxlen=64)
-        self.rechecks = deque(maxlen=64)
-        self.reads = deque(maxlen=64)
+        self.seen = set()
         self.feedback = {'state':'incomplete', 'message':'Review is incomplete.',
                          'next_action':'Read the remaining items and record or submit your judgments.'}
         self.blocked = None
         self.activity = False
-        self.empty_turns = 0
+        self.awaiting_action = False
 
     @staticmethod
     def digest(value):
@@ -64,106 +59,62 @@ class ReviewProgressGuard:
                 pass  # Invalid wrapper: preserve it as the rejected candidate.
         return value
 
+    def mark_work(self, work):
+        key = self.digest(work)
+        if key not in self.seen:
+            self.seen.add(key)
+            self.activity = True
+
+    def current_feedback(self):
+        remaining = [pointer for pointer, row in self.contract.items.items() if row['coverage']!='assessed']
+        return {**self.feedback, 'remaining':remaining}
+
     def observe(self, name, args, result, *, checked=None):
         if result.get('stage_complete'):
             self.reset()
             return
         if name == 'read_review_progress':
             if 'error' not in result:
-                return self.blocked['last_validation'] if self.blocked else self.feedback
+                return self.current_feedback()
             return
         if name not in self.submissions:
             if 'error' not in result:
-                key = self.digest([name, args])
-                if key not in self.reads:
-                    self.reads.append(key)
-                    self.activity = True
-                    self.rechecks.clear()
+                self.mark_work([name, args])
             return
 
         saved = self.saved_digest()
         if saved != self.saved:
             self.saved = saved
-            self.failures.clear()
-            self.previews.clear()
-            self.blocked = None
-            self.empty_turns = 0
+            self.seen.clear()
             self.activity = True
         if 'error' in result:
-            self.rejected(name, args, str(result['error']))
+            self.mark_work(['correction', self.candidate(args)])
+            self.feedback = {'tool':name, 'state':'validation_error', 'message':str(result['error'])[:1500],
+                             'next_action':'Correct the reported field and complete any remaining review items.'}
         elif name in self.checks and result.get('accepted'):
-            # The validator has expanded wrappers, defaults and saved judgments.
-            value = checked if checked is not None else self.candidate(args)
+            self.mark_work(['preview', checked if checked is not None else self.candidate(args)])
             self.feedback = {'tool':name, 'state':'preview_valid', 'message':'This preview passed validation.',
                              'next_action':self.submit_guidance}
-            self.checked_work(self.digest(['preview', value]))
         elif name in self.checkpoints and 'recorded' in result:
             self.feedback = {'tool':name, 'state':'checkpoint_saved', 'message':'This checkpoint is saved.',
                              'next_action':'Complete the remaining work. '+self.submit_guidance}
-            self.checked_work(self.digest([name, args]))
         else:
             return
-        return self.feedback
-
-    def checked_work(self, key):
-        # A new valid probe can resolve an earlier diagnostic, even without
-        # changing the saved rows. Rechecking identical work is still bounded.
-        if key not in self.previews:
-            self.previews.append(key)
-            self.rechecks.clear()
-            self.activity = True
-            self.failures.clear()
-            self.blocked = None
-        self.rechecks.append(key)
-        if self.rechecks.count(key) >= 3:
-            self.stop('Repeated the same checked work without a new candidate, saved change or submission.')
-        elif self.feedback['state'] == 'preview_valid':
-            # A correction in the current batch can restore a previously valid draft.
-            self.blocked = None
-
-    def rejected(self, name, args, error):
-        value = self.candidate(args)
-        key = self.digest([value, self.saved, error])
-        location, _, detail = error.partition(':')
-        family = location if location.startswith('/') and 'unexpected=' in detail else error
-        # In singleton probes, /notes/0 can identify a different note on each
-        # call. Scope a recurring schema defect to the actual identified items.
-        path = location.partition(' (')[0]
-        if path.startswith('/summary/'):
-            path = path.removeprefix('/summary')
-        identities = []
-        if isinstance(value,dict) and isinstance(value.get('id'),str):
-            identities.append(value['id'])
-        for index in re.finditer(r'/[0-9]+(?=/|$)', path):
-            try:
-                row = resolve(value, path[:index.end()])
-            except (ValueError, TypeError, KeyError, IndexError):
-                continue
-            if isinstance(row, dict) and isinstance(row.get('id'), str):
-                identities.append(row['id'])
-        family = (family, identities)
-        self.failures.append((key, family))
-        self.activity = True
-        self.feedback = {'tool':name, 'state':'validation_error', 'message':error[:1500], 'candidate_sha256':key,
-                         'next_action':'Correct the reported field using the stage inputs and saved judgments, then retry.'}
-        if sum(k == key for k, _ in self.failures) >= 3:
-            self.stop('The same effective review and validation error recurred three times.')
-        elif sum(f == family for _, f in self.failures) >= 6:
-            self.stop('Six attempts repeated the same validation defect without a new saved assessment.')
+        return self.current_feedback()
 
     def completed_turn(self):
-        if not self.feedback:
-            return
-        self.empty_turns = 0 if self.activity else self.empty_turns + 1
+        if self.activity:
+            self.awaiting_action = False
+        elif self.awaiting_action:
+            message = 'The review did not advance after the controller asked to continue from the saved checklist.'
+            self.feedback = {**self.feedback, 'pause_reason':message}
+            self.blocked = {'code':'workflow_blocked','reason':'REVIEW_NO_PROGRESS',
+                            'message':message,'last_validation':self.current_feedback(),
+                            'progress':str(self.contract.directory/'progress.json')}
+        else:
+            # The next turn explicitly asks for the saved checklist and its next action.
+            self.awaiting_action = True
         self.activity = False
-        if self.empty_turns >= 3:
-            self.stop('Three completed turns made no new review attempt, saved assessment or evidence read.')
-
-    def stop(self, message):
-        self.feedback = {**self.feedback, 'pause_reason':message}
-        self.blocked = {'code':'workflow_blocked','reason':'REVIEW_NO_PROGRESS',
-                        'message':message, 'last_validation':self.feedback,
-                        'progress':str(self.contract.directory/'progress.json')}
 
 
 def put(document, pointer, value):

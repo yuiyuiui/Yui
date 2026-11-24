@@ -50,32 +50,55 @@ def diagnostic(check):
     return check['diagnostic'] if check is not None else None
 
 
-def dependency_followup(log):
-    """Recover outstanding native diagnostics from this stage's own tool receipts."""
-    if not log.is_file():return {}
-    latest = {}
+PUBLIC_READY = {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}
+
+
+def dependency_identity(result, source):
+    public=result.get('public_library') or {}
+    origin=public.get('failure_origin',public.get('origin'))
+    if origin:
+        from public_lean import patch_order
+        return ('public',public.get('failed_module') or origin.get('expected_module') or public.get('module'),
+                origin['repository'],origin['revision'],origin['source_path'],origin['source_sha256'],
+                patch_order(origin),public['environment'])
+    return ('source',source.get('document') or source.get('evidence'),
+            result['selected_source']['sha256'],result.get('environment'))
+
+
+def dependency_followup(log, receipt):
+    """Resolve the explicitly selected, still-current check from this stage."""
+    def read(ref):
+        path=Path(ref['path'])
+        if (path.name!='result.json' or path.resolve()!=path
+                or path.parent.parent!=log.parent.resolve()/'imported-lean'
+                or not re.fullmatch(r'request-[0-9a-f]{32}',path.parent.name)):
+            raise ValueError('Import diagnostic belongs to another stage')
+        verify_bindings([ref]);result=json.loads(path.read_bytes())
+        if result['version']!=VERSION:raise ValueError('Unrecognized import diagnostic')
+        return result
+
+    if not log.is_file():return None
+    selected=None
     with log.open() as stream:
         for line in stream:
             call=json.loads(line)
             if call['tool']!='check_imported_lean':continue
-            reply=call['result']
-            if 'receipt' not in reply:continue
+            result=call['result'];ref=result.get('receipt')
+            if ref is None:continue
             source=call['arguments']['source']
-            label=source.get('document') or (source.get('failure') or source['evidence'])['path']
-            latest[label]=reply['receipt']
-    pending={}
-    for label, receipt in latest.items():
-        path=Path(receipt['path']).resolve()
-        if path.parent.parent!=log.parent.resolve()/'imported-lean' or path.name!='result.json':
-            raise ValueError('Import diagnostic belongs to another stage')
-        verify_bindings([receipt]);result=json.loads(path.read_bytes())
-        if result['version']!=VERSION:raise ValueError('Unrecognized import diagnostic')
-        public=result.get('public_library')
-        unresolved_public=public and public['status'] not in {'PUBLIC_LEAN_READY','PUBLIC_LEAN_ALREADY_BOUND'}
-        if not result['accepted_for_native_reuse'] or unresolved_public:
-            pending[label]={**{key:result[key] for key in ('status','diagnostics','next_action','public_library',
-                                                         'upstream_public_library','operator_action') if key in result},'receipt':receipt}
-    return pending
+            if ref==receipt:
+                selected=read(ref)
+                identity=dependency_identity(selected,source)
+            elif selected is not None and dependency_identity(result,source)==identity:
+                if dependency_identity(read(ref),source)==identity:
+                    return None
+    if selected is None:
+        return None
+    public=selected.get('public_library')
+    if selected['accepted_for_native_reuse'] and (not public or public['status'] in PUBLIC_READY):
+        return None
+    return {**{key:selected[key] for key in ('status','diagnostics','next_action','public_library',
+                                          'upstream_public_library','operator_action') if key in selected},'receipt':receipt}
 
 
 def access_request(log,receipt):
@@ -95,8 +118,7 @@ def wait_for_dependency(stage, receipt):
     """Accept only concrete operator actions backed by this stage's receipts."""
     from execution_state import current
     from fault_control import Gate
-    diagnostic=next((row for row in dependency_followup(stage.logs/'tools.jsonl').values()
-                     if row['receipt']==receipt),None)
+    diagnostic=dependency_followup(stage.logs/'tools.jsonl',receipt)
     if diagnostic is None:diagnostic=access_request(stage.logs/'tools.jsonl',receipt)
     if not diagnostic or not diagnostic.get('operator_action'):
         raise ValueError('This receipt does not require operator action. Continue dependency repair or use a checked alternative.')
@@ -529,7 +551,7 @@ def check(stage,source,*,upstream=None,candidate=None,publish=False,bind_public=
                 current=compile_unit(text,selected,stage.logs/'imported-lean/checks',attachments=attached,timeout=timeout)
     result={'source':bind(request/'source.json'),'original_source':bind(request/'original.lean'),
             'selected_source':bind(request/'selected.lean'),'current_check':current['receipt'],
-            'current_cache_reused':current['cache_reused']}
+            'current_cache_reused':current['cache_reused'],'environment':current['environment']}
     if built:result['public_library']=built
     checked=current
     decision=rules.decide(current)

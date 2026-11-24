@@ -146,16 +146,19 @@ class BasisDraftTests(unittest.TestCase):
                   'explanation':'The upstream import context could not compile.',
                   'basis':'Dependent foundation', 'partial_progress':'The Lean source has been staged.'}
         with patch.object(material_exchange,'request',return_value={'waiting_for_material':True}) as request:
+            self.assertNotIn('dependency_followup',stage.dispatch('report_obstacle',obstacle))
+            obstacle['receipt']=diagnosis['receipt']
             result=stage.dispatch('report_obstacle',obstacle)
             request.assert_not_called()
             self.assertFalse(result['stage_complete'])
-            handoff=result['dependency_followup'][name]
+            handoff=result['dependency_followup']
             self.assertEqual(handoff['receipt'],diagnosis['receipt'])
             self.assertEqual(handoff['diagnostics'],diagnosis['diagnostics'])
             self.assertIn('investigate_basis_frontier',handoff['next_action']['instruction'])
             self.assertTrue(stage.dispatch('save_basis_draft',{'artifact':{'proof':'Independent local work.'}})['saved'])
             self.assertEqual(stage.dispatch('report_obstacle',obstacle)['dependency_followup'],result['dependency_followup'])
             request.assert_not_called()
+            del obstacle['receipt']
             missing={**obstacle,'status':'MISSING_SOURCE_STATEMENT','location':'Unobtainable reference, Theorem 4',
                      'explanation':'The complete theorem statement is missing from accessible sources.'}
             self.assertTrue(stage.dispatch('report_obstacle',missing)['waiting_for_material'])

@@ -158,7 +158,7 @@ class ArtifactStage(pilot.Stage):
         self.tools += [pilot.json_tool('check_artifact', 'Check a JSON artifact against the explicit stage contract; this is not automatic mathematical certification.', 'artifact_json'),
                        pilot.json_tool('submit_artifact', 'Submit a JSON artifact after its stage checks.', 'artifact_json'),
                        pilot.carrier.tool('report_obstacle',
-                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material when no complete statement can be obtained. For a Lean dependency, follow the recorded check_imported_lean diagnostic. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
+                           'Report an actual obstacle using these five direct fields. Countercheck the alleged implication against the complete definitions, quantifiers and inequality directions; a feasible example alone does not determine an extremum. A fact not yet proved or registered in the current draft is an obligation to complete, not by itself a gap. For a mathematical stop, identify the concrete implication and actual mathematical difficulty encountered during normal checking/completion, not merely unfilled inventory or exposition. No fixed time/attempt count or counterexample is required. SUBSTANTIVE_GAP/SUSPECTED_GAP stop for an actual supported mathematical obstruction; INPUT_CONFLICT stops for incompatible inputs. Use MISSING_SOURCE_STATEMENT for genuinely missing readable material when no complete statement can be obtained. For SOURCE_UNAVAILABLE due to a Lean dependency, include the current check_imported_lean reply receipt. Ordinary unfinished work is not an obstacle report. No mathematical acceptance is generated.',
                            obstacle['properties'],obstacle['required'])]
         if kind=='nl0':
             for tool in self.tools:
@@ -573,11 +573,11 @@ class ArtifactStage(pilot.Stage):
             elif name == 'report_obstacle':
                 value = deepcopy(args)
                 shape=obstacle_schema(self.artifact_kind)
-                if not isinstance(value,dict) or set(value) != set(shape['required']):
-                    required=set(shape['required'])
+                required=set(shape['required']);allowed=set(shape['properties'])
+                if not isinstance(value,dict) or required-set(value) or set(value)-allowed:
                     raise ValueError('OBSTACLE_FIELDS: required direct fields='+repr(sorted(required))+
                         '; missing='+repr(sorted(required-set(value)) if isinstance(value,dict) else sorted(required))+
-                        '; unexpected='+repr(sorted(set(value)-required) if isinstance(value,dict) else [])+
+                        '; unexpected='+repr(sorted(set(value)-allowed) if isinstance(value,dict) else [])+
                         '. Use the published direct-field function schema.')
                 if value['status']=='TASK_INCOMPLETE' and self.artifact_kind=='nl0':
                     raise ValueError('AUTHOR_ACTION_REQUIRED: unfinished drafting is not an obstacle. '
@@ -586,23 +586,21 @@ class ArtifactStage(pilot.Stage):
                     raise ValueError('PRIMARY_SOURCE_DEFERRED: use source search/read and defer_primary_source when a complete secondary statement exists. '
                         'Missing primary verification alone is not a terminal stop. If no complete statement can be obtained, report MISSING_SOURCE_STATEMENT with its exact missing content and access evidence.')
                 artifact_protocol.validate(value,shape)
-                if value['status']=='SOURCE_UNAVAILABLE':
+                if 'receipt' in value:
+                    if value['status']!='SOURCE_UNAVAILABLE':
+                        raise ValueError('An import receipt is only used for a Lean dependency report.')
                     from lean_imports import dependency_followup
-                    followup=dependency_followup(self.logs/'tools.jsonl')
-                    if followup:
-                        result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
-                            'error':'LEAN_DEPENDENCY_ACTION_REQUIRED: continue from the native import diagnostic. '
-                                    'Repair or replace the dependency using actual check results. '
-                                    'For a genuinely missing statement, use MISSING_SOURCE_STATEMENT. '
-                                    'Use wait_for_lean_dependency only when a receipt names an operator action.',
-                            'dependency_followup':followup}
-                    elif self.material_requests:
-                        result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
-                                'error':'Use MISSING_SOURCE_STATEMENT for a genuinely missing document or statement. '
-                                        'Use check_imported_lean to diagnose an external Lean dependency.'}
-                    else:
-                        self.accepted=value
-                        result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':value['status']}
+                    followup=dependency_followup(self.logs/'tools.jsonl',value['receipt'])
+                    if followup is None:
+                        raise ValueError('No current failed import matches this receipt. Use the latest check for the affected module.')
+                    result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                        'error':'LEAN_DEPENDENCY_ACTION_REQUIRED: continue from the native import diagnostic. '
+                                'Use wait_for_lean_dependency only when a receipt names an operator action.',
+                        'dependency_followup':followup}
+                elif self.material_requests and value['status']=='SOURCE_UNAVAILABLE':
+                    result={'accepted':False,'stage_complete':False,'feedback_kind':'author_action_required',
+                            'error':'Use MISSING_SOURCE_STATEMENT for genuinely missing readable material. '
+                                    'For Lean dependencies, include the latest check_imported_lean receipt.'}
                 elif self.material_requests and value['status']=='MISSING_SOURCE_STATEMENT':
                     import material_exchange
                     result = material_exchange.request(self,value['location']+' — '+value['explanation'])

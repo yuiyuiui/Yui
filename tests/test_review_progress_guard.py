@@ -7,16 +7,15 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import harness_support
 import basis_review
 from clean_stage import ArtifactStage
 import fault_control
-from execution_state import Cancelled, CaseDeadlineExceeded
 from native_fixture import NativeFixture
 from review_contract import ReviewContract, ReviewProgressGuard
-from native_carrier import NativeEventTimeout, NativeCarrier
+from native_carrier import NativeCarrier
 
 
 def contract(root):
@@ -79,7 +78,7 @@ class ReviewProgressTests(unittest.TestCase):
                 self.assertTrue(log[-1]['result']['stage_complete'])
             second.recorder.done.set()
 
-    def test_unchanged_valid_preview_across_all_encodings_stops_without_acceptance(self):
+    def test_repeated_valid_preview_across_all_encodings_stays_open_for_submission(self):
         with tempfile.TemporaryDirectory() as raw:
             root=Path(raw)
             stage=ArtifactStage(root/'stage','Test review.',phase='review',library=False,validator=contract(root/'review'))
@@ -93,17 +92,15 @@ class ReviewProgressTests(unittest.TestCase):
                 self.assertFalse(reply['stage_complete'])
                 self.assertEqual(reply['review_feedback']['state'],'preview_valid')
                 self.assertIn('submit_draft',reply['review_feedback']['next_action'])
-            self.assertFalse(stage.review_guard.failures)
             self.assertIsNone(stage.accepted)
-            self.assertEqual(stage.review_guard.blocked['reason'],'REVIEW_NO_PROGRESS')
-            stage.review_guard.resume()
+            self.assertIsNone(stage.review_guard.blocked)
             progress=stage.dispatch('read_review_progress',{})
             self.assertEqual(progress['review_feedback'],reply['review_feedback'])
             self.assertEqual(progress['remaining'],[])
             self.assertTrue(stage.dispatch('submit_artifact',{'artifact_json':json.dumps(saved)})['stage_complete'])
             self.assertEqual(stage.accepted['items'],draft()['items'])
 
-    def test_saved_note_replacement_resets_rejections_and_same_note_retries_are_bounded(self):
+    def test_saved_note_replacement_is_progress_and_a_repeat_only_reads_the_checkpoint(self):
         with tempfile.TemporaryDirectory() as raw:
             c=contract(Path(raw));g=ReviewProgressGuard(c)
             saved={'artifact':{'from_saved_review':True,'summary':{}}}
@@ -116,20 +113,19 @@ class ReviewProgressTests(unittest.TestCase):
                 self.assertIsNone(g.blocked)
             for _ in range(3):
                 g.observe('record_background_note',note,{'recorded':note['id']})
-            self.assertEqual(g.blocked['last_validation']['state'],'checkpoint_saved')
+            self.assertIsNone(g.blocked)
+            self.assertEqual(g.current_feedback()['remaining'],['/items/B001'])
 
-    def test_same_schema_location_in_different_singleton_probes_is_not_one_defect(self):
+    def test_many_format_corrections_in_the_same_review_return_the_current_missing_items(self):
         with tempfile.TemporaryDirectory() as raw:
             guard=ReviewProgressGuard(contract(Path(raw)))
-            error='/observations/0/facts/0: expected string, got integer'
-            for i in range(8):
-                args={'artifact':{'observations':[{'id':f'note-{i}','facts':[i]}]}}
-                guard.observe('check_draft',args,{'error':error})
-            self.assertIsNone(guard.blocked)
-            for i in range(8,13):
-                args={'artifact':{'observations':[{'id':'note-7','facts':[i]}]}}
-                guard.observe('check_draft',args,{'error':error})
-            self.assertIn('Six attempts',guard.blocked['message'])
+            for i in range(9):
+                args={'artifact':{'observations':[{'id':'note','facts':[i]}]}}
+                feedback=guard.observe('check_draft',args,{'error':'/observations/0/facts/0: expected string'})
+                guard.completed_turn()
+                self.assertEqual(feedback['remaining'],['/items/B001'])
+                self.assertIn('Correct',feedback['next_action'])
+                self.assertIsNone(guard.blocked)
 
     def test_corrected_preview_in_the_same_native_batch_can_continue_and_submit(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -151,36 +147,9 @@ class ReviewProgressTests(unittest.TestCase):
                 self.assertEqual(len(f.calls),2)
                 self.assertFalse(f.notifications)
                 tools=[json.loads(s)['result'] for s in (f.stage.logs/'tools.jsonl').read_text().splitlines()]
-                self.assertIn('pause_reason',tools[3]['review_feedback'])
+                self.assertNotIn('pause_reason',tools[3]['review_feedback'])
                 self.assertEqual(tools[4]['review_feedback']['state'],'preview_valid')
                 self.assertTrue(tools[5]['stage_complete'])
-
-    def test_drain_waits_for_matching_outer_or_direct_results_and_honors_stop_conditions(self):
-        with tempfile.TemporaryDirectory() as raw:
-            t=NativeCarrier.__new__(NativeCarrier);t.logs=Path(raw);t.active_turn_id='active';t.thread_id='thread'
-            t.send=Mock(return_value=99)
-            guard=ReviewProgressGuard(contract(t.logs/'review'));guard.stop('Synthetic stall')
-            trigger={'method':'item/tool/call','params':{'turnId':'active','callId':'inner'}}
-            def output(call_id,kind='custom_tool_call_output',turn='active'):
-                return {'method':'rawResponseItem/completed','params':{'turnId':turn,'item':{'type':kind,'call_id':call_id}}}
-            for outer in [True,False]:
-                t.native_code_calls={'first':{'turn_id':'active'},'second':{'turn_id':'active'},
-                    'done':{'turn_id':'active','output_received':True},'old':{'turn_id':'old'}} if outer else {}
-                events=iter([trigger,output('done'),output('first',turn='old'),output('first'),
-                             output('second') if outer else output('inner','function_call_output')])
-                def receive(predicate,deadline):
-                    return next(e for e in events if predicate(e))
-                t.receive_until=receive
-                self.assertEqual(t.wait_work_turn(guard,None)['params']['item']['call_id'],'second' if outer else 'inner')
-            with patch('native_carrier.REVIEW_FEEDBACK_DRAIN_SECONDS',0):
-                for exc in (CaseDeadlineExceeded('budget'),Cancelled('cancel'),TimeoutError('local tool failed')):
-                    t.receive_until=Mock(side_effect=[trigger,exc])
-                    with self.assertRaises(type(exc)):t.wait_work_turn(guard,time.monotonic()+20)
-                t.receive_until=Mock(side_effect=[trigger,NativeEventTimeout()])
-                with self.assertRaises(NativeEventTimeout):t.wait_work_turn(guard,time.monotonic())
-                t.receive_until=Mock(side_effect=[trigger,NativeEventTimeout()])
-                self.assertEqual(t.wait_work_turn(guard,None),trigger)
-            self.assertIn('review_feedback_drain_timeout',(t.logs/'controller.jsonl').read_text())
 
     def test_saved_envelope_uses_new_rows_and_malformed_update_is_transactional(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -204,36 +173,24 @@ class ReviewProgressTests(unittest.TestCase):
             c(wrapper['artifact'])
             self.assertEqual(wrapper['artifact']['items']['B001'],original)
 
-    def test_alternation_cosmetic_keys_and_empty_turns_are_bounded(self):
+    def test_novel_evidence_resets_the_wait_and_repeated_progress_reads_do_not(self):
         with tempfile.TemporaryDirectory() as raw:
             c=contract(Path(raw));g=ReviewProgressGuard(c)
-            for n in range(5):
-                d={'artifact':{'a':n%2,'b':2} if n%3 else {'b':2,'a':n%2}}
-                g.observe('submit_draft',d,{'error':'bad type'})
-            self.assertEqual(g.blocked['reason'],'REVIEW_NO_PROGRESS')
-            g.reset()
-            for n in range(6):
-                g.observe('check_draft',{'artifact':{'field':n}},
-                          {'error':f'/items/B001: missing=[], unexpected=[guess{n}].'})
-            self.assertIsNotNone(g.blocked)
-            g.reset()
-            for n in range(20):
+            for n in range(10):
                 g.observe('read_task_input',{'offset':n},{'text':'next page'})
                 g.completed_turn()
             self.assertIsNone(g.blocked)
-            g.observe('check_draft',{}, {'error':'missing item'})
             g.completed_turn()
-            for n in range(6):
-                g.observe('read_task_input',{'start':n}, {'text':'different page'})
-                g.completed_turn()
             self.assertIsNone(g.blocked)
-            for _ in range(3):
-                g.observe('read_review_progress',{}, {'remaining':['B001']})
+            g.observe('read_task_input',{'offset':10},{'text':'next page'})
+            g.completed_turn()
+            for expected in (False,True):
+                reply=g.observe('read_review_progress',{}, {'remaining':['/items/B001']})
+                self.assertEqual(reply['remaining'],['/items/B001'])
                 g.completed_turn()
-            self.assertEqual(g.empty_turns,3)
-            self.assertIsNotNone(g.blocked)
+                self.assertEqual(bool(g.blocked),expected)
 
-    def test_native_burst_pauses_once_and_same_role_can_correct_or_cancel(self):
+    def test_native_review_waits_after_unchanged_completed_turns_and_can_resume_or_cancel(self):
         for recover in [True,False]:
             with self.subTest(recover=recover),tempfile.TemporaryDirectory() as raw:
                 root=Path(raw)
@@ -248,6 +205,8 @@ class ReviewProgressTests(unittest.TestCase):
                     elif recovery_step==2:
                         args={'pointer':'/items/B001','coverage':'assessed','judgment':draft()['items']['B001']}
                         f.code(handler,n,'text(await tools.record_review_item('+json.dumps(args)+'));')
+                    elif not corrected and n%2==0:
+                        f.message(handler,n,'The same draft remains incomplete.')
                     elif not corrected and recover:
                         f.code(handler,n,'const args='+json.dumps({'artifact':bad})+'; '
                                'text(await Promise.allSettled(Array.from({length:4}, () => tools.submit_draft(args))));')
@@ -265,15 +224,14 @@ class ReviewProgressTests(unittest.TestCase):
                     self.assertEqual(state['error']['reason'],'REVIEW_NO_PROGRESS')
                     self.assertIn('statement_location',state['error']['last_validation']['message'])
                     self.assertTrue(state['resumable'])
-                    # The native client can open its next HTTP request while its
-                    # previous output acknowledgment is crossing stdio. That
-                    # in-flight request cannot dispatch new work after the stop.
-                    requests=1 if recover else 3
-                    self.assertIn(calls,(requests,requests+1))
+                    self.assertEqual(calls,6)
                     attempts=[json.loads(s) for s in (f.stage.logs/'tools.jsonl').read_text().splitlines()]
-                    self.assertEqual([x['tool'] for x in attempts],['submit_draft']*(4 if recover else 3))
+                    self.assertEqual([x['tool'] for x in attempts],['submit_draft']*(12 if recover else 3))
+                    self.assertTrue(all('/items/B001' in x['result']['review_feedback']['remaining'] for x in attempts))
                     starts=[json.loads(s) for s in (f.stage.logs/'client.jsonl').read_text().splitlines()]
-                    self.assertEqual(sum(s.get('method')=='turn/start' for s in starts),1)
+                    inputs=[row['params']['input'][0]['text'] for row in starts if row.get('method')=='turn/start']
+                    self.assertEqual(len(inputs),3)
+                    self.assertIn('read_review_progress',inputs[-1])
                     self.assertEqual(len(f.notifications),1)
                     self.assertIn('statement_location',f.notifications[0])
                     self.assertNotIn('review_feedback_drain_timeout',(f.stage.logs/'controller.jsonl').read_text())
@@ -286,7 +244,7 @@ class ReviewProgressTests(unittest.TestCase):
                                    and e['params']['item'].get('type')=='custom_tool_call_output'
                                    and e['params']['item'].get('call_id')=='call-1')
                         self.assertEqual(json.dumps(batch).count('validation_error'),4)
-                        self.assertIn('pause_reason',json.dumps(batch))
+                        self.assertNotIn('pause_reason',json.dumps(batch))
                         corrected=True
                         thread=f.stage.thread_id
                         fault_control.resume(f.stage.logs,state['incident']);f.wait(seconds=25)
@@ -314,11 +272,11 @@ class ReviewProgressTests(unittest.TestCase):
             t.review_guard=ReviewProgressGuard(contract(root/'review'))
             def receive(predicate, deadline):
                 if t.api_calls==1:t.review_guard.observe('submit_draft',{}, {'error':'bad B001'})
-                if t.api_calls>4:t.accepted={'corrected':True}
+                if t.api_calls>=4:t.accepted={'corrected':True}
                 return {'method':'turn/completed','params':{'turn':{'id':'turn','status':'completed'}}}
             t.receive_until=receive
             paused=[]
             t.pause_error=lambda err:paused.append((t.api_calls,err['reason']))
             t.solve_turns('Synthetic review')
-            self.assertEqual(paused,[(4,'REVIEW_NO_PROGRESS')])
-            self.assertEqual(t.api_calls,5)
+            self.assertEqual(paused,[(3,'REVIEW_NO_PROGRESS')])
+            self.assertEqual(t.api_calls,4)

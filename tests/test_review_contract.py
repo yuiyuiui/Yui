@@ -81,8 +81,11 @@ class ReviewCompletionTests(unittest.TestCase):
         for _ in range(3):
             guard.observe('submit_draft',{'artifact':{'from_saved_review':True,'summary':{}}},
                           {'accepted':False,'error':'Synthetic missing parent judgment'})
-        self.assertIsNotNone(guard.blocked)
-        guard.observe('record_review_item',args,self.c.record(**deepcopy(args)))
+        self.assertIsNone(guard.blocked)
+        guard.completed_turn()
+        for _ in range(2):
+            guard.observe('record_review_item',args,self.c.record(**deepcopy(args)))
+            guard.completed_turn()
         self.assertIsNotNone(guard.blocked)
         self.assertEqual(len(list((self.c.directory/'parts').glob('*/*.json'))),1)
 

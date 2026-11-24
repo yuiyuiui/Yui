@@ -229,6 +229,7 @@ class ImportedLeanTests(unittest.TestCase):
         manifest(inputs)
         stage=ArtifactStage(run/'routing','Dependency routing control.',phase='basis-authoring',
                             inputs=inputs/'inputs.json')
+        stage.execution=None;stage.execution_task=None
         self.assertTrue(stage.material_requests)
         value={'status':'SOURCE_UNAVAILABLE','location':'',
                'explanation':'The module dependency was not yet available.',
@@ -240,14 +241,25 @@ class ImportedLeanTests(unittest.TestCase):
             with patch.object(material_exchange,'request',return_value={'status':'WAITING'}) as wait:
                 for location in ('PublicExample.Leaf','B052 → B120 → R018'):
                     with self.subTest(location=location):
-                        reply=stage.dispatch('report_obstacle',{**value,'location':location})
+                        reply=stage.dispatch('report_obstacle',{**value,'location':location,'receipt':check['receipt']})
                         self.assertIn('LEAN_DEPENDENCY_ACTION_REQUIRED',reply.get('error',''),reply)
-                        self.assertIn(check['receipt'],[row['receipt'] for row in reply['dependency_followup'].values()])
+                        self.assertEqual(reply['dependency_followup']['receipt'],check['receipt'])
                         wait.assert_not_called()
+
+            supplied=self.root/'reference.md';supplied.write_text('Theorem 2. A complete statement.')
+
+            def supply(gate):
+                self.assertEqual(gate.stage,'source-material')
+                incident=gate.state['incident']
+                self.assertEqual(material_exchange.supply(run,incident)['status'],'WAITING_FOR_ATTACHMENT')
+                self.assertEqual(material_exchange.supply(run,incident,supplied)['status'],'ATTACHMENT_RECEIVED')
+
+            with patch.object(fault_control.Gate,'report',supply):
                 book=stage.dispatch('report_obstacle',{**value,'status':'MISSING_SOURCE_STATEMENT',
                       'location':'An inaccessible public reference, Theorem 2',
                       'explanation':'The complete theorem statement is absent from accessible text.'})
-                self.assertEqual(book['status'],'WAITING');wait.assert_called_once()
+            self.assertEqual(book['status'],'ATTACHMENT_RECEIVED')
+            self.assertIn('A complete statement.',book['preview'])
 
             def recheck(gate):
                 self.assertEqual(gate.stage,'lean-dependency')
@@ -523,6 +535,13 @@ class ImportedLeanTests(unittest.TestCase):
             self.assertEqual(Path(failed['original_source']['path']).read_text(),original)
             native = json.loads(Path(failed['checks']['Lib.Base']['path']).read_text())
             self.assertIn('missingOriginalProof',native['stdout']+native['stderr'])
+            obstacle={'status':'SOURCE_UNAVAILABLE','location':'Lib.Base',
+                      'explanation':'The imported source does not compile.',
+                      'basis':'The compiler diagnostic names the failed dependency.',
+                      'partial_progress':'The pinned upstream source was found.'}
+            self.assertNotIn('dependency_followup',stage.dispatch('report_obstacle',obstacle))
+            report={**obstacle,'receipt':diagnosis['receipt']}
+            self.assertEqual(stage.dispatch('report_obstacle',report)['dependency_followup']['receipt'],diagnosis['receipt'])
             selection = {'failure':failed['receipt']}
             shown = stage.dispatch('read_imported_lean_failure',{'receipt':failed['receipt']})
             self.assertIn('missingOriginalProof',shown['text'])
@@ -552,6 +571,11 @@ class ImportedLeanTests(unittest.TestCase):
                 edited = stage.dispatch('check_imported_lean',{**options,'candidate':candidate})
             self.assertEqual(edited.get('status'),'PORTED_CHECKED',edited)
             self.assertEqual(edited['import'],'import Lib.Base')
+            latest={**report,'receipt':trial['receipt']}
+            for rejected_report in (report,latest):
+                obsolete=stage.dispatch('report_obstacle',rejected_report)
+                self.assertNotIn('dependency_followup',obsolete)
+                self.assertIn('No current failed import',obsolete['error'])
             self.assertEqual(set(edited['public_library']['checks']),{'Lib.Base'})
             self.assertEqual(len(list((stage.logs/'imported-lean/public-builds').rglob('Lib.Base.json'))),3)
             checked = stage.dispatch('check_imported_lean',consumer)

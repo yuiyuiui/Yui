@@ -13,8 +13,7 @@ from unittest.mock import patch
 import audit_a_campaign as campaign
 import case_runner
 from clean_stage import ArtifactStage
-from controller_common import manifest, write
-from execution_health import StageFailure
+from controller_common import bind, manifest, write
 import concurrency
 import nl0_review_loop as loop
 from run_resources import retention
@@ -27,27 +26,38 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.serial=concurrency.Budget(concurrency.resolve(1),role='preparation_review')
         self.local=concurrency.Budget(concurrency.resolve(2),role='audit_r')
         self.calls=[];self.lock=threading.Lock();self.counts={};self.workspaces=[]
-        self.repair_reports=[]
+        self.repair_reports=[];self.submission_feedback=[]
 
     def tearDown(self):
         for path in self.workspaces:shutil.rmtree(path,ignore_errors=True)
         self.tmp.cleanup()
 
-    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,source=None,repeat=None,route_graph=False):
+    def exercise(self,global_failure=False,global_escalation=False,both_local_fail=False,remove_blocked_node=False,
+                 source=None,repeat=None,route_graph=False,seed=None):
         source=source or harness_support.CORE/'tests/fixtures/closed-addition'
         node_count=len(json.loads((source/'nl0.json').read_text())['inferences'])
         turns=threading.Barrier(node_count) if both_local_fail else None
-        def author(job,directory,budget,*,baseline=None,obligations=None):
+        def author(job,directory,budget,*,baseline=None,obligations=None,check_handoff=None):
             stage=ArtifactStage(directory/'stage','Synthetic global author assignment.',phase='nl0-authoring',budget=budget,library=False)
             self.workspaces.append(stage.work)
             source=directory/'stage/case'
             loop.copy_source(baseline or initial_source,source)
             if obligations:self.repair_reports.append(obligations)
-            if baseline and repeat != 'global':
+            if baseline:
                 graph=json.loads((source/'nl0.json').read_text())
-                graph['inferences'][0]['argument'][0]['text']+=' Global exposition repaired.'
-                if repeat == 'cycle' and self.counts.get('audit-a-global') == 2:
-                    graph=json.loads((initial_source/'nl0.json').read_text())
+                if repeat=='global' or (repeat=='cycle' and self.counts.get('audit-a-global')==2):
+                    if repeat=='cycle':write(source/'nl0.json',json.loads((initial_source/'nl0.json').read_text()))
+                    feedback=check_handoff(source)
+                    self.submission_feedback.append(feedback)
+                    self.assertFalse(feedback['accepted'],feedback)
+                if repeat=='evidence':
+                    problem=source/'problem.txt'
+                    problem.write_text(problem.read_text()+'\nCorrected evidence supplied by the operator.')
+                    spec=campaign.nl0.load(source/'spec.json')
+                    spec['inputs'][0]['sha256']=bind(problem)['sha256']
+                    write(source/'spec.json',spec);graph['spec_sha256']=bind(source/'spec.json')['sha256']
+                else:
+                    graph['inferences'][0]['argument'][0]['text']+=' Global exposition repaired.'
                 if remove_blocked_node:
                     graph['propositions']=[p for p in graph['propositions'] if p['id']!='N001']
                     graph['inferences']=[r for r in graph['inferences'] if r['id']=='R002']
@@ -55,6 +65,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                     r['argument'][1]['uses']=['H001']
                     r['argument'][1]['text']='H001 gives a=b. F001 gives c=a, hence c=b. Substituting c=a+0 yields a+0=b.'
                 write(source/'nl0.json',graph)
+                self.assertTrue(check_handoff(source)['accepted'])
             stage.execute();return source
 
         def execute(stage):
@@ -73,13 +84,19 @@ class NL0ReviewLoopTests(unittest.TestCase):
                     artifact={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Synthetic shared context clarification.', 'locations':['/inference/argument']}
                 else:
                     row=deepcopy(validator.original)
-                    if repeat != 'local':row['argument'][0]['text']+=' Local explanation completed.'
+                    if repeat=='local' and n==1:
+                        reply=stage.dispatch('submit_draft',{'artifact':{'inference':row}})
+                        self.submission_feedback.append(reply)
+                        self.assertFalse(reply.get('stage_complete'),reply)
+                        self.assertIn('AUDIT_A_REPAIR_REQUIRED',reply['error'])
+                    row['argument'][0]['text']+=' Local explanation completed.'
                     artifact={'inference':row}
                 validator(artifact)
                 exposure={'status':'NATIVE-CODEX-CONTEXT-CHECK-PASSED','configured_model':stage.model,'errors':[]}
                 result={'status':'ACCEPTED','execution_health':'NO_RECORDED_FAULT','exposure':exposure,'usage':{'complete':True}}
             else:
-                failed=(role=='audit-a-global' and global_failure and (n==1 or repeat=='cycle' and n==2))
+                failed=(role=='audit-a-global' and (global_failure or seed in {'global','merge'})
+                        and (n==1 or repeat=='cycle' and n==2))
                 local_failed=(role.startswith('audit-a:') and n==1 and (both_local_fail or role=='audit-a:R001'))
                 result,artifact=synthetic_stage(stage.logs.parent,global_verdict='FAIL' if failed else 'PASS',local_verdict='FAIL' if local_failed else 'PASS')
                 if remove_blocked_node and role=='audit-a:R001' and n==1:
@@ -90,7 +107,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
                         {'verdict':'FAIL','notes':finding['explanation'],'locations':[location]})
                     artifact=stage.validator.blocker(finding)
                     result.update(status='BLOCKED',task_outcome='MATHEMATICAL_REVIEW_FAILED')
-            if turns and (role.startswith('audit-a:') or role.startswith('nl0-author:')):
+            if turns and (not global_escalation or n==1) and (role.startswith('audit-a:') or role.startswith('nl0-author:')):
                 self.assertLessEqual(self.local.report()['active_model_stages'],node_count)
                 self.assertEqual(self.serial.report()['active_model_stages'],0)
                 turns.wait(timeout=8)
@@ -101,9 +118,27 @@ class NL0ReviewLoopTests(unittest.TestCase):
             return result,artifact
 
         initial_source=source
+        if seed:
+            initial_source=self.root/'initial-source';loop.copy_source(source,initial_source)
         with patch.object(ArtifactStage,'_execute',execute):
+            prior=[]
+            if seed:
+                directory=self.root/'audit-a/0001-0001'
+                previous=self.root/'prior-source';loop.copy_source(initial_source,previous)
+                if seed=='merge':
+                    graph=campaign.nl0.load(previous/'nl0.json')
+                    graph['inferences'][0]['argument'][0]['text']+=' Local explanation completed.'
+                    write(previous/'nl0.json',graph)
+                campaign.prepare(previous,self.root/'inputs',directory)
+                campaign.run(directory,budget=self.serial,audit_budget=self.local,
+                             only=None if seed=='local' else 'global',sessions=loop.Sessions())
+                gate=campaign.global_acceptance(directory)
+                self.assertEqual(gate['accepted'],seed=='local')
+                loop.RejectedReviews(()).record(directory,previous,'R001' if seed=='local' else 'global')
+                prior.append(directory)
             result=loop.run({'root':str(self.root),'case':'closed-addition','policy':'normal'},self.serial,self.local,
-                lambda *a,**k:None,author,case_runner.repair_obligations,route_graph=route_graph)
+                lambda *a,**k:None,author,case_runner.repair_obligations,route_graph=route_graph,prior=prior,
+                restored=(previous if seed!='merge' else initial_source) if seed else None)
         data=campaign.nl0.validate(result['graph'],result['spec'],result['audit_a'])[0]
         self.assertTrue(data['current_standard_receipt_valid'])
         self.assertEqual(self.local.report()['active_model_stages'],0)
@@ -126,24 +161,58 @@ class NL0ReviewLoopTests(unittest.TestCase):
         spec['inputs'][0]['sha256']=bind(source/'problem.txt')['sha256'];save()
         self.assertNotEqual(review_key(source,'global'),before)
 
-    def test_rejected_global_source_cannot_be_resampled(self):
-        with self.assertRaises(StageFailure) as caught:
-            self.exercise(global_failure=True, repeat='global')
-        self.assertEqual(caught.exception.result['status'], 'REPAIR_UNCHANGED')
-        self.assertEqual(self.counts['audit-a-global'], 1)
+    def test_rejected_global_submission_returns_original_findings_to_the_same_author(self):
+        self.exercise(global_failure=True,repeat='global')
+        [feedback]=self.submission_feedback
+        self.assertIn('AUDIT_A_REPAIR_REQUIRED',feedback['error'])
+        original=campaign.nl0.load(self.root/'audit-a/0001-0001/global-acceptance.json')['review']
+        self.assertEqual(json.loads(feedback['error'].split(': ',2)[2]),[{'scope':'global','review':original}])
+        self.assertEqual(self.counts['audit-a-global'],2)
+        self.assertEqual(self.counts['nl0-author'],2)
 
-    def test_return_to_an_older_global_rejection_is_a_cycle(self):
-        with self.assertRaises(StageFailure) as caught:
-            self.exercise(global_failure=True, repeat='cycle')
-        self.assertEqual(caught.exception.result['status'], 'REPAIR_CYCLE')
-        self.assertEqual(self.counts['audit-a-global'], 2)
+    def test_return_to_an_older_global_rejection_reuses_its_original_findings(self):
+        self.exercise(global_failure=True,repeat='cycle')
+        [feedback]=self.submission_feedback
+        original=campaign.nl0.load(self.root/'audit-a/0001-0001/global-acceptance.json')['review']
+        self.assertEqual(json.loads(feedback['error'].split(': ',2)[2]),[{'scope':'global','review':original}])
+        self.assertEqual(self.counts['audit-a-global'],3)
 
     def test_local_rejection_does_not_hold_slots_or_dispatch_identical_packet(self):
-        with self.assertRaises(StageFailure) as caught:
-            self.exercise(repeat='local')
-        self.assertEqual(caught.exception.result['status'], 'REPAIR_UNCHANGED')
-        self.assertEqual(self.counts['audit-a:R001'], 1)
+        self.exercise(repeat='local')
+        [feedback]=self.submission_feedback
+        original=campaign.nl0.load(self.root/'audit-a/local-0001-R001-0001/R001/stage/accepted.json')
+        self.assertEqual(json.loads(feedback['error'].split(': ',2)[2]),[{'scope':'R001','review':original}])
+        self.assertEqual(self.counts['audit-a:R001'],2)
+        self.assertEqual(self.counts['nl0-author:R001'],1)
         self.assertEqual(self.local.report()['active_model_stages'], 0)
+
+    def test_restored_local_rejection_opens_new_repair_and_preserves_passing_sibling(self):
+        self.exercise(seed='local')
+        original=campaign.nl0.load(self.root/'audit-a/0001-0001/R001/stage/accepted.json')
+        current=campaign.nl0.load(self.root/'nl0/local-0002-R001-0001/inputs/findings.json')
+        self.assertEqual(current,original)
+        self.assertEqual(self.counts['audit-a:R001'],2)
+        self.assertEqual(self.counts['audit-a:R002'],1)
+
+    def test_restored_global_rejection_opens_a_new_author_revision(self):
+        self.exercise(seed='global')
+        self.assertTrue((self.root/'nl0/0002-0002/stage/accepted.json').is_file())
+        self.assertEqual(self.counts['nl0-author'],1)
+        self.assertEqual(self.counts['audit-a-global'],2)
+        self.assertEqual(len(self.repair_reports),1)
+
+    def test_merged_global_rejection_keeps_passing_sibling_and_uses_original_findings(self):
+        self.exercise(seed='merge')
+        self.assertEqual(self.counts['audit-a:R002'],1)
+        self.assertEqual(self.counts['nl0-author'],1)
+        self.assertEqual(len(self.repair_reports),1)
+        original=case_runner.repair_obligations(self.root/'nl0/merged-0002',self.root/'audit-a/0001-0001')
+        self.assertEqual(self.repair_reports,[original])
+
+    def test_changed_original_evidence_sends_unchanged_proof_for_new_independent_review(self):
+        self.exercise(global_failure=True,repeat='evidence')
+        self.assertFalse(self.submission_feedback)
+        self.assertEqual(self.counts['audit-a-global'],2)
 
     def test_global_repair_handoff_retains_an_independent_local_nonpass(self):
         import graph_repair
@@ -177,7 +246,7 @@ class NL0ReviewLoopTests(unittest.TestCase):
         self.assertEqual(current['notes'],review['notes'])
         self.assertEqual(current['findings'],review['findings'])
 
-    def test_local_repair_escalation_requires_the_current_review_and_proof(self):
+    def test_local_repair_escalation_delivers_current_review_and_validates_packet_locations(self):
         def assignment(name, note, argument_suffix):
             directory=self.root/name
             source=directory/'case'
@@ -200,15 +269,13 @@ class NL0ReviewLoopTests(unittest.TestCase):
             previous.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference'})
             revision=revised.prepare_role_revision(previous)
             self.assertEqual(revision['changed_documents'],['findings.json','packet.json'])
-            stale={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Add the missing domain.','locations':['/inference/argument']}
+            stale={'status':'GLOBAL_REPAIR_REQUIRED','explanation':'Add the missing domain.','locations':['/inference/argument/999']}
             rejected=revised.dispatch('submit_draft',{'artifact':stale})
-            self.assertEqual({v['document'] for v in rejected['unread_current_changes']},{'findings.json','packet.json'})
+            self.assertFalse(rejected['accepted'])
             self.assertIsNone(revised.validator.selected)
-            revised.dispatch('read_task_input',{'id':'findings.json','pointer':''})
-            current={**stale,'explanation':'Supply the construction witness for the current domain.'}
-            rejected=revised.dispatch('submit_draft',{'artifact':current})
-            self.assertEqual({v['document'] for v in rejected['unread_current_changes']},{'packet.json'})
-            revised.dispatch('read_task_input',{'id':'packet.json','pointer':'/inference'})
+            self.assertIn('construction needs a witness',revised.task_inputs['findings.json'])
+            current={**stale,'explanation':'Supply the construction witness for the current domain.',
+                     'locations':['/inference/argument/0']}
             accepted=revised.dispatch('submit_draft',{'artifact':current})
             self.assertTrue(accepted['stage_complete'],accepted)
             self.assertEqual(revised.accepted,current)

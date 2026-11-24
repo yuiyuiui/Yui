@@ -43,5 +43,7 @@ def source_use_schema():
 def obstacle_schema(kind):
     statuses=['SUBSTANTIVE_GAP','SUSPECTED_GAP','MISSING_SOURCE_STATEMENT','INPUT_CONFLICT']
     if kind!='nl0':statuses.append('SOURCE_UNAVAILABLE')
-    return obj({'status':{'type':'string','enum':statuses},
-                **{key:TEXT for key in ['location','explanation','basis','partial_progress']}})
+    fields={'status':{'type':'string','enum':statuses},
+            **{key:TEXT for key in ['location','explanation','basis','partial_progress']}}
+    return obj(fields if kind=='nl0' else {**fields,'receipt':obj({'path':TEXT,'sha256':TEXT})},
+               required=fields)

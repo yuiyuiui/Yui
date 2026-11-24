@@ -312,14 +312,15 @@ class ArtifactProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'/status'):p.validate(value,nl0)
         value['status']='MISSING_SOURCE_STATEMENT';p.validate(value,nl0)
 
-    def test_changing_guess_fields_cannot_bypass_no_progress_guard(self):
+    def test_invalid_summary_fields_report_format_feedback_without_interrupting_review(self):
         c=self.contract(count=1);g=ReviewProgressGuard(c)
         for pointer in c.required:c.record(pointer,'assessed',row())
         for index in range(6):
             value={'from_saved_review':True,'summary':{'findings':[],f'guess{index}':1}}
             try:c(value)
             except ValueError as error:g.observe('check_draft',{'artifact':value},{'error':str(error)})
-        self.assertEqual(g.blocked['reason'],'REVIEW_NO_PROGRESS')
+        self.assertIsNone(g.blocked)
+        self.assertEqual(g.current_feedback()['state'],'validation_error')
 
     def test_production_reviews_cannot_construct_an_untyped_contract(self):
         core=Path(__file__).resolve().parents[1]

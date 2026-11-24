@@ -656,7 +656,14 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     write(inputs/ASSIGNED,frozen)
     record=nl0.load(previous['path'])
     if graph_history:
-        write(inputs/graph_repair.FEEDBACK,graph_repair.revision_feedback(graph_history,previous,frozen))
+        from audit_rejections import RejectedReviews
+        rejections=RejectedReviews(Path(row['path']).parent for row in graph_history.get('campaigns',[]))
+        write(inputs/graph_repair.FEEDBACK,graph_repair.revision_feedback(graph_history,previous,frozen,rejections=rejections))
+        downstream_check=check_handoff
+
+        def check_handoff(source):
+            result=rejections.check_submission(source)
+            return downstream_check(source) if result['accepted'] and downstream_check is not None else result
     if 'outline' in record:
         copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
     manifest(inputs)
