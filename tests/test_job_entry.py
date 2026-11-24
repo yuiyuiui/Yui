@@ -127,9 +127,13 @@ class JobEntryTests(unittest.TestCase):
         self.assertFalse((Path(job['root'])/'runtime/toolchain').exists())
         jobs.validate(job)
 
-    def test_job_binds_original_inputs_and_cannot_write_into_installation(self):
-        job=self.job();self.problem.write_text('Changed after freeze')
-        with self.assertRaisesRegex(ValueError,'changed'):jobs.validate(job)
+    def test_job_uses_frozen_inputs_and_cannot_write_into_installation(self):
+        job=self.job();self.problem.rename(self.root/'moved-proof.md')
+        jobs.validate(job)
+        frozen=Path(job['root'])/'inputs/problem.md'
+        frozen.write_text('Changed after freeze')
+        with self.assertRaisesRegex(ValueError,'Frozen task input changed.*problem.md'):jobs.validate(job)
+        (self.root/'moved-proof.md').rename(self.problem)
         with self.assertRaises(ValueError):self.job(output=CORE/'not-a-run')
         with self.assertRaises(ValueError):self.job(output=self.problem.parent)
 

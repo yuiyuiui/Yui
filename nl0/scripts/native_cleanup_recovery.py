@@ -86,10 +86,9 @@ def validate_descriptor(job):
 def prepare(previous):
     import jobs
     old,descriptor,bindings=qualify(previous)
-    problem=Path(old['problem']);materials=jobs.resume_materials(old)
-    job=jobs.prepare(problem,track='translate',profiles=old['profiles'],
-        max_concurrency=old['max_concurrency'],policy=old['policy'],materials=materials,
+    job=jobs.prepare(old['problem'],track='translate',profiles=old['profiles'],
+        max_concurrency=old['max_concurrency'],policy=old['policy'],
         source=Path(descriptor['source_authority']['graph']).parent,resume=descriptor,resume_bindings=bindings,
-        target=old.get('target_selection'),formalization=old.get('formalization','conditional'))
+        formalization=old.get('formalization','conditional'))
     validate_descriptor(job)
     return job

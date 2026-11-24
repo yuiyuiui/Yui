@@ -85,7 +85,7 @@ def select(path,targets,*,basis='caller_readback'):
     validate(result);return result
 
 
-def validate(value):
+def validate(value, *, original=None):
     if value.get('version')!=VERSION or value.get('status')!='SELECTED':raise ValueError('Select the target before dispatch')
     if not isinstance(value.get('full_target'),str) or not value['full_target'].strip():raise ValueError('Empty target')
     if not isinstance(value.get('targets'),list) or not value['targets']:raise ValueError('Missing selected targets')
@@ -100,7 +100,11 @@ def validate(value):
     statements=[item['statement'].strip() for item in value['targets']]
     expected=statements[0] if len(statements)==1 else '\nAND\n'.join('('+s+')' for s in statements)
     if value['full_target']!=expected:raise ValueError('Full target differs from the selected complete statements')
-    document=value.get('document',{});path=Path(document.get('path',''))
-    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=document.get('sha256'):
-        raise ValueError('Original target document changed')
+    document=value.get('document',{})
+    if original is None:
+        path=Path(document.get('path',''))
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=document.get('sha256'):
+            raise ValueError('Original target document changed')
+    elif document!=original:
+        raise ValueError('Selected target differs from the original binding of the frozen problem')
     return value

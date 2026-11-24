@@ -81,10 +81,15 @@ class InterruptedResumeTests(unittest.TestCase):
             with patch.object(interrupted,'inspect',return_value={'inspection':inspection}):
                 with self.assertRaisesRegex(ValueError,'still active'):interrupted.prepare(self.run)
 
-    def test_original_input_drift_and_permanent_failures_are_not_silently_retried(self):
+    def test_recovery_uses_frozen_bytes_and_still_rejects_permanent_failures(self):
         self.problem.write_text('Changed problem')
-        with self.assertRaisesRegex(ValueError,'changed'):self.prepare()
-        self.problem.write_text('SYNTHETIC continuation fixture, not a mathematical result.\n')
+        job=self.prepare()
+        frozen=self.run/'inputs/problem.md';original=frozen.read_bytes()
+        self.assertEqual((Path(job['root'])/'inputs/problem.md').read_bytes(),original)
+        try:
+            frozen.write_text('Changed frozen problem')
+            with self.assertRaisesRegex(ValueError,'Frozen task input changed.*problem.md'):self.prepare()
+        finally:frozen.write_bytes(original)
         self.failure['transport_health']['faults'][0]['details']['code']='insufficient_quota'
         self.write(self.stage/'result.json',self.failure)
         with self.assertRaisesRegex(ValueError,'not a positively identified'):self.prepare()

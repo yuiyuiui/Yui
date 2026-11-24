@@ -186,12 +186,11 @@ def validate_descriptor(job):
 def prepare(previous):
     import jobs
     old, descriptor, bindings = qualify(previous)
-    materials = jobs.resume_materials(old)
     job = jobs.prepare(old['problem'], track='full', formalization='unconditional',
                        profiles=old['profiles'], max_concurrency=old['max_concurrency'],
-                       policy=old['policy'], materials=materials,
+                       policy=old['policy'],
                        source=Path(descriptor['source_authority']['graph']).parent,
-                       resume=descriptor, resume_bindings=bindings, target=old['target_selection'])
+                       resume=descriptor, resume_bindings=bindings)
     # Verify real writable storage before dispatch. No disk-space forecast is claimed.
     with tempfile.TemporaryFile(dir=job['root']) as stream:
         stream.write(b'Yui recovery write check\n'); stream.flush(); os.fsync(stream.fileno())

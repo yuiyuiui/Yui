@@ -40,8 +40,9 @@ class FinalOnlyRecovery(unittest.TestCase):
     def setUpClass(cls):
         cls.temp=tempfile.TemporaryDirectory();cls.base=Path(cls.temp.name).resolve()
         problem=cls.base/'proof.md';problem.write_bytes((harness_support.FIXTURES/'closed-addition/problem.txt').read_bytes())
+        cls.supplement=cls.base/'supplement.md';cls.supplement.write_text('A supporting document for the proof.')
         cls.old=jobs.prepare(problem,track='full',formalization='unconditional',profiles=harness_support.PROFILES,
-            target=target_selection.resolve(problem,requested=TARGET),output=cls.base/'prior')
+            target=target_selection.resolve(problem,requested=TARGET),materials=[cls.supplement],output=cls.base/'prior')
         cls.root=Path(cls.old['root'])
         value=artifact(dependency(category=2,typ='∀ (A : Type u) (B : Type v), True',proof='intro A B; trivial'))
         value['lean_header']+='universe u v\n'
@@ -87,12 +88,19 @@ class FinalOnlyRecovery(unittest.TestCase):
 
     def test_real_owned_case_repeats_only_native_closure(self):
         before={p:ir.digest(p) for p in self.root.rglob('*') if p.is_file()}
+        problem=Path(self.old['problem']);moved=problem.with_name('moved-proof.md')
+        problem.rename(moved);self.addCleanup(moved.rename,problem)
+        supplement=self.supplement.read_bytes();self.supplement.unlink()
+        self.addCleanup(self.supplement.write_bytes,supplement)
         import runtime_config
         from contextlib import nullcontext
         selected=os.environ.get('YUI_TEST_ALTERNATE_ENVIRONMENT')
         context=(runtime_config.use_environment(ir.load(selected)) if selected else nullcontext())
         with context:job=recovery.prepare(self.root)
         self.assertEqual(job['lean_environment'],self.old['lean_environment'])
+        self.assertEqual(job['documents'],self.old['documents'])
+        self.assertFalse(problem.exists());self.assertFalse(self.supplement.exists())
+        self.assertEqual((Path(job['root'])/'inputs/material-001.md').read_bytes(),supplement)
         with patch.object(basis,'run',side_effect=AssertionError('unexpected basis author')) as author, \
                 patch.object(case_runner,'nl0_work',side_effect=AssertionError('unexpected NL0')) as nl0, \
                 patch.object(case_runner,'translation_work',side_effect=AssertionError('unexpected proof generation')) as lean:
@@ -196,9 +204,10 @@ class FinalOnlyRecovery(unittest.TestCase):
                 with self.subTest(change=change),self.assertRaises(ValueError):recovery.qualify(self.root)
             finally:path.write_bytes(original)
 
-    def test_changed_proof_basis_receipt_and_original_document_are_rejected(self):
+    def test_changed_proof_basis_receipt_and_frozen_documents_are_rejected(self):
         for path in (self.workflow/'audit-b/Proof.lean',Path(self.context['basis']['path']),
-                self.workflow/'audit-b/machine-acceptance.json',Path(self.old['problem']),self.root/'b2lean/compiler.json'):
+                self.workflow/'audit-b/machine-acceptance.json',self.root/'inputs/problem.md',
+                self.root/'inputs/material-001.md',self.root/'inputs/target-selection.json',self.root/'b2lean/compiler.json'):
             original=path.read_bytes()
             try:
                 path.write_bytes(original+b'\n')

@@ -36,6 +36,7 @@ class PublicEntryTests(unittest.TestCase):
             problem.write_text(TARGET)
             job=jobs.prepare(problem,track='nl0',profiles=support.PROFILES,output=base/'case',max_concurrency=1)
             run=Path(job['root'])
+            problem.rename(base/'moved-proof.md')
             bridge=support.TESTS/'tooling/public_entry_control.py'
             cmd=[sys.executable,'-B',str(bridge),'standalone-flow-refinement','start',str(base/'outer'),'audit',
                  json.dumps({'job':bind(run/'job.json')})]

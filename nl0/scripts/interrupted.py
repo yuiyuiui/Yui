@@ -280,9 +280,8 @@ def prepare(prior_run, *, repair_evidence=False, repair_local_tool=False):
     if local:descriptor['repair_directory']=str(local['repair'])
     job=jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],
         max_concurrency=old['max_concurrency'],policy=old['policy'],
-        materials=jobs.resume_materials(old),
         time_budget_seconds=remaining,resume=descriptor,
-        resume_bindings=[bind(p) for p in sorted(paths)],target=old.get('target_selection'),
+        resume_bindings=[bind(p) for p in sorted(paths)],
         formalization=old.get('formalization','conditional'))
     write(Path(job['root'])/'resumption.json',{'kind':'DISCLOSED_OPERATIONAL_CONTINUATION',
         'prior_run':str(prior),'mode':mode,'original_outcome_preserved':True,

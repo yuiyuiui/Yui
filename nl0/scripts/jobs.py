@@ -12,6 +12,7 @@ from staging_storage import copy_input
 import re
 import shutil
 import subprocess
+import tempfile
 import uuid
 
 import project_config
@@ -54,9 +55,26 @@ def stage_document(source, destination):
         from target_selection import text
         destination.write_text(text(source))
         return 'pdftotext-layout' if shutil.which('pdftotext') else 'pypdf-text'
-    source.read_text(encoding='utf-8')
     copy_input(source,destination)
+    destination.read_text(encoding='utf-8')
     return 'exact_utf8_bytes'
+
+
+def capture_document(source, destination):
+    original=bind(source)
+    if source.suffix.lower()=='.pdf':
+        with tempfile.TemporaryDirectory(dir=destination.parent.parent) as temporary:
+            captured=Path(temporary)/'source.pdf'
+            copy_input(source,captured)
+            if bind(captured)['sha256']!=original['sha256']:
+                raise ValueError('Original document changed during intake: '+str(source))
+            method=stage_document(captured,destination)
+    else:
+        method=stage_document(source,destination)
+    digest=bind(destination)['sha256']
+    if method=='exact_utf8_bytes' and digest!=original['sha256']:
+        raise ValueError('Original document changed during intake: '+str(source))
+    return {'id':destination.name,'path':destination.name,'sha256':digest,'original':original,'extraction':method}
 
 
 def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
@@ -79,6 +97,13 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
         prior = json.loads((Path(resume['prior_run'])/'job.json').read_text())
         if prior.get('version') != VERSION:
             raise ValueError('Unsupported task format; start a new task with the current Yui version')
+        prior_root=owned_root(prior)
+        if (Path(resume['prior_run']).resolve()!=prior_root or Path(problem).expanduser().absolute()!=Path(prior['problem'])
+                or materials or (target is not None and target!=prior.get('target_selection'))):
+            raise ValueError('Recovery inherits the prior frozen proof, materials and target')
+        problem=Path(prior['problem']);extra=[]
+        target=prior.get('target_selection')
+        verify_frozen_inputs(prior,prior_root)
         selected = prior['lean_environment']
         if lean_environment is not None and lean_environment != selected:
             raise ValueError('Recovery cannot change the frozen Lean environment')
@@ -96,6 +121,9 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
             raise ValueError('Recovery cannot change the frozen model profiles')
     else:
         problem=input_file(problem)
+        extra=[input_file(p) for p in materials]
+        if len({problem,*extra})!=len(extra)+1:
+            raise ValueError('Repeated explicit input')
         if configuration is None:
             configuration=project_config.open_project(project_config.directory_for(problem), profiles=profiles, workers=max_concurrency,
                                                       seconds=time_budget_seconds)
@@ -111,10 +139,6 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
     import local_config
     local_scope=local_config.use(prior.get('local_configuration')) if resume else nullcontext()
     with local_scope,use_environment(selected),attached_lean.generated(None),ExitStack() as selections:
-        problem = input_file(problem)
-        extra = [input_file(p) for p in materials]
-        if len({problem,*extra}) != len(extra)+1:
-            raise ValueError('Repeated explicit input')
         if track == 'translate' and source is None:
             raise ValueError('Translation requires an explicit accepted NL0 source directory')
         if track == 'audit-b' and audit is None:
@@ -125,7 +149,8 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
         root = Path(output).expanduser().absolute() if output else problem.parent/OUTPUT_DIRECTORY/run_id
         if root.exists() or root.is_symlink() or root.resolve().is_relative_to(CORE):
             raise ValueError('Use a new run directory outside the installed skill')
-        if any(p == root.resolve() or p.is_relative_to(root.resolve()) for p in [problem,*extra]):
+        original_paths=([Path(row['original']['path']) for row in prior['documents']] if resume else [problem,*extra])
+        if any(p.is_relative_to(root.resolve()) for p in original_paths):
             raise ValueError('A run may not contain/overwrite its original input documents')
         root.mkdir(parents=True,exist_ok=False)
         root=root.resolve();inputs=root/'inputs';inputs.mkdir()
@@ -152,18 +177,26 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
                     path=Path(audit).resolve()/name
                     if not path.is_file():raise ValueError('Missing actual native audit input: '+name)
                     audit_files.append(path)
-            for number,p in enumerate([problem,*extra]):
-                name='problem.md' if number==0 else f'material-{number:03d}'+('.txt' if p.suffix.lower()=='.pdf' else p.suffix or '.txt')
-                method=stage_document(p,inputs/name)
-                documents.append({'id':name,'path':name,'sha256':bind(inputs/name)['sha256'],
-                                  'original':bind(p),'extraction':method})
-            if target:
+            if resume:
+                for row in prior['documents']:
+                    if row['extraction']=='explicit_lean_library_summary':
+                        continue
+                    destination=inputs/row['path']
+                    copy_input(prior_root/'inputs'/row['path'],destination)
+                    if bind(destination)['sha256']!=row['sha256']:
+                        raise ValueError('Frozen task input changed during recovery: '+row['id'])
+                    documents.append(row)
+            else:
+                for number,p in enumerate([problem,*extra]):
+                    name='problem.md' if number==0 else f'material-{number:03d}'+('.txt' if p.suffix.lower()=='.pdf' else p.suffix or '.txt')
+                    documents.append(capture_document(p,inputs/name))
+            if target and not resume:
                 from target_selection import validate as validate_target
-                validate_target(target)
-                if target['document']!=bind(problem):raise ValueError('Selected target is not from this problem')
+                original=documents[0]['original']
+                validate_target(target,original=original)
                 write(inputs/'target-selection.json',target)
                 documents.append({'id':'target-selection.json','path':'target-selection.json',
-                    'sha256':bind(inputs/'target-selection.json')['sha256'],'original':bind(problem),'extraction':'target-selection'})
+                    'sha256':bind(inputs/'target-selection.json')['sha256'],'original':original,'extraction':'target-selection'})
             if formalization=='unconditional' and not target:
                 raise ValueError('Unconditional formalization needs an explicit frozen target selection')
             prior_summaries=({json.loads((Path(prior['root'])/'inputs'/row['path']).read_text())['name']:row
@@ -211,7 +244,6 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
                 job['resume']=resume
                 job['authority_bindings'].extend(resume_bindings)
                 import basis
-                prior=json.loads((Path(resume['prior_run'])/'job.json').read_text())
                 if basis.mode(prior)!=formalization:raise ValueError('Recovery cannot change the formalization goal')
                 job['authority_bindings'].extend(basis.recovery_bindings(prior))
             write(root/'job.json',job)
@@ -255,13 +287,33 @@ def prior_context(function):
     return scoped
 
 
-def resume_materials(job):
-    problem=Path(job['problem']);result=[]
-    for row in job['documents'][1:]:
-        path=Path(row['original']['path'])
-        if row['id']!='target-selection.json' and row.get('extraction')!='explicit_lean_library_summary' and path!=problem and path not in result:
-            result.append(path)
-    return result
+def owned_root(job):
+    root=Path(job['root']).resolve()
+    if root.is_relative_to(CORE) or not (root/MARKER).is_file():
+        raise ValueError('Unowned output directory or installed-skill output')
+    marker=json.loads((root/MARKER).read_text())
+    if (marker.get('run_id')!=job['run_id'] or marker.get('root')!=str(root)
+            or marker.get('job')!=bind(root/'job.json') or json.loads((root/'job.json').read_text())!=job):
+        raise ValueError('Job or ownership binding changed')
+    return root
+
+
+def verify_frozen_inputs(job, root):
+    inputs=root/'inputs'
+    expected=[{key:row[key] for key in ('id','path','sha256')} for row in job['documents']]
+    if json.loads((inputs/'inputs.json').read_text())!={'inputs':expected}:
+        raise ValueError('Frozen input manifest changed; only the declared documents may be staged')
+    for row in job['documents']:
+        path=inputs/row['path']
+        if (path.parent!=inputs or path.resolve()!=path or not path.is_file()
+                or bind(path)['sha256']!=row['sha256']):
+            raise ValueError('Frozen task input changed or escaped its directory: '+row['id'])
+    if 'target_selection' in job:
+        from target_selection import validate as validate_target
+        target=job['target_selection']
+        validate_target(target,original=job['documents'][0]['original'])
+        if json.loads((inputs/'target-selection.json').read_text())!=target:
+            raise ValueError('Frozen target selection changed')
 
 
 def validate(job, *, verify_runtime=True):
@@ -315,25 +367,11 @@ def _validate(job, *, verify_runtime=True):
     from runtime_config import time_limit
     import concurrency
     time_limit(job['time_budget_seconds']);concurrency.resolve(job['max_concurrency'])
-    root=Path(job['root']).resolve()
-    if root.is_relative_to(CORE) or not (root/MARKER).is_file():
-        raise ValueError('Unowned output directory or installed-skill output')
-    marker=json.loads((root/MARKER).read_text())
-    if (marker.get('run_id')!=job['run_id'] or marker.get('root')!=str(root)
-            or marker.get('job')!=bind(root/'job.json') or json.loads((root/'job.json').read_text())!=job):
-        raise ValueError('Job or ownership binding changed')
+    root=owned_root(job)
     if set(job['profiles'])!={'nl0','lean'}:
         raise ValueError('Missing phase profile')
     for profile in job['profiles'].values():validate_profile(profile)
-    manifest=json.loads((root/'inputs/inputs.json').read_text())
-    expected_inputs=[{key:row[key] for key in ('id','path','sha256')} for row in job['documents']]
-    if manifest!={'inputs':expected_inputs}:
-        raise ValueError('Frozen input manifest changed; only the declared documents may be staged')
-    for row in job['documents']:
-        path=(root/'inputs'/row['path']).resolve()
-        if not path.is_relative_to(root/'inputs') or bind(path)['sha256']!=row['sha256']:
-            raise ValueError('Frozen task input changed or escaped its directory')
-        verify_bindings([row['original']])
+    verify_frozen_inputs(job,root)
     verify_bindings(job['authority_bindings'])
     if job.get('lean_libraries'):
         import lean_libraries
@@ -341,11 +379,6 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Lean library attachment belongs to another run')
         lean_libraries.validate(job['lean_libraries'],full=True)
     __import__('lean_libraries').read_generated(root/'imported-lean',base=job.get('lean_libraries',[]),full=True)
-    if 'target_selection' in job:
-        from target_selection import validate as validate_target
-        validate_target(job['target_selection'])
-        if json.loads((root/'inputs/target-selection.json').read_text())!=job['target_selection']:
-            raise ValueError('Frozen target selection changed')
     if 'resume' in job:
         if job['resume'].get('mode')=='native-proof-cleanup':
             from native_cleanup_recovery import validate_descriptor

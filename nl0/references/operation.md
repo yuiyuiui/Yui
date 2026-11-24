@@ -32,6 +32,9 @@ not all neighboring documents. Extra sources are explicit `--material` inputs.
 Text/TeX/Markdown is copied exactly; PDF extraction uses `pdftotext -layout` or a disclosed pypdf fallback and
 binds both original bytes and extracted text. An unreadable/scanned PDF needs an
 explicitly checked text transcription before model execution.
+After intake, execution and recovery read the checked copies under `RUN/inputs`.
+Moving the originals does not invalidate a prepared run. Independently accepted
+cross-run proof evidence remains bound where it is consumed.
 The invoking agent checks that mathematical notation survives extraction before
 freezing it as the supplied proof; a successful pdftotext exit is not a fidelity
 judgment. Use an explicitly checked text source when the extraction is ambiguous.

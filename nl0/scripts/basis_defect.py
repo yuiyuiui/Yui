@@ -237,7 +237,6 @@ def validate_descriptor(job):
 def prepare(previous):
     import jobs
     old,descriptor,bindings=qualify(previous)
-    materials=jobs.resume_materials(old)
     return jobs.prepare(old['problem'],track=old['track'],profiles=old['profiles'],max_concurrency=old['max_concurrency'],
-        policy=old['policy'],materials=materials,target=old['target_selection'],formalization='unconditional',
+        policy=old['policy'],formalization='unconditional',
         time_budget_seconds=remaining(descriptor),resume=descriptor,resume_bindings=bindings)
