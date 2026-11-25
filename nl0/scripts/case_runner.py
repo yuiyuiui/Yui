@@ -252,6 +252,11 @@ def execute(job, root=None):
     jobs.validate(job);root=Path(job['root'])
     if (root/'execution-status.json').exists():raise ValueError('Preserve this run; prepare a new explicit run')
     resume=job.get('resume') or {}
+    deadline=resume.get('deadline') if resume.get('mode')=='basis-revision' else None
+    if job.get('graph_continuation'):
+        from graph_continuation import descriptor, remaining
+        deadline=descriptor(job)['deadline']
+        remaining(deadline)
     import lean_environment
     selected = job['lean_environment']
     import lean_libraries
@@ -261,7 +266,7 @@ def execute(job, root=None):
         recorder=execution.Recorder(root,job['case'],a.concurrency.resolve(job['max_concurrency']),
             phase='nl0-authoring' if job['track'] in {'nl0','full'} else 'translation-preparation',
             time_budget_seconds=job['time_budget_seconds'],
-            absolute_deadline=resume.get('deadline') if resume.get('mode')=='basis-revision' else None)
+            absolute_deadline=deadline)
         budgets=a.concurrency.CaseBudgets(job['max_concurrency'],execution=recorder);result={}
         def progress(case,phase,**extra):
             from runtime_config import model_profile

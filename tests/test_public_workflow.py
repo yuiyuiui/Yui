@@ -26,7 +26,7 @@ class PublicEntryTests(unittest.TestCase):
         audit=json.loads(result.stdout)
         self.assertTrue(audit['passed'],audit.get('checks'))
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(audit['tests']['generated_coverage']['entries'],3)
+        self.assertEqual(audit['tests']['generated_coverage']['entries'],4)
         self.assertFalse(any(audit['tests']['missing'].values()))
     def test_builder_entry_runs_a_fresh_prepared_case_exactly_once(self):
         import jobs

@@ -48,22 +48,34 @@ class InterfaceGateTests(unittest.TestCase):
         self.assertEqual(error.exception.result['phase'],'interface-review');freeze.assert_not_called();prove.assert_not_called()
 
     def test_pass_is_read_back_before_freeze_and_proof_dispatch(self):
+        import nl0
         author,inputs=self.setup_gate('corrected-interface');events=[]
         contract=ir.load(inputs/'contract.json');contract['premises'][0]['type']='p'
         ir.write(inputs/'contract.json',contract)
         plan=ir.load(inputs/'plan.json');plan['contract_sha256']=ir.digest(inputs/'contract.json');ir.write(inputs/'plan.json',plan)
-        def record(event):
-            def call(*a,**k):events.append(event)
-            return call
-        with patch.object(review,'prepare'),patch.object(review,'run',side_effect=record('fresh review')),\
+        data=nl0.validate(inputs/'nl0.json',inputs/'spec.json')
+        data[0]['current_standard_receipt_valid']=True
+        out=author.parent/'good-flow'
+        def verify_receipt(path,contract,plan,graph_sha256):
+            events.append('actual receipt')
+            self.assertFalse((out/'freeze-seal.json').exists())
+            ir.write(path,{})
+            ir.write(path.parent/'bindings.json',{})
+            return {'evidence':[],'paragraph_mapping':{'S001':{'inference':'R001','paragraph':'S001'}},
+                    'source_outputs':{'P':'T001'}}
+        def prove(*a,**k):
+            events.append('proof dispatch')
+            self.assertTrue((out/'freeze-seal.json').is_file())
+            raise StageFailure('OFFLINE_CONTROL','Reached proof dispatch')
+        with patch.object(review,'prepare'),patch.object(review,'run',side_effect=lambda *a,**k:events.append('fresh review')),\
                 patch.object(review,'collect',return_value={'all_checks_passed':True}),\
-                patch.object(review,'verify_receipt',side_effect=record('actual receipt')) as verify,\
-                patch.object(workflow,'freeze',side_effect=record('freeze')),patch.object(workflow,'bound',return_value={}),\
-                patch.object(full,'prove_with_repair',side_effect=StageFailure('OFFLINE_CONTROL','Reached proof dispatch')):
+                patch.object(review,'verify_receipt',side_effect=verify_receipt) as verify,\
+                patch.object(workflow.source,'read_source',return_value=(data,[])),\
+                patch.object(workflow,'bound',return_value={}),patch.object(full,'prove_with_repair',side_effect=prove):
             with self.assertRaisesRegex(StageFailure,'Reached proof dispatch'):
-                full.from_interface('neutral',inputs,author,author.parent/'good-flow',concurrency.serial_budget(),
+                full.from_interface('neutral',inputs,author,out,concurrency.serial_budget(),
                     lambda *a,**k:None,proof_budget=SimpleNamespace(configuration={'requested':1}))
-        self.assertEqual(events,['fresh review','actual receipt','freeze']);verify.assert_called_once()
+        self.assertEqual(events,['fresh review','actual receipt','proof dispatch']);verify.assert_called_once()
 
     def test_local_packet_material_and_located_scale_mismatch(self):
         out,inputs=self.setup_gate('consumer-control')

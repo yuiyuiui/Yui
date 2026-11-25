@@ -211,7 +211,7 @@ class ExecutionTests(unittest.TestCase):
         self.assertTrue(result['timed_out'])
         self.assertEqual(result['error_kind'],'LEAN_TIMEOUT')
         self.assertEqual(result['timeout_seconds'],.5)
-        self.assertIn('Isolate a smaller typed application',result['stderr'])
+        self.assertEqual(result['timeout_scope'],'native_call')
         self.assertFalse(self.r.cancelled('T001'))
         self.assertEqual(self.r.state['tasks']['T001']['state'],'RUNNING')
         self.assertFalse([p for p in self.r.state['processes'].values() if p['state']=='ACTIVE'])

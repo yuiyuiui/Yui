@@ -44,7 +44,11 @@ def run(job,recorder,budgets,progress,*,snapshot=None):
     try:
         root=Path(job['root'])
         entry='audit' if job['track']=='nl0' else basis.mode(job)
-        view=start(project,root/'protocol',entry,{'job':bind(root/'job.json')})
+        seed={'job':bind(root/'job.json')}
+        if job.get('graph_continuation'):
+            from graph_continuation import repair_input
+            entry, seed = 'continue-graph', repair_input(job)
+        view=start(project,root/'protocol',entry,seed)
         if view['status']=='waiting' and 'repair-ready' in view['events']:
             protocol=Run(root/'protocol')
             while view['status']=='waiting' and 'repair-ready' in view['events']:

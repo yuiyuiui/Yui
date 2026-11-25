@@ -96,9 +96,11 @@ class BasisSchemaTests(unittest.TestCase):
 
     def test_executable_and_unproved_headers_rejected(self):
         for header in ('import Mathlib\naxiom bad : False','import Mathlib\nimport Unpinned',
-                'import Mathlib\n#eval IO.println "bad"','import Mathlib\ntheorem bad : True := by trivial'):
+                'import Mathlib\n#eval IO.println "bad"', 'import Mathlib\nset_option debug.skipKernelTC true'):
             value=artifact();value['lean_header']=header
             with self.subTest(header=header),self.assertRaises(ValueError):basis.validate(value,TARGET)
+        value=artifact();value['lean_header']='import Mathlib\ntheorem proved : True := by trivial\n'
+        basis.validate(value,TARGET)
 
     def test_evidence_cannot_escape_or_reference_undeclared_inputs(self):
         with tempfile.TemporaryDirectory() as raw:

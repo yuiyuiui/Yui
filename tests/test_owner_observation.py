@@ -120,13 +120,16 @@ class OwnerObservationTests(unittest.TestCase):
         self.assertEqual(saved['owner_observation']['registration'], 'CONTROLLER_REPORTS')
 
     def test_legacy_frozen_controller_keeps_its_launch_contract(self):
+        legacy_files = [row for row in jobs.runtime_bindings() if Path(row['path']).name!='owner_reports.py']
+        with patch.object(jobs,'runtime_bindings',return_value=legacy_files):
+            legacy = jobs.prepare(self.job['problem'],track='nl0',profiles=PROFILES,
+                                  output=self.root/'legacy-run',max_concurrency=2)
         with patch.object(entrypoint, 'preflight_profiles'), patch('runtime_config.verify'), \
-                patch('runtime_snapshot.root_for', return_value=self.root/'legacy-runtime'), \
                 patch('runtime_snapshot.environment'), patch.object(subprocess, 'Popen') as launch, \
                 patch('execution_state.identity', return_value=self.identity):
             launch.return_value.pid = self.identity['pid']
             launch.return_value.poll.return_value = None
-            result = entrypoint.launch([self.job], detached=True)
+            result = entrypoint.launch([legacy], detached=True)
         self.assertNotIn('--controller-reports', launch.call_args.args[0])
         self.assertEqual(result['owner_observation']['registration'], 'HOST_REGISTRATION_REQUIRED')
 

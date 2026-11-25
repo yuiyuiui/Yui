@@ -68,6 +68,23 @@ Yui saves the outcome and its supporting files in the run’s `delivery/` direct
 
 ### Final closure and recovery
 
+To continue on a newly set up Codex carrier, use an exited unconditional
+run whose current checkpoint is a formal local NL0 graph return after
+checked `2basis`. The new run copies the verified evidence and keeps the
+original Lean environment, model profiles and case deadline. It starts
+with graph revision and goes through the ordinary independent reviews and
+final checks.
+
+```sh
+.venv/bin/python -B nl0/scripts/yui.py continue-graph OLD_RUN --output NEW_RUN --prepare-only
+.venv/bin/python -B nl0/scripts/yui.py execute NEW_RUN --detach
+```
+
+`continue-graph` can also launch directly, with optional `--detach`. Use
+`resume-error` or `resume-checkpoint` for a live controller in its existing
+session. This cross-carrier entry covers local author returns with closed
+foundations before Audit A.
+
 If a controller fault interrupted only the final discharge, Yui can reuse the checked foundations and Audit B after the fault has been fixed. For an explicitly cancelled, exited, unlimited normal-policy run with `BASIS_FINAL_CLOSURE_FAILED`, prepare a new run from that checkpoint and execute it.
 
 ```sh

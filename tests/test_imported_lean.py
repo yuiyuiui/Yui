@@ -127,11 +127,13 @@ class ImportedLeanTests(unittest.TestCase):
     def test_timed_out_or_cancelled_current_check_never_attempts_upstream(self):
         for flag in ('timed_out','cancelled'):
             record={'receipt':{'path':'retained-native.json','sha256':'a'*64},'cache_reused':False,
-                    'native':{'exit_code':0,flag:True},'source_policy_passed':True}
+                    'native':{'exit_code':0,flag:True},'source_policy_passed':True,
+                    'environment':lean_imports.environment_identity(self.current)}
             with self.subTest(flag=flag),patch.object(lean_imports,'compile_unit',return_value=record), \
                     patch.object(lean_imports,'original_environment',side_effect=AssertionError('Incomplete check is not a source error')):
                 value=self.check(upstream=self.upstream())
-            self.assertEqual(value['status'],'LOCAL_CHECK_INCOMPLETE');self.assertFalse(value['accepted_for_native_reuse'])
+                self.assertEqual(value['status'],'LOCAL_CHECK_INCOMPLETE')
+                self.assertFalse(value['accepted_for_native_reuse'])
 
     def test_source_scope_hash_and_exact_range_are_enforced(self):
         source=self.logs/'external-sources/original.lean';source.parent.mkdir();source.write_text(GOOD)

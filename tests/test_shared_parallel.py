@@ -129,11 +129,10 @@ class SharedTests(unittest.TestCase):
         ir.write(cpath, c)
         plan['contract_sha256'] = ir.digest(cpath)
         proof = 'exact injected iota F G h_H001'
-        rendered = ir.render(cpath, plan, {'T001':proof}, only='T001')
         forged = {'status':'LOCAL-PROOF-CHECKED','exit_code':0,'axioms':[],
-                  'lean_sha256':hashlib.sha256(rendered.encode()).hexdigest(),
+                  'lean_sha256':hashlib.sha256((c['header']+proof).encode()).hexdigest(),
                   'contract_sha256':ir.digest(cpath),'wall_seconds':0}
-        with self.assertRaisesRegex(ir.Invalid, 'unpermitted shared module axioms'):
+        with self.assertRaisesRegex(ir.Invalid, 'unchecked axiom'):
             shared.Store(self.temp/'forged-store').admit(cpath, plan, 'T001', proof, forged)
 
 

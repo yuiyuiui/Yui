@@ -145,15 +145,15 @@ class NativeTimeoutAdviceTests(unittest.TestCase):
         self.assertEqual(failed['stderr'],wall_timeout()['stderr'])
         self.assertFalse(failed['accepted']);self.assertIsNone(stage.accepted)
 
-    def test_new_job_runtime_bindings_include_strategy_data(self):
+    def test_optional_strategy_data_is_outside_mandatory_runtime_bindings(self):
         core=self.root/'runtime';core.mkdir(parents=True)
         (core/'SKILL.md').write_text('Test skill')
         shutil.copytree(bank.BANK,core/'nl02lean/bank')
         with patch.object(controller_common,'CORE',core):rows=controller_common.runtime_bindings()
         card=core/'nl02lean/bank/cards/ST020.json'
-        row=next(row for row in rows if row['path']==str(card.resolve()))
+        self.assertNotIn(str(card.resolve()),{row['path'] for row in rows})
         card.write_bytes(card.read_bytes()+b' ')
-        with self.assertRaisesRegex(ValueError,'changed'):controller_common.verify_bindings([row])
+        controller_common.verify_bindings(rows)
 
     def test_full_queue_delivers_phase_frozen_advice_with_free_form_bank_off(self):
         live=self.root/'queue-live-bank';shutil.copytree(bank.BANK,live)

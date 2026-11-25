@@ -16,6 +16,8 @@ options=sys.argv[2].split('+');mode=options[0]
 read_strategies='reference' in options[1:]
 imported_code='imported-lean' in options[1:]
 ported_code='port' in options[1:]
+graph_continuation='graph-continuation' in options[1:]
+stop_before_revision='stop-before-revision' in options[1:]
 tests = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl02lean/scripts'),
                 str(tests.parent/'nl0/scripts'),str(tests.parent/'nl02lean/scripts')]
@@ -45,7 +47,8 @@ def author_code(stage):
     spec=ir.load(folder/'spec.json');graph=ir.load(folder/'nl0.json')
     spec['case_id']=graph['case_id']=job['case']
     spec['hypotheses'][0]['origin']='problem.md:1'
-    evidence=[r for r in stage.validator.expected_inputs if r['path']=='inputs/problem.md']
+    reference='material-001.lean' if graph_continuation else 'problem.md'
+    evidence=[r for r in stage.validator.expected_inputs if r['path']=='inputs/'+reference]
     import frozen_graph as fg
     if 'basis-registry.json' in stage.task_inputs:
         registry=json.loads(stage.task_inputs['basis-registry.json'])
@@ -99,13 +102,17 @@ def author_code(stage):
             basis='The supplied statements do not imply the requested implication.',
             explanation='The obligations conflict at the last inference even after consulting all available roots.',
             partial_progress='The earlier symmetry node can still be retained.')
-    if mode in {'local-edge','first-pass-edge','relabel-closed','relabel-residual'}:
+    if graph_continuation or mode in {'local-edge','first-pass-edge','relabel-closed','relabel-residual'}:
         if stage.mode==fg.LOCAL:
             current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
             if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
                 report={'inference':'R002','kind':'missing_input','subject':'H001',
                         'explanation':'The chosen last equality uses the original equality directly as well as its symmetric form.'}
                 first=next(r for r in graph['inferences'] if r['id']=='R001')
+                if graph_continuation:
+                    report['source_spans']=[{'from_task':'problem.md','start_line':1,'end_line':1}]
+                    return call('report_graph_issue',findings=[report],
+                                local_proofs=[{k:first[k] for k in ('id',*fg.BODY_FIELDS)}])
                 return (call('report_graph_issue',findings=[{**report,'inference':'R999'}])+
                         call('report_graph_issue',findings=[{**report,'subject':'H999'}])+
                         call('report_graph_issue',findings=[report],
@@ -156,7 +163,7 @@ def author_code(stage):
                     'proof_outline':outline})
     draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
            if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
-    if mode=='local-edge' and stage.mode==fg.LOCAL:
+    if (mode=='local-edge' or graph_continuation) and stage.mode==fg.LOCAL:
         feedback=json.loads(stage.task_inputs['global-findings.json'])
         if not feedback['blockers'] or [r['id'] for r in feedback['local_proofs']]!=['R001']:
             raise AssertionError('The revised local assignment needs the blocker and the unaffected earlier draft')
@@ -273,8 +280,14 @@ def scripted(stage):
         if mode=='evidence-repair' and requests[stage.logs]==1:
             row['origin']['evidence']=[{'path':'external-sources/misspelled.pdf','sha256':'0'*64}]
         if mode.startswith('planned-'):
-            base=dependency(category=2);base['port']=None
+            base=dependency(category=2)
+            if not graph_continuation:base['port']=None
             prefix=''
+            if graph_continuation:
+                module='FixtureLib.Leaf'
+                base['lean']['proof']='intro n; exact (fun _ : True => Nat.add_zero n) FixtureLib.witness'
+                base['origin'].update(reference='material-001.lean: FixtureLib.witness',
+                                      evidence=[{'input':'material-001.lean'}])
             if imported_code:
                 source=stage.task_inputs['material-001.lean']
                 module='YuiImported'+hashlib.sha256(source.encode()).hexdigest()[:24]
@@ -286,14 +299,14 @@ def scripted(stage):
                 module='Lib.Consumer'
                 base['lean']['proof']='exact Lib.consumer'
             derived=dependency('B002',3)
-            rows=[base,derived]
+            rows=[base] if graph_continuation else [base,derived]
             if mode!='planned-closed' and (mode!='planned-continue' or requests[stage.logs]==1):
                 rows.append(dependency('B003',4,port='E003'))
             value=active_artifact(artifact(*rows))
-            if imported_code or ported_code:value['lean_header']='import Mathlib\nimport '+module+'\n'
-            if not ported_code:value['dependencies'][1]['lean']['proof']=None
+            if graph_continuation or imported_code or ported_code:value['lean_header']='import Mathlib\nimport '+module+'\n'
+            if not ported_code and not graph_continuation:value['dependencies'][1]['lean']['proof']=None
             frontier=''
-            if mode=='planned-closed' and not ported_code:
+            if mode=='planned-closed' and not ported_code and not graph_continuation:
                 frontier=call('investigate_basis_frontier',obligations=[
                     {'id':r['id'],'statement':r['statement'],'consumers':[{'id':'R002','required_use':NOTE}]}
                     for r in value['dependencies']])
@@ -335,6 +348,8 @@ def scripted(stage):
         return call('submit_draft',artifact={'status':'NO_CHANGE','reason':NOTE})
     if stage.mode=='interface-authoring':
         value=addition_interface()
+        if graph_continuation:
+            value['steps'][-1]['inputs'].append('H001')
         if mode=='local-edge' or mode.startswith('relabel-'):value['steps'][-1]['inputs'].append('H001')
         if mode=='native-source':
             value['premise_types']['M001']='∀ a b c : ℕ, a / b / c = a / c / b'
@@ -342,7 +357,7 @@ def scripted(stage):
         from basis import problem_inputs
         registry=problem_inputs(job)/'basis-registry.json'
         rows=ir.load(registry)['dependencies'] if registry.is_file() else [dependency(category=2)] if mode=='direct-external' else []
-        if imported_code or ported_code:value['header']=ir.load(registry)['lean_header']
+        if graph_continuation or imported_code or ported_code:value['header']=ir.load(registry)['lean_header']
         for row in rows:
             if mode.startswith('relabel-'):row['port']='E014'
             if not row['port'] or (mode=='planned-unused-residual' and row['port']=='E003'):continue
@@ -360,6 +375,9 @@ def scripted(stage):
                                   {'name':'x','type':'A'}],'args':['A','x'],'expected':'x + 0 = x'}]}]}})
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
+        if graph_continuation:
+            proof='exact h_H001.symm' if stage.step=='T001' else 'simpa only [h_E001 a] using h_T001.symm'
+            return call('submit_transition',proof=proof)
         if mode=='native-source' and stage.step=='T002':
             return call('submit_transition',proof='have _ := h_M001 a 1 1\nsimpa only [Nat.add_zero] using h_T001.symm')
         if mode=='universe-use' and stage.step in ('T003','T002'):
@@ -369,6 +387,8 @@ def scripted(stage):
             return call('submit_transition',proof='exact (h_E014 a).trans (h_H001.trans (h_T001.trans h_H001))')
         if ir.contract(stage.cpath)['id']=='PrivateProof':
             if stage.plan['steps'][0]['statement'] in {'a = a','b = b'}:return call('submit_transition',proof='rfl')
+            if mode in {'planned-conditional','planned-continue','planned-unused-residual'}:
+                return call('submit_transition',proof='exact h_H001')
             doc=next(iter(stage.private_sources))
             return call('read_private_source',id=doc,start=1,end=4)+call('check_auxiliary',statement='∀ n : ℕ, n + 0 = n',proof='exact h_H001')+call('submit_transition',proof='exact @yui_aux_0001 h_H001')
         if mode=='local-edge' and stage.step=='T002':
@@ -406,8 +426,8 @@ def respond(f,handler,number,payload):
     try:
         helper_turns=(mode=='planned-closed' and not ported_code
                       and getattr(stage,'helper_work',None) is not None and stage.step=='T001')
-        dependency_turns=mode=='dependency-repair' and stage.mode=='basis-authoring'
-        if requests[stage.logs]>(10 if helper_turns else 5 if dependency_turns else 2):
+        basis_repair=mode in ('dependency-repair','planned-continue') and stage.mode=='basis-authoring'
+        if requests[stage.logs]>(10 if helper_turns else 5 if basis_repair else 2):
             rows=[json.loads(line) for line in (stage.logs/'tools.jsonl').read_text().splitlines()] if (stage.logs/'tools.jsonl').exists() else []
             detail=json.dumps([{'tool':r['tool'],**{key:r['result'][key] for key in
                         ('status','error','stage_complete','candidate','diagnostics') if key in r['result']}}
@@ -443,6 +463,9 @@ if __name__ == '__main__':
         execute=model_pilot.Stage._execute
         pause=fault_control.Gate.pause
         def dispatch(stage):
+            if stop_before_revision and 'prior-global.json' in getattr(stage,'task_inputs',{}):
+                queue_controller.cancel_batch([run])
+                raise execution_state.Cancelled('Stop at the recorded local graph return')
             prior=fixture.stage;fixture.stage=stage
             try:return execute(stage)
             finally:fixture.stage=prior
@@ -497,7 +520,7 @@ if __name__ == '__main__':
             if result['status']=='PAUSED_ERROR' and not unexpected:
                 queue_controller.cancel_batch([run])
                 result=ir.load(run/'case-result.json')['result']
-    if unexpected or fixture.failures or result['status']=='CANCELLED' and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge','evidence-repair'}:
+    if unexpected or fixture.failures or result['status']=='CANCELLED' and not stop_before_revision and mode not in {'late','late-proof','first-pass','deadline-decision','cancel-native','cancel-review','stalled-graph','local-gap','first-pass-edge','evidence-repair'}:
         print('Fixture failures:',unexpected,fixture.failures,'result:',result,flush=True)
         raise SystemExit(2)
     raise SystemExit(0 if result['completion']['workflow_completed'] else 1)

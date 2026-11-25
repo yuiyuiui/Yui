@@ -80,25 +80,28 @@ def capture_document(source, destination):
 def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
             materials=(), source=None, audit=None, output=None, time_budget_seconds=None,
             resume=None, resume_bindings=(), target=None, formalization='conditional', stop_after=None,
-            lean_environment=None, lean_libraries=(), configuration=None):
+            lean_environment=None, lean_libraries=(), configuration=None, graph_checkpoint=None):
     if track not in TRACKS or policy not in {'normal','first-pass'}:
         raise ValueError('Unknown track or execution policy')
     from basis import validate_mode
     validate_mode(formalization, track,resume=resume)
     from workflow_checkpoint import allowed
-    if stop_after is not None and (resume or stop_after not in allowed(track,formalization)):
+    if graph_checkpoint and resume:
+        raise ValueError('Select one recovery entry')
+    if stop_after is not None and (resume or graph_checkpoint or stop_after not in allowed(track,formalization)):
         raise ValueError('Cannot stop after a stage outside the requested public route')
     if set(profiles) != {'nl0','lean'}:
         raise ValueError('Freeze both profile slots; unused slots are not dispatched')
     profiles = {key:validate_profile(row) for key,row in profiles.items()}
     import lean_environment as environments
-    if resume and lean_libraries:raise ValueError('Recovery inherits frozen Lean libraries; do not attach a replacement')
-    if resume:
-        prior = json.loads((Path(resume['prior_run'])/'job.json').read_text())
+    prior_run = Path(resume['prior_run']) if resume else graph_checkpoint.root if graph_checkpoint else None
+    if prior_run and lean_libraries:raise ValueError('Recovery inherits frozen Lean libraries; do not attach a replacement')
+    if prior_run:
+        prior = json.loads((prior_run/'job.json').read_text())
         if prior.get('version') != VERSION:
             raise ValueError('Unsupported task format; start a new task with the current Yui version')
         prior_root=owned_root(prior)
-        if (Path(resume['prior_run']).resolve()!=prior_root or Path(problem).expanduser().absolute()!=Path(prior['problem'])
+        if (prior_run.resolve()!=prior_root or Path(problem).expanduser().absolute()!=Path(prior['problem'])
                 or materials or (target is not None and target!=prior.get('target_selection'))):
             raise ValueError('Recovery inherits the prior frozen proof, materials and target')
         problem=Path(prior['problem']);extra=[]
@@ -149,7 +152,9 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
         root = Path(output).expanduser().absolute() if output else problem.parent/OUTPUT_DIRECTORY/run_id
         if root.exists() or root.is_symlink() or root.resolve().is_relative_to(CORE):
             raise ValueError('Use a new run directory outside the installed skill')
-        original_paths=([Path(row['original']['path']) for row in prior['documents']] if resume else [problem,*extra])
+        if graph_checkpoint and root.resolve().is_relative_to(prior_root):
+            raise ValueError('Graph continuation output must be outside the original run')
+        original_paths=([Path(row['original']['path']) for row in prior['documents']] if prior_run else [problem,*extra])
         if any(p.is_relative_to(root.resolve()) for p in original_paths):
             raise ValueError('A run may not contain/overwrite its original input documents')
         root.mkdir(parents=True,exist_ok=False)
@@ -160,8 +165,8 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
         try:
             import lean_libraries as attached_lean
             inherited=([*prior.get('lean_libraries',[]),*attached_lean.read_generated(
-                Path(prior['root'])/'imported-lean',base=prior.get('lean_libraries',[]))] if resume else [])
-            attachments=(attached_lean.inherit(inherited,root) if resume else
+                Path(prior['root'])/'imported-lean',base=prior.get('lean_libraries',[]))] if prior_run else [])
+            attachments=(attached_lean.inherit(inherited,root) if prior_run else
                          [attached_lean.capture(path,root) for path in lean_libraries])
             selections.enter_context(attached_lean.use(attachments))
             authority=source_authority(source) if source else None
@@ -177,7 +182,7 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
                     path=Path(audit).resolve()/name
                     if not path.is_file():raise ValueError('Missing actual native audit input: '+name)
                     audit_files.append(path)
-            if resume:
+            if prior_run:
                 for row in prior['documents']:
                     if row['extraction']=='explicit_lean_library_summary':
                         continue
@@ -190,7 +195,7 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
                 for number,p in enumerate([problem,*extra]):
                     name='problem.md' if number==0 else f'material-{number:03d}'+('.txt' if p.suffix.lower()=='.pdf' else p.suffix or '.txt')
                     documents.append(capture_document(p,inputs/name))
-            if target and not resume:
+            if target and not prior_run:
                 from target_selection import validate as validate_target
                 original=documents[0]['original']
                 validate_target(target,original=original)
@@ -200,13 +205,13 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
             if formalization=='unconditional' and not target:
                 raise ValueError('Unconditional formalization needs an explicit frozen target selection')
             prior_summaries=({json.loads((Path(prior['root'])/'inputs'/row['path']).read_text())['name']:row
-                for row in prior['documents'] if row.get('extraction')=='explicit_lean_library_summary'} if resume else {})
+                for row in prior['documents'] if row.get('extraction')=='explicit_lean_library_summary'} if prior_run else {})
             for index,descriptor in enumerate(attachments,1):
-                if resume and descriptor['name'] not in prior_summaries:continue
+                if prior_run and descriptor['name'] not in prior_summaries:continue
                 old_summary=prior_summaries.get(descriptor['name'])
                 name=old_summary['id'] if old_summary else f'lean-library-{index:03d}.json'
                 with attached_lean.use([descriptor]):write(inputs/name,attached_lean.summary()[0])
-                original=Path(inherited[index-1]['manifest']['path']) if resume else Path(lean_libraries[index-1]).resolve()
+                original=Path(inherited[index-1]['manifest']['path']) if prior_run else Path(lean_libraries[index-1]).resolve()
                 documents.append({'id':name,'path':name,'sha256':bind(inputs/name)['sha256'],
                     'original':bind(original),'extraction':'explicit_lean_library_summary'})
             if authority and documents[0]['sha256'] not in {row['sha256'] for row in data[2]['inputs']}:
@@ -246,9 +251,16 @@ def prepare(problem, *, track, profiles, max_concurrency=None, policy='normal',
                 import basis
                 if basis.mode(prior)!=formalization:raise ValueError('Recovery cannot change the formalization goal')
                 job['authority_bindings'].extend(basis.recovery_bindings(prior))
+            if graph_checkpoint:
+                job['graph_continuation']=graph_checkpoint.copy_to(job)
             write(root/'job.json',job)
             write(root/MARKER,{'version':VERSION,'run_id':run_id,'root':str(root),
                               'job':bind(root/'job.json'),'original_inputs':[row['original'] for row in documents]})
+            if graph_checkpoint:
+                from graph_continuation import repair_input
+                validate(job)
+                with scientific_context(job):
+                    repair_input(job)
             return job
         except Exception:
             # A failed preparation has no model processes or scientific outputs.
@@ -321,7 +333,7 @@ def validate(job, *, verify_runtime=True):
     with scientific_context(job):return _validate(job,verify_runtime=verify_runtime)
 
 
-def _validate(job, *, verify_runtime=True):
+def _validate(job, *, verify_runtime=True, verify_host=True):
     if job.get('version') != VERSION or job.get('track') not in TRACKS:
         raise ValueError('Unsupported task format; start a new task with the current Yui version')
     if 'runtime_snapshot' not in job or set(job['runtime_snapshot']) != {'root','manifest'}:
@@ -338,6 +350,7 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Unknown public workflow protocol or track')
         expected.add('workflow_protocol')
     if 'resume' in job:expected.add('resume')
+    if 'graph_continuation' in job:expected.add('graph_continuation')
     if 'runtime_snapshot' in job:expected.add('runtime_snapshot')
     if 'target_selection' in job:expected.add('target_selection')
     if 'native_components' in job:expected.add('native_components')
@@ -347,7 +360,7 @@ def _validate(job, *, verify_runtime=True):
         raise ValueError('Unsupported explicit job fields/policy')
     if job.get('local_configuration') is not None:
         import local_config
-        local_config.verify(job['local_configuration'],evidence=False)
+        if verify_host:local_config.verify(job['local_configuration'],evidence=False)
         if (job['local_configuration']['profiles']!=job['profiles']
                 or job['local_configuration']['lean_environment']!=job.get('lean_environment')
                 or job['local_configuration']['host']['codex']!=job.get('native_components')):
@@ -361,7 +374,7 @@ def _validate(job, *, verify_runtime=True):
             environments.verify(selected)
     from basis import validate_mode
     validate_mode(job.get('formalization','conditional'),job['track'],resume=job.get('resume'))
-    if 'native_components' in job:
+    if 'native_components' in job and verify_host:
         from native_runtime import verify
         verify(job['native_components'])
     from runtime_config import time_limit
@@ -379,6 +392,9 @@ def _validate(job, *, verify_runtime=True):
             raise ValueError('Lean library attachment belongs to another run')
         lean_libraries.validate(job['lean_libraries'],full=True)
     __import__('lean_libraries').read_generated(root/'imported-lean',base=job.get('lean_libraries',[]),full=True)
+    if 'graph_continuation' in job:
+        from graph_continuation import descriptor
+        descriptor(job)
     if 'resume' in job:
         if job['resume'].get('mode')=='native-proof-cleanup':
             from native_cleanup_recovery import validate_descriptor

@@ -54,7 +54,12 @@ class ActualSetupConsumers(unittest.TestCase):
         original=library(self.root/'external')
         data=json.loads(original.read_text())
         source=Path(data['source_root'])/'FixtureLib/Leaf.lean'
-        with patch.object(Path,'read_text',side_effect=PermissionError('Synthetic public source denial')):
+        read_bytes=Path.read_bytes
+        def deny_source(path):
+            if path==source:
+                raise PermissionError('Synthetic public source denial')
+            return read_bytes(path)
+        with patch.object(Path,'read_bytes',deny_source):
             with self.assertRaises(PermissionError):
                 setup_checks.library_specification(data['source_root'],data['build_root'],
                     data['name'],data['imports'],self.root/'denied.json')

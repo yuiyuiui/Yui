@@ -94,10 +94,9 @@ class AuditBTests(unittest.TestCase):
         self.assertEqual(set(report['required_review_locations']),{'P'})
 
     def test_unproved_project_axiom_is_still_rejected(self):
-        report=ir.load(self.directory('extra_axiom')/'mechanical.json')
-        self.assertFalse(report['passed'])
-        self.assertIn('UNPROVED_OR_EXECUTABLE_HEADER_DECLARATION',report['errors'])
-        self.assertTrue(any(e.startswith('UNPERMITTED_AXIOM:') for e in report['errors']))
+        with self.assertRaisesRegex(ir.Invalid,'unchecked axiom'):
+            self.directory('extra_axiom')
+        self.assertFalse((self.base/'extra_axiom/audit/mechanical.json').exists())
 
     def test_external_input_with_same_count_but_changed_content_rejected(self):
         directory=self.directory('weakened_external');report=ir.load(directory/'mechanical.json')

@@ -271,6 +271,11 @@ def consecutive_reports(root, receipt):
 
     groups={};wanted=None;seen=set();newer=None
     job=bind(root/'job.json')
+    owners=[job]
+    current=nl0.load(job['path'])
+    if current.get('graph_continuation'):
+        from graph_continuation import descriptor
+        owners.extend(descriptor(current)['historical_jobs'])
     while receipt is not None:
         path=Path(receipt['path'])
         if path.parent!=root/'handoffs' or path in seen:
@@ -279,7 +284,7 @@ def consecutive_reports(root, receipt):
         verify_bindings([receipt])
         report=nl0.load(path)
         graph=report['global']
-        if report['job']!=job or not Path(graph['path']).is_relative_to(root/'global-graphs'):
+        if report['job'] not in owners or not Path(graph['path']).is_relative_to(root/'global-graphs'):
             raise ValueError('NL0 repair history belongs to a different run')
         verify_bindings([graph])
         if newer is not None and newer!=graph:

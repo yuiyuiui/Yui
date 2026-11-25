@@ -68,12 +68,12 @@ def main():
         except (ValueError,KeyError,OSError,subprocess.SubprocessError) as error:
             print(json.dumps({'status':'VALIDATION_FAILED','error':str(error)}));return 1
         print(json.dumps(result,indent=2));return 0
-    if args.command in {'init-config','prepare','run','execute','resume','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision','lean-environments','process-diagnose','process-decision'}:
+    if args.command in {'init-config','prepare','run','execute','resume','continue-graph','status','observe','cancel','cleanup','targets','errors','resume-error','supply-material','resume-checkpoint','final-decision','basis-decision','lean-environments','process-diagnose','process-decision'}:
         try:
             result=entrypoint.dispatch(args)
             print(json.dumps(result,indent=2))
             if result.get('status') in {'BLOCKED','VALIDATION_FAILED'}:return 1
-            if args.command in {'run','execute','resume'} and result.get('outcomes'):
+            if args.command in {'run','execute','resume','continue-graph'} and result.get('outcomes'):
                 return 0 if all(r.get('completion',{}).get('workflow_completed',r.get('completion',{}).get('acceptance_target_satisfied')) for r in result['outcomes'].values()) else 1
             return 0
         except (OSError,ValueError,KeyError,subprocess.SubprocessError) as error:

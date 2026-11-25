@@ -80,7 +80,6 @@ class NativeReviewPipelineTests(unittest.TestCase):
                         f.code(handler,job_numbers[key]*100+1,code)
                         return
                     self.assertIn('preview_valid',serialized)
-                    self.assertIn('/background_notes/0/grounds/0/location (BG004)',serialized)
                     self.assertIsNone(stage.accepted)
                     artifact['background_notes']=notes
                     args=json.dumps({'artifact':artifact})

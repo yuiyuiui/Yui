@@ -127,7 +127,13 @@ class Case:
                 if name=='revise_graph':
                     self.working(data)
                     report=self.read(data['repair'])
-                    if report['job']!=data['job'] or report['global']!=data['global']:
+                    owner_matches=report['job']==data['job']
+                    if ctx.node=='continue-graph' and self.job.get('graph_continuation'):
+                        from graph_continuation import descriptor
+                        migrated=descriptor(self.job)
+                        owner_matches=(data['repair']==migrated['repair'] and
+                                       report['job'] in migrated['historical_jobs'])
+                    if not owner_matches or report['global']!=data['global']:
                         raise ValueError('Stale or foreign NL0 graph repair')
                     verify_bindings(report['evidence']+report['campaigns']+list(report['baseline'].values()))
                     previous=data['global']
@@ -202,6 +208,12 @@ class Case:
             if name=='publish':
                 import delivery
                 result=self.read(data['outcome'])
+                if self.job.get('graph_continuation'):
+                    from graph_continuation import descriptor
+                    recovery=descriptor(self.job)
+                    provenance={key:recovery[key] for key in (
+                        'version','origin','carrier','deadline','current_run_id','current_directory')}
+                    result={**result,'recovery':{**provenance,'resumed_at':'revise_graph'}}
                 port,scope=routes.classify(goal,result['status'],closed=result.get('closure',{}).get('kernel_closed',False),
                     qualified=result.get('source_conditional',False))
                 self.result,inventory,extra=delivery.finalize(self.job,result,scope,self.recorder)

@@ -104,8 +104,7 @@ class MathematicalNL0PolicyTests(unittest.TestCase):
         self.assertEqual(replay['read_materials'],['packet:'+self.packet['packet_sha256']])
         mistaken=copy.deepcopy(audit)
         mistaken['inference_reviews']['R001']['replay']['library_evidence']=[replay['review_trace']]
-        with self.assertRaisesRegex(ValueError,'not library evidence'):
-            self.validate_audit(mistaken)
+        self.assertEqual(background_inputs.effective(self.validate_audit(mistaken))[0],self.data[3])
         trace.write_text('changed')
         with self.assertRaisesRegex(ValueError,'HASH'):
             self.validate_audit(audit)

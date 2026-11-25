@@ -158,7 +158,8 @@ class IsolationTests(unittest.TestCase):
     def test_obstacle_tool_publishes_exact_direct_fields_and_actionable_rejection(self):
         tool=next(t for t in self.worker.tools if t['name']=='report_obstacle')
         expected={'status','location','explanation','basis','partial_progress'}
-        self.assertEqual(set(tool['inputSchema']['properties']),expected)
+        self.assertEqual(set(tool['inputSchema']['properties']),expected|{'receipt'})
+        self.assertEqual(set(tool['inputSchema']['properties']['receipt']['required']),{'path','sha256'})
         self.assertEqual(set(tool['inputSchema']['required']),expected)
         rejected=self.worker.dispatch('report_obstacle',{'claim':'An unstructured allegation.'})
         self.assertFalse(rejected['accepted'])

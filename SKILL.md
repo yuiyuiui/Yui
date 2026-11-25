@@ -116,6 +116,11 @@ a selected B-final user decision is a separate authority. Keep
 scientific evidence and the selected profile. A pause is nonterminal: never
 restart it or delete its monitor. The guarded recovery of an exited current-format run is separate from live
 `resume-error` controls.
+For an explicitly selected, exited run at a formal local NL0 graph return
+after closed reviewed foundations, [`continue-graph`](README.md#final-closure-and-recovery)
+starts a new case from relocated evidence on a setup-qualified carrier.
+It preserves the original case deadline and reruns the ordinary downstream
+checks from graph revision.
 Native process queries instead use fresh 5/15/30-second attempts. Exhaustion
 preserves the live native checkpoint and requests operational diagnosis from the
 owning AI; follow [process diagnosis and recovery](nl0/references/process-recovery.md).

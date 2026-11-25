@@ -97,7 +97,7 @@ def publish(ctx, data):
     status = {'stop':'STOPPED_BY_USER','different':'DIFFERENT_RESULT_DELIVERED'}.get(case)
     if not status:
         status = ('DRAFT-AUDIT-CONDITIONAL' if case=='qualified' else 'DRAFT-AUDIT-PASSED') if data['goal']=='audit' else 'WORKFLOW-CONDITIONAL' if case in ('qualified','residual') else 'WORKFLOW-PASSED'
-    closed = case in ('closed','qualified','local-edge','cleanup-recovered','nine-local-repairs','nine-audit-repairs')
+    closed = case in ('closed','qualified','local-edge','cleanup-recovered','nine-local-repairs','nine-audit-repairs','migrated')
     extra = {'residual':['E004'],'external':['E001']}.get(case,[])
     port, scope = classify(data['goal'], status, closed=closed, qualified=case=='qualified')
     return outcome(port, {'scope':scope,'extra_premises':extra,'inventory':ctx.put_file(scope.encode())})

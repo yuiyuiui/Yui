@@ -14,6 +14,9 @@ from controller_common import write
 from execution_health import StageFailure
 
 
+DEVIATION={'status':'INTERFACE_DEVIATION_REQUIRES_B_FINAL','interface_consistent':False}
+
+
 class WorkflowHandoffTests(unittest.TestCase):
     def test_b_final_changed_or_missing_findings_refuse_all_decisions_after_user_wait(self):
         for action,mutation in ((a,m) for a in ('deliver-actual','recheck','reset-translation')
@@ -27,7 +30,7 @@ class WorkflowHandoffTests(unittest.TestCase):
                     if mutation=='remove':(gate.logs.parent/'report.json').unlink()
                     else:write(gate.logs.parent/'report.json',{'all_checks_passed':False,'synthetic':'changed while awaiting user'})
                     return {'control':{'action':action}}
-                with patch.object(final_acceptance,'check',return_value={'interface_consistent':False}), \
+                with patch.object(final_acceptance,'assess',return_value=(DEVIATION,None,None)), \
                      patch.object(full_workflow.audit_b_review,'prepare',side_effect=prepare), \
                      patch.object(full_workflow.audit_b_review,'run'), \
                      patch.object(full_workflow.audit_b_review,'collect',return_value={'all_checks_passed':False}), \
@@ -78,16 +81,22 @@ class WorkflowHandoffTests(unittest.TestCase):
             def decide(gate,*args,**kwargs):
                 events.append('user-recheck');write(gate.path,{'state':'USER_DECIDED','control':{'action':'recheck'}})
                 return {'control':{'action':'recheck'}}
-            with patch.object(final_acceptance,'check',return_value={'interface_consistent':False}),\
+            finish_workflow=full_workflow.workflow.finish
+            def finish(directory,**kwargs):
+                if kwargs.get('_defer_deviation'):
+                    return finish_workflow(directory,**kwargs)
+                self.assertEqual(kwargs['exceptional_review'],out.parent/'audit-b-final-rechecks/0002/review.json')
+                return {'status':'SYNTHETIC_ACCEPTANCE'}
+            with patch.object(final_acceptance,'assess',return_value=(DEVIATION,None,None)),\
                  patch.object(full_workflow.audit_b_review,'prepare',side_effect=prepare),\
                  patch.object(full_workflow.audit_b_review,'run',side_effect=lambda *a,**kw:events.append('review')),\
                  patch.object(full_workflow.audit_b_review,'collect',side_effect=[{'all_checks_passed':False},{'all_checks_passed':True}]),\
                  patch('fault_control.Gate.pause',decide),\
-                 patch.object(full_workflow.workflow,'finish',return_value={'status':'SYNTHETIC_ACCEPTANCE'}) as finish:
+                 patch.object(full_workflow.workflow,'finish',side_effect=finish) as finalized:
                 result=full_workflow.finish_translation('neutral',out,concurrency.serial_budget(),lambda *a,**kw:None)
             self.assertEqual(events,['prepare','review','user-recheck','prepare','review'])
             self.assertEqual(result['status'],'SYNTHETIC_ACCEPTANCE')
-            self.assertEqual(finish.call_count,1)
+            self.assertEqual(finalized.call_count,2)
 
     def test_source_and_interface_findings_return_to_the_same_role_manager(self):
         with tempfile.TemporaryDirectory() as raw:

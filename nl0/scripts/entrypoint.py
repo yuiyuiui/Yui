@@ -65,6 +65,11 @@ def parsers(commands):
         help='Continue an exited frozen proof queue after recorded ENOSPC; retain own drafts and recheck bodies')
     repairs.add_argument('--repair-basis-closure',action='store_true',
         help='After cancellation and verified exit, repeat only failed final basis closure from accepted artifacts')
+    continuation=commands.add_parser('continue-graph',help='Continue an exited local NL0 graph return on a setup-qualified carrier')
+    continuation.add_argument('run',type=Path);continuation.add_argument('--output',type=Path)
+    launch_mode=continuation.add_mutually_exclusive_group()
+    launch_mode.add_argument('--detach',action='store_true')
+    launch_mode.add_argument('--prepare-only',action='store_true')
     for name in ('status','observe','cancel','cleanup'):
         p=commands.add_parser(name,help='Inspect, cancel or clean explicitly selected run(s) without a model')
         p.add_argument('runs',nargs='+',type=Path)
@@ -225,6 +230,12 @@ def dispatch(args):
     if args.command=='targets':
         import target_selection
         return target_selection.inspect(args.problem)
+    if args.command=='continue-graph':
+        import graph_continuation
+        job=graph_continuation.prepare(args.run,output=args.output)
+        if args.prepare_only:
+            return {'status':'PREPARED_NOT_STARTED','runs':[job['root']]}
+        return launch([job],detached=args.detach)
     if args.command=='resume':
         import interrupted
         import basis_defect
