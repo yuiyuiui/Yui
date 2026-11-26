@@ -50,6 +50,59 @@ class WorkingGraphTests(unittest.TestCase):
         self.seed=self.registry['global_graph']
         self.source=support.TESTS/'fixtures/closed-addition'
 
+    def test_both_entry_prompts_preserve_source_scope_and_revisions_keep_valid_claims(self):
+        for owner in (fg.DIRECT,fg.BASIS):
+            with self.subTest(owner=owner):
+                initial=fg.global_author_prompt(owner,revision=False)
+                self.assertIn('Preserve each explicit source lemma',initial)
+                self.assertIn('real consumer application',initial)
+                self.assertEqual('compact numbered seed by default' in initial,owner==fg.BASIS)
+                revised=fg.global_author_prompt(owner,revision=True)
+                self.assertIn('shared_proposition_reports',revised)
+                self.assertIn('Preserve an existing valid statement',revised)
+                self.assertIn('specialized bounds and absorption conditions',revised)
+
+    def test_first_drafts_rank_unsaved_shared_results(self):
+        graph={'inferences':[
+            {'id':'R001','output':'N001','inputs':[]},
+            {'id':'R002','output':'N002','inputs':['N001']},
+            {'id':'R003','output':'N003','inputs':['N001','N002']},
+            {'id':'R004','output':'N004','inputs':['N001','N003']},
+            {'id':'R005','output':'P','inputs':['N002','N003','N004']},
+        ]}
+        self.assertEqual(fg.first_drafts(graph,[]),[('R001','N001',3),('R002','N002',2),('R003','N003',2)])
+        self.assertEqual(fg.first_drafts(graph,[{'id':'R001'}]),[('R002','N002',2),('R003','N003',2)])
+
+    def test_shared_proposition_reports_connect_distinct_consumers_over_other_repairs(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve()
+            write(root/'job.json',{})
+            job=bind(root/'job.json')
+            previous_graph=previous_repair=None
+            for number, (rid,subject) in enumerate((('R002','N001'),('R003','N003'),('R004','N001')),1):
+                graph_path=root/f'global-graphs/{number:04d}/working.json'
+                write(graph_path,{'previous':previous_graph})
+                graph=bind(graph_path)
+                evidence=root/f'nl0/local-{number:04d}/stage/accepted.json'
+                blockers=[{'inference':rid,'subject':subject,'kind':'wrong_input','explanation':str(number),
+                           'source_spans':[{'from_task':'problem.md','start_line':number,'end_line':number}]}]
+                write(evidence,{'version':graph_repair.VERSION,'status':graph_repair.STATUS,
+                                'batch':{'findings':blockers}})
+                receipt=root/f'handoffs/graph-repair-{number:04d}.json'
+                write(receipt,{'global':graph,'job':job,'previous_repair':previous_repair,
+                               'obligations':{'blockers':blockers},'evidence':[bind(evidence)]})
+                previous_graph,previous_repair=graph,bind(receipt)
+            current={'propositions':[{'id':'N001'},{'id':'N003'}],
+                     'inferences':[{'id':rid,'inputs':['N001']} for rid in ('R004','R008')]}
+            [summary]=graph_repair.shared_proposition_reports(root,previous_repair,current)
+            self.assertEqual(summary['interface'],'N001')
+            self.assertEqual(summary['current_consumers'],['R004','R008'])
+            self.assertEqual([row['findings'][0]['inference'] for row in summary['reports']],['R002','R004'])
+            self.assertEqual([row['findings'][0]['source_spans'][0]['start_line'] for row in summary['reports']],[1,3])
+            evidence=root/'nl0/local-0001/stage/accepted.json'
+            evidence.write_text('{}')
+            self.assertEqual(graph_repair.shared_proposition_reports(root,previous_repair,current),[])
+
     def test_pre_usage_basis_review_only_applies_to_the_original_format(self):
         import basis_review
         packet = {'items':{'B001':{}}, 'global_graph':{'propositions':[{'id':'P'}]}}

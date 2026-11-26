@@ -1,4 +1,5 @@
 """Versioned NL0 outlines, local proofs and proof-derived working graphs."""
+from collections import Counter
 from copy import deepcopy
 import json
 import os
@@ -418,13 +419,63 @@ def prior_versions(binding,root):
         binding=record.get('previous')
 
 
+def global_author_prompt(owner, *, revision):
+    from graph_repair import RULE
+    prompt=('Follow the source proof in its order of construction and use. Preserve each explicit source lemma '
+            'with its full conditions and conclusion. Where the source has no named lemma, locate the actual '
+            'case, construction or argument in the outline. Give each R a manageable source-backed block. '
+            'Divide an oversized block at a source-backed intermediate result with a definite scope. '
+            'For a few high-risk results used across blocks, sketch the producer\'s critical step and one '
+            'real consumer application before fixing the interface. Compare the same object, domain, quantifier '
+            'order, witness and timing at that use. '
+            'Inside each block list the distinct main derivations so the local author can write and extract their precise interfaces. '
+            'Keep routine calculations local. Record the shared witnesses, sets, parameters and scope at drafted boundaries. '
+            'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
+            'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
+            'Write the mathematical claim in statement. For source uses add usage.references with '
+            'document (exact inputs/ path) and locator (e.g. Lemma 2.1). The controller derives usage.inferences from the graph edges. '
+            'Supply id, inputs, output and definitions for each inference. Include proof_outline keyed by the actual R IDs. '
+            'Each step states its conclusion, what it uses (direct inputs, optionally B IDs, or earlier steps named S001, S002, ...), '
+            'and the actual source_spans using from_task, start_line, end_line. All earlier steps and direct inputs must feed the final step. '
+            'Use actual inclusive task-input line numbers; an inference derived directly from its inputs can use empty source_spans. '
+            'Make the source assignments manageable and flag the actual main steps, including substantial single-use work. '
+            'A short final combination of previously proved inputs is one step. This is a provisional outline. '
+            'The next author writes the proofs and resolves granularity before independent audit. '
+            +RULE+' For a checked candidate, read_author_packet shows a proposed receiving scope. ')
+    if revision:
+        prompt+=(' In global-findings.json, use consecutive_blockers and shared_proposition_reports to compare the actual '
+                 'consumers across rounds. Check their objects, domains and witnesses together. Preserve an existing valid '
+                 'statement and its consumers when only one use needs a stronger fact. Add a separate small lemma for that use. '
+                 'Use an explicit implication only when it proves the old claim on the same object, domain and hypotheses. '
+                 'Repair false statements and identify their affected uses. Put specialized bounds and absorption conditions '
+                 'in the estimates that need them. Keep common definitions focused on the shared mathematical objects. '
+                 'Extract independent claims from an overloaded interface or explain which shared witness keeps them together.')
+    if owner==BASIS:
+        prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
+                 'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
+                 'you may omit its source except hypotheses. Do not query or replace the frozen declaration. '
+                 'Prepared E references the checked YuiBasis.B proof; supply its semantic attribution and notation map. '
+                 'Use declared document IDs in E evidence, e.g. {"input":"problem.md"}. '
+                 'Use the compact numbered seed by default for the initial graph. Submit spec, proposition_details, '
+                 'inference_definitions and proof_outline so the given statements and dependencies carry through verbatim. '
+                 'Use a full submission for a specific source-backed correction, missing step or oversized block. '
+                 'For each change identify the actual source step and consumer. In a changed inference, list its direct B IDs in basis. '
+                 'Use rename_foundations (B ID to new graph ID) to rename all uses together. On revisions, start with '
+                 'the prior working labels. Omit case_id; the controller fills it. ')
+    else:
+        prompt+='Submit spec, propositions and inferences. Direct conditional external sources remain available.'
+    if revision:
+        prompt+=(' Repair the located global findings in the supplied prior version. Preserve the original target and H. '
+                 'Reuse prior outline entries whose inference and source ranges still apply.')
+    return prompt
+
+
 def global_stage(job, budget, *, owner, previous=None, findings=None, foundation=None):
     import basis
     from clean_stage import ArtifactStage
     from full_workflow import stage_seconds
     from full_workflow import accepted
     from controller_common import copy_problem_documents
-    from graph_repair import RULE
     directory=Path(job['root'])/'global-graphs'
     directory.mkdir(exist_ok=True)
     number=max((int(p.name) for p in directory.iterdir() if p.name.isdecimal()),default=0)
@@ -462,43 +513,8 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
         write(inputs/'numbered-basis-graph.json',{'version':basis.basis_graph.handoff().VERSION,
               'labels':labels,'graph':numbered})
     manifest(inputs)
-    prompt=('Work backward from the target and sketch the mathematical fact each consumer needs. '
-            'Give each R a manageable source-backed block. Break very long arguments into medium-size blocks first. '
-            'Inside each block list the distinct main derivations so the local author can write and extract their precise interfaces. '
-            'Keep routine calculations local. Record the shared witnesses, sets, parameters and scope at drafted boundaries. '
-            'Preserve the complete target, original H, parameters and foundation material. You own the intermediate statements and edges. '
-            'Use the NL0 specification and proposition fields, including nontrivial M/E source evidence. '
-            'Write the mathematical claim in statement. For source uses add usage.references with '
-            'document (exact inputs/ path) and locator (e.g. Lemma 2.1). The controller derives usage.inferences from the graph edges. '
-            'Supply id, inputs, output and definitions for each inference. Include proof_outline keyed by the actual R IDs. '
-            'Each step states its conclusion, what it uses (direct inputs, optionally B IDs, or earlier steps named S001, S002, ...), '
-            'and the actual source_spans using from_task, start_line, end_line. All earlier steps and direct inputs must feed the final step. '
-            'Use actual inclusive task-input line numbers; an inference derived directly from its inputs can use empty source_spans. '
-            'Make the source assignments manageable and flag the actual main steps, including substantial single-use work. '
-            'A short final combination of previously proved inputs is one step. This is a provisional outline. '
-            'The next author writes the proofs and resolves granularity before independent audit. '
-            +RULE+' For a checked candidate, read_author_packet shows a proposed receiving scope. ')
-    if previous:
-        prompt+=(' In global-findings.json, use consecutive_blockers to inspect repeated reports for the same consumer and interface. '
-                 'When an interface receives successive objections or carries independent duties, submit a full revised graph that '
-                 'extracts separate intermediate claims, or use keep_together to explain the shared witness or derivation that requires one block.')
-    if owner==BASIS:
-        prompt+=('Read numbered-basis-graph.json for the allocated M/E nodes, their exact statements and all consumer edges. '
-                 'Native M technical source metadata is inherited automatically from the pre-freeze checked source; '
-                 'you may omit its source except hypotheses. Do not query or replace the frozen declaration. '
-                 'Prepared E references the checked YuiBasis.B proof; supply its semantic attribution and notation map. '
-                 'Use declared document IDs in E evidence, e.g. {"input":"problem.md"}. '
-                 'For the numbered seed submit spec, '
-                 'proposition_details and inference_definitions. To revise N/R statements or dependencies, submit '
-                 'spec, propositions and inferences. In a changed inference, list its direct B IDs in basis. '
-                 'Use rename_foundations (B ID to new graph ID) to rename all uses together. On revisions, start with '
-                 'the prior working labels. Omit case_id; the controller fills it. ')
-    else:
-        prompt+='Submit spec, propositions and inferences. Direct conditional external sources remain available.'
-    if previous:
-        prompt+=(' Repair the located global findings in the supplied prior version. Preserve the original target and H. '
-                 'Reuse prior outline entries whose inference and source ranges still apply.')
-    stage=ArtifactStage(attempt/'stage',prompt,phase=owner,kind='nl0',case_id=job['case'],
+    stage=ArtifactStage(attempt/'stage',global_author_prompt(owner,revision=previous is not None),
+                        phase=owner,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget))
     stage.validator.prior_graphs=prior_graphs
     if previous:
@@ -640,6 +656,15 @@ def issue_owner(issue, global_owner=None):
     return 'local'
 
 
+def first_drafts(graph, saved_proofs):
+    """Suggest an initial batch of unsaved bodies by direct consumer count."""
+    saved = {row['id'] for row in saved_proofs}
+    uses = Counter(premise for row in graph['inferences'] for premise in row['inputs'])
+    candidates = [(row['id'], row['output'], uses[row['output']]) for row in graph['inferences']
+                  if row['id'] not in saved and uses[row['output']] > 1]
+    return sorted(candidates, key=lambda row: (-row[2], row[0]))[:8]
+
+
 def local_stage(job, directory, budget, *, baseline=None, obligations=None, check_handoff=None, graph_history=None):
     import basis
     import nl0_author
@@ -655,10 +680,12 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     inputs=directory/'inputs'
     write(inputs/ASSIGNED,frozen)
     record=nl0.load(previous['path'])
+    feedback={}
     if graph_history:
         from audit_rejections import RejectedReviews
         rejections=RejectedReviews(Path(row['path']).parent for row in graph_history.get('campaigns',[]))
-        write(inputs/graph_repair.FEEDBACK,graph_repair.revision_feedback(graph_history,previous,frozen,rejections=rejections))
+        feedback=graph_repair.revision_feedback(graph_history,previous,frozen,rejections=rejections)
+        write(inputs/graph_repair.FEEDBACK,feedback)
         downstream_check=check_handoff
 
         def check_handoff(source):
@@ -680,6 +707,11 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
             'Repair unresolved_reviews for still-matching rejected local packets before resubmitting those bodies. '
             'Send local_proofs containing only new or updated bodies. The same merge supplies compatible drafts '
             'whether the graph was returned by the author or by Audit A. Closing inspection checks the complete result.')
+    first = first_drafts(frozen['graph'],feedback.get('local_proofs',[]))
+    if first:
+        prompt+=(' First consider saving these unwritten, shared results where independent work can proceed. '
+                 'Use read_author_packet on their actual scopes. The suggested order is '
+                 + ', '.join(f'{rid} ({pid}, {count} direct consumers)' for rid,pid,count in first)+'.')
     if 'outline' in record:
         prompt+=(' Read proof-outline.json for the planned derivations and precise source ranges. '
                  'For a large block, first write medium-size parts using explicit S steps and F facts. '

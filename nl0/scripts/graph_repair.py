@@ -1,4 +1,5 @@
 """Located objections to the current NL0 graph. No report grants mathematical acceptance."""
+from collections import defaultdict
 import json
 from pathlib import Path
 import hashlib
@@ -264,12 +265,11 @@ def verify_local(stage,selected):
     return assess(frozen,submission,documents)
 
 
-def consecutive_reports(root, receipt):
-    """Read consecutive named local objections from the exact repair lineage."""
+def _repair_lineage(root, receipt):
     from controller_common import bind, verify_bindings
     import nl0
 
-    groups={};wanted=None;seen=set();newer=None
+    seen=set();newer=None
     job=bind(root/'job.json')
     owners=[job]
     current=nl0.load(job['path'])
@@ -291,6 +291,18 @@ def consecutive_reports(root, receipt):
             verify_bindings([newer])
             if nl0.load(newer['path'])['previous']!=graph:
                 raise ValueError('NL0 repair history is not a predecessor of the current graph')
+        yield receipt, report
+        newer=nl0.load(graph['path'])['previous']
+        receipt=report.get('previous_repair')
+
+
+def consecutive_reports(root, receipt):
+    """Read consecutive named local objections from the exact repair lineage."""
+    from controller_common import verify_bindings
+
+    groups={};wanted=None
+    for receipt, report in _repair_lineage(root, receipt):
+        graph=report['global']
         blockers=report['obligations'].get('blockers',[])
         pairs={(row['inference'],row['subject']) for row in blockers if row['subject'] is not None}
         wanted=pairs if wanted is None else wanted & pairs
@@ -307,7 +319,44 @@ def consecutive_reports(root, receipt):
             findings=[row for row in blockers if (row['inference'],row['subject'])==(consumer,interface)]
             groups.setdefault((consumer,interface),[]).append(
                 {'graph':graph,'receipt':receipt,'evidence':evidence,'findings':findings})
-        newer=nl0.load(graph['path'])['previous']
-        receipt=report.get('previous_repair')
     return [{'consumer':consumer,'interface':interface,'reports':list(reversed(reports))}
             for (consumer,interface),reports in groups.items() if len(reports)>1]
+
+
+def shared_proposition_reports(root, receipt, graph):
+    """Summarize retained reports from distinct consumers for the current author."""
+    from controller_common import verify_bindings
+    import nl0
+
+    consumers = {row['id']: [] for row in graph['propositions']}
+    for row in graph['inferences']:
+        for premise in row['inputs']:
+            consumers[premise].append(row['id'])
+    groups = defaultdict(list)
+    try:
+        for ref, report in _repair_lineage(root, receipt):
+            blockers = report['obligations'].get('blockers', [])
+            named = defaultdict(list)
+            for finding in blockers:
+                if finding['subject'] in consumers and FIELDS[finding['kind']] != 'definitions':
+                    named[finding['subject']].append(finding)
+            if named:
+                [evidence] = report['evidence']
+                path = Path(evidence['path'])
+                if path.name != 'accepted.json' or not path.is_relative_to(root/'nl0'):
+                    raise ValueError('Expected retained local author evidence')
+                verify_bindings([evidence])
+                accepted = nl0.load(path)
+                if (accepted.get('status') != STATUS or accepted['version'] != VERSION
+                        or accepted['batch']['findings'] != blockers):
+                    raise ValueError('Historical blockers differ from the accepted local report')
+                for interface, findings in named.items():
+                    groups[interface].append({'graph':report['global'], 'receipt':ref,
+                                              'evidence':evidence, 'findings':findings})
+    except (OSError, ValueError, KeyError, TypeError):
+        # Older history is advisory. Keep the verified prefix if it is incomplete.
+        pass
+    return [{'interface':interface, 'current_consumers':sorted(consumers[interface]),
+             'reports':list(reversed(reports))}
+            for interface,reports in sorted(groups.items())
+            if len({row['inference'] for report in reports for row in report['findings']}) > 1]

@@ -125,7 +125,7 @@ class Case:
                     basis.verify_foundations(self.job,foundation)
                     owner=frozen_graph.BASIS
                 if name=='revise_graph':
-                    self.working(data)
+                    working=self.working(data)
                     report=self.read(data['repair'])
                     owner_matches=report['job']==data['job']
                     if ctx.node=='continue-graph' and self.job.get('graph_continuation'):
@@ -138,7 +138,9 @@ class Case:
                     verify_bindings(report['evidence']+report['campaigns']+list(report['baseline'].values()))
                     previous=data['global']
                     findings={**report['obligations'],
-                              'consecutive_blockers':graph_repair.consecutive_reports(self.root,data['repair'])}
+                              'consecutive_blockers':graph_repair.consecutive_reports(self.root,data['repair']),
+                              'shared_proposition_reports':graph_repair.shared_proposition_reports(
+                                  self.root,data['repair'],working['graph'])}
                 self.progress(self.job['case'],'NL0_GLOBAL_REVISION' if previous else 'NL0_GLOBAL_REVIEW',owner=owner)
                 checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner,previous=previous,findings=findings,foundation=foundation)
                 selected=frozen_graph.select(self.job,checked,previous=previous)

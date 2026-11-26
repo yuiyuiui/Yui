@@ -263,6 +263,24 @@ Report unused H rather than removing it or changing the original statement.
 
 ## Global proof outline
 
+Follow the construction and uses in the source proof. Preserve explicit source
+lemmas with all their conditions and conclusions. For an initial `2basis`
+entry, prefer the compact submission that preserves the numbered seed's
+statements and edges. Use the full form for a located correction, missing step,
+or oversized block. In a direct entry, anchor unnamed claims in the actual
+source steps. Divide an oversized block at an intermediate result with a
+definite scope. Before fixing a high-risk shared statement, sketch its critical
+proof step and one actual consumer application. Check the object, domain,
+quantifier order, witness, and timing on both sides of that application.
+
+For a revision, compare reports about the same shared proposition against the
+current consumers. When only particular consumers need a stronger fact, retain
+the valid old statement and give those consumers a separate lemma. Use a bridge
+only with an explicit proof on the same object, domain, and hypotheses. Correct
+false statements and revisit the affected scopes. Keep stable definitions of
+shared objects separate from estimates and their specialized quantitative
+conditions. Include those conditions where they are proved and used.
+
 Both global authors include a `proof_outline` object keyed by the submitted R
 IDs, including when using the compact numbered basis seed. Each entry has
 `steps` ordered by dependency. A step states its `conclusion`, `uses` (direct
@@ -278,6 +296,10 @@ from its inputs may have an empty `source_spans` list. The first outline is
 provisional. Use medium-sized blocks for long arguments and list each actual
 main derivation in its block. The versioned working receipt binds
 `proof-outline.json` to the specification and graph.
+
+During local writing, consider saving the unwritten results with many direct
+consumers early. The suggested order is advisory. Use the usual local proof
+packets and save independent derivations as soon as they are ready.
 
 After writing the proof, extract substantial independent derivations into
 their own N/R nodes, including results with only one consumer. Submit
