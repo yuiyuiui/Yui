@@ -220,16 +220,59 @@ class WorkingGraphTests(unittest.TestCase):
                     self.assertEqual(validator(detailed)['granularity_pending'],{})
                     self.assertEqual(detailed['graph']['inferences'][0],complete['inferences'][0])
                     number = validator.last_valid_candidate
+                    sibling = deepcopy(complete['inferences'][0])
+                    producer = deepcopy(sibling)
+                    producer.update(id='R006',output='N006')
+                    producer['argument'][0]['text']='The supplied H001 gives a=b.'
+                    sibling.update(inputs=['N006'])
+                    sibling['argument'][0].update(uses=['N006'],text='Symmetry of N006 gives b=a.')
+                    other = {'inference':'R001','propositions':[
+                        {'id':'N006','kind':'internal','statement':'a=b.','origin':'The input equality in R001.',
+                         'definitions':[],'binders':[],'objects':['a','b']}],
+                        'inferences':[producer,sibling],'proof_outline':support.elementary_outline([producer,sibling])}
+                    with_sibling={'refine_candidate':number,'splits':[other]}
+                    self.assertEqual(validator(with_sibling)['granularity_pending'],{})
+                    number=validator.last_valid_candidate
+                    prior=deepcopy(validator.valid_drafts[number])
+                    persisted={name:(local/name).read_bytes() for name in ('spec.json','nl0.json',fg.graph_outline.FILENAME)}
+
+                    redo=deepcopy(split)
+                    redo['replace_original']=True
+                    redo['inferences'][0]['argument'][0]['text']+=' This is the identity at the same a.'
+                    escaped=deepcopy(redo)
+                    escaped['inferences'][0]['inputs'].append('H001')
+                    with self.assertRaisesRegex(ValueError,'must preserve its outside premises'):
+                        validator({'refine_candidate':number,'splits':[escaped]})
+                    collision=deepcopy(redo)
+                    collision['propositions'][0]['id']='N006'
+                    with self.assertRaisesRegex(ValueError,'fresh IDs'):
+                        validator({'refine_candidate':number,'splits':[collision]})
+                    invalid=deepcopy(redo)
+                    invalid['propositions'][0]['objects'].append('c')
+                    with self.assertRaisesRegex(ValueError,"undeclared 'c'"):
+                        validator({'refine_candidate':number,'splits':[invalid]})
+                    self.assertEqual(validator.last_valid_candidate,number)
+                    self.assertEqual(validator.valid_drafts[number],prior)
+                    self.assertEqual({name:(local/name).read_bytes() for name in persisted},persisted)
+
+                    redone={'refine_candidate':number,'splits':[redo]}
+                    self.assertEqual(validator(redone)['granularity_pending'],{})
+                    prior_rows=fg.indexed(prior['graph']['inferences'])
+                    current_rows=fg.indexed(redone['graph']['inferences'])
+                    self.assertNotEqual(current_rows['R003'],prior_rows['R003'])
+                    for rid in ('R001','R006'):
+                        self.assertEqual(current_rows[rid],prior_rows[rid])
+                    number=validator.last_valid_candidate
                     packet = validator.author_check.packet(number,'R002')
                     self.assertEqual(packet['new_cut_producers']['N002']['producer'],'R003')
                     self.assertEqual(packet['new_cut_producers']['N002']['output'],packet['inputs'][-1])
-                    for rid in ('R001','R003'):
+                    for rid in ('R001','R003','R006'):
                         validator.author_check.packet(number,rid)
                     note='The last step uses the additive identity for the same a and the symmetry of a=b.'
                     status=validator.author_check.record(number,note,
-                        [{'id':p,'note':note} for p in ('N001','N002','P')],
+                        [{'id':p,'note':note} for p in ('N001','N002','N006','P')],
                         [{'id':rid,'dependency_and_local_assumption_check':note,
-                          'source_application_check':note,'declaration_check':note} for rid in ('R001','R003','R002')],
+                          'source_application_check':note,'declaration_check':note} for rid in ('R001','R003','R002','R006')],
                         readiness='no_known_issue')
                     self.assertTrue(status['author_release_ready'])
                     with self.assertRaisesRegex(ValueError,'latest checked candidate'):
@@ -248,7 +291,7 @@ class WorkingGraphTests(unittest.TestCase):
                     self.assertEqual(readback['workload']['R003']['consumers'],['R002'])
                     self.assertEqual(sum(row['source_characters'] for row in readback['workload'].values()),len(proof))
                     self.assertLess(max(row['source_characters'] for row in readback['workload'].values()),len(proof))
-                    self.assertEqual(fg.shape(fg.read_working(final)['graph']),fg.shape(detailed['graph']))
+                    self.assertEqual(fg.shape(fg.read_working(final)['graph']),fg.shape(redone['graph']))
                     (directory/fg.graph_outline.FILENAME).write_text('{}')
                     with self.assertRaisesRegex(ValueError,'Frozen input/runtime changed'):
                         fg.read_working(selected)

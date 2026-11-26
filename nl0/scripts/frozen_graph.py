@@ -211,7 +211,8 @@ class AuthorContract(NL0Contract):
             if last is None or value['refine_candidate'] != self.last_valid_candidate:
                 raise ValueError(f'NL0_REFINEMENT: first check the written local proof, then refine the latest '
                                  f'checked candidate ({self.last_valid_candidate})')
-            expanded, self.proposed_outline = graph_refinement.apply(last, self.local_outline, value)
+            expanded, self.proposed_outline = graph_refinement.apply(last,self.local_outline,value,
+                                                                     assigned=self.frozen['graph'])
         elif 'local_proofs' in value:
             rows = proof_rows(self.local_scope,value['local_proofs'])
             if last is None:
@@ -720,7 +721,11 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
                  'A split supplies its original R, the new propositions, full replacement inferences with their bodies, '
                  'and their local proof_outline. Move the relevant S/F reasoning and source uses from the draft '
                  'into the new node and replace that derivation at the consumer by its explicit use. Preserve the '
-                 'old conclusion, outside premises, and all other blocks. Refine each remaining large subargument '
+                 'old conclusion, outside premises, and all other blocks. If the consumer still needs an original premise, '
+                 'keep its direct edge. Move an edge into a producer only when its output supplies the complete use. '
+                 'To redo a cut, name the originally assigned R and include "replace_original":true in its split. '
+                 'Supply the complete replacement inside that R\'s original boundary, using the latest checked candidate. '
+                 'Refine each remaining large subargument '
                  'in the same way. Keep routine calculations local. For a genuinely indivisible flagged argument, '
                  'give keep_together on the checked body, naming the inseparable S steps in at and explaining why an '
                  'explicit scoped parameter, assumption or witness would not make a useful cut. '
