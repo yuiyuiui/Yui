@@ -68,6 +68,65 @@ class Case:
         path=self.save('graph-repair-'+Path(data['global']['path']).parents[2].name,report)
         return {'port':'repair','data':{k:data[k] for k in ('job','goal','global')} | {'repair':path}}
 
+    def refine_audited(self, data, authority, selected):
+        """Keep the coarse assignment current until the derived fine graph has its own Audit A."""
+        import case_runner
+        import graph_outline
+        import nl0
+        import source_preparation
+        from audit_rejections import RejectedReviews
+
+        previous=data['global']
+        record=self.read(previous)
+        if 'outline' not in record:
+            return previous,authority
+        report=frozen_graph.read_outline(record)
+        graph_outline.include_written_size(report,selected[1])
+        if not graph_outline.pending(report):
+            return previous,authority
+        name=Path(previous['path']).parents[2].name
+        coarse=self.save('audited-coarse-'+name,{'global':previous,
+                    'files':{key:bind(value) for key,value in authority.items() if value is not None}})
+        coarse_source=source=Path(authority['graph']).parent
+        outline=report['inferences']
+        feedback=[]
+        attempt=0
+        while True:
+            attempt+=1
+            directory=self.root/'nl0'/f'refine-{name}-{attempt:04d}'
+            if directory.exists():
+                continue
+            review_history=sorted(p.parent for p in (self.root/'audit-a').glob('*/campaign.json'))
+            rejections=RejectedReviews(review_history)
+            self.progress(self.job['case'],'NL0_REFINEMENT',directory=str(directory))
+            try:
+                with self.reviews.use('nl0-author'):
+                    refined=frozen_graph.refine_stage(self.job,directory,self.budgets.serial,previous,source,outline,
+                                 coarse=coarse_source,findings=feedback,check_handoff=rejections.check_submission)
+            except graph_repair.Request as request:
+                request.prior=review_history
+                raise
+            if frozen_graph.shape(nl0.load(refined/'nl0.json'))==frozen_graph.shape(selected[1]):
+                self.reviews.close(['nl0-author'],'GLOBAL_REVIEW_PASSED',[Path(coarse['path'])])
+                return previous,authority
+            try:
+                fine=case_runner.nl0_work(self.job,self.recorder,self.budgets.serial,self.progress,
+                    audit_budget=self.budgets.audit,initial_source=refined,review_history=review_history,
+                    sessions=self.reviews,derived=True)
+            except graph_repair.Request as request:
+                # A failed cut is revised under the same original boundaries.
+                source=Path(request.baseline)
+                drafted=nl0.load(refined/'nl0.json')
+                frozen_graph.check_assignment({'spec':nl0.load(refined/'spec.json'),'graph':drafted},
+                                              nl0.load(source/'spec.json'),nl0.load(source/'nl0.json'))
+                outline=nl0.load(refined/graph_outline.FILENAME)['inferences']
+                feedback=request.obligations['issues']
+                continue
+            detailed=source_preparation.read_source(**fine)[0]
+            frozen_graph.check_assignment({'spec':nl0.load(refined/'spec.json'),'graph':nl0.load(refined/'nl0.json')},
+                                         detailed[2],detailed[1])
+            return frozen_graph.select_detail(self.job,previous,refined),fine
+
     def dispatch(self, name, ctx, data, routes):
         start=time.monotonic()
         row={'block':ctx.node,'started_utc':datetime.now(timezone.utc).isoformat(),'elapsed_seconds':None}
@@ -186,7 +245,6 @@ class Case:
                 return routes.outcome('detailed',{**data,'global':selected,'local':bind(source/'nl0.json')})
             if name=='audit':
                 source=Path(data['local']['path']).parent
-                data={**data,'global':frozen_graph.select_detail(self.job,data['global'],source)}
                 self.working(data)
                 history=self.read(data['history']) if 'history' in data else {}
                 prior=history.get('campaigns',[])
@@ -197,6 +255,9 @@ class Case:
                 frozen=self.working(data)
                 selected=source_preparation.read_source(**authority)[0]
                 frozen_graph.check_assignment(frozen,selected[2],selected[1])
+                if self.job['track']!='nl0':
+                    latest,authority=self.refine_audited(data,authority,selected)
+                    data={**data,'global':latest}
                 receipt={'global':data['global'],'files':{k:bind(v) for k,v in authority.items() if v is not None}}
                 binding=self.save('audited-nl0',receipt)
                 return routes.outcome('reviewed',{**common,'global':data['global'],'authority':binding})

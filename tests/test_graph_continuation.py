@@ -68,7 +68,7 @@ class GraphContinuationTests(unittest.TestCase):
     @staticmethod
     def run_case(root, *, stop=False):
         driver = support.TESTS/'tooling/basis_path_control.py'
-        mode = 'planned-closed+graph-continuation'
+        mode = 'planned-closed+graph-continuation+refine-after-audit'
         if stop:
             mode += '+stop-before-revision'
         job = json.loads((root/'job.json').read_text())
@@ -205,6 +205,28 @@ class GraphContinuationTests(unittest.TestCase):
             trace = json.loads((out/'protocol/work/state.json').read_text())['trace']
             self.assertEqual(trace[0]['node'],'continue-graph')
             self.assertTrue({'translate','close','publish'} <= {row['node'] for row in trace})
+            import nl0
+            coarse_record=nl0.load(out/'handoffs/audited-coarse-0002.json')
+            coarse=Path(coarse_record['files']['audit_a']['path'])
+            self.assertEqual(set(nl0.load(coarse)['inference_reviews']),{'R001','R002'})
+            author=out/'nl0/refine-0002-0001/stage'
+            self.assertLess(coarse.stat().st_mtime_ns,(author/'execution-manifest.json').stat().st_mtime_ns)
+            natural=out/'delivery/nl0'
+            fine=nl0.load(natural/'audit-a.json')
+            self.assertEqual(set(fine['inference_reviews']),{'R001','R002','R003'})
+            self.assertIn('inheritance',fine['inference_reviews']['R001'])
+            for rid in ('R002','R003'):
+                self.assertEqual(fine['inference_reviews'][rid]['verdict'],'PASS')
+            with self.assertRaisesRegex(ValueError,'STALE-AUDIT'):
+                nl0.validate(natural/'nl0.json',natural/'spec.json',coarse)
+            fine['inference_reviews'].pop('R003')
+            work=natural/'missing-fine-review.json'
+            try:
+                write(work,fine)
+                with self.assertRaises(ValueError):
+                    nl0.validate(natural/'nl0.json',natural/'spec.json',work)
+            finally:
+                work.unlink()
             delivered = self.root/'readback'
             shutil.copytree(out/'delivery', delivered)
             final = self.cli('verify-delivery',delivered)

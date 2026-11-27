@@ -295,6 +295,10 @@ class WorkingGraphTests(unittest.TestCase):
                     redo=deepcopy(split)
                     redo['replace_original']=True
                     redo['inferences'][0]['argument'][0]['text']+=' This is the identity at the same a.'
+                    private_dependency=deepcopy(redo)
+                    private_dependency['inferences'][0]['inputs'].append('N006')
+                    with self.assertRaisesRegex(ValueError,'must preserve its outside premises'):
+                        validator({'refine_candidate':number,'splits':[private_dependency]})
                     escaped=deepcopy(redo)
                     escaped['inferences'][0]['inputs'].append('H001')
                     with self.assertRaisesRegex(ValueError,'must preserve its outside premises'):

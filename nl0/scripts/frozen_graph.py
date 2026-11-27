@@ -21,6 +21,8 @@ BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 ASSIGNED = 'assigned-global.json'
 ASSIGNED_PROOFS = 'assigned-local-proofs.json'
 FOUNDATION_FINDINGS = 'foundation-findings.json'
+REFINEMENT_BASE = 'refinement-base.json'
+REFINEMENT_FINDINGS = 'refinement-findings.json'
 PRIOR_OUTLINE = 'prior-proof-outline.json'
 DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
@@ -122,12 +124,13 @@ def same_working_graph(before, after):
 
 
 class AuthorContract(NL0Contract):
-    def __init__(self, directory, documents, case_id, phase):
+    def __init__(self, directory, documents, case_id, phase, *, require_refinement=True):
         import graph_repair
         super().__init__(directory, documents, case_id, global_only=phase!=LOCAL)
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
             {ASSIGNED,graph_outline.FILENAME,PRIOR_OUTLINE,'numbered-basis-graph.json','protected-roots.json',
-             'prior-global.json','global-findings.json','baseline.json','repair-obligations.json',FOUNDATION_FINDINGS}]
+             'prior-global.json','global-findings.json','baseline.json','repair-obligations.json',FOUNDATION_FINDINGS,
+             REFINEMENT_BASE,REFINEMENT_FINDINGS}]
         self.phase = phase
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
         self.prior_graphs=[self.prior] if self.prior else []
@@ -143,7 +146,7 @@ class AuthorContract(NL0Contract):
             self.edge_outline = self.local_outline
             self.proposed_outline = None
             self.granularity_pending = {}
-            self.require_refinement = True
+            self.require_refinement = require_refinement
             self.assigned_proofs = graph_repair.proof_rows(self.frozen,self.graph_feedback.get('local_proofs',[]))
         self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
         if self.registry:
@@ -169,8 +172,21 @@ class AuthorContract(NL0Contract):
         from payload_protocols import editable
         self.schema = editable(form) if phase==LOCAL else protocol.choice(form,protocol.obj({'accept_candidate':{'type':'integer','minimum':1}}))
         if phase==LOCAL and self.local_outline:
-            self.schema = protocol.choice(self.schema,graph_refinement.schema(),
-                                          protocol.obj({'attach_input':graph_repair.EDGE_SCHEMA}))
+            if REFINEMENT_BASE in documents:
+                self.schema = protocol.choice(graph_refinement.schema(),
+                    protocol.obj({'accept_candidate':{'type':'integer','minimum':1}}))
+            else:
+                self.schema = protocol.choice(self.schema,protocol.obj({'attach_input':graph_repair.EDGE_SCHEMA}))
+                if self.require_refinement:
+                    self.schema = protocol.choice(self.schema,graph_refinement.schema())
+
+    def seed_refinement(self):
+        value = json.loads(self.documents[REFINEMENT_BASE])
+        self.proposed_outline = value.pop(graph_outline.FIELD)
+        try:
+            return super().__call__(value)
+        finally:
+            self.proposed_outline = None
 
     def __call__(self, value):
         protocol.validate(value,self.schema)
@@ -779,30 +795,11 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     if early.is_file():
         prompt+=(' Read foundation-findings.json for source support that needs a local argument. '
                  'Write the actual bridge or document an exact mathematical gap.')
-    if 'outline' in record and job.get('track')!='nl0':
-        prompt+=(
-                 'After checking the written derivations, use check_draft with refine_candidate and splits to extract '
-                 'substantial independently provable arguments, including single-use ones. Use fresh N/R IDs. '
-                 'A split supplies its original R, the new propositions, full replacement inferences with their bodies, '
-                 'and their local proof_outline. Move the relevant S/F reasoning and source uses from the draft '
-                 'into the new node and replace that derivation at the consumer by its explicit use. Preserve the '
-                 'old conclusion, outside premises, and all other blocks. If the consumer still needs an original premise, '
-                 'keep its direct edge. Move an edge into a producer only when its output supplies the complete use. '
-                 'To redo a cut, name the originally assigned R and include "replace_original":true in its split. '
-                 'Supply the complete replacement inside that R\'s original boundary, using the latest checked candidate. '
-                 'Refine each remaining large subargument '
-                 'in the same way. Keep routine calculations local. For a genuinely indivisible flagged argument, '
-                 'give keep_together on the checked body, naming the inseparable S steps in at and explaining why an '
-                 'explicit scoped parameter, assumption or witness would not make a useful cut. '
-                 'Before submitting accept_candidate, use read_author_packet on the final written graph. '
-                 'For each new cut compare the supplied producer scope and the actual receiving use side by side. '
-                 'Check the exact clause, quantifiers, local assumptions, same witness and effective timing. '
-                 'Record the concrete S/F use in dependency_and_local_assumption_check. '
-                 'Use record_author_checks to close the final graph for independent Audit A.')
+    prompt+=('Deliver the written coarse inferences with the assigned interfaces. '
+             'The coarse graph is independently audited before any Lean-track refinement.')
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget),
-                        check_handoff=check_handoff)
-    stage.validator.require_refinement=job.get('track')!='nl0'
+                        check_handoff=check_handoff,require_refinement=False)
     evidence(Path(record['graph']['path']).parent,frozen['graph'],stage.validator.directory)
     stage.execute()
     budget.execution.check()
@@ -823,3 +820,54 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     source=stage.validator.directory
     check_assignment(stage.validator.local_scope,nl0.load(source/'spec.json'),nl0.load(source/'nl0.json'))
     return source
+
+
+def refine_stage(job, directory, budget, selected, source, outline, *, coarse, findings=(), check_handoff=None):
+    """Extract private results from the written, independently reviewed coarse assignment."""
+    import basis
+    from clean_stage import ArtifactStage
+    from full_workflow import nl0_artifact_for_audit, stage_seconds
+    import graph_repair
+    import nl0_author
+
+    frozen=read_working(selected)
+    record=nl0.load(selected['path'])
+    nl0_author.prepare(basis.problem_inputs(job),directory)
+    inputs=directory/'inputs'
+    write(inputs/ASSIGNED,frozen)
+    copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
+    write(inputs/REFINEMENT_BASE,{'spec':nl0.load(source/'spec.json'),'graph':nl0.load(source/'nl0.json'),
+                                  graph_outline.FIELD:outline})
+    if findings:write(inputs/REFINEMENT_FINDINGS,findings)
+    manifest(inputs)
+    prompt=('Candidate 1 contains the written proof under the independently audited coarse assignment, '
+            'with any subsequent checked private cuts. Read its status and the assigned boundary. '
+            'Use check_draft with refine_candidate and splits to extract a substantial independently provable argument '
+            'inside one block at a time. Use fresh N/R IDs. Supply the full replacement body and outline, '
+            'preserving the original conclusion, all outside premises, scope and shared witnesses. '
+            'Keep the original direct edge whenever the consumer still needs it. '
+            'A private result can be used only inside this block. '
+            'To replace a bad cut, name the original R and use replace_original. '
+            'For an inseparable block, use keep_together on actual S steps and explain the shared scope or witness. '
+            'If refinement-findings.json is present, repair the independently located defects. '
+            'If there is a concrete defect in a coarse interface itself, use report_graph_issue '
+            'against that original R and cite the source or the counterexample. '
+            'Check the exact new producer and consumer use side by side, including the domain, quantifiers, '
+            'assumptions and witness. Read the final packets, record_author_checks and submit accept_candidate.')
+    stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
+                        inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget),
+                        check_handoff=check_handoff)
+    evidence(source,nl0.load(source/'nl0.json'),stage.validator.directory)
+    stage.validator.assigned_proofs = {
+        row['id']:{field:row[field] for field in ('id',*BODY_FIELDS)}
+        for row in nl0.load(coarse/'nl0.json')['inferences']
+    }
+    stage.validator.save_assigned_proofs()
+    stage.validator.seed_refinement()
+    stage.execute()
+    budget.execution.check()
+    if nl0.load(stage.logs/'result.json').get('task_outcome')==graph_repair.STATUS:
+        report=graph_repair.verify_local(stage.logs,selected)
+        raise graph_repair.Request(report,evidence=[stage.logs/'accepted.json'])
+    nl0_artifact_for_audit(directory)
+    return stage.validator.directory

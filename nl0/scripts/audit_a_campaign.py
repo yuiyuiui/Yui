@@ -202,6 +202,8 @@ new conclusions, missing existence guards or source assumptions. Check every
 retained D and selected E/M, exact quantifiers and target dependency closure.
 An unused original H remains present. A source/graph judgment does not certify
 unreviewed R bodies; each local packet has its own independent assessment.
+When reviewing a fine graph, check each changed cut at its actual receiving
+scope and verify that the necessary witnesses and conditions reach that use.
 When proof-context.json is supplied, original documents/selected target remain
 the target and H authority, while basis-proof.md is the authorized active proof
 route. Review both. Preserve assumptions, quantifiers, parameter ranges, domains,

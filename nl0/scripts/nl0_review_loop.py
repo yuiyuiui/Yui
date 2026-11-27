@@ -84,7 +84,8 @@ class NodePatch:
                 'candidate':self.attempt}
 
 
-def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None, sessions=None, route_graph=False):
+def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *, restored=None, prior=(),initial_issues=None,
+        sessions=None, route_graph=False, derived=False):
     root=Path(job['root']);sessions=sessions or Sessions();source=restored;issues=initial_issues;prior=list(prior)
     epochs=(re.match(r'^(?:(?:local|final|merged)-)?(\d{4,})(?:-|$)', path.name)
             for parent in ('nl0','audit-a') for path in (root/parent).glob('*'))
@@ -108,7 +109,7 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
         while True:
             if issues and route_graph:
                 from frozen_graph import issue_owner
-                if any(issue_owner(item)=='global' for item in issues['issues']):
+                if derived or any(issue_owner(item)=='global' for item in issues['issues']):
                     raise Request(issues,baseline=source,evidence=[Path(d)/'campaign.json' for d in prior],prior=prior)
             if source is None or issues is not None:
                 author_number+=1

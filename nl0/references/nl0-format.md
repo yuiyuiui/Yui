@@ -300,29 +300,38 @@ main derivation in its block. The versioned working receipt binds
 During local writing, consider saving the unwritten results with many direct
 consumers early. The suggested order is advisory. Use the usual local proof
 packets and save independent derivations as soon as they are ready.
+Use `check_draft` with `attach_input` to add one unchanged proposition already
+in the graph. Supply the `base_revision` shown by `read_author_packet`, the
+`inference`, the `premise`, and the one-based `outline_step` that needs it.
+The edited proof uses that premise explicitly. Return located mathematical
+gaps that need changed or new claims together.
 
-After writing the proof, extract substantial independent derivations into
+Audit A reviews the complete written coarse graph. A natural-language-only
+request can deliver this audited graph. For Lean, start from that reviewed
+proof and extract substantial independent derivations into
 their own N/R nodes, including results with only one consumer. Submit
 `refine_candidate` with the latest structurally checked proof and `splits`.
 Each split names the original inference and provides fresh internal
 `propositions`, the replacement `inferences` with complete proof bodies, and
 their `proof_outline`. Keep the original R ID at the output, preserve its
 exported statement and outside premises, and give each new node precisely the
-scope it needs. Compare each new producer's output, actual conditions and
+scope it needs. Keep each new result private to its original block. Compare
+each new producer's output, actual conditions and
 consumer use in the final author packet. Preserve the fixed witness, quantifiers
 and timing at that use. The author's existing dependency note records the
 comparison.
 
 Multiple main steps or at least 16,000 characters of assigned source or written
-argument require an explicit resolution before author release. Source counts
+argument flag a block for Lean-track refinement. Source counts
 deduplicate overlapping ranges within an inference. A genuinely indivisible
 argument may use `keep_together` keyed by R on the checked candidate with a
 located `reason` and `kind` (`shared_witness`, `shared_scope` or
 `single_argument`). Name the relevant written S steps in `at`. Explain why exposing the shared data would still fail to
 give a useful independent result. A changed body needs a fresh justification.
-Use `report_graph_issue` for defects in the outside assignment. Audit A
-independently checks the resulting fine graph and the actual proof at each
-exported interface.
+Use `report_graph_issue` for a concrete defect in the original coarse
+assignment. Repair a faulty private cut inside its block. Audit A checks the
+resulting fine graph and the actual proof at each exported interface before
+Lean translation.
 
 ## Inference fields
 

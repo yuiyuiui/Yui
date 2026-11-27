@@ -105,7 +105,8 @@ def author_stage(job, root, budget, *, baseline=None, obligations=None, check_ha
     return source
 
 
-def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_source=None, review_history=(), sessions=None):
+def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_source=None, review_history=(),
+             sessions=None, derived=False):
     if job['policy']!='first-pass':
         import nl0_review_loop
         restored=initial_source;prior=list(review_history);obligations=None
@@ -115,7 +116,8 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_sour
             if mode=='audit-a':restored=interrupted.restore_source(job);prior=list(job['resume']['campaigns'])
             else:restored,obligations,prior=interrupted.restore_repair(job)
         return nl0_review_loop.run(job,budget,audit_budget,progress,author_stage,repair_obligations,
-            restored=restored,prior=prior,initial_issues=obligations,sessions=sessions,route_graph=bool(job.get('workflow_protocol')))
+            restored=restored,prior=prior,initial_issues=obligations,sessions=sessions,
+            route_graph=bool(job.get('workflow_protocol')),derived=derived)
     root=Path(job['root']);baseline=None;obligations=None;prior=[];revision=0;seen=set()
     restored=initial_source
     if (job.get('resume') or {}).get('mode')=='audit-a':

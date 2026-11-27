@@ -31,7 +31,7 @@ class CandidateRejection(ValueError):
 
 class ArtifactStage(pilot.Stage):
     def __init__(self, logs, prompt, *, phase, arm='yui', timeout=None, validator=None, budget=None, library=True, inputs=None,
-                 kind='json', case_id=None, check_handoff=None):
+                 kind='json', case_id=None, check_handoff=None, require_refinement=True):
         logs=Path(logs).resolve()
         local_review=(phase in {'audit-a-packet-replay','nl0-local-repair'} and budget is not None and budget.role=='audit_r')
         local_diagnosis=phase=='interface-proof-diagnosis' and budget is not None and budget.role=='proof'
@@ -87,7 +87,8 @@ class ArtifactStage(pilot.Stage):
             if validator is not None or not self.task_inputs:
                 raise ValueError('NL0 authoring requires explicit frozen inputs and its built-in validator')
             from artifact_validation import NL0Contract
-            self.validator = (AuthorContract(self.logs/'case',self.task_inputs,case_id,phase)
+            self.validator = (AuthorContract(self.logs/'case',self.task_inputs,case_id,phase,
+                                             require_refinement=require_refinement)
                 if phase in {BASIS,DIRECT,LOCAL} else NL0Contract(self.logs/'case',self.task_inputs,case_id=case_id))
             if self.acceptance_authority:
                 self.validator.author_check.acceptance=self.acceptance_authority

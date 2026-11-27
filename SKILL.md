@@ -33,7 +33,7 @@ The installed skill root is the directory containing this `SKILL.md`. Keep
 `nl0/` and `nl02lean/` beside it; no enclosing
 `rigorous-proof/` subdirectory or particular checkout name is required.
 
-New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A basis request freezes the reviewed foundation inventory and supplies a structured graph seed. Direct NL0 builds its working graph from the original input. In both routes NL0 owns intermediate statements and dependency edges. Local authors may request a located graph repair. Independent Audit A reviews the selected complete revision before delivery or Lean. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
+New public cases use the versioned [workflow definition](workflow/workflow.json) and the [operator and maintenance guide](workflow/SKILL.md). A basis request freezes the reviewed foundation inventory and supplies a structured graph seed. Direct NL0 builds its working graph from the original input. Both routes check the target and source contracts before local writing. Local authors can attach a declared premise or request a located graph repair. Independent Audit A reviews the complete written coarse graph. The NL0 track can deliver that graph. The Lean track extracts private results where a written block needs refinement and obtains Audit A evidence for the actual fine graph before translation. Retain `RUN/delivery/` and report the actual scope from `run.json`. Use `verify-delivery` before and after explicit cleanup.
 
 ## Select a stage
 

@@ -17,6 +17,7 @@ read_strategies='reference' in options[1:]
 imported_code='imported-lean' in options[1:]
 ported_code='port' in options[1:]
 graph_continuation='graph-continuation' in options[1:]
+refine_after_audit='refine-after-audit' in options[1:]
 stop_before_revision='stop-before-revision' in options[1:]
 tests = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(tests), str(run/'runtime/nl0/scripts'), str(run/'runtime/nl02lean/scripts'),
@@ -111,7 +112,7 @@ def author_code(stage):
             first['argument'][0]['uses'].append('E001')
             first['argument'][0]['text']='E001 gives a+0=a. Substitute into H001 to obtain a+0=b. Therefore a=b and b=a.'
             first['applications']=[deepcopy(last['applications'][0])]
-        if stage.mode==fg.LOCAL:
+        if stage.mode==fg.LOCAL and fg.REFINEMENT_BASE not in stage.task_inputs:
             current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
             if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
                 report={'inference':'R002','kind':'missing_input','subject':'H001',
@@ -149,6 +150,11 @@ def author_code(stage):
                     del prop['statement']
         renames={'rename_foundations':{'B001':'E014'}} if mode.startswith('relabel-') else {}
         outline = harness_support.elementary_outline(graph['inferences'])
+        if refine_after_audit:
+            outline['R002']['steps']=[
+                {'conclusion':'a+0=a.','uses':['E001'],'source_spans':[]},
+                {'conclusion':'a+0=b.','uses':['S001','N001','H001'],'source_spans':[]},
+            ]
         if renames:
             ports = {label: key for key, label in stage.validator.labels.items()}
             for entry in outline.values():
@@ -178,7 +184,8 @@ def author_code(stage):
                     'proof_outline':outline})
     draft=({'local_proofs':[{k:r[k] for k in ('id',*fg.BODY_FIELDS)} for r in graph['inferences']]}
            if stage.mode==fg.LOCAL else {'spec':spec,'graph':graph})
-    if (mode=='local-edge' or graph_continuation) and stage.mode==fg.LOCAL:
+    refining=fg.REFINEMENT_BASE in stage.task_inputs
+    if (mode=='local-edge' or graph_continuation) and stage.mode==fg.LOCAL and not refining:
         feedback=json.loads(stage.task_inputs['global-findings.json'])
         if not feedback['blockers'] or [r['id'] for r in feedback['local_proofs']]!=['R001']:
             raise AssertionError('The revised local assignment needs the blocker and the unaffected earlier draft')
@@ -186,15 +193,14 @@ def author_code(stage):
     if mode=='serial-graph' and stage.mode==fg.LOCAL:
         draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
     candidate=1
-    if mode=='direct-refinement' and stage.mode==fg.LOCAL and job['track']!='nl0':
-        code=call('check_draft',artifact={'local_proofs':draft['local_proofs'][:1]})
-        code+=call('check_draft',artifact={'local_proofs':draft['local_proofs'][1:]})
-        code+=call('submit_draft',artifact={'accept_candidate':1})
+    if refining:
+        graph=json.loads(stage.task_inputs[fg.REFINEMENT_BASE])['graph']
         split=harness_support.addition_split(graph)
-        code+=call('check_draft',artifact={'refine_candidate':2,'splits':[split]})
+        split['inferences'][-1]['argument'][0]['text']+=' The second equality also follows directly from H001.'
+        code=call('check_draft',artifact={'refine_candidate':1,'splits':[split]})
         graph['propositions']+=split['propositions']
         graph['inferences'][1:]=split['inferences']
-        candidate=3
+        candidate=2
     else:
         code=call('check_draft',artifact=draft)
     for row in graph['inferences']:
@@ -390,6 +396,11 @@ def scripted(stage):
             value['premise_types'][row['port']]=row['lean']['type']
             value['steps'][-1]['inputs'].append(row['port'])
             value['endpoint_correspondence'][row['port']]={'mode':'direct','explanation':NOTE}
+        if refine_after_audit:
+            value['steps'][-1].update(inputs=['T001','H001','T003'],source_steps=['S003'])
+            value['steps'].insert(1,{'id':'T003','statement':'a + 0 = a','inputs':['E001'],
+                'source_steps':['S002'],'explanation':'Apply the frozen right identity at a.'})
+            value['source_outputs']['N002']='T003'
         if mode=='universe-use':
             consumer=value['steps'][-1]
             consumer['inputs']=['T001','T003']
@@ -402,8 +413,11 @@ def scripted(stage):
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
         if graph_continuation:
-            proof=('exact h_H001.symm.trans ((h_E001 a).symm.trans (h_E001 a))' if stage.step=='T001'
-                   else 'simpa only [h_E001 a] using h_T001.symm')
+            proofs={'T001':'exact h_H001.symm.trans ((h_E001 a).symm.trans (h_E001 a))',
+                    'T002':'exact h_T003.trans h_T001.symm' if refine_after_audit else
+                           'simpa only [h_E001 a] using h_T001.symm',
+                    'T003':'exact h_E001 a'}
+            proof=proofs[stage.step]
             return call('submit_transition',proof=proof)
         if mode=='native-source' and stage.step=='T002':
             return call('submit_transition',proof='have _ := h_M001 a 1 1\nsimpa only [Nat.add_zero] using h_T001.symm')
