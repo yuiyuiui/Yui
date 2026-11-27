@@ -20,6 +20,32 @@ from controller_common import bind
 
 
 class PublicEntryTests(unittest.TestCase):
+    def test_source_preflight_returns_a_located_defect_before_any_local_body(self):
+        import jobs
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve()
+            proof=root/'proof.md';proof.write_text(TARGET)
+            job=jobs.prepare(proof,track='nl0',profiles=support.PROFILES,output=root/'case',max_concurrency=1)
+            run=Path(job['root'])
+            cmd=[sys.executable,'-B',str(support.TESTS/'tooling/basis_path_control.py'),str(run/'job.json'),
+                 'direct-source-preflight']
+            result=subprocess.run(cmd,text=True,capture_output=True,timeout=120)
+            self.assertEqual(result.returncode,0,(result.stdout+result.stderr)[-4500:])
+            self.assertEqual(delivery.verify(run/'delivery')['scope'],'NL0')
+            ground=run/'audit-a-foundations'
+            failed=ground/'0001/global/stage/accepted.json'
+            self.assertEqual(nl0.load(failed)['source_reviews']['E001']['verdict'],'FAIL')
+            pending=run/'global-graphs/0002/inputs/foundation-findings.json'
+            self.assertTrue(nl0.load(pending)['issues'])
+            selected=nl0.load(run/'global-selection.json')
+            self.assertEqual(Path(selected['path']).parents[2].name,'0002')
+            self.assertLess(failed.stat().st_mtime_ns,(run/'nl0/local/stage/execution-manifest.json').stat().st_mtime_ns)
+            second=nl0.load(ground/'0002/campaign.json')
+            self.assertIn('target',second['inherited'])
+            audit=nl0.load(run/'delivery/nl0/audit-a.json')
+            self.assertIn('inheritance',audit['source_reviews']['E001'])
+            self.assertIn('structure_review',audit)
+
     def test_public_package_matches_accepted_maintenance_baseline(self):
         command=str(support.CORE/'workflow/scripts/flow.py')
         result=subprocess.run([sys.executable,'-B',command,'audit','--require-baseline'],text=True,capture_output=True,timeout=90)
@@ -42,20 +68,23 @@ class PublicEntryTests(unittest.TestCase):
                  json.dumps({'job':bind(run/'job.json')})]
             result=subprocess.run(cmd,capture_output=True,text=True,timeout=180)
             self.assertEqual(result.returncode,0,(result.stdout+result.stderr)[-1800:])
-            self.assertEqual(json.loads(result.stdout)['status'],'completed')
+            self.assertEqual(json.loads(result.stdout)['status'],'completed',result.stdout+result.stderr)
             self.assertEqual(delivery.verify(run/'delivery')['scope'],'NL0')
             self.assertEqual(len(list(run.glob('global-graphs/*/stage/accepted.json'))),1)
             selected=nl0.load(run/'global-selection.json')
-            self.assertIn('0001-detail',selected['path'])
+            self.assertEqual(Path(selected['path']).parents[2].name,'0001')
             self.assertEqual(nl0.load(run/'handoffs/audited-nl0.json')['global'],selected)
             final=nl0.load(run/'delivery/nl0/nl0.json')
-            self.assertEqual({row['id'] for row in final['inferences']},{'R001','R002','R003'})
+            self.assertEqual({row['id'] for row in final['inferences']},{'R001','R002'})
             tools=[json.loads(line) for line in (run/'nl0/local/stage/tools.jsonl').read_text().splitlines()]
             attempts=[row['result'] for row in tools if row['tool']=='submit_draft']
-            self.assertFalse(attempts[0]['stage_complete'])
-            self.assertEqual(attempts[0]['author_closing_check']['granularity_pending'],
-                             {'R002':['multiple_main_steps']})
+            self.assertEqual(len(attempts),1)
             self.assertTrue(attempts[-1]['stage_complete'])
+            ground=run/'audit-a-foundations/0001/global/stage/result.json'
+            self.assertLess(ground.stat().st_mtime_ns,(run/'nl0/local/stage/execution-manifest.json').stat().st_mtime_ns)
+            audit=nl0.load(run/'delivery/nl0/audit-a.json')
+            self.assertEqual(set(audit['inference_reviews']),{'R001','R002'})
+            self.assertIn('inheritance',audit['target_review'])
 
     def test_consecutive_graph_reports_reach_split_author_and_keep_independent_draft(self):
         import jobs

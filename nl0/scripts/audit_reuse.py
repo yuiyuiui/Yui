@@ -15,6 +15,7 @@ from execution_state import atomic
 from collections import defaultdict
 
 VERSION='yui-review-reuse-1'
+SCOPED_VERSION='yui-review-reuse-2'
 SEMANTIC_RULES=('nl0/references/nl0-format.md','nl0/references/self-containment.md',
                 'nl0/references/audit-a.md','nl0/references/external-theorems.md','nl0/references/logical-rules.md',
                 'nl0/references/background-notes.md')
@@ -65,7 +66,7 @@ def data_from_files(graph_path,spec_path):
     return ({'graph_sha256':sha(graph_path),'spec_sha256':sha(spec_path)},graph,spec,props,steps,defs,closure,None)
 
 
-def context(data,scope,*,semantic_rules=None,structure_policy='whole_graph'):
+def context(data,scope,*,semantic_rules=None,structure_policy='whole_graph',review_scope='legacy'):
     import nl0
     _,graph,spec,props,steps,defs,closure,_=data
     common={'version':VERSION,'semantic_rules':rules() if semantic_rules is None else semantic_rules,
@@ -98,7 +99,70 @@ def context(data,scope,*,semantic_rules=None,structure_policy='whole_graph'):
         elif structure_policy!='whole_graph':raise ValueError('Unknown global structure scope')
         common['definitions']=spec['definitions']
     else:raise ValueError('Unknown review scope '+scope)
-    return deepcopy(common)
+    common=deepcopy(common)
+    if review_scope=='standalone':
+        common['version']=SCOPED_VERSION
+        common['frozen_inputs']=spec['inputs']
+        if kind=='target':
+            ids=[*props['P']['definitions'],*(d for h in spec['hypotheses'] for d in props[h['id']]['definitions'])]
+            common['definitions']=[defs[d] for d in sorted(closure(ids))]
+            common['hypothesis_ports']=deepcopy({h['id']:props[h['id']] for h in spec['hypotheses']})
+        common['guards']=deepcopy({p:props[p] for d in common['definitions'] for p in d['requires']})
+        for field in ('source','target'):
+            if field in common:
+                common[field].get('usage',{}).pop('inferences',None)
+        for item in [*common['guards'].values(),*common.get('hypothesis_ports',{}).values()]:
+            item.get('usage',{}).pop('inferences',None)
+    elif review_scope=='contextual':
+        common['version']=SCOPED_VERSION
+        # A source statement can rely on an undeclared definition or bridge.
+        # Qualify the exact context until that support has an explicit scope.
+        common['reviewed_graph']=data[0]['graph_sha256']
+        common['reviewed_spec']=data[0]['spec_sha256']
+    elif review_scope!='legacy':
+        raise ValueError('Unknown review inheritance scope')
+    return common
+
+
+def reviewed_scope(data, scope, row, selection):
+    """Use the limited footprint only for judgments that cite that footprint."""
+    kind,_,key=scope.partition(':')
+    if selection.get('context_policy')!=SCOPED_VERSION or kind not in {'source','definition','target'}:
+        return 'legacy'
+    if not selection.get('foundation_only'):
+        return 'contextual' if kind=='source' else 'legacy'
+    _,graph,spec,props,_,defs,closure,_=data
+    ids={'P',*[h['id'] for h in spec['hypotheses']]} if kind=='target' else {key} if kind=='source' else set()
+    ds=set().union(*(closure(props[p]['definitions']) for p in ids))
+    if kind=='definition':
+        ds=closure([key])
+    ids.update(p for did in ds for p in defs[did]['requires'])
+    prop_indices={str(i) for i,p in enumerate(graph['propositions']) if p['id'] in ids}
+    def_indices={str(i) for i,d in enumerate(spec['definitions']) if d['id'] in ds}
+    documents={Path(r['path']).name for r in spec['inputs']}
+    if kind=='source':
+        documents.update('source-'+r['sha256']+'.txt' for r in props[key]['source']['evidence'])
+        if props[key]['kind']=='mathlib':
+            documents.add(props[key]['source']['source_path'])
+    for check in [row,*row.get('citation_checks',{}).values()]:
+        for location in check.get('locations',[]):
+            doc,sep,pointer=location.partition('#')
+            name=doc.partition(':')[0]
+            fields=pointer.strip('/').split('/')
+            if name=='nl0.json':
+                if (not sep or len(fields)<2 or fields[0]!='propositions'
+                        or fields[1] not in prop_indices or fields[2:3]==['usage']):
+                    return None
+            elif name=='spec.json':
+                if (not sep or (fields[0]=='definitions' and
+                               (len(fields)<2 or fields[1] not in def_indices))):
+                    return None
+            elif name in {'external-source-evidence.json','signature-evidence.json'}:
+                if kind!='source' or not sep or fields[0]!=key:
+                    return None
+            elif name not in documents:
+                return None
+    return 'standalone'
 
 
 def all_pass(row):
@@ -131,12 +195,12 @@ class ReviewIndex:
         import nl0
         campaign=Path(campaign).resolve();plan=load(campaign/'campaign.json')
         graph, spec = plan['graph'], plan['spec']
-        key = (graph['path'], graph['sha256'], spec['path'], spec['sha256'])
+        key = (graph['path'], graph['sha256'], spec['path'], spec['sha256'], plan.get('foundation_only',False))
         if key not in self.sources:
             for ref in (graph, spec):
                 if sha(ref['path']) != ref['sha256']:
                     raise ValueError('Previous audit source changed')
-            self.sources[key] = nl0.validate(graph['path'], spec['path'])
+            self.sources[key] = nl0.validate(graph['path'], spec['path'],global_only=key[-1])
         old = self.sources[key]
         if old[2]['case_id'] != self.case_id:
             raise ValueError('Review reuse cannot cross case identities')
@@ -150,6 +214,7 @@ class ReviewIndex:
             raw_file=stage/'accepted.json'
             raw_bytes=raw_file.read_bytes();raw=json.loads(raw_bytes);items=[]
             raw_sha256=hashlib.sha256(raw_bytes).hexdigest()
+            selection={}
             if job['library']:
                 from source_qualification import source_only_finding
                 if any((f.get('verdict')=='FAIL' or str(f.get('severity','')).upper() in {'BLOCKING','FAIL','ERROR','FATAL'})
@@ -158,6 +223,9 @@ class ReviewIndex:
                     if manifest['task_documents'].get(name)!=sha(directory/name):raise ValueError('Previous review input identity changed')
                 if sha(directory/'nl0.json')!=old[0]['graph_sha256'] or sha(directory/'spec.json')!=old[0]['spec_sha256']:
                     raise ValueError('Previous global review did not see the bound source')
+                selected=directory/'review-selection.json'
+                if selected.is_file() and manifest['task_documents'].get(selected.name)==sha(selected):
+                    selection=load(selected)
                 if 'target_review' in raw:items.append(('target','/target_review',raw['target_review']))
                 if 'structure_review' in raw:items.append(('structure','/structure_review',raw['structure_review']))
                 for group,kind in [('definition_reviews','definition'),('source_reviews','source')]:
@@ -173,35 +241,46 @@ class ReviewIndex:
             for scope,selector,row in items:
                 passing = row.get('verdict') == 'PASS' and all_pass(row)
                 unverified_source = scope.startswith('source:') and row.get('verdict') == 'UNVERIFIED'
+                if plan.get('foundation_only') and not passing:
+                    continue
                 if not row.get('notes') or not (passing or unverified_source):continue
                 policy='public_graph' if scope=='structure' else 'whole_graph'
-                try:old_context=context(old,scope,structure_policy=policy,semantic_rules=self.rules)
+                if not selection and plan.get('context_policy')==SCOPED_VERSION and scope.startswith('source:'):
+                    # An unbound new assignment cannot fall back to the old source fingerprint.
+                    continue
+                review_scope=reviewed_scope(old,scope,row,selection)
+                if review_scope is None:continue
+                if review_scope!='legacy' and scope not in selection['required_scopes']:continue
+                try:old_context=context(old,scope,structure_policy=policy,semantic_rules=self.rules,
+                                        review_scope=review_scope)
                 except (KeyError,ValueError):continue
                 digest = hashed(old_context)
                 hit = {'scope':scope,'selector':selector,'row':deepcopy(row),
                     'campaign':str(campaign),'directory':str(directory),'context_sha256':digest,
                     'graph':plan['graph'],'spec':plan['spec'],'measurement':qualification(result),
-                    'structure_policy':policy,'raw_sha256':raw_sha256}
-                self.items[scope, digest].append((old_context, hit, Path(plan['case']), passing))
+                    'structure_policy':policy,'raw_sha256':raw_sha256,'review_scope':review_scope}
+                self.items[scope, review_scope, digest].append((old_context, hit, Path(plan['case']), passing))
 
     def select(self, data, scopes=None):
         if data[2]['case_id'] != self.case_id:
             raise ValueError('Review reuse cannot cross case identities')
         hits = {}
         if scopes is None:
-            scopes = dict.fromkeys(scope for scope, _ in self.items)
+            scopes = dict.fromkeys(scope for scope, _, _ in self.items)
         for scope in scopes:
             policy = 'public_graph' if scope == 'structure' else 'whole_graph'
-            try:
-                current = context(data, scope, structure_policy=policy, semantic_rules=self.rules)
-            except (KeyError, ValueError):
-                continue
-            for old, hit, base, passing in self.items.get((scope, hashed(current)), ()):
-                if old != current:
+            choices=('standalone','contextual','legacy') if scope.split(':')[0] in {'target','definition','source'} else ('legacy',)
+            for review_scope in choices:
+                try:
+                    current = context(data, scope, structure_policy=policy, semantic_rules=self.rules,
+                                      review_scope=review_scope)
+                except (KeyError, ValueError):
                     continue
-                if passing or conditional_source(data, scope, hit['row'], base):
-                    hits[scope] = {**hit, 'conditional_source': not passing}
-                    break
+                for old, hit, base, passing in self.items.get((scope, review_scope, hashed(current)), ()):
+                    if old==current and (passing or conditional_source(data, scope, hit['row'], base)):
+                        hits[scope] = {**hit, 'conditional_source': not passing}
+                        break
+                if scope in hits:break
         return hits
 
 
@@ -230,6 +309,8 @@ def materialize(hit,case):
            **{name:directory/'stage'/filename for name,filename in [('raw','accepted.json'),('result','result.json'),
                ('manifest','execution-manifest.json'),('exposure','exposure-audit.json')]}}
     if hit['scope'].startswith('packet:'):files['packet']=directory/'packet.json'
+    review_scope=hit.get('review_scope','legacy')
+    if review_scope!='legacy':files['selection']=directory/'review-selection.json'
     background_sources={}
     notes=background.available(hit['row'].get('background_notes'),load(files['packet']),directory/'stage') if 'packet' in files else []
     for note in notes:
@@ -255,6 +336,8 @@ def materialize(hit,case):
             'conditional_source':hit.get('conditional_source',False),
             'background_sources':background_sources,
             'cost_policy':'Warm inherited judgment; original result retains actual usage. No cold benchmark or parent campaign acceptance is inferred.'}
+    if review_scope!='legacy':
+        record.update(version=SCOPED_VERSION,review_scope=review_scope)
     path=folder/(hashed(record)+'.json');atomic(path,record)
     return {'path':str(path.relative_to(case)),'sha256':sha(path)}
 
@@ -267,7 +350,7 @@ def read_binding(case,binding,*,strict_background=False):
             raise ValueError('Stale or escaping inherited review evidence')
         return path
     record=load(checked(binding))
-    if record['version']!=VERSION:raise ValueError('Unsupported review inheritance')
+    if record['version'] not in {VERSION,SCOPED_VERSION}:raise ValueError('Unsupported review inheritance')
     paths={}
     for key,row in record['previous'].items():
         try:
@@ -300,11 +383,20 @@ def validate(case,binding,data,scope,entry=None,*,strict_background=False):
     if record['selector']!=selector:raise ValueError('Inherited review selector differs from its scope')
     old=data_from_files(paths['graph'],paths['spec'])
     policy=record.get('structure_policy','whole_graph')
+    review_scope=record['review_scope'] if record['version']==SCOPED_VERSION else 'legacy'
+    raw=raw_from_binding(case,binding)
+    if review_scope!='legacy':
+        selection=load(paths['selection'])
+        manifest=load(paths['manifest'])
+        if (manifest['task_documents'].get('review-selection.json')!=sha(paths['selection'])
+                or scope not in selection['required_scopes']
+                or reviewed_scope(old,scope,raw,selection)!=review_scope):
+            raise ValueError('Inherited review did not assess its claimed context')
     archive=Path(case)/'review-evidence/execution'
     semantic_rules=({key:sha(archive/'rules'/Path(key).name) for key in SEMANTIC_RULES}
                     if archive.is_dir() else rules())
-    old_context=context(old,scope,structure_policy=policy,semantic_rules=semantic_rules)
-    new_context=context(data,scope,structure_policy=policy,semantic_rules=semantic_rules)
+    old_context=context(old,scope,structure_policy=policy,semantic_rules=semantic_rules,review_scope=review_scope)
+    new_context=context(data,scope,structure_policy=policy,semantic_rules=semantic_rules,review_scope=review_scope)
     if old_context!=new_context or hashed(new_context)!=record['context_sha256']:
         raise ValueError('Inherited review mathematical context changed')
     result=load(paths['result']);manifest=load(paths['manifest']);exposure=load(paths['exposure'])
@@ -323,7 +415,6 @@ def validate(case,binding,data,scope,entry=None,*,strict_background=False):
                 manifest['task_documents'].get('spec.json')!=sha(paths['spec'])):
             raise ValueError('Inherited source does not match actual review inputs')
         previous_packet=None
-    raw=raw_from_binding(case,binding)
     if not (all_pass(raw) and raw.get('verdict')=='PASS'):
         if not record.get('conditional_source') or not conditional_source(data,scope,raw,Path(case)):
             raise ValueError('Only passing items or exact qualified source warnings can be inherited')

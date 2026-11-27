@@ -75,8 +75,10 @@ def author_code(stage):
             step['argument'][-1]['uses'].append('M001')
             step['applications'].append({'id':'A001','input':'M001','at':step['argument'][-1]['id'],
                 'bindings':'Specialize the displayed division identity at a, 1 and 1.','hypothesis_checks':[]})
-    if mode=='direct-external':
+    if mode in {'direct-external','direct-source-preflight'}:
         add_external_applications(graph,artifact(dependency(category=2)),evidence)
+        if mode=='direct-source-preflight' and stage.mode==fg.DIRECT and fg.FOUNDATION_FINDINGS not in stage.task_inputs:
+            graph['propositions'][0]['source']['context']='Initial reconstructed citation leaves its scope implicit.'
     if mode=='serial-graph' and stage.mode in (fg.DIRECT,fg.LOCAL):
         assigned=json.loads(stage.task_inputs.get('prior-global.json',stage.task_inputs.get(fg.ASSIGNED,'{}')))
         earlier={r['id']:r for r in assigned.get('graph',{}).get('inferences',[])}
@@ -184,7 +186,7 @@ def author_code(stage):
     if mode=='serial-graph' and stage.mode==fg.LOCAL:
         draft['local_proofs']=[row for row in draft['local_proofs'] if row['id']!='R001']
     candidate=1
-    if mode=='direct-refinement' and stage.mode==fg.LOCAL:
+    if mode=='direct-refinement' and stage.mode==fg.LOCAL and job['track']!='nl0':
         code=call('check_draft',artifact={'local_proofs':draft['local_proofs'][:1]})
         code+=call('check_draft',artifact={'local_proofs':draft['local_proofs'][1:]})
         code+=call('submit_draft',artifact={'accept_candidate':1})
@@ -225,6 +227,16 @@ def review_value(stage):
                 if bad is not None:row.update(verdict='FAIL',notes='Equality does not imply both numbers vanish.',locations=[f'nl0.json#/propositions/{bad}/statement'])
             if pointer.startswith('/source_reviews/E'):
                 row['citation_checks']={k:deepcopy(row) for k in audit_a_campaign.nl0.EXTERNAL_CHECKS}
+                if mode=='direct-source-preflight':
+                    pid=pointer.split('/')[-1]
+                    props=json.loads(stage.task_inputs['nl0.json'])['propositions']
+                    index=next(i for i,p in enumerate(props) if p['id']==pid)
+                    location=f'nl0.json#/propositions/{index}/source/context'
+                    row['locations']=[location]
+                    for check in row['citation_checks'].values():check['locations']=[location]
+                    if props[index]['source']['context'].startswith('Initial reconstructed'):
+                        row.update(verdict='FAIL',notes='Reconstructed fixture: the stated source conditions are incomplete.')
+                        row['citation_checks']['context_completeness'].update(verdict='FAIL',notes=row['notes'])
         else:
             row['locations']=['/inference/argument']
             if pointer.startswith('/external_applications/'):

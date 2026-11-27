@@ -372,7 +372,8 @@ def validate(graph_path, spec_path, audit_path=None, *, allow_unresolved=False, 
         closed_call(usage.bind, graph, {item['path'] for item in spec['inputs']}, check=True)
     closed_call(closure.validate, graph, spec, propositions, {} if global_only else inferences, definitions, definition_closure)
     if global_only:
-        return {"status":"GLOBAL-GRAPH-STRUCTURALLY-VALID", "mathematical_acceptance":False}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
+        return {"status":"GLOBAL-GRAPH-STRUCTURALLY-VALID", "mathematical_acceptance":False,
+                "graph_sha256":sha(graph_path),"spec_sha256":sha(spec_path)}, graph, spec, propositions, inferences, definitions, definition_closure, ancestors
 
     result = {"status": "STRUCTURE-PASSED", "case_id": spec["case_id"],
               "contract_version": spec["format_version"], "current_standard_receipt_valid": False,
@@ -626,7 +627,7 @@ def global_overview(data):
         'other_propositions':[{'pointer':f'nl0.json#/propositions/{i}','record':row}
             for i,row in enumerate(props) if row['kind']!='hypothesis'],
         'inference_edges':[{'pointer':f'nl0.json#/inferences/{i}',
-            **{key:row[key] for key in ['id','inputs','output','definitions','rules']}}
+            **{key:row[key] for key in ['id','inputs','output','definitions','rules'] if key in row}}
             for i,row in enumerate(graph['inferences'])],
         'inventory':{'spec_H_ids':[h['id'] for h in spec['hypotheses']],
             'graph_H_ids':[p['id'] for p in props if p['kind']=='hypothesis'],

@@ -27,7 +27,7 @@ def source_key(source):
     return hashed({'spec':spec,'graph':graph})
 
 
-def repair_obligations(source, campaign):
+def repair_obligations(source, campaign, *, verdicts=('FAIL','UNVERIFIED')):
     """Convert only actual assessed findings to exact baseline repair locations."""
     from author_check import digest
     from acceptance import current
@@ -42,7 +42,7 @@ def repair_obligations(source, campaign):
         record=json.loads(path.read_text())
         def visit(value, criterion='review'):
             if isinstance(value,dict):
-                if value.get('verdict') in {'FAIL','UNVERIFIED'}:
+                if value.get('verdict') in verdicts:
                     location=None
                     for candidate in value.get('locations',[]):
                         if candidate.startswith('spec.json#'):location='/spec'+candidate.split('#',1)[1]
@@ -138,7 +138,8 @@ def nl0_work(job, recorder, budget, progress, *, audit_budget=None, initial_sour
         key=source_key(source)
         if key in seen:raise StageFailure('REPAIR_CYCLE','A previously rejected source reappeared; do not resample its audit')
         seen.add(key)
-        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=basis.problem_inputs(job),reuse_from=prior,
+        grounds=sorted(p.parent for p in (root/'audit-a-foundations').glob('*/campaign.json'))
+        audited=f.audit_source(job['case'],source,audit,budget,progress,problem=basis.problem_inputs(job),reuse_from=[*grounds,*prior],
                                audit_budget=audit_budget)
         if audited['full_acceptance'] or audited.get('conditional_acceptance'):
             return {'graph':str(source/'nl0.json'),'spec':str(source/'spec.json'),'audit_a':str(source/'audit-a.json')}

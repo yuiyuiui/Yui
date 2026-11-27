@@ -20,6 +20,7 @@ GLOBAL_FIELDS = ('id', 'inputs', 'output', 'definitions')
 BODY_FIELDS = ('rules', 'locals', 'argument', 'applications')
 ASSIGNED = 'assigned-global.json'
 ASSIGNED_PROOFS = 'assigned-local-proofs.json'
+FOUNDATION_FINDINGS = 'foundation-findings.json'
 PRIOR_OUTLINE = 'prior-proof-outline.json'
 DIRECT = 'nl0-global'
 BASIS = 'nl0-global-from-basis'
@@ -126,7 +127,7 @@ class AuthorContract(NL0Contract):
         super().__init__(directory, documents, case_id, global_only=phase!=LOCAL)
         self.expected_inputs = [r for r in self.expected_inputs if Path(r['path']).name not in
             {ASSIGNED,graph_outline.FILENAME,PRIOR_OUTLINE,'numbered-basis-graph.json','protected-roots.json',
-             'prior-global.json','global-findings.json','baseline.json','repair-obligations.json'}]
+             'prior-global.json','global-findings.json','baseline.json','repair-obligations.json',FOUNDATION_FINDINGS}]
         self.phase = phase
         self.prior = json.loads(documents['prior-global.json']) if 'prior-global.json' in documents and phase!=LOCAL else None
         self.prior_graphs=[self.prior] if self.prior else []
@@ -142,6 +143,7 @@ class AuthorContract(NL0Contract):
             self.edge_outline = self.local_outline
             self.proposed_outline = None
             self.granularity_pending = {}
+            self.require_refinement = True
             self.assigned_proofs = graph_repair.proof_rows(self.frozen,self.graph_feedback.get('local_proofs',[]))
         self.registry = json.loads(documents['basis-registry.json']) if phase==BASIS else None
         if self.registry:
@@ -275,7 +277,7 @@ class AuthorContract(NL0Contract):
             graph_outline.include_written_size(report,graph)
             report.update(spec_sha256=graph['spec_sha256'],graph_sha256=nl0.sha(self.directory/'nl0.json'))
             write(self.directory/graph_outline.FILENAME,report)
-            self.granularity_pending[self.attempt] = graph_outline.pending(report)
+            self.granularity_pending[self.attempt] = graph_outline.pending(report) if self.require_refinement else {}
             result['granularity_pending'] = self.granularity_pending[self.attempt]
         if shape(graph)==shape(self.edge_scope['graph']):
             self.assigned_proofs = {row['id']:{key:row[key] for key in ('id',*BODY_FIELDS)}
@@ -488,7 +490,7 @@ def global_author_prompt(owner, *, revision):
     return prompt
 
 
-def global_stage(job, budget, *, owner, previous=None, findings=None, foundation=None):
+def global_stage(job, budget, *, owner, previous=None, findings=None, foundation=None, foundation_feedback=()):
     import basis
     from clean_stage import ArtifactStage
     from full_workflow import stage_seconds
@@ -525,13 +527,22 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
             if saved not in roots:roots.append(saved)
         if roots:write(inputs/'protected-roots.json',roots)
         write(inputs/'global-findings.json',findings)
+    if foundation_feedback:
+        binding, issues = foundation_feedback[-1]
+        rejected=read_receipt(binding)
+        write(inputs/FOUNDATION_FINDINGS,{'rejected_working_graph':rejected,'issues':issues})
+        prior_graphs.extend(read_receipt(ref) for ref,_ in foundation_feedback)
     if owner==BASIS:
         registry=nl0.load(inputs/'basis-registry.json')
         numbered,labels=basis.basis_graph.handoff().numbered_seed(registry,latest['graph'] if previous else None)
         write(inputs/'numbered-basis-graph.json',{'version':basis.basis_graph.handoff().VERSION,
               'labels':labels,'graph':numbered})
     manifest(inputs)
-    stage=ArtifactStage(attempt/'stage',global_author_prompt(owner,revision=previous is not None),
+    prompt=global_author_prompt(owner,revision=previous is not None)
+    if foundation_feedback:
+        prompt+=(' Read foundation-findings.json for the independent preflight findings on the last candidate. '
+                 'Correct the cited source use or target transcription before local proof writing. Preserve the actual target.')
+    stage=ArtifactStage(attempt/'stage',prompt,
                         phase=owner,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=stage_seconds(budget))
     stage.validator.prior_graphs=prior_graphs
@@ -539,6 +550,9 @@ def global_stage(job, budget, *, owner, previous=None, findings=None, foundation
         prior_record=nl0.load(previous['path'])
         prior_graph=read_working(previous)['graph']
         evidence(Path(prior_record['graph']['path']).parent,prior_graph,stage.validator.directory)
+    if foundation_feedback:
+        record=nl0.load(binding['path'])
+        evidence(Path(record['graph']['path']).parent,rejected['graph'],stage.validator.directory)
     from role_sessions import Sessions
     owner_sessions=Sessions()
     with owner_sessions.use(owner):
@@ -631,7 +645,7 @@ def select_detail(job, previous, source):
     if 'outline' in record:
         report = read_outline({'spec':bind(spec_path),'graph':bind(graph_path),
                                'outline':bind(source/graph_outline.FILENAME)})
-        if graph_outline.pending(report):
+        if job.get('track')!='nl0' and graph_outline.pending(report):
             raise ValueError('The detailed NL0 handoff still has blocks requiring refinement')
     if shape(provisional['graph'])==shape(graph):
         check_assignment(provisional,spec,graph)
@@ -733,6 +747,9 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
             return downstream_check(source) if result['accepted'] and downstream_check is not None else result
     if 'outline' in record:
         copy_input(Path(record['outline']['path']),inputs/graph_outline.FILENAME)
+    early=root/'audit-a-foundations'/Path(previous['path']).parents[2].name/'local-notes.json'
+    if early.is_file():
+        copy_input(early,inputs/FOUNDATION_FINDINGS)
     manifest(inputs)
     prompt=('Read assigned-global.json and the original proof. Draft the written derivation of each assigned R '
             'with its rules, scoped locals, argument and actual applications. Read read_author_packet with '
@@ -758,7 +775,12 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
                  'attach_input: {base_revision, inference, premise, outline_step}. Read the current graph_revision '
                  'in read_author_packet and name the 1-based outline step that uses it. Then write that proof '
                  'under the updated packet. Do this before refining. Report gaps requiring a changed or new claim together. '
-                 'For a large block, first write medium-size parts using explicit S steps and F facts. '
+                 'For a large block, first write medium-size parts using explicit S steps and F facts. ')
+    if early.is_file():
+        prompt+=(' Read foundation-findings.json for source support that needs a local argument. '
+                 'Write the actual bridge or document an exact mathematical gap.')
+    if 'outline' in record and job.get('track')!='nl0':
+        prompt+=(
                  'After checking the written derivations, use check_draft with refine_candidate and splits to extract '
                  'substantial independently provable arguments, including single-use ones. Use fresh N/R IDs. '
                  'A split supplies its original R, the new propositions, full replacement inferences with their bodies, '
@@ -780,6 +802,7 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     stage=ArtifactStage(directory/'stage',prompt,phase=LOCAL,kind='nl0',case_id=job['case'],
                         inputs=inputs/'inputs.json',budget=budget,timeout=full_workflow.stage_seconds(budget),
                         check_handoff=check_handoff)
+    stage.validator.require_refinement=job.get('track')!='nl0'
     evidence(Path(record['graph']['path']).parent,frozen['graph'],stage.validator.directory)
     stage.execute()
     budget.execution.check()

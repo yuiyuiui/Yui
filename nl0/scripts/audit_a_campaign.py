@@ -281,6 +281,18 @@ notes,locations. bridges lists only direct N inputs. With none omit that map.
 '''
 PACKET = PACKET.replace('__SHARED_CHECK_KEYS__', ','.join(sorted(nl0.CHECKS | nl0.closure.CLOSURE_CHECKS)))
 
+FOUNDATION_REVIEW = '''
+This preliminary review is before local proof writing. Review the original
+target and hypotheses, the selected sources and only the assigned core definitions.
+Use the frozen source readbacks supplied here. Record an unavailable readback
+as UNVERIFIED so the complete audit can investigate it when needed.
+For a source PASS, establish the complete statement and all its conditions from
+its source and the definitions declared on the source item. Cite those exact
+locations. If interpreting a citation needs a bridge, a definition outside that
+scope or a downstream proof, record UNVERIFIED with the exact missing support for
+the local author. A detected source mismatch is FAIL. Leave consumer-specific
+proof judgments to the later complete Audit A.
+'''
 
 def global_overview(directory):
     """Use the core's exact exhaustive view, without a second projection policy."""
@@ -304,13 +316,20 @@ def verify_global_overview(out,plan):
         raise ValueError('Global overview differs from its bound exhaustive canonical projection')
 
 
-def prepare(case, problem, out, *, reuse_from=(), review_index=None):
+def prepare(case, problem, out, *, reuse_from=(), review_index=None, foundation_only=False):
     case, problem, out = [Path(p).resolve() for p in (case, problem, out)]
-    data = nl0.validate(case/'nl0.json', case/'spec.json')
+    data = nl0.validate(case/'nl0.json', case/'spec.json',global_only=foundation_only)
     import basis
     basis.source_context(case/'nl0.json',case/'spec.json')
     foundations.require_canonical(data[2]['logic'])
-    hits=(audit_reuse.select(data,reuse_from) if review_index is None else review_index.select(data))
+    roots=[p for p in data[3].values() if p['kind'] in {'external','mathlib','target','hypothesis'}]
+    definitions=data[6](d for p in roots for d in p['definitions']) if foundation_only else data[5]
+    scopes=['target',*['definition:'+key for key in sorted(definitions)],
+            *['source:'+p['id'] for p in roots if p['kind'] in {'external','mathlib'}]]
+    if not foundation_only:scopes+=['structure',*['packet:'+rid for rid in data[4]]]
+    if review_index is None:
+        review_index=audit_reuse.ReviewIndex(data[2]['case_id'],reuse_from)
+    hits=review_index.select(data,scopes)
     out.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(__file__, out/'controller.py.snapshot.txt')
     g = out/'global'; g.mkdir()
@@ -328,15 +347,15 @@ def prepare(case, problem, out, *, reuse_from=(), review_index=None):
     for pid,p in data[3].items():
         if p['kind']=='external':externals[pid]=stage_external(case,p,g)
     if externals:write(g/'external-source-evidence.json',externals)
-    scopes=['target','structure',*['definition:'+key for key in data[5]],
-            *['source:'+key for key,p in data[3].items() if p['kind'] in {'external','mathlib'}]]
-    required=[key for key in scopes if key not in hits]
-    if hits:write(g/'review-selection.json',{'required_scopes':required,
+    required=[key for key in scopes if key not in hits and not key.startswith('packet:')]
+    write(g/'review-selection.json',{'required_scopes':required,'context_policy':audit_reuse.SCOPED_VERSION,
+        'foundation_only':foundation_only,
         'instruction':'Review only these assigned items. Other judgments are inherited outside this fresh context; no prior verdicts are supplied.'})
-    manifest(g); (g/'prompt.txt').write_text(GLOBAL)
-    if hits:(g/'prompt.txt').write_text(GLOBAL+'\nReview only review-selection.json required_scopes; omit unassigned target/structure rows and leave unassigned D/E/M entries out of their maps.\n')
+    manifest(g)
+    prompt=GLOBAL+'\nReview only review-selection.json required_scopes; omit unassigned target/structure rows and leave unassigned D/E/M entries out of their maps.\n'
+    (g/'prompt.txt').write_text(prompt + (FOUNDATION_REVIEW if foundation_only else ''))
     jobs = [{'id':'global','library':True,'required_scopes':required}]
-    for rid in sorted(data[4]):
+    for rid in sorted(data[4]) if not foundation_only else ():
         directory=out/rid;directory.mkdir()
         write(directory/'packet.json',nl0.packet(data,rid))
         manifest(directory);(directory/'prompt.txt').write_text(PACKET)
@@ -347,9 +366,33 @@ def prepare(case, problem, out, *, reuse_from=(), review_index=None):
     plan={'case':str(case),'graph':bind(case/'nl0.json'),'spec':bind(case/'spec.json'),
           'global_overview':bind(g/'global-overview.json'),
           'jobs':jobs,'inherited':inherited,'status':'PREPARED_NOT_REVIEWED',
+          'context_policy':audit_reuse.SCOPED_VERSION,
           'reuse_policy':'Explicit same-case prior campaigns; warm costs retained, not a cold benchmark.'}
+    if foundation_only:plan['foundation_only']=True
     write(out/'campaign.json',plan)
     return plan
+
+
+def foundations_review(case, problem, out, *, budget, progress, reuse_from=()):
+    from role_sessions import Sessions
+
+    plan=prepare(case,problem,out,reuse_from=reuse_from,foundation_only=True)
+    progress(nl0.load(case/'spec.json')['case_id'],'AUDIT_A_FOUNDATIONS',directory=str(out))
+    stage=out/'global/stage'
+    if not plan['jobs'][0]['required_scopes']:
+        return []
+    sessions=Sessions()
+    run(out,budget=budget,only='global',sessions=sessions,review_role='audit-a-foundations')
+    require_review_execution(nl0.load(stage/'result.json'),stage/'result.json',phase='audit-a-global')
+    raw=nl0.load(stage/'accepted.json')
+    validate_review(raw,out/'global',True)
+    sessions.close_all('FOUNDATION_REVIEW_RECORDED',[stage/'accepted.json'])
+    selection=nl0.load(out/'global/review-selection.json')
+    data=audit_reuse.data_from_files(case/'nl0.json',case/'spec.json')
+    return [{'source':pid,'note':row['notes'],'locations':row['locations'],
+             'action':'Write the cited bridge or other support in the coarse proof.'}
+            for pid,row in raw['source_reviews'].items() if row['verdict']=='PASS'
+            and audit_reuse.reviewed_scope(data,'source:'+pid,row,selection) is None]
 
 
 def prepare_packet(case, out, rid, *, data, review_index, global_gate):
@@ -390,6 +433,8 @@ def global_acceptance(out):
     """Require actual complete global judgments, including inherited scopes."""
     import source_qualification
     out=Path(out);plan=json.loads((out/'campaign.json').read_text())
+    if plan.get('foundation_only'):
+        raise ValueError('A scoped foundation review cannot authorize complete Audit A')
     data=nl0.validate(plan['graph']['path'],plan['spec']['path'])
     path=out/'global/stage/accepted.json'
     raw=json.loads(path.read_text()) if path.is_file() else {'definition_reviews':{},'source_reviews':{},'findings':[]}
@@ -459,7 +504,8 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
             complete_assessment=job['library'])
         stage=ArtifactStage(directory/'stage',(directory/'prompt.txt').read_text(),
             phase='audit-a-global' if job['library'] else 'audit-a-packet-replay',
-            inputs=directory/'inputs.json',library=job['library'] or review_role=='lean-global-reviewer',timeout=timeout,
+            inputs=directory/'inputs.json',
+            library=(job['library'] and not plan.get('foundation_only')) or review_role=='lean-global-reviewer',timeout=timeout,
             budget=budget if job['library'] else audit_budget,
             validator=contract)
         if sessions:
@@ -510,6 +556,8 @@ def run(out, timeout=None, budget=None, *, audit_budget=None, only=None, session
 
 def collect(out, controls):
     out=Path(out).resolve(); plan=json.loads((out/'campaign.json').read_text())
+    if plan.get('foundation_only'):
+        raise ValueError('A scoped foundation review cannot issue complete Audit A')
     verify_global_overview(out,plan)
     case=Path(plan['case'])
     for name in ['graph','spec']:

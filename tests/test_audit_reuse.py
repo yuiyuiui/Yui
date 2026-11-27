@@ -195,5 +195,70 @@ class AuditReuseTests(AuditReuseFixture, unittest.TestCase):
         data[3]['M001']['source']['signature']='a changed source contract'
         self.assertNotEqual(before,reuse.context(data,'source:M001'))
 
+    def test_new_source_review_scope_ignores_consumers_only_for_standalone_evidence(self):
+        from basis_fixtures import add_external_applications, artifact, dependency
+
+        graph=a.nl0.load(self.old/'nl0.json')
+        spec=a.nl0.load(self.old/'spec.json')
+        spec['definitions']=[{'id':'D019','symbol':'d','definition':'The value a+0.','type':'natural number',
+                              'depends_on':[],'requires':[],'binders':[],'objects':['a','0']}]
+        a.write(self.old/'spec.json',spec)
+        graph['spec_sha256']=reuse.sha(self.old/'spec.json')
+        graph['inferences'][1]['definitions']=['D019']
+        source=self.old/'citation.txt';source.write_text('For every natural number a, a+0=a.\n')
+        add_external_applications(graph,artifact(dependency(category=2)),[{'path':source.name,'sha256':reuse.sha(source)}])
+        a.nl0.usage.bind(graph,{r['path'] for r in self.data[2]['inputs']})
+        a.write(self.old/'nl0.json',graph)
+        ground,complete=self.root/'ground',self.root/'complete'
+        for folder,early in ((ground,True),(complete,False)):
+            if early:
+                from frozen_graph import shape
+                a.write(self.old/'nl0.json',{**graph,**shape(graph)})
+            else:
+                a.write(self.old/'nl0.json',graph)
+            plan=a.prepare(self.old,self.problem,folder,foundation_only=early)
+            # Keep the exact reviewed files alive after preparing the detailed version.
+            from shutil import copytree
+            snapshot=folder/'source';copytree(self.old,snapshot)
+            plan.update(graph=a.bind(snapshot/'nl0.json'),spec=a.bind(snapshot/'spec.json'),case=str(snapshot))
+            a.write(folder/'campaign.json',plan)
+            _,raw=synthetic_stage(folder/'global')
+            row={'verdict':'PASS','notes':'Synthetic located source review.',
+                 'locations':(['nl0.json#/propositions/0/statement'] if early else
+                              ['nl0.json#/inferences/1','spec.json#/definitions/0/definition'])}
+            raw['source_reviews']['E001']={**row,'citation_checks':{k:row for k in a.nl0.EXTERNAL_CHECKS}}
+            stage=folder/'global/stage'
+            a.write(stage/'accepted.json',raw)
+            manifest=a.nl0.load(stage/'execution-manifest.json')
+            manifest['task_documents']['review-selection.json']=reuse.sha(folder/'global/review-selection.json')
+            a.write(stage/'execution-manifest.json',manifest)
+        with self.assertRaisesRegex(ValueError,'cannot issue complete Audit A'):
+            a.collect(ground,None)
+        full=a.nl0.validate(self.old/'nl0.json',self.old/'spec.json')
+        contextual=reuse.select(full,[complete])['source:E001']
+        receipt=reuse.materialize(contextual,self.new)
+        self.assertEqual(reuse.read_binding(self.new,receipt)[0]['review_scope'],'contextual')
+        reuse.validate(self.new,receipt,full,'source:E001')
+        changed_def=deepcopy(spec)
+        changed_def['definitions'][0]['definition']='The value b+0.'
+        a.write(self.old/'spec.json',changed_def)
+        changed_graph={**graph,'spec_sha256':reuse.sha(self.old/'spec.json')}
+        a.write(self.old/'nl0.json',changed_graph)
+        self.assertNotIn('source:E001',reuse.select(a.nl0.validate(self.old/'nl0.json',self.old/'spec.json'),[complete]))
+        a.write(self.old/'spec.json',spec)
+        changed=deepcopy(graph)
+        changed['inferences'][1]['id']='R159'
+        changed['inferences'][1]['locals'][0]['scope']='R159/argument'
+        for prop in changed['propositions']:
+            prop.get('usage',{}).pop('inferences',None)
+        a.nl0.usage.bind(changed,{r['path'] for r in self.data[2]['inputs']})
+        a.write(self.old/'nl0.json',changed)
+        renumbered=a.nl0.validate(self.old/'nl0.json',self.old/'spec.json')
+        self.assertNotIn('source:E001',reuse.select(renumbered,[complete]))
+        scoped=reuse.select(renumbered,[ground])['source:E001']
+        receipt=reuse.materialize(scoped,self.new)
+        self.assertEqual(reuse.validate(self.new,receipt,renumbered,'source:E001')['record']['review_scope'],'standalone')
+        self.assertNotIn('structure',reuse.select(renumbered,[ground]))
+
 
 if __name__=='__main__':unittest.main()

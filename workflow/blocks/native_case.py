@@ -142,7 +142,27 @@ class Case:
                               'shared_proposition_reports':graph_repair.shared_proposition_reports(
                                   self.root,data['repair'],working['graph'],working['spec'])}
                 self.progress(self.job['case'],'NL0_GLOBAL_REVISION' if previous else 'NL0_GLOBAL_REVIEW',owner=owner)
-                checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner,previous=previous,findings=findings,foundation=foundation)
+                from audit_a_campaign import foundations_review
+                ground=self.root/'audit-a-foundations'
+                ground.mkdir(exist_ok=True)
+                history=[]
+                while True:
+                    checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner,previous=previous,
+                        findings=findings,foundation=foundation,foundation_feedback=history)
+                    source=Path(checked['path']).parent
+                    directory=ground/source.parents[1].name
+                    support=foundations_review(source,basis.problem_inputs(self.job),directory,budget=self.budgets.serial,
+                        progress=self.progress,reuse_from=sorted(p.parent for p in ground.glob('*/campaign.json') if p.parent!=directory))
+                    issues=case_runner.repair_obligations(source,directory,verdicts=('FAIL',))['issues']
+                    if issues:
+                        if self.job['policy']=='first-pass':
+                            raise StageFailure('MATHEMATICAL_REVIEW_FAILED','Foundation review found a source or target defect',
+                                               phase='nl0',evidence=directory/'global/stage/accepted.json')
+                        history.append((checked,issues))
+                        continue
+                    deferred=case_runner.repair_obligations(source,directory,verdicts=('UNVERIFIED',))['issues']+support
+                    if deferred:write(directory/'local-notes.json',deferred)
+                    break
                 selected=frozen_graph.select(self.job,checked,previous=previous)
                 return routes.outcome('selected',{**common,'global':selected,**({'history':data['repair']} if previous else {})})
             if name=='detail':

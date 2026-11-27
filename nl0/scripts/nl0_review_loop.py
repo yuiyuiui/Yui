@@ -128,7 +128,8 @@ def run(job, budget, audit_budget, progress, author_stage, repair_obligations, *
             global_dir=root/'audit-a'/f'{epoch:04d}-{len(prior)+1:04d}'
             problem=problem_inputs(job)
             if review_index is None:
-                review_index=audit_reuse.ReviewIndex(nl0.load(source/'spec.json')['case_id'],prior)
+                foundations=sorted(p.parent for p in (root/'audit-a-foundations').glob('*/campaign.json'))
+                review_index=audit_reuse.ReviewIndex(nl0.load(source/'spec.json')['case_id'],[*foundations,*prior])
             global_plan=campaign.prepare(source,problem,global_dir,review_index=review_index)
             progress(job['case'],'AUDIT_A_GLOBAL',directory=str(global_dir))
             campaign.run(global_dir,budget=budget,audit_budget=audit_budget,only='global',sessions=sessions)
