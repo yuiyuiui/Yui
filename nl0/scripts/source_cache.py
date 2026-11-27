@@ -8,7 +8,7 @@ import shutil
 import tempfile
 
 from controller_common import bind, verify_bindings, write
-from staging_storage import copy_input
+from staging_storage import copy_input, write_bytes
 
 LIMIT=256*1024**2
 
@@ -31,9 +31,21 @@ def collect(root):
             shutil.rmtree(directory)
 
 
+def publish(path, digest, materialize):
+    """Use a content-addressed path under the URL lock, including for stage copies."""
+    if path.is_symlink():
+        raise ValueError('Cached source evidence path is a symlink')
+    if not path.exists():
+        materialize(path)
+    reference = bind(path)
+    if reference['sha256'] != digest:
+        raise ValueError('Cached source evidence changed: '+str(path))
+    return reference
+
+
 def fetch(directory,url,browser,root,download):
-    root=Path(root);root.mkdir(parents=True,exist_ok=True)
-    directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
+    root=Path(root).resolve();root.mkdir(parents=True,exist_ok=True)
+    directory=Path(directory).resolve();directory.mkdir(parents=True,exist_ok=True)
     key=hashlib.sha256(json.dumps([url,browser]).encode()).hexdigest()
     # Fixed lock stripes bound metadata even after a long search campaign.
     with lock(root/(key[:2]+'.lock')):
@@ -48,11 +60,15 @@ def fetch(directory,url,browser,root,download):
                         ref=record[field];src=Path(ref['path'])
                         if src.parent!=entry or src.is_symlink():raise ValueError('Invalid cached source path')
                         verify_bindings([ref])
-                        dst=directory/('access-'+key+'-'+src.name)
-                        copy_input(src,dst);record[field]=bind(dst)
-                file=directory/('access-'+key+'.json')
-                write(file,record);entry.touch()
-                return {**record,'record':bind(file)}
+                        digest=ref['sha256']
+                        dst=directory/f'access-{key}-{digest}-{src.name}'
+                        record[field]=publish(dst,digest,lambda path: copy_input(src,path))
+                raw=(json.dumps(record,ensure_ascii=False,indent=2)+'\n').encode()
+                digest=hashlib.sha256(raw).hexdigest()
+                file=directory/f'access-{key}-{digest}.json'
+                reference=publish(file,digest,lambda path: write_bytes(path,raw))
+                entry.touch()
+                return {**record,'record':reference}
         result=download(directory,url,browser=browser)
         if result['status']!='READABLE':return result
         record={k:v for k,v in result.items() if k!='record'}

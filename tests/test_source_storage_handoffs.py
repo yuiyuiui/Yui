@@ -8,7 +8,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from controller_common import bind
+from controller_common import bind, verify_bindings
 import nl0
 import nl0_review_loop
 import source_access
@@ -58,6 +58,40 @@ class StorageHandoffs(unittest.TestCase):
                 role('third','https://example.org/two')
             self.assertFalse(list(cache.glob('entry-*')))
             self.assertEqual(bind(a['document']['path']),a['document'])
+
+    def test_review_search_preserves_the_frozen_access_record(self):
+        """AIM 180: the local author looked up an already cited source again."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            cache, author, reviewer = (root/name for name in ('cache', 'author', 'reviewer'))
+            url = 'https://example.org/pinned-v2'
+
+            def download(directory, url, *, browser):
+                pdf, text = directory/'source.pdf', directory/'source.txt'
+                pdf.write_bytes(b'%PDF-1.4 fixture')
+                text.write_text('The initial law is independent of the instruction array.')
+                return {'url': url, 'status': 'READABLE', 'document': bind(pdf), 'text': bind(text)}
+
+            source_cache.fetch(root/'first', url, False, cache, download)
+            original = source_cache.fetch(author, url, False, cache, download)
+            reviewer.mkdir()
+            frozen = []
+            for key in ('record', 'document', 'text'):
+                src = Path(original[key]['path'])
+                dest = reviewer/src.name
+                staging_storage.copy_input(src, dest)
+                frozen.append(bind(dest))
+
+            actual = source_cache.fetch(reviewer, url, False, cache, download)
+            verify_bindings(frozen)
+            self.assertNotEqual(actual['record']['path'], frozen[0]['path'])
+            self.assertEqual(actual, source_cache.fetch(reviewer, url, False, cache, download))
+            self.assertEqual(actual['document']['sha256'], frozen[1]['sha256'])
+            Path(actual['document']['path']).write_bytes(b'modified PDF')
+            with self.assertRaisesRegex(ValueError, 'evidence.*changed|changed.*evidence'):
+                source_cache.fetch(reviewer, url, False, cache, download)
+            with self.assertRaises(ValueError):
+                verify_bindings([frozen[1]])
 
     def test_bounded_stream_rejects_oversize_truncation_and_disk_pressure(self):
         class Response(BytesIO):
