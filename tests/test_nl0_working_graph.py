@@ -50,6 +50,62 @@ class WorkingGraphTests(unittest.TestCase):
         self.seed=self.registry['global_graph']
         self.source=support.TESTS/'fixtures/closed-addition'
 
+    def test_local_input_only_edit_preserves_other_drafts_and_checks_revision(self):
+        spec, graph = (nl0.load(self.source/name) for name in ('spec.json','nl0.json'))
+        graph = {**graph,**fg.shape(graph)}
+        docs = {'problem.md':'Given a=b, derive a+0=b.'}
+        outline = support.elementary_outline(graph['inferences'])
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw).resolve()
+            global_case=root/'global-graphs/0001/stage/case'
+            author=fg.AuthorContract(global_case,docs,spec['case_id'],fg.DIRECT)
+            author({'spec':spec,**fg.shape(graph),'proof_outline':outline})
+            job={'root':str(root)}
+            selected=fg.select(job,fg.checked_receipt(global_case,fg.DIRECT))
+            frozen=fg.read_working(selected)
+            local=fg.AuthorContract(root/'nl0/local/stage/case',{
+                **docs,fg.ASSIGNED:json.dumps(frozen),
+                fg.graph_outline.FILENAME:json.dumps(fg.read_outline(nl0.load(selected['path']))),
+            },spec['case_id'],fg.LOCAL)
+            [first,last]=[{k:row[k] for k in ('id',*fg.BODY_FIELDS)} for row in nl0.load(self.source/'nl0.json')['inferences']]
+            local({'local_proofs':[first,last]})
+            edit={'base_revision':0,'inference':'R002','premise':'H001','outline_step':1}
+            with self.assertRaisesRegex(ValueError,'NL0_EDGE_CYCLE'):
+                local({'attach_input':{**edit,'inference':'R001','premise':'N001'}})
+            with self.assertRaisesRegex(ValueError,'unexpected|Additional'):
+                local({'attach_input':{**edit,'statement':'New declaration'}})
+            self.assertEqual(local({'attach_input':edit})['graph_revision'],1)
+            with self.assertRaisesRegex(ValueError,'NL0_EDGE_STALE'):
+                local({'attach_input':edit})
+            self.assertEqual(local.assigned_proofs,{'R001':first})
+            self.assertEqual(local.local_scope['graph']['inferences'][-1]['inputs'],['N001','H001'])
+            self.assertEqual(fg.read_working(selected),frozen)
+            last['argument'][-1]['uses'].append('H001')
+            local({'local_proofs':[last]})
+            amended=fg.select_edges(job,selected,local)
+            self.assertEqual(nl0.load(amended['path'])['previous'],selected)
+            self.assertEqual(fg.read_working(amended),local.edge_scope)
+            self.assertEqual(nl0.load(local.directory/'nl0.json')['inferences'][0],
+                             nl0.load(self.source/'nl0.json')['inferences'][0])
+
+    def test_added_input_rechecks_transitive_definition_guards(self):
+        spec, graph = (nl0.load(self.source/name) for name in ('spec.json','nl0.json'))
+        hypothesis=deepcopy(graph['propositions'][0])
+        hypothesis.update(id='H002',definitions=['D002'])
+        graph['propositions'].append(hypothesis)
+        spec['definitions']=[
+            {'id':'D001','requires':['H001'],'depends_on':[]},
+            {'id':'D002','requires':[],'depends_on':['D001']},
+        ]
+        outline=support.elementary_outline(graph['inferences'])
+        edit={'base_revision':0,'inference':'R002','premise':'H002','outline_step':1}
+        with self.assertRaisesRegex(ValueError,'DIRECT-GUARD.*D001'):
+            graph_repair.attach_input({'spec':spec,'graph':graph},outline,edit,0)
+        graph['inferences'][-1]['inputs'].append('H001')
+        outline['R002']['steps'][0]['uses'].append('H001')
+        checked,_=graph_repair.attach_input({'spec':spec,'graph':graph},outline,edit,0)
+        self.assertEqual([row['id'] for row in graph_repair.context(checked)['R002'][2]],['D001','D002'])
+
     def test_both_entry_prompts_preserve_source_scope_and_revisions_keep_valid_claims(self):
         for owner in (fg.DIRECT,fg.BASIS):
             with self.subTest(owner=owner):

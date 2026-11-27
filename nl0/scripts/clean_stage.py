@@ -556,13 +556,14 @@ class ArtifactStage(pilot.Stage):
                 import graph_repair
                 from frozen_graph import ASSIGNED, ASSIGNED_PROOFS
                 from controller_common import bind
-                graph_repair.assess(self.validator.frozen,args,self.task_inputs)
+                graph_repair.assess(self.validator.edge_scope,args,self.task_inputs)
                 saved=self.validator.directory/ASSIGNED_PROOFS
                 feedback={'local_proofs':json.loads(saved.read_text())} if saved.is_file() else self.validator.graph_feedback
-                drafts=graph_repair.retained_proofs(self.validator.frozen,args,feedback)
+                drafts=graph_repair.retained_proofs(self.validator.edge_scope,args,feedback)
                 assigned=bind(self.logs.parent/'inputs'/ASSIGNED)
                 self.accepted={'version':graph_repair.VERSION,'status':graph_repair.STATUS,'assigned':assigned,
                                'batch':deepcopy(args),'local_proofs':drafts,
+                               **({'edge_edits':self.validator.edge_edits} if self.validator.edge_edits else {}),
                                **({'saved_proofs':bind(saved)} if saved.is_file() else {})}
                 result={'accepted':True,'stage_complete':True,'mathematical_acceptance':False,'outcome':graph_repair.STATUS}
             elif name == 'report_basis_defect':
@@ -659,6 +660,7 @@ class ArtifactStage(pilot.Stage):
                 check=self.validator.author_check
                 if self.mode=='nl0-local-authoring' and 'candidate' not in args:
                     result=check.interface(self.validator.local_scope,args['inference'])
+                    result['graph_revision']=len(self.validator.edge_edits)
                 elif self.author_closing:
                     result=check.packet(args['candidate'],args['inference'])
                 else:
@@ -690,6 +692,8 @@ class ArtifactStage(pilot.Stage):
                          json.loads(args['artifact_json'], object_pairs_hook=pilot.ir.unique))
                 if not isinstance(value, dict):
                     raise ValueError('Artifact must be a JSON object')
+                if 'attach_input' in value and name!='check_draft':
+                    raise ValueError('Use check_draft to check an existing-input edit')
                 if self.background_review and not value.get('from_saved_review'):
                     value.setdefault('background_notes', deepcopy(self.background_notes))
                 checked = self.validator(value) if self.validator else {'structural_acceptance_only': True}

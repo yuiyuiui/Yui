@@ -1,5 +1,6 @@
 """Located objections to the current NL0 graph. No report grants mathematical acceptance."""
 from collections import defaultdict
+from copy import deepcopy
 import json
 from pathlib import Path
 import hashlib
@@ -15,6 +16,12 @@ RULE = ('Use the actual conditional packet: it supplies direct premises and the 
         'of the inference and its ports. A return needs a missing or incorrect piece of that contract '
         'that prevents the proof or a concrete downstream use. Use local proof steps for a valid '
         'alternative organization of the same implication.')
+EDGE_SCHEMA = protocol.obj({
+    'base_revision': {'type':'integer','minimum':0},
+    'inference': protocol.TEXT,
+    'premise': protocol.TEXT,
+    'outline_step': {'type':'integer','minimum':1},
+})
 SCHEMA = protocol.obj({
     'inference': protocol.TEXT,
     'related_propositions': protocol.array(protocol.TEXT, uniqueItems=True),
@@ -45,6 +52,46 @@ def context(frozen):
     props = {p['id']:p for p in graph['propositions']}
     defs = {d['id']:d for d in spec['definitions']}
     return {r['id']:closure.inference_scope(r,props,defs) for r in graph['inferences']}
+
+
+def attach_input(frozen, outline, edit, revision):
+    """Add one already declared premise to one outlined inference."""
+    from frozen_graph import indexed
+    from nl0 import closure, usage
+
+    protocol.validate(edit, EDGE_SCHEMA)
+    if edit['base_revision'] != revision:
+        raise ValueError(f'NL0_EDGE_STALE: read the current author packet at revision {revision}')
+    candidate, outline = deepcopy(frozen), deepcopy(outline)
+    graph, spec = candidate['graph'], candidate['spec']
+    rid, pid = edit['inference'], edit['premise']
+    steps, props = indexed(graph['inferences']), indexed(graph['propositions'])
+    if rid not in steps or rid not in outline or pid not in props:
+        raise ValueError('NL0_EDGE: choose an outlined inference and an existing premise')
+    step = steps[rid]
+    if pid in step['inputs']:
+        raise ValueError(f'NL0_EDGE: {pid} is already a direct input of {rid}')
+    producers = {row['output']:row['inputs'] for row in steps.values()}
+    visited, pending = set(), [pid]
+    while pending:
+        current = pending.pop()
+        if current == step['output']:
+            raise ValueError(f'NL0_EDGE_CYCLE: adding {pid} to {rid} creates a cycle')
+        if current not in visited:
+            visited.add(current)
+            pending.extend(producers.get(current, []))
+    sections = outline[rid]['steps']
+    if edit['outline_step'] > len(sections):
+        raise ValueError(f'NL0_EDGE: choose an existing outline step of {rid}')
+    step['inputs'].append(pid)
+    _, _, definitions = closure.inference_scope(step, props, indexed(spec['definitions']))
+    closure.check_definition_guards(step, definitions)
+    sections[edit['outline_step']-1]['uses'].append(pid)
+    outline[rid].pop('keep_together', None)
+    for prop in graph['propositions']:
+        prop.get('usage', {}).pop('inferences', None)
+    usage.bind(graph, {item['path'] for item in spec['inputs']})
+    return candidate, outline
 
 
 def same_scope(before, after):
@@ -224,7 +271,7 @@ def locate(frozen, finding):
 def verify_local(stage,selected):
     from controller_common import bind, verify_bindings
     from execution_health import record_qualification
-    from frozen_graph import ASSIGNED,ASSIGNED_PROOFS,read_working
+    from frozen_graph import ASSIGNED,ASSIGNED_PROOFS,read_outline,read_working
     import nl0
     result=nl0.load(stage/'result.json')
     accepted=nl0.load(stage/'accepted.json')
@@ -232,14 +279,29 @@ def verify_local(stage,selected):
     verify_bindings([selected,accepted['assigned']])
     frozen=nl0.load(inputs)
     manifest=nl0.load(stage/'execution-manifest.json')
+    edits=accepted.get('edge_edits',[])
+    selected_record=nl0.load(selected['path'])
+    original=selected_record['previous'] if edits else selected
     if (result.get('exposure')!=nl0.load(stage/'exposure-audit.json')
             or result.get('role_session')!=manifest.get('role_session')
             or result.get('status')!='BLOCKED' or result.get('task_outcome')!=STATUS or result.get('execution_fault')
             or not record_qualification(result,allow_blocked=True)['submitted_record_qualified']
             or accepted.get('status')!=STATUS or accepted['assigned']!=bind(inputs)
-            or frozen!=read_working(selected)):
+            or frozen!=read_working(original)):
         raise ValueError('Unqualified or stale local graph finding')
     events=[json.loads(line) for line in (stage/'tools.jsonl').read_text().splitlines()]
+    if edits:
+        checked=[event['arguments']['artifact']['attach_input'] for event in events
+                 if event['tool']=='check_draft' and 'attach_input' in event['arguments']['artifact']
+                 and event['result'].get('validation',{}).get('status')=='LOCAL_EDGE_CHECKED']
+        if edits!=checked:
+            raise ValueError('NL0_EDGE: selected edits differ from checked local submissions')
+        outline={rid:{'steps':row['steps']} for rid,row in
+                 read_outline(nl0.load(original['path']))['inferences'].items()}
+        for revision, edit in enumerate(edits):
+            frozen,outline=attach_input(frozen,outline,edit,revision)
+        if frozen!=read_working(selected) or outline!=read_outline(selected_record)['inferences']:
+            raise ValueError('NL0_EDGE: selected graph differs from replayed local edits')
     batch=accepted.get('version')==VERSION
     submission=accepted['batch'] if batch else accepted['finding']
     if not any(e['tool']==TOOL and e['arguments']==submission and e['result'].get('stage_complete') is True for e in events):
@@ -287,6 +349,9 @@ def _repair_lineage(root, receipt):
         if report['job'] not in owners or not Path(graph['path']).is_relative_to(root/'global-graphs'):
             raise ValueError('NL0 repair history belongs to a different run')
         verify_bindings([graph])
+        while newer is not None and newer!=graph and Path(newer['path']).parents[2].name.endswith(('-edges','-detail')):
+            verify_bindings([newer])
+            newer=nl0.load(newer['path'])['previous']
         if newer is not None and newer!=graph:
             verify_bindings([newer])
             if nl0.load(newer['path'])['previous']!=graph:
@@ -323,7 +388,7 @@ def consecutive_reports(root, receipt):
             for (consumer,interface),reports in groups.items() if len(reports)>1]
 
 
-def shared_proposition_reports(root, receipt, graph):
+def shared_proposition_reports(root, receipt, graph, spec=None):
     """Summarize retained reports from distinct consumers for the current author."""
     from controller_common import verify_bindings
     import nl0
@@ -332,13 +397,18 @@ def shared_proposition_reports(root, receipt, graph):
     for row in graph['inferences']:
         for premise in row['inputs']:
             consumers[premise].append(row['id'])
+    if spec is not None:
+        consumers.update((row['id'], []) for row in spec['definitions'])
+        for rid, (_, _, definitions) in context({'graph':graph,'spec':spec}).items():
+            for definition in definitions:
+                consumers[definition['id']].append(rid)
     groups = defaultdict(list)
     try:
         for ref, report in _repair_lineage(root, receipt):
             blockers = report['obligations'].get('blockers', [])
             named = defaultdict(list)
             for finding in blockers:
-                if finding['subject'] in consumers and FIELDS[finding['kind']] != 'definitions':
+                if finding['subject'] in consumers:
                     named[finding['subject']].append(finding)
             if named:
                 [evidence] = report['evidence']

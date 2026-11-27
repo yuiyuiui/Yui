@@ -103,6 +103,12 @@ def author_code(stage):
             explanation='The obligations conflict at the last inference even after consulting all available roots.',
             partial_progress='The earlier symmetry node can still be retained.')
     if graph_continuation or mode in {'local-edge','first-pass-edge','relabel-closed','relabel-residual'}:
+        if graph_continuation:
+            first,last=graph['inferences']
+            first['inputs'].append('E001')
+            first['argument'][0]['uses'].append('E001')
+            first['argument'][0]['text']='E001 gives a+0=a. Substitute into H001 to obtain a+0=b. Therefore a=b and b=a.'
+            first['applications']=[deepcopy(last['applications'][0])]
         if stage.mode==fg.LOCAL:
             current=json.loads(stage.task_inputs[fg.ASSIGNED])['graph']
             if 'H001' not in next(r for r in current['inferences'] if r['id']=='R002')['inputs']:
@@ -111,8 +117,11 @@ def author_code(stage):
                 first=next(r for r in graph['inferences'] if r['id']=='R001')
                 if graph_continuation:
                     report['source_spans']=[{'from_task':'problem.md','start_line':1,'end_line':1}]
-                    return call('report_graph_issue',findings=[report],
-                                local_proofs=[{k:first[k] for k in ('id',*fg.BODY_FIELDS)}])
+                    return (call('check_draft',artifact={'attach_input':{'base_revision':0,
+                                'inference':'R001','premise':'E001','outline_step':1}})
+                            +call('read_author_packet',inference='R001')
+                            +call('report_graph_issue',findings=[report],
+                                local_proofs=[{k:first[k] for k in ('id',*fg.BODY_FIELDS)}]))
                 return (call('report_graph_issue',findings=[{**report,'inference':'R999'}])+
                         call('report_graph_issue',findings=[{**report,'subject':'H999'}])+
                         call('report_graph_issue',findings=[report],
@@ -122,6 +131,10 @@ def author_code(stage):
         last['uses'].append('H001')
         last['text']+=' Compose the original equality, its symmetric equality and the original equality to obtain the last equality.'
     if stage.mode==fg.BASIS and 'prior-global.json' in stage.task_inputs:
+        if graph_continuation:
+            previous=json.loads(stage.task_inputs['prior-global.json'])
+            if 'E001' not in previous['graph']['inferences'][0]['inputs']:
+                raise AssertionError('The continuing global author must receive the locally patched graph')
         first=''
         if mode=='stalled-graph':
             previous=json.loads(stage.task_inputs['prior-global.json'])
@@ -350,6 +363,7 @@ def scripted(stage):
         value=addition_interface()
         if graph_continuation:
             value['steps'][-1]['inputs'].append('H001')
+            value['steps'][0]['inputs'].append('E001')
         if mode=='local-edge' or mode.startswith('relabel-'):value['steps'][-1]['inputs'].append('H001')
         if mode=='native-source':
             value['premise_types']['M001']='∀ a b c : ℕ, a / b / c = a / c / b'
@@ -376,7 +390,8 @@ def scripted(stage):
         return call('submit_draft',artifact=value)
     if stage.mode=='proof':
         if graph_continuation:
-            proof='exact h_H001.symm' if stage.step=='T001' else 'simpa only [h_E001 a] using h_T001.symm'
+            proof=('exact h_H001.symm.trans ((h_E001 a).symm.trans (h_E001 a))' if stage.step=='T001'
+                   else 'simpa only [h_E001 a] using h_T001.symm')
             return call('submit_transition',proof=proof)
         if mode=='native-source' and stage.step=='T002':
             return call('submit_transition',proof='have _ := h_M001 a 1 1\nsimpa only [Nat.add_zero] using h_T001.symm')

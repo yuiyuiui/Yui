@@ -202,7 +202,10 @@ class Evidence:
         [submission] = record['evidence']
         old_stage = Path(submission['path']).parent
         accepted = self.json(Path(submission['path']))
-        self.write(bind(old_stage.parent/'inputs'/ASSIGNED),read_working(self.reference(record['global'])))
+        assigned = record['global']
+        if accepted.get('edge_edits'):
+            assigned = self.json(Path(assigned['path']))['previous']
+        self.write(bind(old_stage.parent/'inputs'/ASSIGNED),read_working(self.reference(assigned)))
         for finding in accepted.get('batch',{}).get('findings',[]):
             for span in finding.get('source_spans',[]):
                 path = old_stage.parent/'inputs'/span['from_task']

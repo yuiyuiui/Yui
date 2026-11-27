@@ -140,7 +140,7 @@ class Case:
                     findings={**report['obligations'],
                               'consecutive_blockers':graph_repair.consecutive_reports(self.root,data['repair']),
                               'shared_proposition_reports':graph_repair.shared_proposition_reports(
-                                  self.root,data['repair'],working['graph'])}
+                                  self.root,data['repair'],working['graph'],working['spec'])}
                 self.progress(self.job['case'],'NL0_GLOBAL_REVISION' if previous else 'NL0_GLOBAL_REVIEW',owner=owner)
                 checked=frozen_graph.global_stage(self.job,self.budgets.serial,owner=owner,previous=previous,findings=findings,foundation=foundation)
                 selected=frozen_graph.select(self.job,checked,previous=previous)
@@ -162,8 +162,8 @@ class Case:
                         obligations=history.get('obligations') if baseline else None,
                         graph_history=history,
                         check_handoff=lambda source: ctx.check_output(**detailed(source)))
-                self.working(data)
-                return detailed(source)
+                selected=self.local_selection(data['global'])
+                return routes.outcome('detailed',{**data,'global':selected,'local':bind(source/'nl0.json')})
             if name=='audit':
                 source=Path(data['local']['path']).parent
                 data={**data,'global':frozen_graph.select_detail(self.job,data['global'],source)}
@@ -225,7 +225,8 @@ class Case:
         except graph_repair.Request as request:
             if name not in ('detail','audit'):raise
             try:
-                return self.repair(data,request)
+                selected=self.local_selection(data['global']) if name=='detail' else data['global']
+                return self.repair({**data,'global':selected},request)
             except Exception as failure:
                 self.failure=failure
                 raise
@@ -235,3 +236,11 @@ class Case:
         except Exception as error:
             self.failure=error
             raise
+
+    def local_selection(self, previous):
+        selected=self.read(bind(self.root/'global-selection.json'))
+        if selected!=previous:
+            record=self.read(selected)
+            if record['previous']!=previous or not Path(selected['path']).parents[2].name.endswith('-edges'):
+                raise ValueError('Unexpected NL0 assignment change during local authoring')
+        return selected

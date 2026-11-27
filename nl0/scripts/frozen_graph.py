@@ -134,10 +134,12 @@ class AuthorContract(NL0Contract):
         self.frozen = json.loads(documents[ASSIGNED]) if phase==LOCAL else None
         self.graph_feedback = json.loads(documents.get(graph_repair.FEEDBACK,'{}'))
         if self.frozen:
-            self.local_scope = self.frozen
+            self.local_scope = self.edge_scope = self.frozen
+            self.edge_edits = []
             self.assigned_proposition_ids = set(indexed(self.frozen['graph']['propositions']))
             outline = json.loads(documents.get(graph_outline.FILENAME,'{}')).get('inferences',{})
             self.local_outline = {rid:{'steps':entry['steps']} for rid,entry in outline.items()}
+            self.edge_outline = self.local_outline
             self.proposed_outline = None
             self.granularity_pending = {}
             self.assigned_proofs = graph_repair.proof_rows(self.frozen,self.graph_feedback.get('local_proofs',[]))
@@ -165,7 +167,8 @@ class AuthorContract(NL0Contract):
         from payload_protocols import editable
         self.schema = editable(form) if phase==LOCAL else protocol.choice(form,protocol.obj({'accept_candidate':{'type':'integer','minimum':1}}))
         if phase==LOCAL and self.local_outline:
-            self.schema = protocol.choice(self.schema,graph_refinement.schema())
+            self.schema = protocol.choice(self.schema,graph_refinement.schema(),
+                                          protocol.obj({'attach_input':graph_repair.EDGE_SCHEMA}))
 
     def __call__(self, value):
         protocol.validate(value,self.schema)
@@ -204,26 +207,40 @@ class AuthorContract(NL0Contract):
         return result
 
     def local_candidate(self, value):
-        from graph_repair import proof_rows
+        from graph_repair import attach_input, proof_rows
 
         last = self.valid_drafts.get(self.last_valid_candidate)
-        if 'refine_candidate' in value:
+        if 'attach_input' in value:
+            if shape(self.local_scope['graph'])!=shape(self.edge_scope['graph']):
+                raise ValueError('NL0_EDGE: edit the coarse assignment before refining its proofs')
+            edit = value['attach_input']
+            scope, outline = attach_input(self.edge_scope,self.edge_outline,edit,len(self.edge_edits))
+            graph_outline.check(scope['graph'],outline,self.outline_documents(),provisional=True)
+            self.edge_scope = self.local_scope = scope
+            self.edge_outline = self.local_outline = outline
+            self.edge_edits.append(deepcopy(edit))
+            self.assigned_proofs.pop(edit['inference'],None)
+            self.last_valid_candidate = None
+            self.save_assigned_proofs()
+            return {'status':'LOCAL_EDGE_CHECKED','graph_revision':len(self.edge_edits),
+                    'draft_pending':True,'mathematical_acceptance':False}
+        elif 'refine_candidate' in value:
             if last is None or value['refine_candidate'] != self.last_valid_candidate:
                 raise ValueError(f'NL0_REFINEMENT: first check the written local proof, then refine the latest '
                                  f'checked candidate ({self.last_valid_candidate})')
             expanded, self.proposed_outline = graph_refinement.apply(last,self.local_outline,value,
-                                                                     assigned=self.frozen['graph'])
+                                                                     assigned=self.edge_scope['graph'])
         elif 'local_proofs' in value:
             rows = proof_rows(self.local_scope,value['local_proofs'])
             if last is None:
                 self.assigned_proofs.update(rows)
                 self.save_assigned_proofs()
                 rows = self.assigned_proofs
-                missing = sorted(indexed(self.frozen['graph']['inferences']).keys() - rows.keys())
+                missing = sorted(indexed(self.edge_scope['graph']['inferences']).keys() - rows.keys())
                 if missing:
                     return {'status':'LOCAL_DRAFT_SAVED','remaining_local_proofs':missing,'draft_pending':True,
                             'mathematical_acceptance':False}
-            expanded = deepcopy(last or self.frozen)
+            expanded = deepcopy(last or self.edge_scope)
             for step in expanded['graph']['inferences']:
                 if step['id'] in rows:
                     step.update({name:deepcopy(rows[step['id']][name]) for name in BODY_FIELDS})
@@ -260,7 +277,7 @@ class AuthorContract(NL0Contract):
             write(self.directory/graph_outline.FILENAME,report)
             self.granularity_pending[self.attempt] = graph_outline.pending(report)
             result['granularity_pending'] = self.granularity_pending[self.attempt]
-        if shape(graph)==shape(self.frozen['graph']):
+        if shape(graph)==shape(self.edge_scope['graph']):
             self.assigned_proofs = {row['id']:{key:row[key] for key in ('id',*BODY_FIELDS)}
                                     for row in graph['inferences']}
             self.save_assigned_proofs()
@@ -592,10 +609,18 @@ def _select(job, checked, previous):
     return selected
 
 
+def select_edges(job, previous, validator):
+    if not validator.edge_edits:
+        return previous
+    record = nl0.load(previous['path'])
+    scope, outline = validator.edge_scope, validator.edge_outline
+    source = Path(record['graph']['path']).parent
+    report = graph_outline.check(scope['graph'],outline,validator.outline_documents(),provisional=True)
+    return select_local_graph(job,previous,source,scope['spec'],scope['graph'],report,'-edges')
+
+
 def select_detail(job, previous, source):
     """Use the delivered local graph at the Audit A receiving boundary."""
-    import fcntl
-
     root = Path(job['root']).resolve()
     graphs = root/'global-graphs'
     source = Path(source).resolve()
@@ -616,12 +641,25 @@ def select_detail(job, previous, source):
     if not assignment.is_relative_to(graphs) or not source.is_relative_to(root/'nl0') or 'outline' not in record:
         raise ValueError('Refined NL0 must belong to the current outlined assignment')
     staged_assignment = source.parent.parent/'inputs'/ASSIGNED
-    if nl0.load(staged_assignment)!=provisional:
-        raise ValueError('Refined NL0 author used a different assignment')
+    assigned = nl0.load(staged_assignment)
+    if assigned!=provisional:
+        before_edits = record.get('previous')
+        if (not assignment.parents[2].name.endswith('-edges') or before_edits is None
+                or assigned!=read_working(before_edits)):
+            raise ValueError('Refined NL0 author used a different assignment')
+    return select_local_graph(job,previous,source,spec,{**graph,**shape(graph)},report,'-detail')
+
+
+def select_local_graph(job, previous, source, spec, projection, report, suffix):
+    import fcntl
+
+    root = Path(job['root']).resolve()
+    graphs = root/'global-graphs'
+    assignment = Path(previous['path'])
+    record = nl0.load(assignment)
     dirname = assignment.relative_to(graphs).parts[0]
-    destination = graphs/(dirname+'-detail')/'stage/case'
+    destination = graphs/(dirname+suffix)/'stage/case'
     checked = destination/'checked-global.json'
-    projection = {**graph,**shape(graph)}
     with (graphs/'.selection.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         current = nl0.load(root/'global-selection.json')
@@ -639,9 +677,10 @@ def select_detail(job, previous, source):
                 target.parent.mkdir(parents=True,exist_ok=True)
                 copy_input(source/item['path'],target)
             evidence(source,projection,destination)
-            copy_input(spec_path,destination/'spec.json')
+            copy_input(source/'spec.json',destination/'spec.json')
             write(destination/'nl0.json',projection)
-            write(destination/graph_outline.FILENAME,{**report,'graph_sha256':nl0.sha(destination/'nl0.json')})
+            write(destination/graph_outline.FILENAME,{**report,'graph_sha256':nl0.sha(destination/'nl0.json'),
+                                                       'spec_sha256':projection['spec_sha256']})
             binding = checked_receipt(destination,record['owner'],foundation=record.get('foundation'),previous=previous)
         return _select(job,binding,previous)
 
@@ -715,6 +754,10 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
                  + ', '.join(f'{rid} ({pid}, {count} direct consumers)' for rid,pid,count in first)+'.')
     if 'outline' in record:
         prompt+=(' Read proof-outline.json for the planned derivations and precise source ranges. '
+                 'If a needed, unchanged proposition already exists in this working graph, use check_draft with '
+                 'attach_input: {base_revision, inference, premise, outline_step}. Read the current graph_revision '
+                 'in read_author_packet and name the 1-based outline step that uses it. Then write that proof '
+                 'under the updated packet. Do this before refining. Report gaps requiring a changed or new claim together. '
                  'For a large block, first write medium-size parts using explicit S steps and F facts. '
                  'After checking the written derivations, use check_draft with refine_candidate and splits to extract '
                  'substantial independently provable arguments, including single-use ones. Use fresh N/R IDs. '
@@ -740,10 +783,11 @@ def local_stage(job, directory, budget, *, baseline=None, obligations=None, chec
     evidence(Path(record['graph']['path']).parent,frozen['graph'],stage.validator.directory)
     stage.execute()
     budget.execution.check()
+    selected=select_edges(job,previous,stage.validator)
     if nl0.load(stage.logs/'result.json').get('task_outcome')==graph_repair.STATUS:
-        report=graph_repair.verify_local(stage.logs,previous)
+        report=graph_repair.verify_local(stage.logs,selected)
         prior=None
-        if (stage.validator.last_valid_candidate is not None
+        if (not stage.validator.edge_edits and stage.validator.last_valid_candidate is not None
                 and shape(stage.validator.local_scope['graph'])==shape(frozen['graph'])):
             from author_check import digest
             prior=stage.validator.directory
